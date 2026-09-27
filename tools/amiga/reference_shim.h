@@ -40,6 +40,8 @@ struct entityclass {
     std::vector<blockclass> blocks;
     void disableblock(int);
     void disableblockat(int,int);
+    void stuckprevention(int);
+    void platformcollision(int,int);
     void moveblockto(int,int,int,int,int,int);
     bool entitycollide(int,int);
     void movingplatformfix(int,int);

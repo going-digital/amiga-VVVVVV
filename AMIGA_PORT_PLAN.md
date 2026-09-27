@@ -37,9 +37,9 @@ black, one room accent, green checkpoints and white text; the player has an
 independent cyan sprite colour. Low-intensity tile shading is omitted.
 
 On Copperline's stock PAL A500, 512K Chip + 512K slow RAM profile, the slice
-allocates **81,934 Chip bytes**. Ordinary work peaks at **91 lines / 5.824 ms**;
-the transition replay peaks at **167 / 10.688 ms**, with room-change work at
-**167 / 10.688 ms**. Both pass the 20% video-headroom gate, zero missed VBL checks,
+allocates **81,934 Chip bytes**. Ordinary work peaks at **92 lines / 5.888 ms**;
+the transition replay peaks at **168 / 10.752 ms**, with room-change work at
+**168 / 10.752 ms**. Both pass the 20% video-headroom gate, zero missed VBL checks,
 visible-player checks and clean exit; the ordinary capture also verifies audio.
 The previous 45.312 ms full-room redraw and explicit loading pause are gone.
 
@@ -61,7 +61,7 @@ integer speeds, including patrol boundaries, tile collisions and enemy barriers.
 It now runs on the 68000 in the original **Security Sweep (112,103)** room,
 with its speed-8 vertical drone, checkpoint, hardware sprite and player-hit
 handling. This separate one-room scene allocates **43,534 Chip bytes** and peaks
-at **136 PAL lines / 8.704 ms**, with zero missed VBL observations.
+at **137 PAL lines / 8.768 ms**, with zero missed VBL observations.
 Pixel-mask collision matches **53,868 reference cases**, and collision animation
 matches **20,000 ticks**, using the original red-channel mask semantics and
 pre-physics frame selection. The target replay verifies a hit, death, respawn,
@@ -75,7 +75,7 @@ double buffering adds **1,632 Chip bytes**. The separate **Traffic Jam (115,103)
 three original enemies. Wide requests reserve two channels atomically and pass
 another **33,792 host cases**. Its capture verifies three visible red enemies,
 movement, checkpoint activation and clean exit, and now **passes the unchanged
-250-line performance gate**: peak **248 lines / 15.872 ms**, down from 328 lines.
+250-line performance gate**: peak **249 lines / 15.936 ms**, down from 328 lines.
 Chip allocation remains **43,534 bytes**. A **2,052-byte non-Chip terrain cache
 per room**, smaller checkpoint writes and per-text-row HUD invalidation provide
 the reduction. Cached and uncached movement both match the full existing player
@@ -104,8 +104,10 @@ implementations. **24,000 cases each** match their original methods, alongside
 The retained pending Y position, respawn suppression and platform reversal when
 blocked are preserved. The player API now separates input from physics and retains pending Y in
 caller-owned motion state. **12,000 ordered input/push/carry/physics ticks** match
-extracted reference code with prescribed platform positions. Complete platform
-movement scheduling, post-physics block disabling/stuck-player correction,
+extracted reference code with prescribed platform positions. Post-physics block
+disabling and stuck-player correction now match **12,000 additional reference
+cases per terrain path**, including duplicate origins and directional-barrier
+skipping. Complete platform movement scheduling, combined post-physics handling,
 crush/death behavior and a native platform room remain the next integration
 milestone. All four existing native captures still pass.
 

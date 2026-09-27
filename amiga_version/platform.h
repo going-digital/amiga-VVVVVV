@@ -26,4 +26,8 @@ int v6_platform_carry_horizontal(V6Player *, const V6Room *,
 /* Pending position and render-contact fields used by movingplatformfix. */
 typedef struct { int pending_y, visual_ground, visual_roof; } V6PlatformPush;
 void v6_platform_push_vertical(V6Platform *, V6Player *, const V6Room *, V6PlatformPush *);
+/* Post-physics overlap stage. blocks must be the mutable list viewed by room.
+ * Disabled blocks stay disabled until their next platform update. */
+void v6_platform_disable_overlaps(const V6Player *, const V6Platform *, unsigned,
+                                  V6Block *, unsigned);
 #endif

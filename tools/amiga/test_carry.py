@@ -28,7 +28,7 @@ def main():
     source+='extern "C" int reference_ax(void) { return std::lround(obj.entities[0].ax*double(V6_ONE)); }\n'
     entity=(ROOT/'desktop_version/src/Entity.cpp').read_text()
     logic=(ROOT/'desktop_version/src/Logic.cpp').read_text()
-    for name,kind in [('checkplatform','bool'),('hplatformat','float'),('entitycollideplatformfloor','float'),('entitycollideplatformroof','float'),('entitycollide','bool'),('movingplatformfix','void')]:
+    for name,kind in [('checkplatform','bool'),('hplatformat','float'),('entitycollideplatformfloor','float'),('entitycollideplatformroof','float'),('entitycollide','bool'),('movingplatformfix','void'),('stuckprevention','void'),('disableblockat','void'),('disableblock','void')]:
         source+=block(entity,entity.index(kind+' entityclass::'+name+'('))+'\n'
     start=logic.index('//is the player standing on a moving platform?')
     end=logic.index('\n            }\n\n            for',start)
@@ -65,6 +65,13 @@ extern "C" void map_move_reference(int x,int y) {
     obj.entities[0].newxp=x; obj.entities[0].newyp=y; obj.entitymapcollision(0);
 }
 '''
+    # Extract the actual rule-2 collision branch, including its conveyor guard.
+    collision=entity[entity.index('    case 2:   //Moving platforms'):entity.index('    case 3:   //Entity to entity')]
+    source+='void entityclass::platformcollision(int i,int j) { switch(entities[j].rule) {\n'+collision+'} }\n'
+    source+='extern "C" void post_reference(V6Block *blocks,unsigned count) { int i=0;\n'
+    source+='for(int j=1;j<int(obj.entities.size());++j) obj.platformcollision(i,j);\n'
+    source+='obj.stuckprevention(0);\n'
+    source+='for(unsigned j=0;j<count;++j) { const blockclass& b=obj.blocks[obj.blocks.size()-count+j]; blocks[j].w=b.wp; blocks[j].h=b.hp; } }\n'
     (BUILD/'carry_reference.cpp').write_text(source)
     subprocess.run(['c++','-std=c++11','-O2','-fno-fast-math','-shared','-fPIC',
         '-I/opt/homebrew/include','-I'+str(ROOT/'desktop_version/src'),'-I'+str(ROOT/'amiga_version'),
@@ -88,6 +95,9 @@ extern "C" void map_move_reference(int x,int y) {
     core.v6_player_input.argtypes=[pp,C.c_uint,C.POINTER(Motion)]
     core.v6_player_physics.argtypes=[pp,rp,C.POINTER(Motion),C.c_void_p,C.c_void_p]
     ref.reference_input.argtypes=[C.c_uint]
+    core.v6_player_unstick.argtypes=[pp,rp]
+    core.v6_platform_disable_overlaps.argtypes=[pp,ep,C.c_uint,bp,C.c_uint]
+    ref.post_reference.argtypes=[bp,C.c_uint]
     rng=random.Random(680008)
     counts={'map_move':0,'horizontal_carry':0}; modes=tuple(counts);attempts=moved=0
     for scenario in range(120):
@@ -199,10 +209,49 @@ extern "C" void map_move_reference(int x,int y) {
             actors[0].state=actual_e[0].state
             ordered+=1
     counts['ordered_transport_ticks']=ordered
+    corrected=disabled=retried=0
+    for trial in range(12000):
+        tiles=(C.c_uint16*1200)()
+        # All tilesets, every directional orientation, and solid terrain.
+        for y in range(9,15):
+            for x in range(10,17):
+                tiles[y*40+x]=rng.choice((0,0,0,1,14,15,16,17,80))
+        room=Room(tiles,trial%3,trial%2)
+        terrain=Terrain();core.v6_terrain_build(C.byref(terrain),C.byref(room))
+        p=Player();core.v6_player_init(C.byref(p),rng.randrange(65,140),rng.randrange(65,125),trial%2)
+        p.vx=int(C.c_float(rng.choice((-5.7,-3.8,-1.9,0,1.9,3.8,5.7))).value*16777216)
+        actors=(Enemy*2)()
+        blocks=(DynamicBlock*5)()
+        for i in range(2):
+            actors[i].x=88+i*16;actors[i].y=88+i*8
+            actors[i].w=32;actors[i].h=8;actors[i].behavior=trial%4
+            blocks[i]=DynamicBlock(actors[i].x,actors[i].y,32,8,0,0)
+        blocks[2]=DynamicBlock(88,88,0 if trial%7==0 else 32,8,0,0)
+        blocks[3]=DynamicBlock(104,80,8,48,2,trial%4)
+        blocks[4]=DynamicBlock(96,104,32,8,trial%2,0)
+        expected_blocks=(DynamicBlock*5).from_buffer_copy(blocks)
+        ref.carry_init(C.byref(p),tiles,room.tileset,room.extra_row,blocks,5,actors,2)
+        ref.post_reference(expected_blocks,5)
+        expected=Player();ref.reference_read(C.byref(expected))
+        for cached in (False,True):
+            actual=Player.from_buffer_copy(p)
+            actual_blocks=(DynamicBlock*5).from_buffer_copy(blocks)
+            room.blocks=actual_blocks;room.block_count=5
+            room.terrain=C.pointer(terrain) if cached else None
+            core.v6_platform_disable_overlaps(C.byref(actual),actors,2,actual_blocks,5)
+            core.v6_player_unstick(C.byref(actual),C.byref(room))
+            for field in FIELDS:
+                assert getattr(actual,field)==getattr(expected,field),('post',trial,cached,field,getattr(actual,field),getattr(expected,field))
+            assert bytes(actual_blocks)==bytes(expected_blocks),('disabled',trial,cached)
+        corrected+=expected.y!=p.y
+        retried+=expected.vx!=p.vx
+        disabled+=bytes(expected_blocks)!=bytes(blocks)
+    assert corrected and retried and disabled
+    counts.update(post_physics=12000,stuck_corrections=corrected,stuck_retries=retried,overlap_disables=disabled)
     assert attempts>100 and moved>100
     report=dict(**counts,cached_and_uncached=True,transport_attempts=attempts,position_changes=moved,
         reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
-        scope='Isolated explicit-target collision, horizontal carry and movingplatformfix; ordered input/push/carry/physics with prescribed platform positions; no complete platform loop, crush-death equivalence or native scene.')
+        scope='Isolated explicit-target collision, horizontal carry, movingplatformfix and post-physics overlap/stuck correction; ordered input/push/carry/physics with prescribed platform positions; no complete platform loop, crush-death equivalence or native scene.')
     (BUILD/'carry-test-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS:',json.dumps(report))
 

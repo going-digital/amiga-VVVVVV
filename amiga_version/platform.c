@@ -60,3 +60,14 @@ void v6_platform_push_vertical(V6Platform *e,V6Player *p,const V6Room *room,V6Pl
         }
     } else e->state=e->onwall;
 }
+
+void v6_platform_disable_overlaps(const V6Player *p,const V6Platform *platforms,
+                                  unsigned count,V6Block *blocks,unsigned block_count)
+{
+    unsigned i;
+    for(i=0;i<count;++i) {
+        const V6Platform *e=&platforms[i];
+        if(v6_player_overlaps(p,e->x+e->cx,e->y+e->cy,e->w,e->h))
+            v6_blocks_disable_at(blocks,block_count,e->x,e->y);
+    }
+}

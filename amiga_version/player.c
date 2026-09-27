@@ -60,16 +60,16 @@ static int solid(const V6Room *room, int x, int y)
         (tile >= 80 && tile < 680) || (tile == 740 && room->tileset == 1);
 }
 
-static int wall(const V6Room *room, int x, int y, int32_t dx, int32_t dy)
+static inline __attribute__((always_inline)) int wall_mode(const V6Room *room, int x, int y, int32_t dx, int32_t dy, int skip_directional)
 {
     int left = x + 6, top = y + 2, right = left + 11, bottom = top + 20;
     int tx, ty, gy;
     unsigned i;
     for(i=0;i<room->block_count;++i)
-        if(v6_block_hit(&room->blocks[i],left,top,12,21,dx,dy,0)) return 1;
+        if((!skip_directional || room->blocks[i].type!=V6_DIRECTIONAL) && v6_block_hit(&room->blocks[i],left,top,12,21,dx,dy,0)) return 1;
     /* Deliberately /8, not >>3: original getgridpoint truncates toward zero. */
     int l = left / 8, r = right / 8, t = top / 8, b = bottom / 8;
-    if (!room->terrain || room->terrain->directional)
+    if (!skip_directional && (!room->terrain || room->terrain->directional))
     for (ty = t < 0 ? 0 : t; ty <= b && ty < 29 + room->extra_row; ++ty)
         for (tx = l < 0 ? 0 : l; tx <= r && tx < 40; ++tx) {
             int tile = room->tiles[ty * 40 + tx];
@@ -86,6 +86,26 @@ static int wall(const V6Room *room, int x, int y, int32_t dx, int32_t dy)
     tx=(left+6)/8;
     return tx != l && tx != r && (solid(room,tx,t) || solid(room,tx,b));
 }
+static int wall(const V6Room *room, int x, int y, int32_t dx, int32_t dy)
+{ return wall_mode(room,x,y,dx,dy,0); }
+
+/* Separate probe keeps the normal collision path free of directional-skip
+ * branches. Like testwallsx, retries change velocity but never commit X. */
+void v6_player_unstick(V6Player *p,const V6Room *room)
+{
+    int next=p->x;
+    while (wall_mode(room,next,p->y,p->vx,0,1)) {
+        if(p->vx>V6_ONE) p->vx=velocity_round(p->vx-V6_ONE);
+        else if(p->vx<-V6_ONE) p->vx=velocity_round(p->vx+V6_ONE);
+        else {
+            p->vx=0;
+            p->y+=p->gravity ? 3 : -3;
+            return;
+        }
+        next=position(p->x,p->vx);
+    }
+}
+
 
 void v6_player_init(V6Player *p, int x, int y, int gravity)
 {

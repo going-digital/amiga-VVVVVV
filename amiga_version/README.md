@@ -112,9 +112,9 @@ cycle timing with 512K Chip + 512K slow RAM. At the 16.5-second memory snapshot:
 | Unique packed payloads | 406 |
 | Prototype explicit Chip RAM allocation | 81,934 bytes |
 | Free Chip RAM after startup allocation | 376,520 bytes |
-| Free non-Chip RAM after startup allocation | 416,880 bytes (interactive build) |
-| Maximum measured update/draw work | 167 PAL lines / 10.688 ms (transition replay) |
-| Maximum room-change redraw | 167 PAL lines / 10.688 ms |
+| Free non-Chip RAM after startup allocation | 416,792 bytes (interactive build) |
+| Maximum measured update/draw work | 168 PAL lines / 10.752 ms (transition replay) |
+| Maximum room-change redraw | 168 PAL lines / 10.752 ms |
 | Missed VBL observations including transitions | 0 |
 | VBL periods crossed by room-change work | 0 |
 | Flip, checkpoint, spike death and respawn | Passed |
@@ -126,7 +126,7 @@ These are **emulator measurements of this harness**, not real-hardware or
 complete-game performance. The RAM totals do not include a resident full room
 pack: only two compressed rooms and their decoded tile/background caches are
 resident. A cache per room is temporary slice scaffolding, not the full-campaign
-storage design. The ordinary capture peaks at 91 lines / 5.824 ms. During a snapshot
+storage design. The ordinary capture peaks at 92 lines / 5.888 ms. During a snapshot
 the current tick can be one ahead of the completed-render counter.
 
 Reports and evidence:
@@ -203,7 +203,7 @@ These isolated comparisons do not establish full desktop-loop equivalence.
 The enemy capture's diagnostics and screenshot are in
 `build/amiga-enemy/smoke-report.json` and `prototype.png`. Its explicit Chip
 allocation is **43,534 bytes**, with one room's screen pair resident. Peak work
-is **136 PAL lines / 8.704 ms**, with zero missed VBL observations. The replay
+is **137 PAL lines / 8.768 ms**, with zero missed VBL observations. The replay
 verifies an enemy hit, death, checkpoint respawn, visible cyan/pink sprites and
 clean exit. It does not connect this room to the two-room world slice.
 
@@ -230,7 +230,7 @@ Vertical multiplexing and attached sprites remain unimplemented.
 Traffic Jam's capture shows all three original enemies moving, the checkpoint
 activated and a clean AmigaDOS exit. Its 22×32 collision boxes remain separate
 from the 32×32 source graphics. The room uses **43,534 Chip bytes** and peaks at
-**248 PAL lines / 15.872 ms** at tick 2, below the unchanged **250-line gate**.
+**249 PAL lines / 15.936 ms** at tick 2, below the unchanged **250-line gate**.
 `build/amiga-traffic/smoke-report.json` records `video_headroom_passed: true`,
 zero missed VBL observations and clean exit. This is a bounded replay result,
 not a worst-case campaign guarantee. Enemy hit/respawn coverage still comes
@@ -252,7 +252,7 @@ under UBSan (`make -C amiga_version test-terrain`).
 
 Profiling identified collision work as the largest part of Traffic Jam's former
 328-line peak. The cache, removal of redundant checkpoint mask writes, and
-per-text-row HUD invalidation reduce it to 248 lines without additional Chip RAM.
+per-text-row HUD invalidation reduce it to 249 lines without additional Chip RAM.
 An optional `CPPFLAGS=-DV6_PROFILE` build records six phase durations at the
 highest-work update. Use a separate `BUILD` directory, then decode its `slow.bin`
 with `python3 tools/amiga/read_profile.py /path/to/slow.bin`. Values are PAL lines;
@@ -341,11 +341,23 @@ platform positions to isolate sequencing; complete platform movement scheduling,
 post-physics entity collisions and stuck-player correction remain unverified as
 a combined loop. The results are included in `carry-test-report.json`.
 
+The post-physics helpers now reproduce platform-overlap block disabling and
+stuck-player correction in **12,000 additional reference cases per terrain
+path**. Call `v6_platform_disable_overlaps` before `v6_player_unstick`.
+Overlaps disable every block at the platform origin, including duplicates;
+these stay disabled until later platform updates relocate them. The stuck
+probe ignores dynamic and map-derived directional barriers, but retains solid
+terrain (including tileset-2 solids). Horizontal retries change velocity without
+committing X; an unresolved collision shifts Y three pixels against gravity.
+The test compares player state and block dimensions with extracted original
+methods, exercising 6,882 corrections, 6,128 velocity changes and 4,950 cases
+with block disabling. These helpers are not yet called by the native scenes.
+
 ## Next implementation step
 
 Connect platform movement scheduling and post-physics collision handling to the
-staged player API. Preserve origin-matched block disabling and stuck-player
-correction: disabled platform blocks regain their dimensions when relocated by
+staged player API. Use the verified block-disabling and stuck-player
+correction helpers: disabled platform blocks regain their dimensions when relocated by
 subsequent platform updates. Then export a platform room,
 validate carrying and crushing end to end, and measure it on the target. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed

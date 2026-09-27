@@ -49,4 +49,7 @@ unsigned v6_player_step(V6Player *p, const V6Room *room, unsigned input);
 int v6_player_hurt(const V6Player *p, const V6Room *room);
 int v6_player_overlaps(const V6Player *p, int x, int y, int w, int h);
 
+/* Post-collision stuckprevention: ignore directional blocks, retry X without
+ * committing it, and shift Y three pixels against gravity if still blocked. */
+void v6_player_unstick(V6Player *, const V6Room *);
 #endif
