@@ -245,6 +245,12 @@ Peak work is 131 lines / 8.384 ms with no missed frames and clean exit. This
 covers extended rendering on target but does not establish a campaign retrigger
 route or independent desktop-loop equivalence.
 
+A separate behaviour-stage helper now covers waiting platform rules 14/15,
+including hidden-platform activation and boundary/direction updates. It matches
+16,896 extracted-source cases and compiles without 68000 runtime helpers.
+Movement, block synchronization and player-transport integration remain pending;
+the special room is still unsupported.
+
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and
 evidence are in [`amiga_version/README.md`](amiga_version/README.md).

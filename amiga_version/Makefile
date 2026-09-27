@@ -13,7 +13,7 @@ PLANES ?= 2
 SCENE ?= world
 CFLAGS := -DV6_PLANES=$(PLANES) -std=c99 -m68000 -Os -g -nostdlib -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fomit-frame-pointer -Wall -Wextra -Werror -ffunction-sections -fdata-sections -MMD -MP -I$(BUILD)
 LDFLAGS := -nostdlib -m68000 -Wl,--emit-relocs,--gc-sections,-Ttext=0,-Map=$(BUILD)/prototype.map
-OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/platform.o $(BUILD)/checkpoints.o $(BUILD)/disappearing.o
+OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/platform.o $(BUILD)/checkpoints.o $(BUILD)/disappearing.o $(BUILD)/platform_gate.o
 
 .PHONY: all test capture run FORCE
 all: $(BUILD)/prototype.adf
@@ -98,6 +98,7 @@ test: test-sprites test-terrain test-tile-edit $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/test_death_lifecycle.py
 	python3 $(ROOT)/tools/amiga/test_recovery.py
 	python3 $(ROOT)/tools/amiga/test_platform_recovery.py
+	python3 $(ROOT)/tools/amiga/test_platform_gate.py
 	python3 $(ROOT)/tools/amiga/test_disappearing.py
 	python3 $(ROOT)/tools/amiga/test_disappearing_scene.py
 	python3 $(ROOT)/tools/amiga/beneath_replay_trace.py
@@ -237,3 +238,6 @@ retrigger-capture:
 test-tile-edit: | $(BUILD)
 	cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I. $(ROOT)/tools/amiga/test_tile_edit.c terrain.c disappearing.c blocks.c -o $(BUILD)/test_tile_edit
 	$(BUILD)/test_tile_edit
+
+$(BUILD)/platform_gate.o: platform_gate.c platform_gate.h platform.h disappearing.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@

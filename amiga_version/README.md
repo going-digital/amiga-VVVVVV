@@ -862,9 +862,28 @@ bytes, three sprite channels and clean exit. Artifacts, including `extended.png`
 are in `build/amiga-retrigger/`. This tests the native adapter and renderer;
 it is not a campaign route or independent desktop-loop comparison.
 
+## Waiting moving-platform behaviours
+
+`platform_gate.c` implements the behaviour-update stage for rules 14 and 15.
+An idle platform waits for a hidden disappearing platform at X-32 or X+32,
+respectively; Y does not participate. Activation sets its initial velocity;
+subsequent updates preserve the source's direction changes and ordered boundary
+clamping. Callers supply disappearing states in entity order and run this stage
+before movement, including when creating an entity.
+
+`test_platform_gate.py` compares 16,896 cases with the original recursive
+Entity.cpp branches and Ent.cpp `outside()`, covering both behaviours, states
+0–3, integer speeds -16–16, nearby/exact trigger positions, multiple matches
+and boundary crossings. Additional checks cover empty trigger lists and
+unsupported behaviours. The core runs with UBSan and compiles for the 68000
+without runtime helpers. The helper is not yet wired into moving-platform
+collision, carrying or room rendering; this does not make the special room
+playable. The existing platform API still supports only ordinary behaviours.
+
 ## Next implementation step
 
-Compare ordered room behaviour against the desktop game loop.
+Integrate waiting-platform behaviour with movement, collision blocks and player
+carrying, then compare ordered room behaviour against the desktop game loop.
 Then add conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
