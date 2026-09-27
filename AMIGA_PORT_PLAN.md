@@ -208,7 +208,7 @@ and appends. Fixed-capacity exhaustion leaves both state and bank unchanged;
 separate tests cover failure and retry. A synthetic native replay now connects animation and the original vanish cue:
 `make -C amiga_version disappearing-capture`. Collapse, hidden and recharge
 snapshots (ticks 9/29/54) and the final state (tick 180) match the host scene
-trace. Peak work is 145 PAL lines / 9.280 ms, using 44,350 explicit Chip bytes,
+trace. Peak work is 153 PAL lines / 9.792 ms, using 45,384 explicit Chip bytes,
 with no missed VBLs and clean exit. It is an automated fixture, not an original
 campaign room. Original-room export, the (111,107) tile exception and conveyors
 remain next steps. The native adapter now supports independent states and
@@ -216,8 +216,11 @@ room-provided positions for multiple disappearing platforms. Host checks cover
 three independent contacts and 32 shared-bank collapse/death/recharge cycles,
 including reverse-order block restoration. “What Lies Beneath?” (116,110) is the
 next original-room candidate (one checkpoint, three platforms, seven sprite
-channels); interactive integration still needs extended recharge-retrigger
-animation coverage and separate flip/vanish cues.
+channels). Separate flip/vanish samples are now resident and selected by event.
+Compact tile masks (9,584 ordinary-memory bytes) replace the five-frame renderer
+limit; host adapter checks reach frame 48 through repeated recharge contacts.
+Original-room integration still needs tile-707 selection and a target traversal
+covering retriggers; the current target capture only covers the ordinary cycle.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

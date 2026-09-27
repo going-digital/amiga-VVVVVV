@@ -50,7 +50,7 @@ static volatile struct Custom * const hw = (void *)0xdff000;
 #define HUD_PLANE_BYTES (40 * 40)
 #define HUD_BYTES HUD_PLANE_BYTES
 #define MASK_BYTES (2 * V6_SPRITE_CHANNELS * V6_SPRITE_WORDS * 2)
-#define CHIP_BYTES (DISPLAY_BUFFER_COUNT * SCREEN_BYTES + COPPER_BYTES + sizeof(flip_sound) + 4 + HUD_BYTES + MASK_BYTES)
+#define CHIP_BYTES (DISPLAY_BUFFER_COUNT * SCREEN_BYTES + COPPER_BYTES + sizeof(flip_sound) + VANISH_SOUND_BYTES + 4 + HUD_BYTES + MASK_BYTES)
 
 /* Located by the host smoke test in a RAM dump. Fixed-width big-endian fields. */
 static volatile struct {
@@ -494,12 +494,12 @@ static inline __attribute__((always_inline)) void draw_checkpoint_at(int x,int y
     }
 }
 
-static void sound(void)
+static void sound(const UBYTE *data,UWORD bytes)
 {
     UWORD line;
     hw->dmacon = DMAF_AUD0;
-    hw->aud[0].ac_ptr = (UWORD *)sample;
-    hw->aud[0].ac_len = sizeof(flip_sound) / 2;
+    hw->aud[0].ac_ptr = (UWORD *)data;
+    hw->aud[0].ac_len = bytes / 2;
     hw->aud[0].ac_per = 322; /* PAL ~11015 Hz */
     hw->aud[0].ac_vol = 48;
     hw->intreq = INTF_AUD0;
@@ -561,11 +561,14 @@ static int run(void)
     for (i = 0; i < DISPLAY_BUFFER_COUNT; ++i) screen[i] = chip + i * SCREEN_BYTES;
     copper = (UWORD *)(chip + DISPLAY_BUFFER_COUNT * SCREEN_BYTES);
     sample = (UBYTE *)copper + COPPER_BYTES;
-    silence = (UWORD *)(sample + sizeof(flip_sound));
+    silence = (UWORD *)(sample + sizeof(flip_sound) + VANISH_SOUND_BYTES);
     hud = (UBYTE *)(silence + 2);
     for (i=0;i<2;++i) v6_sprites_begin(&sprites[i],
         (UWORD *)(hud + HUD_BYTES) + i*V6_SPRITE_CHANNELS*V6_SPRITE_WORDS);
     for (i = 0; i < sizeof(flip_sound); ++i) sample[i] = flip_sound[i];
+#if VANISH_SOUND_BYTES
+    for (i = 0; i < VANISH_SOUND_BYTES; ++i) sample[sizeof(flip_sound)+i] = vanish_sound[i];
+#endif
     for (i = 0; i < SLICE_ROOM_COUNT; ++i) {
         if (!v6_unpack_room(packed_rooms[i], packed_sizes[i], room_tiles[i], 1200)) {
             diagnostics.error = 1;
@@ -748,9 +751,12 @@ static int run(void)
 #endif
                 PROFILE_MARK(2);
                 restart_pending = 0;
-                if (events & V6_EVENT_FLIP) sound();
+                if (events & V6_EVENT_FLIP) sound(sample,sizeof(flip_sound));
 #ifdef V6_DISAPPEAR_REPLAY
-                if(disappearing_sound) {sound();disappearing_sound=0;}
+                if(disappearing_sound) {
+                    sound(sample+sizeof(flip_sound),VANISH_SOUND_BYTES);
+                    disappearing_sound=0;
+                }
 #endif
                 if (events & V6_EVENT_ROOM) {
                     background = room_backgrounds[slice.room_index];
@@ -807,11 +813,15 @@ static int run(void)
             for(n=0;n<PLATFORM_COUNT;++n) {
 #ifdef V6_DISAPPEAR_REPLAY
                 if(disappearing[n].invisible) continue;
-                if(disappearing[n].walking_frame<0 || disappearing[n].walking_frame>=5) {
-                    diagnostics.error=6;break;
-                }
-                if(v6_sprites_add_rect(&sprites[back],
-                        disappearing_rows[disappearing[n].walking_frame],platforms[n].x,
+                uint32_t rows[32];
+                unsigned row;
+                int frame=disappearing[n].walking_frame;
+                /* Source selects base tile + walking frame, including frames
+                 * reached by retriggering recharge. Outside the atlas is blank. */
+                for(row=0;row<32;++row)
+                    rows[row]=(row<8 && frame>=0 && frame<DISAPPEARING_FRAME_COUNT)
+                        ?(uint32_t)disappearing_tiles[frame][row]*0x01010101UL:0;
+                if(v6_sprites_add_rect(&sprites[back],rows,platforms[n].x,
 #else
                 if(v6_sprites_add_rect(&sprites[back],platform_rows,platforms[n].x,
 #endif

@@ -736,8 +736,10 @@ ledge while the platform recharges. Initial placement is deliberate fixture
 setup; no movement input or restart is injected after initialization.
 
 The scene uses the original tiles 2–6, repeated across a 32x8 hardware sprite,
-and the original `vanish.wav` resampled for the existing Paula channel. The
-asset converter selects that cue only for this fixture. The capture checks a cue
+and the original `vanish.wav` resampled for the existing Paula channel.
+`jump.wav` and `vanish.wav` now occupy separate sample regions; flips select
+jump and collapses select vanish. The channel remains monophonic, with a collapse
+cue taking precedence if both events occur in one tick. The capture checks a cue
 peak above twice the later background-audio peak; it does not establish exact
 audio waveform fidelity.
 
@@ -750,8 +752,8 @@ in `build/amiga-disappearing/`, including `collapse.png`, `hidden.png`,
 Diagnostic actor fields contain lifecycle state/frame, live updates and collapse
 count in this build.
 
-Peak work is **145 PAL lines / 9.280 ms**, with no missed VBLs, at most three
-sprite channels, **44,350 explicitly allocated Chip bytes** and clean AmigaDOS
+Peak work is **153 PAL lines / 9.792 ms**, with no missed VBLs, at most three
+sprite channels, **45,384 explicitly allocated Chip bytes** and clean AmigaDOS
 exit. This is an automated synthetic replay, not a playable campaign room or
 full desktop-loop comparison. Retriggering during recharge is covered by the
 host core tests; the native fixture respawns away so one recharge completes.
@@ -761,15 +763,21 @@ platform, uses room-provided positions, and updates entities in reverse order.
 `tools/amiga/test_disappearing_scene.py` exercises three independent contacts
 and 32 simultaneous collapse/death/recharge cycles with UBSan, checking that
 restored collision blocks reuse free slots independently of entity indices.
+A further 16 recharge retriggers reach walking frame 48. The converter now
+exports compact eight-byte tile masks from base tile 2 to the atlas end
+(9,584 bytes in ordinary memory for the supplied assets). The renderer expands
+each selected mask into a repeated 32x8 sprite; it no longer rejects frames
+above four. Out-of-atlas indices draw blank defensively. The native capture
+still covers the ordinary five-frame cycle, not a retrigger traversal.
 These are host adapter checks with empty terrain, not a three-platform campaign
 replay. The existing single-platform Copperline fixture remains the target test.
 
 ## Next implementation step
 
 Export and integrate “What Lies Beneath?” (116,110): its checkpoint and three
-disappearing platforms fit within seven hardware sprite channels. Before making
-it interactive, handle animation frames reached by retriggering during recharge
-(the current fixture exports only five) and separate flip and vanish sound cues.
+disappearing platforms fit within seven hardware sprite channels. Select its
+base tile 707 in the converter and add an original-room traversal/retrigger
+capture. Extended tile masks and separate flip/vanish cues are now available.
 Then add conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and

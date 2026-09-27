@@ -68,6 +68,19 @@ int main(void)
             assert(disappearing[i].state==0 && disappearing[i].walking_frame==0);
         assert(current_room.block_count==3 && disappearing_count==3 && !diagnostics.error);
     }
+    /* Recontact during recharge is legal and advances beyond the ordinary
+     * five-frame range. Do not silently reset the desktop walking frame. */
+    reset_platforms();
+    for(t=0;t<16;++t) {
+        v6_disappearing_contact(&disappearing[0],1);
+        update_disappearing(0);
+        for(j=0;j<12;++j) update_disappearing(0);
+        update_disappearing(1);
+        update_disappearing(0);
+        assert(disappearing[0].state==5 && disappearing[0].walking_frame==(int)(3*(t+1)));
+        assert(!diagnostics.error && current_room.block_count==3);
+    }
+    assert(disappearing[0].walking_frame==48);
     return 0;
 }
 '''
@@ -82,7 +95,7 @@ int main(void)
           ('player.c', 'terrain.c', 'platform.c', 'enemy.c', 'blocks.c', 'disappearing.c')],
         '-o', str(executable)], check=True)
     subprocess.run([str(executable)], check=True)
-    print('PASS: native adapter; three independent contacts and 32 shared-bank collapse/death/recharge cycles (UBSan)')
+    print('PASS: native adapter; three independent contacts and 32 shared-bank collapse/death/recharge cycles; 16 recharge retriggers through frame 48 (UBSan)')
 
 
 if __name__ == '__main__':
