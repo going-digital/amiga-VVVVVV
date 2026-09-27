@@ -25,8 +25,8 @@ $(BUILD)/prototype_room.h: $(ROOT)/tools/amiga/pack_rooms.py $(addprefix $(ROOT)
 $(BUILD)/prototype_assets.h: FORCE $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/convert_assets.py --data "$(DATA)" --out $(BUILD)
 
-$(BUILD)/prototype.o: prototype.c $(BUILD)/prototype_room.h $(BUILD)/prototype_assets.h
-	$(CC) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -c $< -o $@
+$(BUILD)/prototype.o: prototype.c $(ROOT)/tools/amiga/transition_replay.h $(BUILD)/prototype_room.h $(BUILD)/prototype_assets.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -c $< -o $@
 
 $(BUILD)/room_codec.o: room_codec.c room_codec.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -51,7 +51,8 @@ test: $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/pack_rooms.py --out $(BUILD)
 	python3 $(ROOT)/tools/amiga/test_rooms.py
 	python3 $(ROOT)/tools/amiga/test_player.py
-	cc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined -I. player.c slice.c $(ROOT)/tools/amiga/test_slice.c -o $(BUILD)/test_slice
+	python3 $(ROOT)/tools/amiga/test_transitions.py
+	cc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined -I. -I$(BUILD) player.c slice.c room_codec.c $(ROOT)/tools/amiga/test_slice.c -o $(BUILD)/test_slice
 	$(BUILD)/test_slice
 
 FORCE:
@@ -63,3 +64,8 @@ run: all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)"
 
 -include $(OBJECTS:.o=.d)
+
+.PHONY: capture-transitions
+capture-transitions:
+	$(MAKE) BUILD=$(ROOT)/build/amiga-transitions CPPFLAGS=-DV6_TRANSITION_REPLAY all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-transitions --capture --transitions

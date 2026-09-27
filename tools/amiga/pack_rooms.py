@@ -20,24 +20,35 @@ SOURCES = ('Otherlevel', 'Spacestation2', 'Labclass', 'Finalclass', 'WarpClass')
 ARRAY = re.compile(r'static\s+const\s+short\s+contents\s*\[(\d*)\]\s*=\s*\{([^}]+)\}\s*;')
 
 
-def prototype_record(records=None):
-    """A deliberately bounded playable slice: original room (100,110)."""
+SLICE_ROOMS = ((0, 10), (19, 10))
+
+
+def prototype_record(records=None, coords=(0, 10)):
+    """Select a unique literal room within the explicitly supported slice."""
     records = extract() if records is None else records
     chosen = [r for r in records if r[0]['source'].endswith('/Otherlevel.cpp') and
-              r[0]['enclosing_label'] == 'case rn(0,10)']
+              r[0]['enclosing_label'] == f'case rn({coords[0]},{coords[1]})']
     if len(chosen) != 1: raise ValueError('Playable slice room is ambiguous')
     return chosen[0]
 
 
-def prototype_checkpoint():
+def prototype_checkpoint(coords=(0, 10)):
     source = (ROOT/'desktop_version/src/Otherlevel.cpp').read_text()
-    start = source.index('case rn(0,10):')
+    start = source.index(f'case rn({coords[0]},{coords[1]}):')
     end = source.index('case rn(', start+5)
     calls = re.findall(r'obj\.createentity\(([^;]+)\);', source[start:end])
     if len(calls) != 1: raise ValueError('Slice requires unsupported room entities')
     values = [int(v.strip()) for v in calls[0].split(',')]
     if len(values) != 5 or values[2] != 10: raise ValueError('Expected one checkpoint')
-    return values[0], values[1], values[3], values[4]
+    x, y, _, orientation, identity = values
+    if x % 8 or not (0 <= x <= 288 and 0 <= y <= 208) or orientation not in (0, 1):
+        raise ValueError('Checkpoint outside supported drawing geometry')
+    body = re.sub(r'//[^\n]*|/\*.*?\*/', '', source[start:end], flags=re.S)
+    body = ARRAY.sub('', body)
+    body = re.sub(r'obj\.createentity\([^;]+\);', '', body)
+    body = re.sub(r'case rn\(\d+,\d+\):|result\s*=\s*contents;|break;|[{}\s]', '', body)
+    if body: raise ValueError(f'Unsupported slice setup: {body}')
+    return x, y, orientation, identity
 
 
 def encode(values):
@@ -114,16 +125,18 @@ def build(out):
                   scope='Literal tile arrays only; no entities, room setup, scripts, or tower.',
                   rooms=manifest)
     (out / 'rooms.json').write_text(json.dumps(report, indent=2) + '\n')
-    # Keep this first hardware prototype small: only one packed room linked in.
-    selected = prototype_record(records)[2]
-    cx, cy, orientation, checkpoint_id = prototype_checkpoint()
-    (out / 'prototype_room.h').write_text(
-        '/* Generated: Otherlevel room (100,110), static tile/checkpoint slice. */\n'
-        f'#define CHECKPOINT_X {cx}\n#define CHECKPOINT_Y {cy}\n'
-        f'#define CHECKPOINT_TILE {20+orientation}\n#define CHECKPOINT_ID {checkpoint_id}\n'
-        'static const unsigned char prototype_room[] = {\n' +
-        ',\n'.join(','.join(str(v) for v in selected[i:i+24]) for i in range(0, len(selected), 24)) +
-        '\n};\n')
+    header = '/* Generated bounded room setup; only literal checkpoints supported. */\n'
+    setups = []
+    for index, coords in enumerate(SLICE_ROOMS):
+        selected = prototype_record(records, coords)[2]
+        cx, cy, orientation, checkpoint_id = prototype_checkpoint(coords)
+        header += f'static const unsigned char packed_room_{index}[] = {{\n' + ','.join(map(str, selected)) + '\n};\n'
+        setups.append(f'{{{coords[0]+100},{coords[1]+100},{cx},{cy},{20+orientation},{checkpoint_id}}}')
+    header += f'#define SLICE_ROOM_COUNT {len(SLICE_ROOMS)}\n'
+    header += 'static const V6RoomSetup room_setups[] = {' + ','.join(setups) + '};\n'
+    header += 'static const unsigned char * const packed_rooms[] = {' + ','.join(f'packed_room_{i}' for i in range(len(SLICE_ROOMS))) + '};\n'
+    header += 'static const unsigned short packed_sizes[] = {' + ','.join(f'sizeof(packed_room_{i})' for i in range(len(SLICE_ROOMS))) + '};\n'
+    (out / 'prototype_room.h').write_text(header)
     print(f'{len(records)} arrays: {report["raw_bytes"]:,} raw bytes -> {len(pack):,} packed bytes '
           f'(including directory); {len(seen)} unique payloads')
 

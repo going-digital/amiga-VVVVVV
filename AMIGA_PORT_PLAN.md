@@ -9,11 +9,13 @@ Bartman GCC build, generated boot disk, and repeatable Copperline smoke test.
 The user supplied the desktop asset location, and the converter reads that
 archive without modifying it. Kickstart 1.3 is available in `~/amiga`.
 
-The current build is a playable static slice of original room **(100,110)**:
-movement, gravity flip, tile collision, spikes, checkpoint activation, death,
-respawn, animated drawing, one Paula effect and clean AmigaDOS restoration.
-Unsupported exits explicitly return to the checkpoint. Campaign transitions and
-entity/script logic have not yet been implemented.
+The current build is a playable static slice of original rooms **(100,110)**
+and **(119,110)**, connected by the main world's horizontal wrap. Movement,
+flips, tile collision, spikes, animated drawing and checkpoint/death/respawn are
+implemented. Checkpoints now retain their room and gravity; respawn reloads the
+saved room. Other exits explicitly return to the saved checkpoint. Only these
+two rooms' literal checkpoint setup is exported; moving entities and scripts
+are still pending.
 
 The desktop Release build succeeds. An isolated reference harness extracts
 original C++ methods and compares them with the integer Amiga core: **36,746
@@ -21,18 +23,30 @@ matching ticks across 181 scenarios**, plus **53,280 hazard cases**. Integer
 8.24 arithmetic preserves binary32 rounding at collision boundaries. This is
 not yet a full-game replay equivalence test.
 
-On Copperline's stock PAL A500, 512K Chip + 512K slow RAM profile, the slice
-allocates **123,086 Chip bytes** and peaks at **295 scanlines / 18.88 ms** of
-measured update/draw work. Checkpoint/death/respawn, input, audio, no-missed-VBL
-and clean-exit checks pass. This misses the provisional 20% video headroom goal;
-profile before increasing the entity workload. Only one room is resident.
+Normal-world boundary behavior passes **32,400 reference comparisons**, including
+thresholds, vertical-before-horizontal ordering, world wrap and preserved
+movement state. The target replay reaches the neighboring room through normal
+inputs without death and verifies a later cross-room respawn. These checks do
+not cover full `loadlevel` side effects or special-room transitions.
+
+On Copperline's stock PAL A500, 512K Chip + 512K slow RAM profile, the two-room
+slice allocates **161,486 Chip bytes**. The ordinary capture peaks at **296
+scanlines / 18.944 ms**; the transition replay reaches **309 / 19.776 ms** outside
+loading. Room-change redraw peaks at **708 / 45.312 ms**, with six VBL periods
+spent loading across the replay. The renderer explicitly pauses its gameplay
+clock during loading and reports that separately. Removing that pause and
+meeting the 20% headroom target remain open gates. Both capture modes pass
+clean exit, and the ordinary capture also verifies flip audio.
+
+Two tile maps and planar backgrounds are cached at startup. This is bounded
+slice scaffolding; a per-room Chip RAM cache cannot scale to the campaign.
 
 The offline codec passes all **422 literal arrays / 1,012,800 raw bytes**, packed
 to **252,832 bytes** with simple RLE and deduplication. This exceeds the proposed
 128 KiB content budget; stronger compression or regional loading is needed.
 The earlier repeating-room scroll probe was replaced by the playable slice.
-Actual tower streaming, music feasibility, full desktop-loop traces and real
-room transitions remain outstanding, so stages 0–2 are not complete.
+Actual tower streaming, music feasibility, full desktop-loop traces and general
+room setup/transitions remain outstanding, so stages 0–2 are not complete.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

@@ -11,7 +11,7 @@ import subprocess
 import wave
 import zipfile
 
-from pack_rooms import ROOT, prototype_record
+from pack_rooms import ROOT, prototype_record, SLICE_ROOMS
 
 DEFAULT_DATA = Path.home() / 'Library/Application Support/Steam/steamapps/common/vvvvvv/VVVVVV.app/Contents/Resources/data.zip'
 
@@ -42,8 +42,8 @@ def build(data, out):
             return w, h, rgba
 
         w, h, rgba = png('graphics/tiles2.png')
-        _, raw, _ = prototype_record()
-        ids = sorted(set(struct.unpack('>1200H', raw)))
+        ids = sorted({tile for coords in SLICE_ROOMS
+                      for tile in struct.unpack('>1200H', prototype_record(coords=coords)[1])})
         tiles = []
         colors = Counter()
         for tile in ids:
@@ -118,7 +118,7 @@ def build(data, out):
     report = dict(input_fingerprint=fingerprint, tiles=len(ids), tile_bytes=len(ids)*32, source_room_ocs_colors=len(colors)+1,
                   scene_palette_slots=13, checkpoint_palette_index=13, sprite_palette_index=14, text_palette_index=15,
                   font_bytes=1024, sound_bytes=len(sound), sound_rate=target_rate,
-                  note='Room (100,110) static tiles, player animation and checkpoint. No other room entities or scripts.')
+                  note='Rooms (100,110) and (119,110), static tiles, player animation and checkpoints. No other room entities or scripts.')
     (out / 'assets.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))
 

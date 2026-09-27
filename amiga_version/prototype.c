@@ -1,5 +1,5 @@
 /* VVVVVV A500 playable static-room slice. Original tiles and player rules.
- * The full campaign, moving entities, room transitions and scripts are pending.
+ * The full campaign, moving entities and scripts are pending.
  * Native display/blitter/Paula code; no SDL and no runtime asset decompression
  * beyond the bounded room RLE decoder. All OS calls occur outside takeover.
  */
@@ -15,6 +15,9 @@
 #include "slice.h"
 #include "prototype_room.h"
 #include "prototype_assets.h"
+#ifdef V6_TRANSITION_REPLAY
+#include "../tools/amiga/transition_replay.h"
+#endif
 
 struct ExecBase *SysBase;
 struct GfxBase *GfxBase;
@@ -24,11 +27,12 @@ static volatile struct Custom * const hw = (void *)0xdff000;
 #define PLANE_BYTES BACKGROUND_PLANE_BYTES
 #define SCREEN_BYTES (4 * PLANE_BYTES)
 #define BACKGROUND_BYTES (4 * BACKGROUND_PLANE_BYTES)
+#define BACKGROUND_CACHE_BYTES (SLICE_ROOM_COUNT * BACKGROUND_BYTES)
 #define COPPER_BYTES 256
 #define HUD_PLANE_BYTES (40 * 40)
 #define HUD_BYTES (4 * HUD_PLANE_BYTES)
 #define MASK_BYTES (32 * 6)
-#define CHIP_BYTES (2 * SCREEN_BYTES + BACKGROUND_BYTES + COPPER_BYTES + sizeof(flip_sound) + 4 + HUD_BYTES + MASK_BYTES)
+#define CHIP_BYTES (2 * SCREEN_BYTES + BACKGROUND_CACHE_BYTES + COPPER_BYTES + sizeof(flip_sound) + 4 + HUD_BYTES + MASK_BYTES)
 
 /* Located by the host smoke test in a RAM dump. Fixed-width big-endian fields. */
 static volatile struct {
@@ -36,15 +40,17 @@ static volatile struct {
     ULONG flips, scroll_mode, chip_free, other_free, chip_allocated, error, status;
     LONG player_x, player_y, player_vx, player_vy, gravity, death_timer;
     ULONG deaths, respawns, checkpoint, exits;
-} diagnostics = {.magic = 0x56364447, .version = 2, .chip_allocated = CHIP_BYTES};
+    ULONG room_index, transitions, max_load_lines, load_frames;
+} diagnostics = {.magic = 0x56364447, .version = 3, .chip_allocated = CHIP_BYTES};
 
 static volatile ULONG frames;
 static UBYTE *chip, *screen[2], *background, *sample, *hud;
 static UWORD *sprite_masks;
 static UWORD *copper, *plane_words, *silence;
-static UWORD room[1200];
+static UWORD room_tiles[SLICE_ROOM_COUNT][1200];
+static UWORD *room = room_tiles[0];
 static V6Slice slice;
-static V6Room current_room = {room, 1, 1};
+static V6Room current_room = {room_tiles[0], 1, 1};
 static UWORD saved_dma, saved_ints, saved_adk;
 static APTR saved_irq;
 static struct View *saved_view;
@@ -293,19 +299,25 @@ static void overlay_hud(UBYTE *dst)
 static void draw_checkpoint(void)
 {
     UWORD row, plane, color = slice.checkpoint_active ? 13 : 15;
-    /* This room's checkpoint is word aligned. Update whole words so its
-     * activation does not spend a frame doing individual Chip RAM pixels. */
-    for (plane = 0; plane < 4; ++plane)
-        for (row = 0; row < 32; ++row) {
-            ULONG bits = sprite_rows[CHECKPOINT_TILE][row];
-            UWORD *p = (UWORD *)(background + plane * PLANE_BYTES
-                + (CHECKPOINT_Y + row) * 40 + CHECKPOINT_X / 8);
+    UWORD shift = slice.checkpoint_x & 15;
+    for (row = 0; row < 32; ++row) {
+        ULONG bits = sprite_rows[slice.checkpoint_tile][row];
+        ULONG shifted = bits >> shift;
+        UWORD first = shifted >> 16, second = shifted;
+        UWORD tail = shift ? bits << (16-shift) : 0;
+        UWORD *p = (UWORD *)(background + (slice.checkpoint_y + row) * 40
+            + (slice.checkpoint_x / 16) * 2);
+        for (plane = 0; plane < 4; ++plane) {
             if (color & (1 << plane)) {
-                p[0] |= bits >> 16; p[1] |= bits;
+                p[0] |= first; p[1] |= second;
+                if (shift) p[2] |= tail;
             } else {
-                p[0] &= ~(bits >> 16); p[1] &= ~bits;
+                p[0] &= ~first; p[1] &= ~second;
+                if (shift) p[2] &= ~tail;
             }
+            p += PLANE_BYTES / 2;
         }
+    }
 }
 
 static void sound(void)
@@ -329,7 +341,7 @@ static int run(void)
 {
     UWORD back = 1, ready = 0, last_right = 0, restart_pending = 0;
     WORD old_x[2], old_y[2];
-    UWORD checkpoint_dirty[2] = {0,0};
+    UWORD checkpoint_dirty[2] = {0,0}, room_dirty[2] = {0,0};
     LONG shown_deaths = -1, shown_flips = -1, shown_work = -1;
     UWORD exit_notice = 0;
     ULONG observed = 0, elapsed_us = 0;
@@ -356,28 +368,33 @@ static int run(void)
     }
     screen[0] = chip; screen[1] = chip + SCREEN_BYTES;
     background = chip + SCREEN_BYTES * 2;
-    copper = (UWORD *)(background + BACKGROUND_BYTES);
+    copper = (UWORD *)(background + BACKGROUND_CACHE_BYTES);
     sample = (UBYTE *)copper + COPPER_BYTES;
     silence = (UWORD *)(sample + sizeof(flip_sound));
     hud = (UBYTE *)(silence + 2);
     sprite_masks = (UWORD *)(hud + HUD_BYTES);
     for (i = 0; i < sizeof(flip_sound); ++i) sample[i] = flip_sound[i];
-    if (!v6_unpack_room(prototype_room, sizeof(prototype_room), room, 1200)) {
-        diagnostics.error = 1;
-        FreeMem(chip, CHIP_BYTES);
-        CloseLibrary((struct Library *)DOSBase);
-        CloseLibrary((struct Library *)GfxBase);
-        return 20;
+    for (i = 0; i < SLICE_ROOM_COUNT; ++i) {
+        if (!v6_unpack_room(packed_rooms[i], packed_sizes[i], room_tiles[i], 1200)) {
+            diagnostics.error = 1;
+            FreeMem(chip, CHIP_BYTES);
+            CloseLibrary((struct Library *)DOSBase);
+            CloseLibrary((struct Library *)GfxBase);
+            return 20;
+        }
+        room = room_tiles[i];
+        background = chip + SCREEN_BYTES * 2 + i * BACKGROUND_BYTES;
+        draw_room();
     }
+    room = room_tiles[0]; background = chip + SCREEN_BYTES * 2;
     diagnostics.chip_free = AvailMem(MEMF_CHIP);
     diagnostics.other_free = AvailMem(MEMF_FAST);
-    v6_slice_init(&slice, CHECKPOINT_X, CHECKPOINT_Y, CHECKPOINT_TILE);
+    v6_slice_init_world(&slice, room_setups, SLICE_ROOM_COUNT, 0);
     old_x[0] = old_x[1] = slice.player.x;
     old_y[0] = old_y[1] = slice.player.y;
-    draw_room();
     draw_checkpoint();
     text(1, 0, "VVVVVV AMIGA - PLAYABLE ROOM");
-    text(1, 8, "100,110 - STATIC ROOM SLICE");
+    text(1, 8, "100,110 - TWO ROOM SLICE");
     text(1, 16, "DEATHS       FLIPS       LINES");
     text(1, 32, "JOY L/R FIRE FLIP RMB RESET LMB EXIT");
     create_copper();
@@ -388,6 +405,7 @@ static int run(void)
     diagnostics.status = 1;
     while (*(volatile UBYTE *)0xbfe001 & 0x40) { /* left mouse exits */
         ULONG current, delta, start, work;
+        UWORD loading;
         UWORD joy, fire, right_mouse, input = 0;
         while (frames == observed) {}
         current = frames;
@@ -412,9 +430,24 @@ static int run(void)
             elapsed_us -= 34000;
             ++diagnostics.ticks;
             {
-                unsigned events = v6_slice_step(&slice, &current_room, input, restart_pending);
+                unsigned events;
+#ifdef V6_TRANSITION_REPLAY
+                input = diagnostics.ticks <= sizeof(transition_replay)
+                    ? transition_replay[diagnostics.ticks - 1] : 0;
+                if (diagnostics.ticks == 100) restart_pending = 1;
+#endif
+                current_room.tiles = room_tiles[slice.room_index];
+                events = v6_slice_step(&slice, &current_room, input, restart_pending);
                 restart_pending = 0;
                 if (events & V6_EVENT_FLIP) sound();
+                if (events & V6_EVENT_ROOM) {
+                    background = chip + SCREEN_BYTES * 2 + slice.room_index * BACKGROUND_BYTES;
+                    room = room_tiles[slice.room_index];
+                    room_dirty[0] = room_dirty[1] = 1;
+                    checkpoint_dirty[0] = checkpoint_dirty[1] = 0;
+                    draw_checkpoint();
+                    text(1, 8, slice.room_index ? "119,110 - TWO ROOM SLICE           " : "100,110 - TWO ROOM SLICE           ");
+                }
                 if (events & V6_EVENT_SAVE) {
                     draw_checkpoint(); checkpoint_dirty[0] = checkpoint_dirty[1] = 1;
                 }
@@ -423,11 +456,15 @@ static int run(void)
                     text(1, 8, "ROOM EXIT: BACK TO SLICE CHECKPOINT");
                 }
             }
-            if (exit_notice && --exit_notice == 0) text(1, 8, "100,110 - STATIC ROOM SLICE         ");
+            if (exit_notice && --exit_notice == 0) text(1, 8, slice.room_index ? "119,110 - TWO ROOM SLICE           " : "100,110 - TWO ROOM SLICE           ");
         }
-        restore_rectangle(screen[back], old_x[back], old_y[back], 32, 32);
+        loading = room_dirty[back];
+        if (loading) {
+            restore_rectangle(screen[back], 0, 0, 320, 240);
+            room_dirty[back] = 0;
+        } else restore_rectangle(screen[back], old_x[back], old_y[back], 32, 32);
         if (checkpoint_dirty[back]) {
-            restore_rectangle(screen[back], CHECKPOINT_X, CHECKPOINT_Y, 32, 32);
+            restore_rectangle(screen[back], slice.checkpoint_x, slice.checkpoint_y, 32, 32);
             checkpoint_dirty[back] = 0;
         }
         draw_player(screen[back], slice.player.x, slice.player.y, slice.frame);
@@ -438,7 +475,14 @@ static int run(void)
         old_x[back] = slice.player.x;
         old_y[back] = slice.player.y;
         work = beam_clock() - start;
-        if (work > diagnostics.max_work_lines) diagnostics.max_work_lines = work;
+        if (loading) {
+            if (work > diagnostics.max_load_lines) diagnostics.max_load_lines = work;
+            diagnostics.load_frames += frames - observed;
+            /* Explicit slice loading pause; never feed rendering backlog into
+             * a burst of player updates. Full-game timing remains a later gate. */
+            observed = frames; elapsed_us = 0;
+        }
+        if (!loading && work > diagnostics.max_work_lines) diagnostics.max_work_lines = work;
         ++diagnostics.renders;
         diagnostics.frames = frames;
         diagnostics.flips = slice.player.flips;
@@ -448,6 +492,7 @@ static int run(void)
         diagnostics.death_timer = slice.death_timer;
         diagnostics.deaths = slice.deaths; diagnostics.respawns = slice.respawns;
         diagnostics.checkpoint = slice.checkpoint_active; diagnostics.exits = slice.exits;
+        diagnostics.room_index = slice.room_index; diagnostics.transitions = slice.transitions;
         ready = 1;
     }
     free_system();

@@ -1,8 +1,11 @@
 #ifndef V6_SLICE_H
 #define V6_SLICE_H
 #include "player.h"
-enum { V6_EVENT_DEATH = 2, V6_EVENT_SAVE = 4, V6_EVENT_RESPAWN = 8, V6_EVENT_EXIT = 16 };
+enum { V6_EVENT_DEATH = 2, V6_EVENT_SAVE = 4, V6_EVENT_RESPAWN = 8, V6_EVENT_EXIT = 16, V6_EVENT_ROOM = 32 };
+typedef struct { int x, y, checkpoint_x, checkpoint_y, checkpoint_tile, checkpoint_id; } V6RoomSetup;
 typedef struct {
+    const V6RoomSetup *rooms;
+    int room_count, room_index, save_room, transitions;
     V6Player player;
     int checkpoint_x, checkpoint_y, checkpoint_tile;
     int save_x, save_y, save_gravity, save_dir;
@@ -11,5 +14,7 @@ typedef struct {
     int frame, walking_frame, frame_delay;
 } V6Slice;
 void v6_slice_init(V6Slice *, int checkpoint_x, int checkpoint_y, int checkpoint_tile);
+void v6_slice_init_world(V6Slice *, const V6RoomSetup *, int count, int initial);
+unsigned v6_slice_transition(V6Slice *);
 unsigned v6_slice_step(V6Slice *, const V6Room *, unsigned input, int restart);
 #endif
