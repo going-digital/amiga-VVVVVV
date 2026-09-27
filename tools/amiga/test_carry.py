@@ -9,6 +9,9 @@ from pack_rooms import ROOT
 from test_player import BUILD,Player,Room,Terrain,DynamicBlock,FIELDS,block,original_reference
 from test_enemy import Enemy
 
+class Motion(C.Structure):
+    _fields_=[("ax",C.c_int32),("pending_y",C.c_int)]
+
 class Push(C.Structure):
     _fields_=[(name,C.c_int) for name in ("pending_y","visual_ground","visual_roof")]
 
@@ -17,6 +20,12 @@ def main():
     BUILD.mkdir(parents=True,exist_ok=True)
     original_reference()
     source=(BUILD/'player_reference.cpp').read_text()
+    step=block(source,source.index('extern "C" void reference_step('))
+    split=step.index('        entclass& e = obj.entities[0];')
+    source+=step[:split].replace('reference_step','reference_input')+'}\n'
+    source+='extern "C" void reference_physics(void) {\n'+step[split:]
+    source+='\nextern "C" int reference_pending(void) { return obj.entities[0].newyp; }\n'
+    source+='extern "C" int reference_ax(void) { return std::lround(obj.entities[0].ax*double(V6_ONE)); }\n'
     entity=(ROOT/'desktop_version/src/Entity.cpp').read_text()
     logic=(ROOT/'desktop_version/src/Logic.cpp').read_text()
     for name,kind in [('checkplatform','bool'),('hplatformat','float'),('entitycollideplatformfloor','float'),('entitycollideplatformroof','float'),('entitycollide','bool'),('movingplatformfix','void')]:
@@ -76,6 +85,9 @@ extern "C" void map_move_reference(int x,int y) {
     ref.map_move_reference.argtypes=[C.c_int,C.c_int];ref.reference_read.argtypes=[pp]
     ref.push_reference.argtypes=[ep,C.POINTER(Push)]
     core.v6_platform_push_vertical.argtypes=[ep,pp,rp,C.POINTER(Push)]
+    core.v6_player_input.argtypes=[pp,C.c_uint,C.POINTER(Motion)]
+    core.v6_player_physics.argtypes=[pp,rp,C.POINTER(Motion),C.c_void_p,C.c_void_p]
+    ref.reference_input.argtypes=[C.c_uint]
     rng=random.Random(680008)
     counts={'map_move':0,'horizontal_carry':0}; modes=tuple(counts);attempts=moved=0
     for scenario in range(120):
@@ -141,10 +153,56 @@ extern "C" void map_move_reference(int x,int y) {
         pushes+=1
     assert reversals and snaps
     counts.update(vertical_push=pushes,platform_reversals=reversals,player_snaps=snaps)
+    ordered=0
+    for sequence in range(60):
+        p=Player();core.v6_player_init(C.byref(p),100,81 if sequence%2==0 else 110,sequence%2)
+        motion=Motion(0,p.y);push=Push(p.y,0,0)
+        actors=(Enemy*2)()
+        for i in range(2):
+            actors[i].x=80;actors[i].y=104;actors[i].w=32;actors[i].h=8
+            actors[i].behavior=0 if i==0 else 2;actors[i].vy=3 if i==0 else 0
+            actors[i].vx=0 if i==0 else 3;actors[i].state=1;actors[i].onwall=2
+        blocks=(DynamicBlock*2)()
+        room.blocks=blocks;room.block_count=2
+        for tick in range(200):
+            for i in range(2):
+                # Prescribed platform positions isolate stage order from movement.
+                actors[i].x=80+(tick//4%8)*2
+                actors[i].y=104+(tick//6%4)*2 if i==0 else 72
+                blocks[i]=DynamicBlock(actors[i].x,actors[i].y,32,8,0,0)
+            buttons=rng.choice((0,1,2,4,5,6));life=10-tick if tick<10 else 0
+            if life>5:buttons|=8
+            ref.carry_init(C.byref(p),tiles,room.tileset,room.extra_row,blocks,2,actors,2)
+            ref.reference_input(buttons)
+            expected_ax=ref.reference_ax()
+            expected_s=Push(motion.pending_y,push.visual_ground,push.visual_roof)
+            expected_e=Enemy.from_buffer_copy(actors[0])
+            ref.push_reference(C.byref(expected_e),C.byref(expected_s))
+            ref.carry_reference(life,expected_s.pending_y)
+            ref.reference_physics()
+            expected=Player();ref.reference_read(C.byref(expected))
+            for cached in (False,True):
+                actual=Player.from_buffer_copy(p);actual_m=Motion.from_buffer_copy(motion)
+                actual_s=Push(motion.pending_y,push.visual_ground,push.visual_roof)
+                actual_e=(Enemy*2).from_buffer_copy(actors)
+                room.terrain=C.pointer(terrain) if cached else None
+                core.v6_player_input(C.byref(actual),buttons,C.byref(actual_m))
+                assert actual_m.ax==expected_ax
+                core.v6_platform_push_vertical(C.byref(actual_e[0]),C.byref(actual),C.byref(room),C.byref(actual_s))
+                core.v6_platform_carry_horizontal(C.byref(actual),C.byref(room),actual_e,2,life,actual_s.pending_y)
+                core.v6_player_physics(C.byref(actual),C.byref(room),C.byref(actual_m),None,None)
+                for field in FIELDS:
+                    assert getattr(actual,field)==getattr(expected,field),('ordered',sequence,tick,cached,field)
+                assert actual_m.ax==0 and actual_m.pending_y==ref.reference_pending()
+                assert bytes(actual_s)==bytes(expected_s) and bytes(actual_e[0])==bytes(expected_e)
+            p=actual;motion=actual_m;push=actual_s
+            actors[0].state=actual_e[0].state
+            ordered+=1
+    counts['ordered_transport_ticks']=ordered
     assert attempts>100 and moved>100
     report=dict(**counts,cached_and_uncached=True,transport_attempts=attempts,position_changes=moved,
         reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
-        scope='Isolated explicit-target collision, horizontal carry and movingplatformfix; no complete platform loop, crush-death equivalence or native scene.')
+        scope='Isolated explicit-target collision, horizontal carry and movingplatformfix; ordered input/push/carry/physics with prescribed platform positions; no complete platform loop, crush-death equivalence or native scene.')
     (BUILD/'carry-test-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS:',json.dumps(report))
 

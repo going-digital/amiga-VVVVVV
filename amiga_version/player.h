@@ -31,13 +31,19 @@ typedef struct V6Room {
 /* Vertical collision retry only: updates velocity/pending Y without moving Y. */
 int v6_player_test_y(V6Player *, const V6Room *, int *target_y);
 /* Entity::entitymapcollision stage with explicit pending positions. On a
- * blocked move, retries use the player's velocity, not requested displacement. */
-void v6_player_map_move(V6Player *, const V6Room *, int target_x, int target_y);
+ * blocked move, retries use the player's velocity, not requested displacement.
+ * Returns the final pending Y, which can differ from the committed player Y. */
+int v6_player_map_move(V6Player *, const V6Room *, int target_x, int target_y);
 void v6_player_init(V6Player *p, int x, int y, int gravity);
 /* Optional collision-animation hook: after input/contact probes, before
  * velocity integration. The callback must not mutate the player. */
 typedef void (*V6ContactHook)(const V6Player *, void *);
 int v6_player_contacts(const V6Player *, const V6Room *);
+/* State retained across ordered input -> platform -> player-physics stages.
+ * Initialize pending_y from player.y on spawn; preserve it between ticks. */
+typedef struct { int32_t ax; int pending_y; } V6PlayerMotion;
+unsigned v6_player_input(V6Player *, unsigned input, V6PlayerMotion *);
+void v6_player_physics(V6Player *, const V6Room *, V6PlayerMotion *, V6ContactHook, void *);
 unsigned v6_player_step_hook(V6Player *, const V6Room *, unsigned, V6ContactHook, void *);
 unsigned v6_player_step(V6Player *p, const V6Room *room, unsigned input);
 int v6_player_hurt(const V6Player *p, const V6Room *room);

@@ -112,9 +112,9 @@ cycle timing with 512K Chip + 512K slow RAM. At the 16.5-second memory snapshot:
 | Unique packed payloads | 406 |
 | Prototype explicit Chip RAM allocation | 81,934 bytes |
 | Free Chip RAM after startup allocation | 376,520 bytes |
-| Free non-Chip RAM after startup allocation | 416,984 bytes (interactive build) |
-| Maximum measured update/draw work | 166 PAL lines / 10.624 ms (transition replay) |
-| Maximum room-change redraw | 166 PAL lines / 10.624 ms |
+| Free non-Chip RAM after startup allocation | 416,880 bytes (interactive build) |
+| Maximum measured update/draw work | 167 PAL lines / 10.688 ms (transition replay) |
+| Maximum room-change redraw | 167 PAL lines / 10.688 ms |
 | Missed VBL observations including transitions | 0 |
 | VBL periods crossed by room-change work | 0 |
 | Flip, checkpoint, spike death and respawn | Passed |
@@ -126,7 +126,7 @@ These are **emulator measurements of this harness**, not real-hardware or
 complete-game performance. The RAM totals do not include a resident full room
 pack: only two compressed rooms and their decoded tile/background caches are
 resident. A cache per room is temporary slice scaffolding, not the full-campaign
-storage design. The ordinary capture peaks at 89 lines / 5.696 ms. During a snapshot
+storage design. The ordinary capture peaks at 91 lines / 5.824 ms. During a snapshot
 the current tick can be one ahead of the completed-render counter.
 
 Reports and evidence:
@@ -203,7 +203,7 @@ These isolated comparisons do not establish full desktop-loop equivalence.
 The enemy capture's diagnostics and screenshot are in
 `build/amiga-enemy/smoke-report.json` and `prototype.png`. Its explicit Chip
 allocation is **43,534 bytes**, with one room's screen pair resident. Peak work
-is **135 PAL lines / 8.640 ms**, with zero missed VBL observations. The replay
+is **136 PAL lines / 8.704 ms**, with zero missed VBL observations. The replay
 verifies an enemy hit, death, checkpoint respawn, visible cyan/pink sprites and
 clean exit. It does not connect this room to the two-room world slice.
 
@@ -230,7 +230,7 @@ Vertical multiplexing and attached sprites remain unimplemented.
 Traffic Jam's capture shows all three original enemies moving, the checkpoint
 activated and a clean AmigaDOS exit. Its 22×32 collision boxes remain separate
 from the 32×32 source graphics. The room uses **43,534 Chip bytes** and peaks at
-**247 PAL lines / 15.808 ms** at tick 2, below the unchanged **250-line gate**.
+**248 PAL lines / 15.872 ms** at tick 2, below the unchanged **250-line gate**.
 `build/amiga-traffic/smoke-report.json` records `video_headroom_passed: true`,
 zero missed VBL observations and clean exit. This is a bounded replay result,
 not a worst-case campaign guarantee. Enemy hit/respawn coverage still comes
@@ -252,7 +252,7 @@ under UBSan (`make -C amiga_version test-terrain`).
 
 Profiling identified collision work as the largest part of Traffic Jam's former
 328-line peak. The cache, removal of redundant checkpoint mask writes, and
-per-text-row HUD invalidation reduce it to 247 lines without additional Chip RAM.
+per-text-row HUD invalidation reduce it to 248 lines without additional Chip RAM.
 An optional `CPPFLAGS=-DV6_PROFILE` build records six phase durations at the
 highest-work update. Use a separate `BUILD` directory, then decode its `slow.bin`
 with `python3 tools/amiga/read_profile.py /path/to/slow.bin`. Values are PAL lines;
@@ -328,10 +328,25 @@ Run `python3 tools/amiga/test_carry.py`; `make test` also includes it. The repor
 is `build/amiga/carry-test-report.json`. All four existing native captures pass
 after the shared player-collision refactor; they still contain no platforms.
 
+The player API now exposes separate `v6_player_input` and `v6_player_physics`
+stages. `V6PlayerMotion` retains the input acceleration and pending Y between
+stages and ticks; initialize pending Y from the spawn position. Input preserves
+pending Y, and physics consumes acceleration and records the collision routine's
+final pending Y even when the move was blocked. The existing one-call player
+step remains a wrapper around these stages.
+
+Another **12,000 ordered transport ticks** match extracted input, vertical push,
+horizontal carry and physics code on both terrain paths. These use prescribed
+platform positions to isolate sequencing; complete platform movement scheduling,
+post-physics entity collisions and stuck-player correction remain unverified as
+a combined loop. The results are included in `carry-test-report.json`.
+
 ## Next implementation step
 
-Connect the platform stages in the original input/logic order, retaining pending
-positions and block restoration across updates. Then export a platform room,
+Connect platform movement scheduling and post-physics collision handling to the
+staged player API. Preserve origin-matched block disabling and stuck-player
+correction: disabled platform blocks regain their dimensions when relocated by
+subsequent platform updates. Then export a platform room,
 validate carrying and crushing end to end, and measure it on the target. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and

@@ -98,10 +98,9 @@ void v6_player_init(V6Player *p, int x, int y, int gravity)
     p->dir = 1;
 }
 
-unsigned v6_player_step_hook(V6Player *p, const V6Room *room, unsigned input, V6ContactHook hook, void *context)
+unsigned v6_player_input(V6Player *p, unsigned input, V6PlayerMotion *motion)
 {
     int32_t ax = 0;
-    const int32_t friction = 18454938; /* exact binary32 1.1f, scaled by 2^24 */
     unsigned event = 0;
     if (!(input & V6_NO_CONTROL)) {
     if (input & V6_LEFT) { ax = -3 * V6_ONE; p->dir = 0; }
@@ -131,11 +130,18 @@ unsigned v6_player_step_hook(V6Player *p, const V6Room *room, unsigned input, V6
         }
     }
     }
+    motion->ax=ax;
+    return event;
+}
+
+void v6_player_physics(V6Player *p,const V6Room *room,V6PlayerMotion *motion,V6ContactHook hook,void *context)
+{
+    const int32_t friction = 18454938; /* binary32 1.1f in 8.24 */
     p->ground = wall(room, p->x, p->y + 1, 0, 0) ? 2 : p->ground - 1;
     p->roof = wall(room, p->x, p->y - 1, 0, 0) ? 2 : p->roof - 1;
     if (hook) hook(p, context);
     p->old_x = p->x; p->old_y = p->y;
-    p->vx = velocity_round(p->vx + ax); p->vy = velocity_round(p->vy + p->ay);
+    p->vx = velocity_round(p->vx + motion->ax); motion->ax=0; p->vy = velocity_round(p->vy + p->ay);
     p->ay = p->gravity ? -3 * V6_ONE : 3 * V6_ONE;
     /* Sequential tests, not if/else: friction may cross zero. */
     if (p->vx > 0) p->vx = velocity_round(p->vx - friction);
@@ -148,8 +154,7 @@ unsigned v6_player_step_hook(V6Player *p, const V6Room *room, unsigned input, V6
     if (p->vy < -10 * V6_ONE) p->vy = -10 * V6_ONE;
     if (p->vx > -friction && p->vx < friction) p->vx = 0;
     if (p->vy > -V6_ONE/4 && p->vy < V6_ONE/4) p->vy = 0;
-    v6_player_map_move(p,room,position(p->x,p->vx),position(p->y,p->vy));
-    return event;
+    motion->pending_y=v6_player_map_move(p,room,position(p->x,p->vx),position(p->y,p->vy));
 }
 
 int v6_player_hurt(const V6Player *p, const V6Room *room)
@@ -176,12 +181,20 @@ int v6_player_hurt(const V6Player *p, const V6Room *room)
     return 0;
 }
 
+unsigned v6_player_step_hook(V6Player *p,const V6Room *room,unsigned input,V6ContactHook hook,void *context)
+{
+    V6PlayerMotion motion={0,p->y};
+    unsigned events=v6_player_input(p,input,&motion);
+    v6_player_physics(p,room,&motion,hook,context);
+    return events;
+}
+
 unsigned v6_player_step(V6Player *p, const V6Room *room, unsigned input)
 { return v6_player_step_hook(p,room,input,0,0); }
 int v6_player_contacts(const V6Player *p, const V6Room *room)
 { return wall(room,p->x,p->y+1,0,0) | (wall(room,p->x,p->y-1,0,0)<<1); }
 
-void v6_player_map_move(V6Player *p,const V6Room *room,int target_x,int target_y)
+int v6_player_map_move(V6Player *p,const V6Room *room,int target_x,int target_y)
 {
     int next=target_x, allowed=1;
     while (wall(room, next, p->y, p->vx, 0)) {
@@ -192,6 +205,7 @@ void v6_player_map_move(V6Player *p,const V6Room *room,int target_x,int target_y
     }
     if (allowed) p->x = next;
     if (v6_player_test_y(p,room,&target_y)) p->y=target_y;
+    return target_y;
 }
 
 int v6_player_test_y(V6Player *p,const V6Room *room,int *target_y)
