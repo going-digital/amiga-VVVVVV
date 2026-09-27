@@ -562,7 +562,7 @@ spike-push fixtures** first start outside damage and then trigger it through the
 ordered movement/collision stages. Comparison stops at that first damage tick.
 
 A separate host adapter runs the same fixtures through the slice lifecycle.
-It checks death timer 30 on damage, frozen player/platform/block state during
+It checks death timer 30 on damage, frozen player position/velocity and platform/block state during
 the death pause, and respawn at the saved position and gravity with zero
 velocity and a life timer of 10. This covers **17,280 death-delay ticks** across
 both terrain paths. These lifecycle assertions are not an independent extraction
@@ -576,7 +576,7 @@ asset-free standalone Bartman executable and runs it in Copperline's A500 / 6800
 OCS / 512K Chip + 512K slow profile. All **672 cached/uncached fixture runs**
 complete: **19,896 simulation ticks**, including **576 respawns**. A 32-bit digest
 of every tick's player, platform, collision-block and lifecycle snapshot matches
-the UBSan host run (**368903396**). Fields are folded individually, avoiding
+the UBSan host run (the digest is recorded in the report). Fields are folded individually, avoiding
 host/68000 byte-order and structure-padding differences.
 
 Results are written to `build/amiga-crush/crush-target-report.json`. The runner
@@ -617,9 +617,17 @@ survives five recovery ticks and flips on the sixth, when control returns.
 The full host suite passes after this change. Traffic Jam's A500 capture still
 peaks at **249 PAL lines**, with no missed VBLs and clean exit.
 
-Logic.cpp also updates contact counters during death. That surrounding stage
-still needs a combined loop comparison before claiming complete death-state
-fidelity.
+The death path now refreshes floor/ceiling contact counters before decrementing
+the death timer, matching Logic.cpp. The reference extracts that counter-update
+stage and supplies probes from the original collision methods, including the
+frozen platform block and room tiles. Across 17,280 death ticks it checks **6,480
+with neither contact, 8,640 with floor contact and 2,160 with ceiling contact**;
+all player fields match on cached and uncached terrain. Positions and velocities
+stay frozen while contact counters continue to change. Animation/visibility,
+post-respawn movement and other modes remain outside this comparison.
+After contact refresh, the full host suite and A500 compression regression pass.
+The checkpoint-route capture now peaks at **197 PAL lines / 12.608 ms**, with no
+missed VBLs, matching reference snapshots and clean AmigaDOS restoration.
 
 After the retention fix, the full host suite, the standalone A500 compression
 regression and the checkpoint-route capture pass. The route remains at **196 PAL
@@ -627,8 +635,8 @@ lines / 12.544 ms**, with zero missed VBLs and clean AmigaDOS restoration.
 
 ## Next implementation step
 
-Extend the independent desktop comparison to contact updates during death
-and post-respawn movement. Add an integrated visual
+Extend the independent desktop comparison into post-respawn movement and
+remaining life-timer behavior. Add an integrated visual
 compression/spike-push replay. Then expand room-entity
 support to disappearing platforms and conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed

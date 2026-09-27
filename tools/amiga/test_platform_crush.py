@@ -120,14 +120,17 @@ extern "C" int damage_after_collision(void) {
                             assert bytes(session_p)==bytes(expected),(cases,cached,'session player')
                             assert bytes(session_e)==bytes(expected_e[0]) and bytes(session_b)==bytes(expected_b[0])
                             if death_tick:
-                                frozen_player=bytes(session_p);frozen_platform=bytes(session_e);frozen_block=bytes(session_b)
+                                frozen_player=Player.from_buffer_copy(session_p);frozen_platform=bytes(session_e);frozen_block=bytes(session_b)
                                 for delay in range(1,31):
                                     core.crush_session_step()
                                     core.crush_session_read(C.byref(session_p),C.byref(session_e),C.byref(session_b),status)
                                     assert status[4]==death_tick and status[2]==1
                                     assert bytes(session_e)==frozen_platform and bytes(session_b)==frozen_block
                                     if delay<30:
-                                        assert status[0]==30-delay and status[3]==0 and bytes(session_p)==frozen_player
+                                        assert status[0]==30-delay and status[3]==0
+                                        for field in FIELDS:
+                                            if field not in ('ground','roof'):
+                                                assert getattr(session_p,field)==getattr(frozen_player,field),(cases,delay,field)
                                     else:
                                         assert status[0]==-1 and status[1]==10 and status[3]==1
                                         assert status[5]&8

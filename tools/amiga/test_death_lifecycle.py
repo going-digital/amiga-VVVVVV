@@ -4,7 +4,7 @@ import ctypes as C
 import hashlib
 import json
 import subprocess
-from test_player import ROOT, BUILD, Player, DynamicBlock, FIELDS, block
+from test_player import ROOT, BUILD, Player, DynamicBlock, FIELDS, block, original_reference
 from test_enemy import Enemy
 
 
@@ -21,6 +21,8 @@ def reference_source():
     start=logic.index('        game.deathsequence();')
     end=logic.index('        if (game.deathseq <= 0)',start)
     timer=logic[start:end]+block(logic,end)
+    start=logic.index('            /* Is this entity on the ground?')
+    contacts=logic[start:logic.index('            obj.animatehumanoidcollision(i);',start)]
     # Unsupported branches abort instead of silently providing alternate behavior.
     shim=r'''
 #include <cstdlib>
@@ -67,6 +69,9 @@ struct mapclass {
 } map;
 struct Entity {
     std::vector<entclass> entities;
+    int contact_mask;
+    bool entitycollidefloor(int) { return contact_mask&1; }
+    bool entitycollideroof(int) { return contact_mask&2; }
     int getplayer() { return 0; }
     int getscm() { std::abort(); }
 } obj;
@@ -103,15 +108,33 @@ extern "C" void death_read(int *s) {
 }
 '''
     return shim+'\n'.join(methods)+'''
-extern "C" void death_tick(unsigned input) {
+extern "C" void death_tick(unsigned input,int mask) {
     if(game.nodeathmode || game.swnmode || game.supercrewmate || map.towermode ||
        game.roomx!=game.saverx || game.roomy!=game.savery || script.running ||
        game.completestop) std::abort();
-'''+ 'game.press_action=input & V6_FLIP;\nif(false) {}\n'+locked+'\n'+timer+'\n}\n'
+'''+ 'game.press_action=input & V6_FLIP;\nif(false) {}\n'+locked+'\nobj.contact_mask=mask; const int i=0;\n'+contacts+'\n'+timer+'\n}\n'
 
 
 def main():
     BUILD.mkdir(parents=True,exist_ok=True)
+    # Probe the original collision methods in a separate reference library.
+    original_reference()
+    probe_source=(BUILD/'player_reference.cpp').read_text()+r'''
+extern "C" int death_contacts(const V6Player *p,const uint16_t *tiles,int set,const V6Block *b) {
+    reference_init(p,tiles,set,0);
+    blockclass block={BLOCK,0,{b->x,b->y,b->w,b->h}};
+    obj.blocks.push_back(block);
+    return obj.entitycollidefloor(0) | (obj.entitycollideroof(0)<<1);
+}
+'''
+    (BUILD/'death_contacts.cpp').write_text(probe_source)
+    subprocess.run(['c++','-std=c++11','-O2','-shared','-fPIC',
+        '-I/opt/homebrew/include','-I'+str(ROOT/'desktop_version/src'),
+        '-I'+str(ROOT/'amiga_version'),'-I'+str(ROOT/'tools/amiga'),
+        str(BUILD/'death_contacts.cpp'),'-L/opt/homebrew/lib','-lSDL3',
+        '-o',str(BUILD/'death_contacts.so')],check=True)
+    probes=C.CDLL(str(BUILD/'death_contacts.so'))
+    probes.death_contacts.argtypes=[C.POINTER(Player),C.POINTER(C.c_uint16),C.c_int,C.POINTER(DynamicBlock)]
     source=reference_source();path=BUILD/'death_reference.cpp';path.write_text(source)
     subprocess.run(['c++','-std=c++11','-O2','-shared','-fPIC',
         '-I/opt/homebrew/include','-I'+str(ROOT/'desktop_version/src'),
@@ -127,11 +150,12 @@ def main():
     ref.death_init.argtypes=[C.POINTER(Player)]+[C.c_int]*4;ref.death_read.argtypes=[C.POINTER(C.c_int)]
     core.crush_session_init.argtypes=[C.c_int]*6
     core.crush_session_read.argtypes=[C.POINTER(Player),C.POINTER(Enemy),C.POINTER(DynamicBlock),C.POINTER(C.c_int)]
-    ref.death_tick.argtypes=[C.c_uint]
+    ref.death_tick.argtypes=[C.c_uint,C.c_int]
     core.crush_session_step_input.argtypes=[C.c_uint]
     core.crush_session_seed_player.argtypes=[C.POINTER(Player)]
     ref.death_player_read.argtypes=[C.POINTER(Player)]
     cases=ticks=0
+    contact_ticks=[0]*4
     for tileset in (0,1):
         for down in (0,1):
             for tile in (6,7,8,9,49,50):
@@ -151,10 +175,15 @@ def main():
                             p.ground=cases%4-1;p.roof=cases%3-1;p.flips=cases%11
                             core.crush_session_seed_player(C.byref(p))
                             ref.death_init(C.byref(p),x,97 if down else 70,down,1)
-                            expected_player=Player()
+                            expected_player=Player.from_buffer_copy(p)
+                            frozen_block=DynamicBlock.from_buffer_copy(b)
+                            tiles=(C.c_uint16*1200)()
+                            for tx in range(9,20):tiles[(15 if down else 8)*40+tx]=tile
                             for delay in range(30):
                                 buttons=4 if (cases%3==0 or (cases%3==1 and delay%8<4)) else 0
-                                ref.death_tick(buttons);core.crush_session_step_input(buttons)
+                                mask=probes.death_contacts(C.byref(expected_player),tiles,tileset,C.byref(frozen_block))
+                                contact_ticks[mask]+=1
+                                ref.death_tick(buttons,mask);core.crush_session_step_input(buttons)
                                 ref.death_read(original)
                                 core.crush_session_read(C.byref(p),C.byref(e),C.byref(b),state)
                                 assert list(state[:3])==list(original[:3]),(cases,delay,list(state),list(original))
@@ -167,8 +196,9 @@ def main():
                                     assert state[3]==1 and state[5]&8
                                 ticks+=1
                             cases+=1
-    report=dict(cases=cases,death_ticks=ticks,reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
-        scope='Extracted Input.cpp locked-control branch, Game::deathsequence and Map::resetplayer plus Logic.cpp countdown/reset branch; ordinary same-room death only. Compare timer, life timer and death count each tick; all player fields including retained input/contact state through freeze and respawn, using synthetic damage-boundary states and held/released/repeated flip input. Excludes post-respawn movement, rendering, other rooms, scripts, towers and special modes.')
+    report=dict(cases=cases,death_ticks=ticks,contact_ticks=contact_ticks,reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
+        contact_reference_sha256=hashlib.sha256(probe_source.encode()).hexdigest(),
+        scope='Extracted Input.cpp locked-control branch, Game::deathsequence and Map::resetplayer plus Logic.cpp contact and countdown/reset branches; ordinary same-room death only. Compare timer, life timer and death count each tick; all player fields including retained input/contact state during the death pause and respawn, using synthetic damage-boundary states and held/released/repeated flip input. Excludes post-respawn movement, rendering, other rooms, scripts, towers and special modes.')
     (BUILD/'death-lifecycle-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS:',json.dumps(report))
 

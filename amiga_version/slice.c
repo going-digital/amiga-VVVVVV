@@ -103,7 +103,12 @@ static inline __attribute__((always_inline)) unsigned step(V6Slice *s, const V6R
     if (restart && s->death_timer < 0) s->death_timer = 30;
     if (s->death_timer >= 0) {
         V6PlayerMotion locked_motion = {0, s->player.y};
+        int contacts;
         v6_player_input(&s->player, input | V6_NO_CONTROL, &locked_motion);
+        /* Logic.cpp refreshes contacts while ordinary physics is paused. */
+        contacts = v6_player_contacts(&s->player, room);
+        s->player.ground = contacts & 1 ? 2 : s->player.ground - 1;
+        s->player.roof = contacts & 2 ? 2 : s->player.roof - 1;
         if (s->death_timer == 30) { ++s->deaths; events |= V6_EVENT_DEATH; }
         s->frame = 12 + (s->player.dir ? 0 : 1) + (s->player.gravity ? 2 : 0);
         if (--s->death_timer <= 0) { respawn(s); events |= V6_EVENT_RESPAWN;
