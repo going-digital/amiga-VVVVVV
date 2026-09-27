@@ -710,17 +710,27 @@ All six states and the sound/disable/create events are exercised. The UBSan test
 is included in `make test`; its report is `build/amiga/disappearing-report.json`.
 The module also compiles for the 68000 without runtime helper dependencies.
 
-This core is not yet connected to a playable room. It emits requests; the caller
-must disable all blocks at the origin and implement desktop `createblock` slot
-reuse (first disabled slot, otherwise append), draw the animation, and play the
-sound. Collision geometry is 32x10 at Y-1; the solid block is 32x8. The special
-death-time tile patch in room (111,107), supercrewmates, actual block-bank
-mutation and rendered target behavior are not covered by this test.
+`v6_disappearing_update` now applies lifecycle and collision-bank changes
+together. `v6_blocks_create_solid` reuses the first fully disabled slot or appends,
+clearing its previous type/trigger metadata. Collapse disables all blocks at the
+platform origin. If recharge cannot allocate a slot, the update returns
+`V6_DISAPPEAR_FULL` with platform state and bank unchanged, allowing a retry.
+The caller must synchronize `V6Room.block_count` with the bank count.
+
+An additional **30,720 integrated updates** compare platform state, events, bank
+count and every slot against the source's solid allocation, slot clearing and
+disable branches. Tests cover shared origins, unrelated disabled slots and
+appending; separate checks cover full capacity, retry and partly empty rectangles
+that must not be reused. The 68000 module references only the native block helpers.
+
+This core is not yet connected to a playable room. The caller must draw the
+animation and play the sound. Collision geometry is 32x10 at Y-1; the solid block is 32x8. The special
+death-time tile patch in room (111,107), supercrewmates and rendered target behavior are not covered by this test.
 
 ## Next implementation step
 
-Integrate disappearing platforms with the collision-block bank and a native
-room fixture, then add conveyors. Sprite
+Integrate disappearing platforms into a native room fixture with animation
+and sound, then add conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. Target replays combine milestone assertions with selected state comparisons;

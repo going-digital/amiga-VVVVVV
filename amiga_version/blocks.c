@@ -15,3 +15,15 @@ int v6_blocks_move(V6Block *blocks, unsigned count, int old_x, int old_y,
     }
     return 0;
 }
+int v6_blocks_create_solid(V6Block *blocks,unsigned *count,unsigned capacity,
+                           int x,int y,int w,int h)
+{
+    unsigned i;
+    for(i=0;i<*count;++i) if(blocks[i].w==0 && blocks[i].h==0) break;
+    if(i==*count) {
+        if(i>=capacity) return -1;
+        ++*count;
+    }
+    blocks[i]=(V6Block){x,y,w,h,V6_BLOCK,0};
+    return (int)i;
+}

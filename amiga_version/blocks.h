@@ -8,6 +8,11 @@ typedef struct { int x, y, w, h, type, trigger; } V6Block;
 void v6_blocks_disable_at(V6Block *, unsigned count, int x, int y);
 int v6_blocks_move(V6Block *, unsigned count, int old_x, int old_y,
                    int x, int y, int w, int h);
+/* Desktop solid-block allocation: reuse first fully disabled slot, otherwise
+ * append. Clears old type/trigger metadata. Returns slot, or -1 with no changes
+ * when full. Caller supplies count <= capacity and storage of that capacity. */
+int v6_blocks_create_solid(V6Block *,unsigned *count,unsigned capacity,
+                           int x,int y,int w,int h);
 /* Matches Entity::checkblocks for player/enemy rules. Empty rectangles never
  * collide (including temporarily disabled platform blocks). */
 static inline int v6_block_hit(const V6Block *b, int x, int y, int w, int h,

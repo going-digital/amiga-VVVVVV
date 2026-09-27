@@ -202,8 +202,11 @@ the next entity expansion.
 The ordinary disappearing-platform lifecycle core is now implemented and matches
 40,960 source-derived updates across all six states and sound/disable/create
 events. It compiles for the 68000 without helper-library dependencies. It is not
-yet integrated into a room: collision-bank slot reuse, animation, audio and the
-(111,107) death-time tile exception remain caller work. Native integration is next.
+yet integrated into a room. Collision-bank integration now matches 30,720 source
+updates, including first-disabled-slot reuse, metadata clearing, shared origins
+and appends. Fixed-capacity exhaustion leaves both state and bank unchanged;
+separate tests cover failure and retry. Animation, audio and the (111,107)
+death-time tile exception remain caller work. Native room integration is next.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

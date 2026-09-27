@@ -37,3 +37,17 @@ unsigned v6_disappearing_death(V6Disappearing *p)
     }
     return events;
 }
+
+unsigned v6_disappearing_update(V6Disappearing *p,int x,int y,V6Block *blocks,
+                                unsigned *count,unsigned capacity,int dying)
+{
+    V6Disappearing next={p->state,p->life,p->walking_frame,p->on_entity,p->invisible};
+    unsigned events=dying?v6_disappearing_death(&next):v6_disappearing_step(&next);
+    if((events&V6_DISAPPEAR_CREATE) &&
+       v6_blocks_create_solid(blocks,count,capacity,x,y,32,8)<0)
+        return V6_DISAPPEAR_FULL;
+    if(events&V6_DISAPPEAR_DISABLE) v6_blocks_disable_at(blocks,*count,x,y);
+    p->state=next.state;p->life=next.life;p->walking_frame=next.walking_frame;
+    p->on_entity=next.on_entity;p->invisible=next.invisible;
+    return events;
+}
