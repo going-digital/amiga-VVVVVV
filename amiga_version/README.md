@@ -738,6 +738,18 @@ plus a repeated death tick for each. The new 68000 function introduces no runtim
 helper dependency. This room is not exported yet; the API does not itself
 change tiles or apply collision-bank events.
 
+`v6_terrain_set_tile` provides the tile/cache mutation step: it edits a mutable
+40x30 tile buffer and rebuilds collision classifications, including duplicated
+border cells and the directional-tile flag. It returns 1 for a changed tile
+(the caller must redraw), 0 for a no-op and -1 for invalid coordinates/format.
+Use the same buffer and format as the room and an already initialized cache.
+`make test-tile-edit` checks 64,800 edits across all supported tilesets/heights,
+including removal of directional tiles, plus the death-event-to-solid-tile
+path and rejected edits. This runs with UBSan and is included in `make test`.
+The 68000 object has no undefined runtime helpers. This is a full cache rebuild;
+its cost during live Amiga gameplay has not been measured, and the special
+room still needs scene integration and a redraw of its background buffers.
+
 ## Native disappearing-platform replay
 
 `make disappearing-capture` builds a separate `V6_DISAPPEAR_REPLAY` scene. The

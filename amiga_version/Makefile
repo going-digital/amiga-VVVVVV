@@ -86,7 +86,7 @@ test-terrain: | $(BUILD)
 	$(BUILD)/test_terrain
 
 .PHONY: test-terrain
-test: test-sprites test-terrain $(BUILD)/prototype_room.h
+test: test-sprites test-terrain test-tile-edit $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/pack_rooms.py --out $(BUILD) --scene $(SCENE)
 	python3 $(ROOT)/tools/amiga/test_rooms.py
 	python3 $(ROOT)/tools/amiga/test_player.py
@@ -232,3 +232,8 @@ retrigger-capture:
 	python3 $(ROOT)/tools/amiga/disappearing_replay_trace.py --retrigger
 	$(MAKE) BUILD=$(ROOT)/build/amiga-retrigger SCENE=platform CPPFLAGS="-DV6_DISAPPEAR_REPLAY -DV6_RETRIGGER_REPLAY" all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-retrigger --capture --retrigger
+
+.PHONY: test-tile-edit
+test-tile-edit: | $(BUILD)
+	cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I. $(ROOT)/tools/amiga/test_tile_edit.c terrain.c disappearing.c blocks.c -o $(BUILD)/test_tile_edit
+	$(BUILD)/test_tile_edit

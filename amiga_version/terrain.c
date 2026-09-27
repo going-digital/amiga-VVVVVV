@@ -22,3 +22,19 @@ void v6_terrain_build(V6Terrain *out, const V6Room *room)
         out->solid[y][x]=(uint8_t)solid;
     }
 }
+
+int v6_terrain_set_tile(V6Terrain *out,uint16_t *tiles,int tileset,int extra_row,
+                        int x,int y,uint16_t tile)
+{
+    V6Room room;
+    if((unsigned)x>=40 || (unsigned)y>=30 || (unsigned)tileset>2 ||
+       (unsigned)extra_row>1) return -1;
+    if(tiles[y*40+x]==tile) return 0;
+    tiles[y*40+x]=tile;
+    room.tiles=tiles;room.tileset=tileset;room.extra_row=extra_row;
+    room.terrain=0;room.blocks=0;room.block_count=0;
+    /* Changes can remove the final directional tile or affect duplicated
+     * border cells. Rebuild all classifications, not just one cached byte. */
+    v6_terrain_build(out,&room);
+    return 1;
+}
