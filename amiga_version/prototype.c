@@ -31,6 +31,9 @@
 #endif
 #include "prototype_room.h"
 #include "prototype_assets.h"
+#ifdef V6_BENEATH_REPLAY
+#include "../tools/amiga/beneath_replay.h"
+#endif
 #ifdef V6_PICK_REPLAY
 #include "../tools/amiga/pick_replay.h"
 #endif
@@ -685,6 +688,9 @@ static int run(void)
 #endif
 #if defined(V6_HORIZONTAL_REPLAY) || defined(V6_CRUSH_REPLAY) || defined(V6_DISAPPEAR_REPLAY)
                 input=0;
+#endif
+#ifdef V6_BENEATH_REPLAY
+                input=beneath_replay_input(diagnostics.ticks);
 #endif
 #ifdef V6_PLATFORM_REPLAY
                 /* Walk off the checkpoint ledge, then flip onto the third

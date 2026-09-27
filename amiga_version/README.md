@@ -785,14 +785,29 @@ The room uses seven hardware sprite channels and both jump/vanish cues.
 restoration on the minimum A500 profile. Peak work is **206 PAL lines / 13.184 ms**,
 with **45,384 allocated Chip bytes** and no missed VBLs. Output is in
 `build/amiga-beneath/`, including `prototype.png` and `smoke-report.json`.
-This is a single-room playable build with an idle smoke test; room traversal,
-collapse/recharge timing and extended retrigger rendering still need a target
-replay. Neighbouring rooms are not included.
+Neighbouring rooms are not included.
+
+`make -C amiga_version beneath-route-capture` adds a separate deterministic
+normal-input build: move right for twelve ticks and flip on tick five, then
+release the controls. The player reaches the underside of the first platform,
+waits for collapse, rises into ceiling spikes and respawns at the checkpoint.
+No forced player placement or restart is used. A 240-tick UBSan host trace visits
+all six lifecycle states and verifies one collapse, one death/respawn and one
+flip, while the other platforms remain idle. It is included in `make test`.
+
+Target snapshots match the host at ticks **17** (collapse), **34** (hidden),
+**59** (recharge) and **170** (respawned). Screenshots separately check the first
+platform disappearing and returning. Peak work is **213 PAL lines / 13.632 ms**,
+with no missed frames, seven sprite channels, 45,384 allocated Chip bytes and
+clean exit. Artifacts are in `build/amiga-beneath-route/`. This compares the native
+adapter across host and 68000, not an independent full desktop game loop;
+extended retrigger frames and traversal of the other platforms remain untested
+on target.
 
 ## Next implementation step
 
-Add a normal-input traversal of “What Lies Beneath?” covering its disappearing
-platforms, death/respawn and recharge contacts, with host/target state comparisons.
+Extend the “What Lies Beneath?” route to cover its remaining platforms and
+recharge contacts, and compare ordered behaviour against the desktop game loop.
 Then add conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
