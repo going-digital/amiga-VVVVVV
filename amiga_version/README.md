@@ -585,10 +585,25 @@ record allocated. This is a logic regression, not a rendered compression replay,
 a gameplay timing measurement, or an independent desktop death/respawn comparison.
 Ordinary gameplay code is unchanged.
 
+`python3 tools/amiga/test_death_lifecycle.py` independently extracts unmodified
+`Game::deathsequence`, `mapclass::resetplayer(bool)` and the countdown/reset
+branch in `Logic.cpp`. Starting from the damage-boundary snapshot, it compares
+**576 cached/uncached spike-push cases** through **17,280 death-delay ticks**.
+The death timer, life timer, death count, player position, velocity, gravity and
+facing match on every tick, including the saved-position reset. Desktop room
+death counts also match the slice death count.
+
+This test compiles the original method bodies with a small host environment.
+Audio, textbox and achievement/statistics side effects are stubbed; unsupported
+room changes, tower camera and special-mode operations abort. It covers ordinary
+same-room deaths through respawn, not the full game loop, post-respawn input/contact
+retention, visibility, scripts or other modes. `make test` includes it; its source
+hash and results are in `build/amiga/death-lifecycle-report.json`.
+
 ## Next implementation step
 
-Extend the independent desktop comparison through death/respawn and add an
-integrated visual compression/spike-push replay. Then expand room-entity
+Extend the independent desktop comparison into post-respawn input/contact state
+and add an integrated visual compression/spike-push replay. Then expand room-entity
 support to disappearing platforms and conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and

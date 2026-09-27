@@ -157,7 +157,14 @@ death-delay ticks. A standalone Bartman/Copperline A500 regression now runs all
 672 cached/uncached variants: 19,896 ticks and 576 respawns, with the per-tick
 state digest matching the host run. `make -C amiga_version crush-capture`
 reproduces this asset-free logic test. An integrated visual compression replay
-and independent full desktop death/respawn comparison remain future work.
+and independent full desktop-loop comparison remain future work.
+
+A further source-extracted same-room death regression now compares **576 cases /
+17,280 ticks** against `Game::deathsequence`, `Map::resetplayer` and the original
+Logic.cpp countdown/reset branch. Timers, death counts, position, velocity,
+gravity and facing match through respawn. It begins at the damage boundary;
+post-respawn input/contact retention, visibility, cross-room resets and special
+modes are outside this comparison. The full desktop loop remains unverified.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and
