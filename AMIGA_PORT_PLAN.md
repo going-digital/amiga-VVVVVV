@@ -268,7 +268,12 @@ most two rows. This is storage/decoder evidence, not a native scrolling timing
 result. The native C directory reader and bounded row cache are now implemented and
 pass 1,011,840 source-map queries plus signed-limit and malformed-data tests.
 The 68000 object has no runtime helper dependencies beyond the row decoder.
-Copper wrap, row drawing, parallax and gameplay remain to be tested.
+The planar row writer and per-buffer display tags now prepare 31 visible rows
+in a 320x256 two-plane ring. Tests cover 2,600 alternating-buffer frames and
+80,600 rows with a patterned atlas and original maps; initial fill is 31 rows,
+then at most two dirty rows per buffer for one-row camera steps. The 68000 object
+adds no runtime helpers. Actual graphics conversion, Copper wrap, DMA timing,
+parallax and gameplay remain to be tested.
 
 Music now assumes Lightspeedplayer and a musician-produced tracker soundtrack,
 per the user's direction. PCM streaming is no longer the working path. Measure

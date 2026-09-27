@@ -970,3 +970,21 @@ decoder, with no runtime division helper. The cache stores 2,560 tile bytes plus
 metadata. Its pointer views are temporary until a colliding logical row replaces
 the slot. `make test` includes these checks. It is not yet connected to Copper
 scrolling or row drawing; native display timing remains the next feasibility gate.
+
+`tower_draw.c` now provides the planar row-writing stage: 40 atlas tiles become
+one 8-pixel-high row in a 320x256 two-plane ring. Each display buffer has its own
+logical-row tags, so alternating buffers update their own missing rows. Preparing
+31 rows covers a 240-pixel viewport plus fine-scroll coverage. The caller must
+write an inactive buffer and publish it only on success; Copper pointer changes
+and wrap splitting remain separate. Reset display tags whenever the stream or
+atlas changes. Invalid tile IDs are rejected before any part of that row is
+written; a failed multi-row preparation may retain earlier completed writes.
+
+`test_tower_draw.py` checks **2,600 alternating-buffer frames / 80,600 rows**
+against a distinct-pattern two-plane atlas and the original tower maps. It tests
+strides, both planes, forward/reverse/map/cache wrap, unchanged-window zero work,
+guard bytes and invalid IDs/coordinates. Initial preparation draws 31 rows;
+subsequent one-row-per-frame camera steps need at most two rows per alternating
+buffer. Each ring is 20,480 bytes. UBSan tests and the 68000 build pass, with no
+new runtime helper dependency. This is not yet a hardware scrolling demo: actual
+tower graphics conversion, Copper wrap and DMA-contended timing remain next.
