@@ -178,7 +178,12 @@ extracted Logic.cpp counter updates and original floor/ceiling collision probes:
 cached and uncached terrain. Position/velocity and platform motion stay frozen.
 The full host suite and A500 compression regression pass; the updated route
 capture peaks at 197 PAL lines / 12.608 ms, with no missed VBLs and clean exit.
-Post-respawn movement and remaining life-timer behavior are next. The full desktop
+A separate static-room recovery comparison now covers 240 states / 5,760
+movement ticks plus 120 life-timer checks across ten restart timings. It exposed
+and fixed the timer not decrementing during another death; saved gravity is now
+restored above life timer five. Input gating, buffered flips, floor/ceiling spawns
+and cached/uncached movement match extracted source. Moving-platform recovery,
+visibility and tower-specific life timing remain outside this comparison. The full desktop
 loop is unverified. The A500 compression and checkpoint-route captures pass after
 the reset fix; the route remains at 196 PAL lines with clean exit.
 

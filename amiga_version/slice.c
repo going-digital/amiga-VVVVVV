@@ -101,6 +101,13 @@ static inline __attribute__((always_inline)) unsigned step(V6Slice *s, const V6R
     unsigned events = 0;
     int previous_room = s->room_index;
     if (restart && s->death_timer < 0) s->death_timer = 30;
+    /* Ordinary-room Logic.cpp runs lifesequence even during another death.
+     * Gate input with the pre-decrement timer, then restore saved gravity. */
+    if (s->life_timer > 5) {
+        input |= V6_NO_CONTROL;
+        s->player.gravity = s->save_gravity;
+    }
+    if (s->life_timer > 0) --s->life_timer;
     if (s->death_timer >= 0) {
         V6PlayerMotion locked_motion = {0, s->player.y};
         int contacts;
@@ -124,8 +131,6 @@ static inline __attribute__((always_inline)) unsigned step(V6Slice *s, const V6R
         s->save_gravity = s->checkpoint_tile == 20;
         events |= V6_EVENT_SAVE;
     }
-    if (s->life_timer > 5) input |= V6_NO_CONTROL;
-    if (s->life_timer > 0) --s->life_timer;
     events |= movement ? movement(&s->player,room,input,s->life_timer,context) :
         v6_player_step_hook(&s->player, room, input, hook, context);
     if (!external_checkpoints && !s->checkpoint_active && v6_player_overlaps(&s->player,

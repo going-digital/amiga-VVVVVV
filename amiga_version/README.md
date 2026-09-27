@@ -633,10 +633,29 @@ After the retention fix, the full host suite, the standalone A500 compression
 regression and the checkpoint-route capture pass. The route remains at **196 PAL
 lines / 12.544 ms**, with zero missed VBLs and clean AmigaDOS restoration.
 
+## Recovery movement and life timer
+
+`python3 tools/amiga/test_recovery.py` compares **240 synthetic recovery states /
+5,760 movement ticks** with extracted desktop input, `Game::lifesequence` and
+player physics. Floor/ceiling spawns, held/released/repeated flip, buffered input,
+directional input, saved-gravity restoration and both terrain paths are covered.
+Each case runs 24 ticks, through the five-tick control lock and normal movement.
+All player fields and the life timer match. These are initialized recovery
+states in a static room, not a complete campaign death-to-recovery replay.
+
+Ten restart timings during recovery add **120 death/life-timer checks**. They
+exposed the slice leaving its life timer unchanged during death; it now decrements
+there too and restores saved gravity while the timer is above five, as in the
+ordinary desktop room path. Input gating uses the timer before decrementing.
+`make test` includes this test; results and the reference source hash are in
+`build/amiga/recovery-report.json`. Platforms, scripts, visibility and tower
+camera delays are outside its scope. The full host suite passes. After the fix,
+A500 Traffic Jam and checkpoint-route captures pass at **249** and **197 PAL
+lines** respectively, with no missed VBLs and clean exits.
+
 ## Next implementation step
 
-Extend the independent desktop comparison into post-respawn movement and
-remaining life-timer behavior. Add an integrated visual
+Extend recovery comparison to moving platforms and add an integrated visual
 compression/spike-push replay. Then expand room-entity
 support to disappearing platforms and conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
