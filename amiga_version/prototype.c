@@ -1,5 +1,5 @@
-/* VVVVVV A500 playable static-room slice. Original tiles and player rules.
- * The full campaign, moving entities and scripts are pending.
+/* VVVVVV A500 playable room slices. Original tiles and player rules.
+ * The full campaign, general entity handling and scripts are pending.
  * Native display/blitter/Paula code; no SDL and no runtime asset decompression
  * beyond the bounded room RLE decoder. All OS calls occur outside takeover.
  */
@@ -16,6 +16,7 @@
 #include "enemy.h"
 #include "pixel_collision.h"
 #include "animation.h"
+#include "sprites.h"
 #include "prototype_room.h"
 #include "prototype_assets.h"
 #ifdef V6_TRANSITION_REPLAY
@@ -34,7 +35,7 @@ static volatile struct Custom * const hw = (void *)0xdff000;
 #define COPPER_BYTES 320
 #define HUD_PLANE_BYTES (40 * 40)
 #define HUD_BYTES HUD_PLANE_BYTES
-#define MASK_BYTES (2 * 2 * 68 * 2) /* two DMA sprite lists, 32 rows each */
+#define MASK_BYTES (2 * V6_SPRITE_CHANNELS * V6_SPRITE_WORDS * 2)
 #define CHIP_BYTES (DISPLAY_BUFFER_COUNT * SCREEN_BYTES + COPPER_BYTES + sizeof(flip_sound) + 4 + HUD_BYTES + MASK_BYTES)
 
 /* Located by the host smoke test in a RAM dump. Fixed-width big-endian fields. */
@@ -52,7 +53,8 @@ static volatile ULONG frames;
 static UBYTE *chip, *screen[DISPLAY_BUFFER_COUNT], *background, *sample, *hud;
 static ULONG hud_generation = 1, hud_versions[DISPLAY_BUFFER_COUNT];
 static UBYTE room_backgrounds[SLICE_ROOM_COUNT][BACKGROUND_BYTES];
-static UWORD *sprite_data[2][2], *sprite_words;
+static V6Sprites sprites[2];
+static UWORD *sprite_words, *sprite_colour_words;
 static UWORD *copper, *plane_words, *color_words, *silence;
 static UWORD room_tiles[SLICE_ROOM_COUNT][1200];
 static UWORD *room = room_tiles[0];
@@ -137,8 +139,9 @@ static void set_screen(UBYTE *data)
 #endif
     UWORD p;
     UWORD buffer = data == screen[slice.room_index*2] ? 0 : 1;
-    for (p = 0; p < 2; ++p) {
-        ULONG address = (ULONG)sprite_data[buffer][p];
+    for (p = 0; p < V6_SPRITE_CHANNELS; ++p) {
+        ULONG address = (ULONG)(sprites[buffer].dma + p*V6_SPRITE_WORDS);
+        sprite_colour_words[p*2+1] = sprites[buffer].colours[p];
         sprite_words[p*4+1] = address >> 16; sprite_words[p*4+3] = address;
     }
     for (p = 0; p < V6_PLANES; ++p) {
@@ -169,8 +172,9 @@ static void create_copper(void)
         p = move_reg(p, 0x120 + i*4, address >> 16);
         p = move_reg(p, 0x122 + i*4, address);
     }
-    p = move_reg(p, 0x1a6, 0xf6b); /* sprite 1 colour 3: pink */
-    p = move_reg(p, 0x1a2, 0x6ff); /* sprite 0 colour 1: cyan */
+    sprite_colour_words = p;
+    for (i = 0; i < V6_SPRITE_CHANNELS; ++i)
+        p = move_reg(p, v6_sprite_colour_register(i), 0);
     /* The CPU publishes completed buffer pointers just after the VBL IRQ.
      * Delay Copper pointer reads until line 44, before the visible line 52. */
     *p++ = 0x2c01; *p++ = 0xfffe;
@@ -291,34 +295,6 @@ static void restore_rectangle(UBYTE *dst, int x, int y, int width, int height)
     }
 }
 
-/* The player uses source columns 6..21, the drone columns 0..15.
- * Each fits one 16-pixel OCS sprite channel. Build only the inactive DMA list and publish it
- * with the completed playfield at the next VBL. */
-static void draw_sprite(UWORD buffer, UWORD channel, int x, int y, UWORD frame, UWORD crop, UWORD colour)
-{
-    UWORD *data = sprite_data[buffer][channel];
-    int first = y < 16 ? 16-y : 0;
-    int last = y+32 > 216 ? 216-y : 32;
-    int row, column;
-    UWORD horizontal = 129 + x + crop, start, stop, clip = 0xffff;
-    if (first >= last || first >= 32 || last <= 0) {
-        data[0] = data[1] = 0; return;
-    }
-    for (column = 0; column < 16; ++column)
-        if (x+crop+column < 0 || x+crop+column >= 320) clip &= ~(0x8000 >> column);
-    start = 52+y+first; stop = 52+y+last;
-    data[0] = ((start & 255) << 8) | (horizontal >> 1);
-    data[1] = ((stop & 255) << 8) | ((start & 256) >> 6)
-        | ((stop & 256) >> 7) | (horizontal & 1);
-    data += 2;
-    for (row = first; row < last; ++row) {
-        UWORD bits = (sprite_rows[frame][row] >> (16-crop)) & clip;
-        *data++ = colour & 1 ? bits : 0;
-        *data++ = colour & 2 ? bits : 0;
-    }
-    data[0] = data[1] = 0;
-}
-
 static void text(UWORD x, UWORD y, const char *s)
 {
     UWORD row;
@@ -425,7 +401,8 @@ static int run(void)
     sample = (UBYTE *)copper + COPPER_BYTES;
     silence = (UWORD *)(sample + sizeof(flip_sound));
     hud = (UBYTE *)(silence + 2);
-    for (i=0;i<4;++i) sprite_data[i/2][i%2] = (UWORD *)(hud + HUD_BYTES) + i*68;
+    for (i=0;i<2;++i) v6_sprites_begin(&sprites[i],
+        (UWORD *)(hud + HUD_BYTES) + i*V6_SPRITE_CHANNELS*V6_SPRITE_WORDS);
     for (i = 0; i < sizeof(flip_sound); ++i) sample[i] = flip_sound[i];
     for (i = 0; i < SLICE_ROOM_COUNT; ++i) {
         if (!v6_unpack_room(packed_rooms[i], packed_sizes[i], room_tiles[i], 1200)) {
@@ -559,9 +536,16 @@ static int run(void)
             checkpoint_dirty[buffer] = 0;
             if (slice.checkpoint_y < 16 || slice.checkpoint_y+16 > 216) hud_versions[buffer] = 0;
         }
-        draw_sprite(back,0,slice.player.x,slice.player.y,slice.frame,6,1);
+        v6_sprites_begin(&sprites[back],sprites[back].dma);
+        if (v6_sprites_add(&sprites[back],sprite_rows[slice.frame],
+                slice.player.x,slice.player.y,6,0x6ff) < V6_SPRITE_CLIPPED) {
+            diagnostics.error=4; break;
+        }
 #ifdef V6_ENEMY_SCENE
-        draw_sprite(back,1,drone.x,drone.y,drone_frame,0,3);
+        if (v6_sprites_add(&sprites[back],sprite_rows[drone_frame],
+                drone.x,drone.y,0,0xf6b) < V6_SPRITE_CLIPPED) {
+            diagnostics.error=4; break;
+        }
         diagnostics.enemy_x=drone.x; diagnostics.enemy_y=drone.y;
         diagnostics.enemy_ticks=enemy_ticks; diagnostics.enemy_hits=enemy_hits;
 #endif

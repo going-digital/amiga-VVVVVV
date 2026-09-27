@@ -72,10 +72,10 @@ committed or bundled for distribution without the relevant permission.
   white text. Low-intensity tile shading is removed; both rooms retain their
   outlines and hazards. The cyan player uses an independent sprite palette.
 - The visible player fits source columns 6–21 and uses one 16-pixel sprite.
-  Two DMA lists publish animation/position with the completed screen. The
-  enemy scene also uses channel 1 for its pink drone; six channels remain unused.
-  General moving-object allocation/multiplexing and
-  a general blitter fallback are still to be implemented.
+  Two banks of eight DMA lists publish animation, position and colours with
+  the completed screen. The enemy scene also uses a channel for its pink drone.
+  Requests allocate channels in priority order, with the player submitted first.
+  Multiplexing and a general blitter fallback remain to be implemented.
 - Two screen pairs remain cached in Chip RAM; original room backgrounds live
   in slow RAM. Only checkpoint damage needs CPU restoration; HUD copies occur only when
   their content changes. The earlier repeating-room scroll
@@ -103,11 +103,11 @@ cycle timing with 512K Chip + 512K slow RAM. At the 16.5-second memory snapshot:
 | Raw tile bytes | 1,012,800 |
 | Packed tile bytes, including directory | 252,832 |
 | Unique packed payloads | 406 |
-| Prototype explicit Chip RAM allocation | 80,302 bytes |
-| Free Chip RAM after startup allocation | 378,152 bytes |
-| Free non-Chip RAM after startup allocation | 422,600 bytes (interactive build) |
+| Prototype explicit Chip RAM allocation | 81,934 bytes |
+| Free Chip RAM after startup allocation | 376,520 bytes |
+| Free non-Chip RAM after startup allocation | 422,232 bytes (interactive build) |
 | Maximum measured update/draw work | 197 PAL lines / 12.608 ms (transition replay) |
-| Maximum room-change redraw | 196 PAL lines / 12.544 ms |
+| Maximum room-change redraw | 195 PAL lines / 12.480 ms |
 | Missed VBL observations including transitions | 0 |
 | VBL periods crossed by room-change work | 0 |
 | Flip, checkpoint, spike death and respawn | Passed |
@@ -119,7 +119,7 @@ These are **emulator measurements of this harness**, not real-hardware or
 complete-game performance. The RAM totals do not include a resident full room
 pack: only two compressed rooms and their decoded tile/background caches are
 resident. A cache per room is temporary slice scaffolding, not the full-campaign
-storage design. The ordinary capture peaks at 152 lines / 9.728 ms. During a snapshot
+storage design. The ordinary capture peaks at 154 lines / 9.856 ms. During a snapshot
 the current tick can be one ahead of the completed-render counter.
 
 Reports and evidence:
@@ -183,7 +183,7 @@ reference hash. Bartman also compiles it for the 68000.
 The separate Security Sweep scene runs the core on the 68000 with the original
 vertical speed-8 enemy, frames 36–39, and checkpoint setup. Channel 0 displays
 the player and channel 1 the drone, using distinct colours in their shared
-sprite palette. This is fixed assignment for one enemy, not a general allocator.
+sprite palette. Both now submit requests to the bounded eight-channel allocator.
 
 Player/enemy collision uses the original rectangle broad phase followed by
 32×32 row masks based on **nonzero source red**, matching `Graphics::Hitest`
@@ -195,15 +195,32 @@ These isolated comparisons do not establish full desktop-loop equivalence.
 
 The enemy capture's diagnostics and screenshot are in
 `build/amiga-enemy/smoke-report.json` and `prototype.png`. Its explicit Chip
-allocation is **41,902 bytes**, with one room's screen pair resident. Peak work
-is **217 PAL lines / 13.888 ms**, with zero missed VBL observations. The replay
+allocation is **43,534 bytes**, with one room's screen pair resident. Peak work
+is **207 PAL lines / 13.248 ms**, with zero missed VBL observations. The replay
 verifies an enemy hit, death, checkpoint respawn, visible cyan/pink sprites and
 clean exit. It does not connect this room to the two-room world slice.
 
+## Sprite allocation
+
+`sprites.c` allocates up to eight monochrome 16×32 crops in submission order.
+Even channels use colour index 1 and odd channels index 3, so each object can
+have an independent RGB12 colour despite the shared pair palettes. Off-screen
+requests consume no channel. Full capacity and invalid inputs return explicit
+errors; the current harness exits cleanly on either rather than hiding objects.
+Inactive channels get null control words every frame, preventing stale sprites.
+
+The two DMA banks occupy 2,176 Chip bytes, 1,632 more than the previous two-channel
+arrangement. `make -C amiga_version test-sprites` runs **30,600 DMA decode cases**
+under UBSan, checking every channel, crop, screen clipping, vertical high bits,
+palette selection, capacity, reset and memory guards. The native captures test
+one or two simultaneous objects; eight-object scene timing and visual validation
+remain outstanding. No vertical multiplexing, attached sprites or multi-channel
+wide objects are supported yet.
+
 ## Next implementation step
 
-Add a bounded hardware-sprite allocator for rooms with multiple moving objects,
-then platforms and a blitter fallback. Expand the strict room-setup export and
+Export an original room with multiple enemies to exercise the allocator on
+native hardware, then add platforms, multiplexing and a blitter fallback. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. The target replay
 currently asserts milestones rather than comparing every target state field.
 Tower row streaming and the music storage/playback experiment remain separate
