@@ -723,14 +723,43 @@ disable branches. Tests cover shared origins, unrelated disabled slots and
 appending; separate checks cover full capacity, retry and partly empty rectangles
 that must not be reused. The 68000 module references only the native block helpers.
 
-This core is not yet connected to a playable room. The caller must draw the
-animation and play the sound. Collision geometry is 32x10 at Y-1; the solid block is 32x8. The special
-death-time tile patch in room (111,107), supercrewmates and rendered target behavior are not covered by this test.
+The separate synthetic native replay below now connects the core to animation
+and sound. Campaign-room integration remains pending. Collision geometry is 32x10 at Y-1; the solid block is 32x8. The special
+death-time tile patch in room (111,107), supercrewmates are not covered by this component test.
+
+## Native disappearing-platform replay
+
+`make disappearing-capture` builds a separate `V6_DISAPPEAR_REPLAY` scene. The
+player is initialized on a platform at (104,93), above a spike strip. It collapses,
+the player falls and dies, and respawn places the player at a safe checkpoint
+ledge while the platform recharges. Initial placement is deliberate fixture
+setup; no movement input or restart is injected after initialization.
+
+The scene uses the original tiles 2–6, repeated across a 32x8 hardware sprite,
+and the original `vanish.wav` resampled for the existing Paula channel. The
+asset converter selects that cue only for this fixture. The capture checks a cue
+peak above twice the later background-audio peak; it does not establish exact
+audio waveform fidelity.
+
+A 240-tick host trace compiles the native scene adapter and visits all six states.
+A500 snapshots match at **tick 9** (collapse), **29** (hidden), **54** (recharge)
+and **180** (fully recharged after one death/respawn). Screenshots verify the
+platform is visible during collapse/recharge and absent while hidden. Output is
+in `build/amiga-disappearing/`, including `collapse.png`, `hidden.png`,
+`recharge.png`, `prototype.png`, `prototype.wav` and `smoke-report.json`.
+Diagnostic actor fields contain lifecycle state/frame, live updates and collapse
+count in this build.
+
+Peak work is **145 PAL lines / 9.280 ms**, with no missed VBLs, at most three
+sprite channels, **44,350 explicitly allocated Chip bytes** and clean AmigaDOS
+exit. This is an automated synthetic replay, not a playable campaign room or
+full desktop-loop comparison. Retriggering during recharge is covered by the
+host core tests; the native fixture respawns away so one recharge completes.
 
 ## Next implementation step
 
-Integrate disappearing platforms into a native room fixture with animation
-and sound, then add conveyors. Sprite
+Export and integrate an original room containing disappearing platforms, then
+add conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. Target replays combine milestone assertions with selected state comparisons;

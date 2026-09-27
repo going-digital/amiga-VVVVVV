@@ -29,7 +29,7 @@ def read_diagnostics(path):
     raise RuntimeError(f'No live prototype diagnostics in {path}')
 
 
-def audio_peak(path):
+def audio_peak(path, start_seconds=12.9, end_seconds=13.5):
     blob = path.read_bytes()
     assert blob[:4] == b'RIFF' and blob[8:12] == b'WAVE'
     pos, fmt, audio = 12, None, None
@@ -45,8 +45,8 @@ def audio_peak(path):
         pos += 8 + length + (length & 1)
     assert fmt and audio and fmt[0] == 3 and fmt[5] == 32, 'Expected float32 PCM capture'
     # Check the flip cue at 13s, rather than counting floppy/boot audio as success.
-    start = int(12.9 * fmt[2]) * fmt[4]
-    end = int(13.5 * fmt[2]) * fmt[4]
+    start = int(start_seconds * fmt[2]) * fmt[4]
+    end = int(end_seconds * fmt[2]) * fmt[4]
     return max(abs(v[0]) for v in struct.iter_unpack('<f', audio[start:end]))
 
 
@@ -82,6 +82,7 @@ def main():
     parser.add_argument('--platform', action='store_true')
     parser.add_argument('--horizontal', action='store_true')
     parser.add_argument('--crush', action='store_true')
+    parser.add_argument('--disappearing', action='store_true')
     parser.add_argument('--pick', action='store_true')
     parser.add_argument('--pick-checkpoints', action='store_true')
     parser.add_argument('--pick-route', action='store_true')
@@ -110,7 +111,7 @@ write_protected = true
     if args.capture:
         env = dict(os.environ, RUST_LOG='info', COPPERLINE_DBG_AFTER='16.5',
                    COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{build / "slow.bin"}')
-        command += ([] if args.platform or args.horizontal or args.crush or args.pick or args.pick_checkpoints or args.pick_route else
+        command += ([] if args.platform or args.horizontal or args.crush or args.disappearing or args.pick or args.pick_checkpoints or args.pick_route else
                     ['--joy-after','12','left','200'] if args.traffic else
                     ['--joy-after','12','right','300'] if args.enemy else
                     ['--joy-after','13','fire','100','--joy-after','15.5','right','300',
@@ -153,6 +154,19 @@ write_protected = true
             assert report['enemy_ticks']>100 and report['max_sprite_channels']==3, report
             assert report['checkpoint']==1, report
             report['visible_platform_pixels']=visible_enemy(build,build/'prototype.png')
+        elif args.disappearing:
+            trace=json.loads((ROOT/'build/amiga/disappearing-replay-trace.json').read_text())
+            assert report['ticks']==report['renders'] and 0<report['ticks']<=len(trace),report
+            for field,value in trace[report['ticks']-1].items():
+                assert report[field]==value,(field,report[field],value)
+            assert report['deaths']==1 and report['respawns']==1 and report['enemy_x']==0,report
+            assert report['enemy_hits']==1 and report['exits']==0 and report['max_sprite_channels']==3,report
+            report['visible_platform_pixels']=visible_enemy(build,build/'prototype.png')
+            report['native_host_trace_tick_verified']=report['ticks']
+            report['disappear_audio_peak']=audio_peak(build/'prototype.wav',10,11.5)
+            report['background_audio_peak']=audio_peak(build/'prototype.wav')
+            assert report['disappear_audio_peak']>max(0.01,2*report['background_audio_peak']),report
+            report['fixture']='Synthetic disappearing platform: initialized on platform, respawn at safe ledge; native host trace'
         elif args.crush:
             trace=json.loads((ROOT/'build/amiga/crush-replay-trace.json').read_text())
             assert 0<report['ticks']<=len(trace),report
@@ -206,13 +220,13 @@ write_protected = true
             report['visible_enemy_pixels']=visible_enemy(build,build/'prototype.png')
         else:
             assert report['flips'] == 1 and report['checkpoint'] == 1, report
-        if not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.pick and not args.pick_checkpoints and not args.pick_route:
+        if not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
             assert report['deaths'] >= 1 and report['respawns'] >= 1, report
         # Snapshot can land between a tick and completion of its render.
         assert report['ticks'] > 100 and 0 <= report['ticks'] - report['renders'] <= 1, report
         report['video_headroom_passed'] = report['missed_frames'] == 0 and report['max_work_lines'] < 250
         report['max_work_ms'] = round(report['max_work_lines'] * 227 / 3546895 * 1000, 3)
-        if not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.pick and not args.pick_checkpoints and not args.pick_route:
+        if not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
             report['flip_audio_peak'] = audio_peak(build / 'prototype.wav')
             assert report['flip_audio_peak'] > 0.001, report
         report['max_load_ms'] = round(report['max_load_lines'] * 227 / 3546895 * 1000, 3)
@@ -240,6 +254,29 @@ write_protected = true
             assert neighbor['deaths'] == 0 and neighbor['respawns'] == 0, neighbor
             report['neighbor_player_pixels'] = visible_player(build, build / 'neighbor.png')
             report['neighbor_verified'] = True
+        if args.disappearing:
+            start_time=16.5-report['ticks']*0.034
+            phases=[]
+            for name,target_tick,state in (('collapse',8,2),('hidden',28,4),('recharge',53,5)):
+                for attempt in range(3):
+                    stamp=start_time+target_tick*0.034+0.012+attempt*0.006
+                    env['COPPERLINE_DBG_AFTER']=str(round(stamp,6))
+                    env['COPPERLINE_DBG_RAMDUMP']=f'C00000:80000:{build / (name+"-slow.bin")}'
+                    with (build/(name+'.log')).open('w') as log:
+                        subprocess.run([args.emulator,'--config',str(config),'--noaudio',
+                            '--screenshot-after',str(round(stamp+0.004,6)),str(build/(name+'.png'))],
+                            env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+                    phase=read_diagnostics(build/(name+'-slow.bin'))
+                    if phase['ticks']==phase['renders']:break
+                assert phase['ticks']==phase['renders'],phase
+                for field,value in trace[phase['ticks']-1].items():
+                    assert phase[field]==value,(name,field,phase[field],value)
+                assert phase['enemy_x']==state,(name,phase)
+                _,rgba=subprocess.check_output([str(build/'png_rgba'),str(build/(name+'.png'))]).split(b'\n',1)
+                pink=sum(rgba[i]>245 and 80<rgba[i+1]<125 and 170<rgba[i+2]<200 for i in range(0,len(rgba),4))
+                assert (pink==0 if name=='hidden' else pink>20),(name,pink)
+                phases.append(dict(phase=name,tick=phase['ticks'],frame=phase['enemy_y'],pink_pixels=pink))
+            report['phase_captures']=phases
         if args.crush:
             env['COPPERLINE_DBG_AFTER']='10.91'
             env['COPPERLINE_DBG_RAMDUMP']=f'C00000:80000:{build / "death-slow.bin"}'

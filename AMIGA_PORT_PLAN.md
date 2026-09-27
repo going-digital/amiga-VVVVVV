@@ -205,8 +205,13 @@ events. It compiles for the 68000 without helper-library dependencies. It is not
 yet integrated into a room. Collision-bank integration now matches 30,720 source
 updates, including first-disabled-slot reuse, metadata clearing, shared origins
 and appends. Fixed-capacity exhaustion leaves both state and bank unchanged;
-separate tests cover failure and retry. Animation, audio and the (111,107)
-death-time tile exception remain caller work. Native room integration is next.
+separate tests cover failure and retry. A synthetic native replay now connects animation and the original vanish cue:
+`make -C amiga_version disappearing-capture`. Collapse, hidden and recharge
+snapshots (ticks 9/29/54) and the final state (tick 180) match the host scene
+trace. Peak work is 145 PAL lines / 9.280 ms, using 44,350 explicit Chip bytes,
+with no missed VBLs and clean exit. It is an automated fixture, not an original
+campaign room. Original-room export, the (111,107) tile exception and conveyors
+remain next steps.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

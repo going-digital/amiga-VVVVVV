@@ -16,9 +16,9 @@ from pack_rooms import ROOT, prototype_record, SLICE_ROOMS, enemy_record
 DEFAULT_DATA = Path.home() / 'Library/Application Support/Steam/steamapps/common/vvvvvv/VVVVVV.app/Contents/Resources/data.zip'
 
 
-def build(data, out, scene="world"):
+def build(data, out, scene="world", disappearing=False):
     out.mkdir(parents=True, exist_ok=True)
-    fingerprint = dict(scene=scene, path=str(data.resolve()), size=data.stat().st_size,
+    fingerprint = dict(disappearing=disappearing,scene=scene, path=str(data.resolve()), size=data.stat().st_size,
                        mtime_ns=data.stat().st_mtime_ns,
                        tools=hashlib.sha256(Path(__file__).read_bytes() +
                            (ROOT / 'tools/amiga/png_rgba.cpp').read_bytes() +
@@ -78,6 +78,16 @@ def build(data, out, scene="world"):
                 row=sum((rgba[((oy+y)*w+ox+x)*4+3]>127 and
                          max(rgba[((oy+y)*w+ox+x)*4:((oy+y)*w+ox+x)*4+3])>0) << (7-x) for x in range(8))
                 platform_rows[y]=row*0x01010101
+        disappearing_frames=[]
+        if disappearing:
+            for tile in range(2,7):
+                ox,oy=(tile%(w//8))*8,(tile//(w//8))*8
+                rows=[]
+                for y in range(8):
+                    row=sum((rgba[((oy+y)*w+ox+x)*4+3]>127 and
+                             max(rgba[((oy+y)*w+ox+x)*4:((oy+y)*w+ox+x)*4+3])>0) << (7-x) for x in range(8))
+                    rows.append(row*0x01010101)
+                disappearing_frames.append(rows+[0]*24)
         fw, fh, font = png('graphics/font.png')
         glyphs = []
         for ch in range(128):
@@ -102,7 +112,7 @@ def build(data, out, scene="world"):
         assert all((bits & 0xffff) == 0 for frame in sprite_frames[36:40] for bits in frame), 'Drone exceeds one sprite channel'
         assert all((bits & 0xffff) == 0 and (y < 16 or bits == 0)
                    for frame in sprite_frames[20:22] for y,bits in enumerate(frame)), 'Checkpoint exceeds 16x16'
-        with wave.open(io.BytesIO(archive.read('sounds/jump.wav'))) as wav:
+        with wave.open(io.BytesIO(archive.read('sounds/vanish.wav' if disappearing else 'sounds/jump.wav'))) as wav:
             channels, width, rate, count = wav.getnchannels(), wav.getsampwidth(), wav.getframerate(), wav.getnframes()
             pcm = wav.readframes(count)
         assert width in (1, 2)
@@ -145,6 +155,8 @@ def build(data, out, scene="world"):
         '{' + ','.join(hex(v)+'UL' for v in sprite) + '}' for sprite in sprite_frames) + '\n};\n'
     if scene in ('platform','pick'):
         header += 'static const uint32_t platform_rows[32] = {' + ','.join(hex(v)+'UL' for v in platform_rows) + '};\n'
+    if disappearing:
+        header += 'static const uint32_t disappearing_rows[5][32] = {' + ','.join('{' + ','.join(hex(v)+'UL' for v in rows) + '}' for rows in disappearing_frames) + '};\n'
     header += 'static const uint32_t collision_rows[40][32] = {\n' + ',\n'.join(
         '{' + ','.join(hex(v)+'UL' for v in sprite) + '}' for sprite in collision_frames) + '\n};\n'
     header += 'static const unsigned char flip_sound[] = {' + ','.join(map(str,sound)) + '};\n'
@@ -153,7 +165,7 @@ def build(data, out, scene="world"):
                   two_plane_tile_bytes=len(ids)*16, two_plane_room_colors=room_colors,
                   scene_palette_slots=13, checkpoint_palette_index=13, sprite_palette_index=14, text_palette_index=15,
                   font_bytes=1024, sound_bytes=len(sound), sound_rate=target_rate,
-                  note=('Just Pick Yourself Down (117,109): both checkpoints and horizontal platform, tile 159.' if scene=='pick' else 'Stop and Reflect (112,106): three platforms using repeated tile 616.' if scene == 'platform' else 'Traffic Jam (115,103): original tiles, three enemies, frames 28-31 and red-channel collision masks.' if scene == 'traffic' else 'Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
+                  note=('Synthetic disappearing-platform fixture: original tiles 2-6 and vanish.wav.' if disappearing else 'Just Pick Yourself Down (117,109): both checkpoints and horizontal platform, tile 159.' if scene=='pick' else 'Stop and Reflect (112,106): three platforms using repeated tile 616.' if scene == 'platform' else 'Traffic Jam (115,103): original tiles, three enemies, frames 28-31 and red-channel collision masks.' if scene == 'traffic' else 'Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
                         'Rooms (100,110) and (119,110), static tiles, player animation and checkpoints. No other room entities or scripts.'))
     (out / 'assets.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))
@@ -164,5 +176,6 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=Path, default=DEFAULT_DATA)
     parser.add_argument('--out', type=Path, default=ROOT / 'build/amiga')
     parser.add_argument('--scene', choices=('world','enemy','traffic','platform','pick'), default='world')
+    parser.add_argument('--disappearing', action='store_true')
     args = parser.parse_args()
-    build(args.data, args.out, args.scene)
+    build(args.data, args.out, args.scene, args.disappearing)

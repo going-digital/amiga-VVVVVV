@@ -15,6 +15,7 @@
 #include "slice.h"
 #include "enemy.h"
 #include "platform.h"
+#include "disappearing.h"
 #include "pixel_collision.h"
 #include "animation.h"
 #include "sprites.h"
@@ -23,6 +24,9 @@
 #endif
 #ifdef V6_CRUSH_REPLAY
 #include "crush_fixture.h"
+#endif
+#ifdef V6_DISAPPEAR_REPLAY
+#include "disappearing_fixture.h"
 #endif
 #include "prototype_room.h"
 #include "prototype_assets.h"
@@ -123,6 +127,18 @@ static V6Block platform_blocks[PLATFORM_COUNT];
 static V6PlayerMotion platform_motion;
 static V6PlatformPush platform_push;
 static ULONG platform_ticks, platform_pushes;
+#ifdef V6_DISAPPEAR_REPLAY
+static V6Disappearing disappearing;
+static unsigned disappearing_count,disappearing_sound;
+static void update_disappearing(int dying)
+{
+    unsigned events=v6_disappearing_update(&disappearing,104,93,platform_blocks,
+                                          &disappearing_count,PLATFORM_COUNT,dying);
+    if(events&V6_DISAPPEAR_FULL) diagnostics.error=5;
+    if(events&V6_DISAPPEAR_SOUND) {disappearing_sound=1;++platform_pushes;}
+    current_room.block_count=disappearing_count;
+}
+#endif
 static void reset_platforms(void)
 {
     unsigned i;
@@ -140,16 +156,27 @@ static void reset_platforms(void)
         platform_blocks[i]=(V6Block){platforms[i].x,platforms[i].y,32,8,V6_BLOCK,0};
     }
     current_room.blocks=platform_blocks;current_room.block_count=PLATFORM_COUNT;
+#ifdef V6_DISAPPEAR_REPLAY
+    v6_disappearing_init(&disappearing);disappearing_count=1;disappearing_sound=0;
+#endif
     platform_motion=(V6PlayerMotion){0,slice.player.y};
     platform_push=(V6PlatformPush){slice.player.y,0,0};
 }
 static unsigned platform_movement(V6Player *p,const V6Room *r,unsigned input,
                                   int life_timer,void *context)
 {
+#ifndef V6_DISAPPEAR_REPLAY
     int before;
+#endif
     unsigned events;
     (void)context;
     events=v6_player_input(p,input,&platform_motion);
+#ifdef V6_DISAPPEAR_REPLAY
+    (void)life_timer;
+    update_disappearing(0);
+    v6_player_physics(p,r,&platform_motion,0,0);
+    v6_disappearing_contact(&disappearing,v6_player_overlaps(p,104,92,32,10));
+#else
     platform_push.pending_y=platform_motion.pending_y;
 #if defined(V6_HORIZONTAL_REPLAY) || defined(CHECKPOINT_COUNT)
     before=p->x;
@@ -177,6 +204,7 @@ static unsigned platform_movement(V6Player *p,const V6Room *r,unsigned input,
     v6_platform_disable_overlaps(p,platforms,PLATFORM_COUNT,platform_blocks,PLATFORM_COUNT);
 #ifdef CHECKPOINT_COUNT
     v6_checkpoints_collide(checkpoints,CHECKPOINT_COUNT,p);
+#endif
 #endif
     v6_player_unstick(p,r);
     ++platform_ticks;
@@ -540,6 +568,9 @@ static int run(void)
 #ifdef V6_CRUSH_REPLAY
         crush_fixture_tiles(room_tiles[i]);
 #endif
+#ifdef V6_DISAPPEAR_REPLAY
+        disappearing_fixture_tiles(room_tiles[i]);
+#endif
         room = room_tiles[i];
         background = room_backgrounds[i];
         draw_room();
@@ -550,6 +581,10 @@ static int run(void)
     diagnostics.chip_free = AvailMem(MEMF_CHIP);
     diagnostics.other_free = AvailMem(MEMF_FAST);
     v6_slice_init_world(&slice, room_setups, SLICE_ROOM_COUNT, 0);
+#ifdef V6_DISAPPEAR_REPLAY
+    /* Start on the test platform; respawn at the safe checkpoint ledge. */
+    v6_player_init(&slice.player,108,70,0);
+#endif
     for (i = 0; i < DISPLAY_BUFFER_COUNT; ++i) {
         checkpoint_dirty[i] = 1;
     }
@@ -632,7 +667,7 @@ static int run(void)
                 if(diagnostics.ticks==21) input=V6_LEFT;
                 if(diagnostics.ticks==50) restart_pending=1;
 #endif
-#if defined(V6_HORIZONTAL_REPLAY) || defined(V6_CRUSH_REPLAY)
+#if defined(V6_HORIZONTAL_REPLAY) || defined(V6_CRUSH_REPLAY) || defined(V6_DISAPPEAR_REPLAY)
                 input=0;
 #endif
 #ifdef V6_PLATFORM_REPLAY
@@ -657,6 +692,9 @@ static int run(void)
                 { int n; for(n=ENEMY_COUNT-1;n>=0;--n)
                     v6_enemy_step(&drones[n], &current_room, 0, 0); }
                 ++enemy_ticks;
+#endif
+#ifdef V6_DISAPPEAR_REPLAY
+                if(slice.death_timer>=0 || restart_pending) update_disappearing(1);
 #endif
                 PROFILE_MARK(1);
 #ifdef V6_PLATFORM_SCENE
@@ -699,6 +737,9 @@ static int run(void)
                 PROFILE_MARK(2);
                 restart_pending = 0;
                 if (events & V6_EVENT_FLIP) sound();
+#ifdef V6_DISAPPEAR_REPLAY
+                if(disappearing_sound) {sound();disappearing_sound=0;}
+#endif
                 if (events & V6_EVENT_ROOM) {
                     background = room_backgrounds[slice.room_index];
                     room = room_tiles[slice.room_index];
@@ -751,8 +792,18 @@ static int run(void)
 #ifdef V6_PLATFORM_SCENE
         {
             unsigned n;
+#ifdef V6_DISAPPEAR_REPLAY
+            if(disappearing.walking_frame<0 || disappearing.walking_frame>=5) {
+                diagnostics.error=6;break;
+            }
+#endif
             for(n=0;n<PLATFORM_COUNT;++n)
+#ifdef V6_DISAPPEAR_REPLAY
+                if(!disappearing.invisible && v6_sprites_add_rect(&sprites[back],
+                        disappearing_rows[disappearing.walking_frame],platforms[n].x,
+#else
                 if(v6_sprites_add_rect(&sprites[back],platform_rows,platforms[n].x,
+#endif
                         platforms[n].y,0,32,8,0xf6b)<V6_SPRITE_CLIPPED) {
                     diagnostics.error=4;break;
                 }
@@ -761,6 +812,9 @@ static int run(void)
         /* Version-5 actor slots describe platforms in this separate scene. */
         diagnostics.enemy_x=platforms[0].x;diagnostics.enemy_y=platforms[0].y;
         diagnostics.enemy_ticks=platform_ticks;diagnostics.enemy_hits=platform_pushes;
+#ifdef V6_DISAPPEAR_REPLAY
+        diagnostics.enemy_x=disappearing.state;diagnostics.enemy_y=disappearing.walking_frame;
+#endif
 #endif
         PROFILE_MARK(5);
         diagnostics.sprite_channels=sprites[back].count;

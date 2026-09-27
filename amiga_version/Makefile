@@ -28,7 +28,7 @@ $(BUILD)/prototype_room.h: $(BUILD)/scene.txt $(ROOT)/tools/amiga/pack_rooms.py 
 	python3 $(ROOT)/tools/amiga/pack_rooms.py --out $(BUILD) --scene $(SCENE)
 
 $(BUILD)/prototype_assets.h: FORCE $(BUILD)/prototype_room.h
-	python3 $(ROOT)/tools/amiga/convert_assets.py --data "$(DATA)" --out $(BUILD) --scene $(SCENE)
+	python3 $(ROOT)/tools/amiga/convert_assets.py --data "$(DATA)" --out $(BUILD) --scene $(SCENE) $(if $(findstring V6_DISAPPEAR_REPLAY,$(CPPFLAGS)),--disappearing,)
 
 $(BUILD)/prototype.o: prototype.c $(ROOT)/tools/amiga/transition_replay.h $(BUILD)/prototype_room.h $(BUILD)/prototype_assets.h FORCE
 	$(CC) $(CPPFLAGS) $(if $(filter enemy traffic,$(SCENE)),-DV6_ENEMY_SCENE,) $(if $(filter platform pick,$(SCENE)),-DV6_PLATFORM_SCENE,) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -c $< -o $@
@@ -200,3 +200,10 @@ crush-replay-capture:
 
 $(BUILD)/disappearing.o: disappearing.c disappearing.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+.PHONY: disappearing-capture
+disappearing-capture:
+	python3 $(ROOT)/tools/amiga/test_disappearing.py
+	python3 $(ROOT)/tools/amiga/disappearing_replay_trace.py
+	$(MAKE) BUILD=$(ROOT)/build/amiga-disappearing SCENE=platform CPPFLAGS=-DV6_DISAPPEAR_REPLAY all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-disappearing --capture --disappearing
