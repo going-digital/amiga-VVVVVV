@@ -15,6 +15,48 @@ static void guards(void)
 {
     assert(storage[0]==0xa5a5 && storage[8*68+1]==0xa5a5);
 }
+static void wide_tests(void)
+{
+    static const int xs[]={-32,-17,-1,0,1,304,319,320};
+    unsigned width,crop,i,prefix,cases=0;
+    for(width=1;width<=32;++width) for(crop=0;crop+width<=32;++crop)
+    for(i=0;i<sizeof(xs)/sizeof(xs[0]);++i) for(prefix=0;prefix<8;++prefix) {
+        int x=xs[i],left=x+(int)crop,right=left+(int)width,result;
+        unsigned n,required,row;
+        uint16_t before[8*68];
+        if(left<0) left=0;
+        if(right>320) right=320;
+        required=right>left?(unsigned)(right-left+15)/16:0;
+        reset();
+        for(n=0;n<prefix;++n) assert(v6_sprites_add(&batch,rows,0,16,0,n)==(int)n);
+        memcpy(before,batch.dma,sizeof(before));
+        result=v6_sprites_add_wide(&batch,rows,x,190,crop,width,0xf66);
+        if (!required || prefix+required>8) {
+            assert(result==(!required?V6_SPRITE_CLIPPED:V6_SPRITE_FULL));
+            assert(batch.count==prefix && !memcmp(before,batch.dma,sizeof(before)));
+        } else {
+            assert(result==(int)prefix && batch.count==prefix+required);
+            assert(!memcmp(before,batch.dma,prefix*68*sizeof(uint16_t)));
+            for(row=0;row<26;++row) {
+                unsigned pixels[320]={0},col;
+                for(n=prefix;n<batch.count;++n) {
+                    uint16_t *d=batch.dma+n*68;
+                    int sx=((d[0]&255)*2+(d[1]&1))-129;
+                    assert(batch.colours[n]==0xf66);
+                    for(col=0;col<16;++col) if(sx+(int)col>=0 && sx+(int)col<320)
+                        pixels[sx+col]+=((d[2+row*2]>>(15-col))&1);
+                    assert(!d[54] && !d[55]);
+                }
+                for(col=0;col<320;++col) {
+                    unsigned expected=(int)col>=left && (int)col<right ? (rows[row]>>(31-((int)col-x)))&1 : 0;
+                    assert(pixels[col]==expected);
+                }
+            }
+        }
+        guards(); ++cases;
+    }
+    printf("PASS: %u wide-sprite decode and atomic allocation cases\n",cases);
+}
 int main(void)
 {
     static const int xs[]={-32768,-33,-17,-16,-15,-7,-1,0,1,303,304,305,319,320,32767};
@@ -76,5 +118,6 @@ int main(void)
     for(i=0;i<8;++i) assert(!batch.dma[i*68] && !batch.dma[i*68+1] && !batch.colours[i]);
     assert(!batch.count); guards();
     printf("PASS: %u sprite DMA decode cases; capacity, reset, invalid requests and guards\n",cases);
+    wide_tests();
     return 0;
 }

@@ -47,7 +47,8 @@ static volatile struct {
     ULONG room_index, transitions, max_load_lines, load_frames;
     LONG enemy_x, enemy_y;
     ULONG enemy_ticks, enemy_hits;
-} diagnostics = {.magic = 0x56364447, .version = 4, .chip_allocated = CHIP_BYTES};
+    ULONG sprite_channels, max_sprite_channels;
+} diagnostics = {.magic = 0x56364447, .version = 5, .chip_allocated = CHIP_BYTES};
 
 static volatile ULONG frames;
 static UBYTE *chip, *screen[DISPLAY_BUFFER_COUNT], *background, *sample, *hud;
@@ -61,8 +62,8 @@ static UWORD *room = room_tiles[0];
 static V6Slice slice;
 static V6Room current_room = {room_tiles[0], SLICE_TILESET, SLICE_EXTRA_ROW};
 #ifdef V6_ENEMY_SCENE
-static V6Enemy drone;
-static UWORD drone_frame = 36, drone_walk, drone_delay;
+static V6Enemy drones[ENEMY_COUNT];
+static UWORD drone_frame = ENEMY_TILE, drone_walk, drone_delay;
 static ULONG enemy_hits, enemy_ticks;
 static V6CollisionAnimation collision_animation;
 static int visual_ground, visual_roof, collision_frame;
@@ -77,8 +78,11 @@ static void collision_contact(const V6Player *p, void *context)
 }
 static void reset_drone(void)
 {
-    v6_enemy_init(&drone,200,32,0,8,0,0,320,240,0,0,16,16);
-    drone_frame=36; drone_walk=drone_delay=0;
+    unsigned n;
+    for(n=0;n<ENEMY_COUNT;++n)
+        v6_enemy_init(&drones[n],enemy_setup[n][0],enemy_setup[n][1],enemy_setup[n][2],enemy_setup[n][3],
+                      0,0,320,240,0,0,ENEMY_WIDTH,ENEMY_HEIGHT);
+    drone_frame=ENEMY_TILE; drone_walk=drone_delay=0;
 }
 #endif
 static UWORD saved_dma, saved_ints, saved_adk;
@@ -88,7 +92,7 @@ static struct View *saved_view;
 static const char *room_caption(void)
 {
 #ifdef V6_ENEMY_SCENE
-    return "112,103 - SECURITY SWEEP          ";
+    return SLICE_CAPTION;
 #else
     return slice.room_index ? "119,110 - TWO ROOM SLICE           " : "100,110 - TWO ROOM SLICE           ";
 #endif
@@ -484,8 +488,9 @@ static int run(void)
                 if (!drone_delay || --drone_delay == 0) {
                     drone_delay=8; drone_walk=(drone_walk+1)&3;
                 }
-                drone_frame=36+drone_walk;
-                v6_enemy_step(&drone, &current_room, 0, 0);
+                drone_frame=ENEMY_TILE+drone_walk;
+                { int n; for(n=ENEMY_COUNT-1;n>=0;--n)
+                    v6_enemy_step(&drones[n], &current_room, 0, 0); }
                 ++enemy_ticks;
 #endif
 #ifdef V6_ENEMY_SCENE
@@ -498,11 +503,16 @@ static int run(void)
                     reset_drone(); collision_animation.delay=collision_animation.walk=0;
                     visual_ground=visual_roof=0;
                 }
-                else if (slice.death_timer < 0 && v6_player_overlaps(&slice.player,
-                        drone.x+drone.cx,drone.y+drone.cy,drone.w,drone.h) &&
-                        v6_pixel_hit(collision_rows[collision_frame],slice.player.x,slice.player.y,
-                                     collision_rows[drone_frame],drone.x,drone.y)) {
-                    slice.death_timer=30; ++enemy_hits;
+                else if (slice.death_timer < 0) {
+                    int n;
+                    for(n=ENEMY_COUNT-1;n>=0;--n) {
+                        const V6Enemy *e=&drones[n];
+                        if (v6_player_overlaps(&slice.player,e->x+e->cx,e->y+e->cy,e->w,e->h) &&
+                            v6_pixel_hit(collision_rows[collision_frame],slice.player.x,slice.player.y,
+                                         collision_rows[drone_frame],e->x,e->y)) {
+                            slice.death_timer=30; ++enemy_hits; break;
+                        }
+                    }
                 }
                 if (!(events & V6_EVENT_RESPAWN)) {
                     slice.frame=slice.death_timer<0?collision_frame:
@@ -542,13 +552,21 @@ static int run(void)
             diagnostics.error=4; break;
         }
 #ifdef V6_ENEMY_SCENE
-        if (v6_sprites_add(&sprites[back],sprite_rows[drone_frame],
-                drone.x,drone.y,0,0xf6b) < V6_SPRITE_CLIPPED) {
-            diagnostics.error=4; break;
+        {
+            unsigned n;
+            for(n=0;n<ENEMY_COUNT;++n)
+                if (v6_sprites_add_wide(&sprites[back],sprite_rows[drone_frame],
+                        drones[n].x,drones[n].y,0,ENEMY_DRAW_WIDTH,ENEMY_COLOUR) < V6_SPRITE_CLIPPED) {
+                    diagnostics.error=4; break;
+                }
+            if(diagnostics.error) break;
         }
-        diagnostics.enemy_x=drone.x; diagnostics.enemy_y=drone.y;
+        diagnostics.enemy_x=drones[0].x; diagnostics.enemy_y=drones[0].y;
         diagnostics.enemy_ticks=enemy_ticks; diagnostics.enemy_hits=enemy_hits;
 #endif
+        diagnostics.sprite_channels=sprites[back].count;
+        if(sprites[back].count>diagnostics.max_sprite_channels)
+            diagnostics.max_sprite_channels=sprites[back].count;
         if (shown_deaths != slice.deaths) { shown_deaths = slice.deaths; number(8,16,shown_deaths); }
         if (shown_flips != slice.player.flips) { shown_flips = slice.player.flips; number(20,16,shown_flips); }
         if ((diagnostics.ticks & 31) == 0 && shown_work != (LONG)diagnostics.max_work_lines) { shown_work = diagnostics.max_work_lines; number(32,16,shown_work); }

@@ -31,7 +31,7 @@ $(BUILD)/prototype_assets.h: FORCE $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/convert_assets.py --data "$(DATA)" --out $(BUILD) --scene $(SCENE)
 
 $(BUILD)/prototype.o: prototype.c $(ROOT)/tools/amiga/transition_replay.h $(BUILD)/prototype_room.h $(BUILD)/prototype_assets.h FORCE
-	$(CC) $(CPPFLAGS) $(if $(filter enemy,$(SCENE)),-DV6_ENEMY_SCENE,) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -c $< -o $@
+	$(CC) $(CPPFLAGS) $(if $(filter enemy traffic,$(SCENE)),-DV6_ENEMY_SCENE,) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -c $< -o $@
 
 $(BUILD)/room_codec.o: room_codec.c room_codec.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -82,7 +82,7 @@ test: test-sprites $(BUILD)/prototype_room.h
 FORCE:
 
 capture: all
-	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(BUILD) --capture $(if $(filter enemy,$(SCENE)),--enemy,)
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(BUILD) --capture $(if $(filter traffic,$(SCENE)),--traffic,$(if $(filter enemy,$(SCENE)),--enemy,))
 
 run: all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(BUILD)
@@ -101,3 +101,11 @@ enemy-run:
 enemy-capture:
 	$(MAKE) BUILD=$(ROOT)/build/amiga-enemy SCENE=enemy all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-enemy --capture --enemy
+
+.PHONY: traffic-run traffic-capture
+traffic-run:
+	$(MAKE) BUILD=$(ROOT)/build/amiga-traffic SCENE=traffic all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-traffic
+traffic-capture:
+	$(MAKE) BUILD=$(ROOT)/build/amiga-traffic SCENE=traffic all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-traffic --capture --traffic

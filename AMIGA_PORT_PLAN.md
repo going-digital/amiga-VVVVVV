@@ -37,7 +37,7 @@ black, one room accent, green checkpoints and white text; the player has an
 independent cyan sprite colour. Low-intensity tile shading is omitted.
 
 On Copperline's stock PAL A500, 512K Chip + 512K slow RAM profile, the slice
-allocates **81,934 Chip bytes**. Ordinary work peaks at **154 lines / 9.856 ms**;
+allocates **81,934 Chip bytes**. Ordinary work peaks at **155 lines / 9.920 ms**;
 the transition replay peaks at **197 / 12.608 ms**, with room-change work at
 **195 / 12.480 ms**. Both pass the 20% video-headroom gate, zero missed VBL checks,
 visible-player checks and clean exit; the ordinary capture also verifies audio.
@@ -61,7 +61,7 @@ integer speeds, including patrol boundaries, tile collisions and enemy barriers.
 It now runs on the 68000 in the original **Security Sweep (112,103)** room,
 with its speed-8 vertical drone, checkpoint, hardware sprite and player-hit
 handling. This separate one-room scene allocates **43,534 Chip bytes** and peaks
-at **207 PAL lines / 13.248 ms**, with zero missed VBL observations.
+at **204 PAL lines / 13.056 ms**, with zero missed VBL observations.
 Pixel-mask collision matches **53,868 reference cases**, and collision animation
 matches **20,000 ticks**, using the original red-channel mask semantics and
 pre-physics frame selection. The target replay verifies a hit, death, respawn,
@@ -71,8 +71,13 @@ also cover the movement optimizations.
 
 The allocator passes **30,600 host DMA decode cases**, including all channels,
 clipping, palette selection, capacity and stale-list clearing. Eight-channel
-double buffering adds **1,632 Chip bytes**. Native captures still exercise only
-one or two objects; a multi-enemy room is the next integration step.
+double buffering adds **1,632 Chip bytes**. The separate **Traffic Jam (115,103)** scene now exercises seven channels with
+three original enemies. Wide requests reserve two channels atomically and pass
+another **33,792 host cases**. Its capture verifies three visible red enemies,
+movement, checkpoint activation and clean exit, but **fails the unchanged
+250-line performance gate**: peak **328 lines / 20.992 ms**, at tick 2. Chip
+allocation remains **43,534 bytes**. It is a performance experiment, not a passed
+feasibility milestone; profiling and reducing this peak is the next step.
 
 Sprite multiplexing, blitter fallback, fractional speeds,
 platforms and special behaviours remain outstanding. Full entity-loop fidelity

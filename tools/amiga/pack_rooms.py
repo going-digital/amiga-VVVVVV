@@ -105,21 +105,25 @@ def extract():
     return records
 
 
-def enemy_record(records=None):
+def enemy_record(records=None, scene="enemy"):
     records = extract() if records is None else records
+    label = "53,39" if scene == "traffic" else "50,39"
+    name = "Traffic Jam" if scene == "traffic" else "Security Sweep"
     matches = [r for r in records if r[0]['source'].endswith('/Spacestation2.cpp')
-               and r[0]['enclosing_label'] == 'case rn(50,39)']
-    if len(matches) != 1: raise ValueError('Security Sweep source ambiguous')
+               and r[0]['enclosing_label'] == f'case rn({label})']
+    if len(matches) != 1: raise ValueError(f'{name} source ambiguous')
     source = (ROOT/'desktop_version/src/Spacestation2.cpp').read_text()
-    start=source.index('case rn(50,39):'); end=source.index('case rn(',start+5)
+    start=source.index(f'case rn({label}):'); end=source.index('case rn(',start+5)
     body=re.sub(r'//[^\n]*|/\*.*?\*/','',source[start:end],flags=re.S)
     body=ARRAY.sub('',body)
     calls=re.findall(r'obj\.createentity\(([^;]+)\);',body)
     values=[[int(v.strip()) for v in c.split(',')] for c in calls]
-    if values != [[200,32,1,0,8],[168,104,10,1,439500]]:
-        raise ValueError('Security Sweep setup changed; review native actor metadata')
-    body=re.sub(r'obj\.createentity\([^;]+\);|roomname = "Security Sweep";','',body)
-    body=re.sub(r'case rn\(50,39\):|result\s*=\s*contents;|break;|[{}\s]','',body)
+    expected = ([[45,118,1,1,4],[205,118,1,1,4],[125,18,1,0,4],[232,184,10,0,1]]
+                if scene == "traffic" else [[200,32,1,0,8],[168,104,10,1,439500]])
+    if values != expected:
+        raise ValueError(f'{name} setup changed; review native actor metadata')
+    body=re.sub(rf'obj\.createentity\([^;]+\);|roomname = "{name}";','',body)
+    body=re.sub(r'case rn\(\d+,\d+\):|result\s*=\s*contents;|break;|[{}\s]','',body)
     if body: raise ValueError(f'Unsupported enemy room setup: {body}')
     return matches[0]
 
@@ -144,12 +148,15 @@ def build(out, scene="world"):
                   scope='Literal tile arrays only; no entities, room setup, scripts, or tower.',
                   rooms=manifest)
     (out / 'rooms.json').write_text(json.dumps(report, indent=2) + '\n')
-    if scene == 'enemy':
-        selected=enemy_record(records)[2]
-        header = '/* Security Sweep, world (112,103): one drone and checkpoint. */\n'
+    if scene in ('enemy','traffic'):
+        selected=enemy_record(records,scene)[2]
+        header = '/* Generated bounded enemy room: literal actors and checkpoint. */\n'
         header += 'static const unsigned char packed_room_0[] = {' + ','.join(map(str,selected)) + '};\n'
         header += '#define SLICE_ROOM_COUNT 1\n#define SLICE_TILESET 0\n#define SLICE_EXTRA_ROW 0\n'
-        header += 'static const V6RoomSetup room_setups[] = {{112,103,168,104,21,439500}};\n'
+        header += ('static const V6RoomSetup room_setups[] = {{115,103,232,184,20,1}};\n' if scene=='traffic' else
+                   'static const V6RoomSetup room_setups[] = {{112,103,168,104,21,439500}};\n')
+        header += ('#define ENEMY_COUNT 3\n#define ENEMY_TILE 28\n#define ENEMY_WIDTH 22\n#define ENEMY_HEIGHT 32\n#define ENEMY_DRAW_WIDTH 32\n#define ENEMY_COLOUR 0xf66\n#define SLICE_CAPTION "115,103 - TRAFFIC JAM             "\nstatic const int enemy_setup[3][4]={{45,118,1,4},{205,118,1,4},{125,18,0,4}};\n' if scene=='traffic' else
+                   '#define ENEMY_COUNT 1\n#define ENEMY_TILE 36\n#define ENEMY_WIDTH 16\n#define ENEMY_HEIGHT 16\n#define ENEMY_DRAW_WIDTH 16\n#define ENEMY_COLOUR 0xf6b\n#define SLICE_CAPTION "112,103 - SECURITY SWEEP          "\nstatic const int enemy_setup[1][4]={{200,32,0,8}};\n')
         header += 'static const unsigned char * const packed_rooms[] = {packed_room_0};\n'
         header += 'static const unsigned short packed_sizes[] = {sizeof(packed_room_0)};\n'
     else:
@@ -173,6 +180,6 @@ def build(out, scene="world"):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, default=ROOT / 'build/amiga')
-    parser.add_argument('--scene', choices=('world','enemy'), default='world')
+    parser.add_argument('--scene', choices=('world','enemy','traffic'), default='world')
     args=parser.parse_args()
     build(args.out, args.scene)

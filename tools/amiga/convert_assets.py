@@ -42,8 +42,8 @@ def build(data, out, scene="world"):
             assert len(rgba) == w * h * 4
             return w, h, rgba
 
-        records = [enemy_record()] if scene == 'enemy' else [prototype_record(coords=c) for c in SLICE_ROOMS]
-        w, h, rgba = png('graphics/tiles.png' if scene == 'enemy' else 'graphics/tiles2.png')
+        records = [enemy_record(scene=scene)] if scene != 'world' else [prototype_record(coords=c) for c in SLICE_ROOMS]
+        w, h, rgba = png('graphics/tiles.png' if scene != 'world' else 'graphics/tiles2.png')
         ids = sorted({tile for record in records for tile in struct.unpack('>1200H', record[1])})
         tiles = []
         colors = Counter()
@@ -142,7 +142,7 @@ def build(data, out, scene="world"):
                   two_plane_tile_bytes=len(ids)*16, two_plane_room_colors=room_colors,
                   scene_palette_slots=13, checkpoint_palette_index=13, sprite_palette_index=14, text_palette_index=15,
                   font_bytes=1024, sound_bytes=len(sound), sound_rate=target_rate,
-                  note=('Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
+                  note=('Traffic Jam (115,103): original tiles, three enemies, frames 28-31 and red-channel collision masks.' if scene == 'traffic' else 'Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
                         'Rooms (100,110) and (119,110), static tiles, player animation and checkpoints. No other room entities or scripts.'))
     (out / 'assets.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))
@@ -152,6 +152,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, default=DEFAULT_DATA)
     parser.add_argument('--out', type=Path, default=ROOT / 'build/amiga')
-    parser.add_argument('--scene', choices=('world','enemy'), default='world')
+    parser.add_argument('--scene', choices=('world','enemy','traffic'), default='world')
     args = parser.parse_args()
     build(args.data, args.out, args.scene)
