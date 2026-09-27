@@ -100,6 +100,17 @@ static void reset_drone(void)
     drone_frame=ENEMY_TILE; drone_walk=drone_delay=0;
 }
 #endif
+#ifdef CHECKPOINT_COUNT
+static V6Checkpoint checkpoints[CHECKPOINT_COUNT];
+static V6CheckpointSave checkpoint_save;
+static void reset_checkpoints(void)
+{
+    unsigned i;
+    for(i=0;i<CHECKPOINT_COUNT;++i)
+        v6_checkpoint_init(&checkpoints[i],checkpoint_setup[i][0],checkpoint_setup[i][1],
+                           checkpoint_setup[i][2],checkpoint_setup[i][3],-1);
+}
+#endif
 #ifdef V6_PLATFORM_SCENE
 static V6Platform platforms[PLATFORM_COUNT];
 static V6Block platform_blocks[PLATFORM_COUNT];
@@ -111,7 +122,9 @@ static void reset_platforms(void)
     unsigned i;
     for(i=0;i<PLATFORM_COUNT;++i) {
         v6_platform_init(&platforms[i],platform_setup[i][0],platform_setup[i][1],
-#ifdef V6_HORIZONTAL_REPLAY
+#ifdef CHECKPOINT_COUNT
+                         3,6,0,0,320,240);
+#elif defined(V6_HORIZONTAL_REPLAY)
                          3,3,64,64,288,184);
 #else
                          0,3,100,70,320,160);
@@ -130,21 +143,33 @@ static unsigned platform_movement(V6Player *p,const V6Room *r,unsigned input,
     (void)context;
     events=v6_player_input(p,input,&platform_motion);
     platform_push.pending_y=platform_motion.pending_y;
-#ifdef V6_HORIZONTAL_REPLAY
+#if defined(V6_HORIZONTAL_REPLAY) || defined(CHECKPOINT_COUNT)
     before=p->x;
 #else
     before=p->y;
 #endif
     v6_platform_transport(p,r,platforms,PLATFORM_COUNT,platform_blocks,PLATFORM_COUNT,
-#ifdef V6_HORIZONTAL_REPLAY
+#if defined(V6_HORIZONTAL_REPLAY) || defined(CHECKPOINT_COUNT)
                            V6_PLATFORMS_HORIZONTAL,life_timer,&platform_push);
     if(p->x!=before) ++platform_pushes;
 #else
                            V6_PLATFORMS_VERTICAL,life_timer,&platform_push);
     if(p->y!=before) ++platform_pushes;
 #endif
+#ifdef CHECKPOINT_COUNT
+    /* These source checkpoints follow the platform and precede the player
+     * in the reverse non-platform update pass. Input has already set dir. */
+    if(v6_checkpoints_update(checkpoints,CHECKPOINT_COUNT,p,
+                            room_setups[0].x,room_setups[0].y,&checkpoint_save)) {
+        v6_slice_apply_save(&slice,&checkpoint_save);
+        events|=V6_EVENT_SAVE;
+    }
+#endif
     v6_player_physics(p,r,&platform_motion,0,0);
     v6_platform_disable_overlaps(p,platforms,PLATFORM_COUNT,platform_blocks,PLATFORM_COUNT);
+#ifdef CHECKPOINT_COUNT
+    v6_checkpoints_collide(checkpoints,CHECKPOINT_COUNT,p);
+#endif
     v6_player_unstick(p,r);
     ++platform_ticks;
     return events;
@@ -399,17 +424,17 @@ static void overlay_hud(UBYTE *dst, UWORD buffer)
     wait_blit();
 }
 
-static void draw_checkpoint(void)
+static inline __attribute__((always_inline)) void draw_checkpoint_at(int x,int y,int tile,int active)
 {
-    UWORD row, plane, color = slice.checkpoint_active ? CHECKPOINT_COLOR : TEXT_COLOR;
-    UWORD shift = slice.checkpoint_x & 15;
+    UWORD row, plane, color = active ? CHECKPOINT_COLOR : TEXT_COLOR;
+    UWORD shift = x & 15;
     /* Asset conversion verifies a 16x16 mask: even shifted, two words suffice. */
     for (row = 0; row < 16; ++row) {
-        ULONG bits = sprite_rows[slice.checkpoint_tile][row];
+        ULONG bits = sprite_rows[tile][row];
         ULONG shifted = bits >> shift;
         UWORD first = shifted >> 16, second = shifted;
-        UWORD *p = (UWORD *)(background + (slice.checkpoint_y + row) * 40
-            + (slice.checkpoint_x / 16) * 2);
+        UWORD *p = (UWORD *)(background + (y + row) * 40
+            + (x / 16) * 2);
         for (plane = 0; plane < V6_PLANES; ++plane) {
             if (color & (1 << plane)) {
                 p[0] |= first; p[1] |= second;
@@ -437,6 +462,25 @@ static void sound(void)
     hw->aud[0].ac_ptr = silence;
     hw->aud[0].ac_len = 1;
 }
+
+static void draw_checkpoint(void)
+{
+#ifdef CHECKPOINT_COUNT
+    unsigned i;
+    for(i=0;i<CHECKPOINT_COUNT;++i)
+        draw_checkpoint_at(checkpoints[i].x,checkpoints[i].y,checkpoints[i].tile,checkpoints[i].active);
+#else
+    draw_checkpoint_at(slice.checkpoint_x,slice.checkpoint_y,slice.checkpoint_tile,slice.checkpoint_active);
+#endif
+}
+#ifdef CHECKPOINT_COUNT
+static void restore_checkpoints(UBYTE *target)
+{
+    unsigned i;
+    for(i=0;i<CHECKPOINT_COUNT;++i)
+        restore_rectangle(target,checkpoints[i].x,checkpoints[i].y,16,16);
+}
+#endif
 
 static int run(void)
 {
@@ -498,6 +542,9 @@ static int run(void)
     for (i = 0; i < DISPLAY_BUFFER_COUNT; ++i) {
         checkpoint_dirty[i] = 1;
     }
+#ifdef CHECKPOINT_COUNT
+    reset_checkpoints();
+#endif
     draw_checkpoint();
 #ifdef V6_ENEMY_SCENE
     reset_drone();
@@ -518,7 +565,11 @@ static int run(void)
     create_copper();
     take_system();
     for (i=0;i<2;++i) {
+#ifdef CHECKPOINT_COUNT
+        restore_checkpoints(screen[i]);
+#else
         restore_rectangle(screen[i],slice.checkpoint_x,slice.checkpoint_y,16,16);
+#endif
         overlay_hud(screen[i],i); hud_versions[i]=hud_generation;
         checkpoint_dirty[i]=0;
     }
@@ -554,6 +605,18 @@ static int run(void)
             ++diagnostics.ticks;
             {
                 unsigned events;
+#ifdef V6_CHECKPOINT_REPLAY
+                /* Test-only placement isolates activation/deactivation and
+                 * respawn; this is not a traversal replay of the room. */
+                input=0;
+                if(diagnostics.ticks==20) {
+                    v6_player_init(&slice.player,208,185,0);
+                    platform_motion=(V6PlayerMotion){0,slice.player.y};
+                    platform_push=(V6PlatformPush){slice.player.y,0,0};
+                }
+                if(diagnostics.ticks==21) input=V6_LEFT;
+                if(diagnostics.ticks==50) restart_pending=1;
+#endif
 #ifdef V6_HORIZONTAL_REPLAY
                 input=0;
 #endif
@@ -582,7 +645,11 @@ static int run(void)
 #endif
                 PROFILE_MARK(1);
 #ifdef V6_PLATFORM_SCENE
+#ifdef CHECKPOINT_COUNT
+                events=v6_slice_step_entities(&slice,&current_room,input,restart_pending,platform_movement,0);
+#else
                 events=v6_slice_step_movement(&slice,&current_room,input,restart_pending,platform_movement,0);
+#endif
                 if(events & V6_EVENT_RESPAWN) {
                     /* Same-room respawn preserves platform positions and blocks. */
                     platform_motion=(V6PlayerMotion){0,slice.player.y};
@@ -639,7 +706,11 @@ static int run(void)
         PROFILE_MARK(3);
         buffer = slice.room_index * 2 + back;
         if (checkpoint_dirty[buffer]) {
+#ifdef CHECKPOINT_COUNT
+            restore_checkpoints(screen[buffer]);
+#else
             restore_rectangle(screen[buffer], slice.checkpoint_x, slice.checkpoint_y, 16, 16);
+#endif
             checkpoint_dirty[buffer] = 0;
             if (slice.checkpoint_y < 16 || slice.checkpoint_y+16 > 216) hud_versions[buffer] = 0;
         }
@@ -708,6 +779,14 @@ static int run(void)
         diagnostics.death_timer = slice.death_timer;
         diagnostics.deaths = slice.deaths; diagnostics.respawns = slice.respawns;
         diagnostics.checkpoint = slice.checkpoint_active; diagnostics.exits = slice.exits;
+#ifdef CHECKPOINT_COUNT
+        {
+            unsigned n;
+            diagnostics.checkpoint=0;
+            for(n=0;n<CHECKPOINT_COUNT;++n)
+                if(checkpoints[n].active) diagnostics.checkpoint|=1UL<<n;
+        }
+#endif
         diagnostics.room_index = slice.room_index; diagnostics.transitions = slice.transitions;
         ready = 1;
     }

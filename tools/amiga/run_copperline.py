@@ -81,6 +81,8 @@ def main():
     parser.add_argument('--traffic', action='store_true')
     parser.add_argument('--platform', action='store_true')
     parser.add_argument('--horizontal', action='store_true')
+    parser.add_argument('--pick', action='store_true')
+    parser.add_argument('--pick-checkpoints', action='store_true')
     args = parser.parse_args()
     build = args.build.resolve()
     config = build / 'copperline.toml'
@@ -106,7 +108,7 @@ write_protected = true
     if args.capture:
         env = dict(os.environ, RUST_LOG='info', COPPERLINE_DBG_AFTER='16.5',
                    COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{build / "slow.bin"}')
-        command += ([] if args.platform or args.horizontal else
+        command += ([] if args.platform or args.horizontal or args.pick or args.pick_checkpoints else
                     ['--joy-after','12','left','200'] if args.traffic else
                     ['--joy-after','12','right','300'] if args.enemy else
                     ['--joy-after','13','fire','100','--joy-after','15.5','right','300',
@@ -124,6 +126,21 @@ write_protected = true
             assert report['transitions'] >= 1 and report['room_index'] == 0, report
             assert 0 < report['max_load_lines'] < 250 and report['exits'] == 0, report
             assert report['load_frames'] == 0, report
+        elif args.pick_checkpoints:
+            assert report['checkpoint']==2 and report['deaths']==1 and report['respawns']==1, report
+            assert report['player_x']==208 and report['player_y']==185 and report['gravity']==0, report
+            assert report['max_sprite_channels']==3, report
+            header,rgba=subprocess.check_output([str(build/'png_rgba'),str(build/'prototype.png')]).split(b'\n',1)
+            w,h=map(int,header.split())
+            green=[(i//4)%w for i in range(0,len(rgba),4)
+                   if 80<rgba[i]<125 and rgba[i+1]>245 and 80<rgba[i+2]<125]
+            assert len(green)>20 and min(green)>w//2, 'Expected only the right checkpoint to be green'
+            report['checkpoint_fixture']='Test-only placement at second checkpoint; not room traversal'
+            report['second_checkpoint_pixels']=len(green)
+        elif args.pick:
+            assert report['enemy_ticks']>100 and report['max_sprite_channels']==3, report
+            assert report['checkpoint']==1, report
+            report['visible_platform_pixels']=visible_enemy(build,build/'prototype.png')
         elif args.horizontal:
             assert report['enemy_ticks']>100 and report['max_sprite_channels']==3, report
             assert report['enemy_hits']>100 and report['checkpoint']==1, report
@@ -167,13 +184,13 @@ write_protected = true
             report['visible_enemy_pixels']=visible_enemy(build,build/'prototype.png')
         else:
             assert report['flips'] == 1 and report['checkpoint'] == 1, report
-        if not args.traffic and not args.platform and not args.horizontal:
+        if not args.traffic and not args.platform and not args.horizontal and not args.pick and not args.pick_checkpoints:
             assert report['deaths'] >= 1 and report['respawns'] >= 1, report
         # Snapshot can land between a tick and completion of its render.
         assert report['ticks'] > 100 and 0 <= report['ticks'] - report['renders'] <= 1, report
         report['video_headroom_passed'] = report['missed_frames'] == 0 and report['max_work_lines'] < 250
         report['max_work_ms'] = round(report['max_work_lines'] * 227 / 3546895 * 1000, 3)
-        if not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal:
+        if not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal and not args.pick and not args.pick_checkpoints:
             report['flip_audio_peak'] = audio_peak(build / 'prototype.wav')
             assert report['flip_audio_peak'] > 0.001, report
         report['max_load_ms'] = round(report['max_load_lines'] * 227 / 3546895 * 1000, 3)

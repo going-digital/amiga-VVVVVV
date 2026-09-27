@@ -20,8 +20,60 @@ static unsigned observe_movement(V6Player *p,const V6Room *room,unsigned input,i
     ++movement_calls;observed_life=life;observed_input=input;
     return v6_player_step(p,room,input);
 }
+typedef struct {
+    V6Slice *slice;
+    V6Checkpoint checkpoints[2];
+    V6CheckpointSave save;
+    V6PlayerMotion motion;
+} CheckpointSession;
+static unsigned checkpoint_movement(V6Player *p,const V6Room *room,unsigned input,int life,void *context)
+{
+    CheckpointSession *c=context;
+    unsigned events=v6_player_input(p,input,&c->motion);
+    (void)life;
+    if(v6_checkpoints_update(c->checkpoints,2,p,100,100,&c->save)) {
+        v6_slice_apply_save(c->slice,&c->save);events|=V6_EVENT_SAVE;
+    }
+    v6_player_physics(p,room,&c->motion,0,0);
+    v6_checkpoints_collide(c->checkpoints,2,p);
+    return events;
+}
+static void multiple_checkpoints(void)
+{
+    uint16_t tiles[1200]={0};
+    V6Room room={tiles,0,0,0,0,0};
+    V6Slice s;
+    CheckpointSession c={0};
+    int i;
+    unsigned events;
+    c.slice=&s;
+    v6_slice_init(&s,64,176,20);
+    c.motion.pending_y=s.player.y;
+    v6_checkpoint_init(&c.checkpoints[0],64,176,20,445550,-1);
+    v6_checkpoint_init(&c.checkpoints[1],212,192,21,445551,-1);
+    events=v6_slice_step_entities(&s,&room,0,0,checkpoint_movement,&c);
+    assert(!(events&V6_EVENT_SAVE) && c.checkpoints[0].pending);
+    events=v6_slice_step_entities(&s,&room,0,0,checkpoint_movement,&c);
+    assert((events&V6_EVENT_SAVE) && c.save.id==445550 && s.save_gravity==1);
+    /* Place at the second checkpoint to isolate save/respawn from traversal. */
+    v6_player_init(&s.player,208,185,0);c.motion.pending_y=s.player.y;
+    events=v6_slice_step_entities(&s,&room,0,0,checkpoint_movement,&c);
+    assert(!(events&V6_EVENT_SAVE) && c.checkpoints[1].pending);
+    events=v6_slice_step_entities(&s,&room,V6_LEFT,0,checkpoint_movement,&c);
+    assert(events&V6_EVENT_SAVE);
+    assert(c.save.id==445551 && s.save_x==208 && s.save_y==185);
+    assert(!s.save_gravity && !s.save_dir);
+    assert(!c.checkpoints[0].active && c.checkpoints[1].active);
+    v6_slice_step_entities(&s,&room,0,1,checkpoint_movement,&c);
+    for(i=0;i<29;++i) events=v6_slice_step_entities(&s,&room,0,0,checkpoint_movement,&c);
+    assert(events&V6_EVENT_RESPAWN);
+    assert(s.player.x==208 && s.player.y==185 && !s.player.gravity && !s.player.dir);
+    assert(c.checkpoints[1].active && c.save.id==445551);
+    assert(s.life_timer==10 && !s.checkpoint_pending);
+}
 int main(void)
 {
+    multiple_checkpoints();
     uint16_t tiles[1200] = {0};
     V6Room room = {tiles, 1, 1, 0, 0, 0};
     V6Slice s;

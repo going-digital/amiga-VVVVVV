@@ -31,7 +31,7 @@ $(BUILD)/prototype_assets.h: FORCE $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/convert_assets.py --data "$(DATA)" --out $(BUILD) --scene $(SCENE)
 
 $(BUILD)/prototype.o: prototype.c $(ROOT)/tools/amiga/transition_replay.h $(BUILD)/prototype_room.h $(BUILD)/prototype_assets.h FORCE
-	$(CC) $(CPPFLAGS) $(if $(filter enemy traffic,$(SCENE)),-DV6_ENEMY_SCENE,) $(if $(filter platform,$(SCENE)),-DV6_PLATFORM_SCENE,) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -c $< -o $@
+	$(CC) $(CPPFLAGS) $(if $(filter enemy traffic,$(SCENE)),-DV6_ENEMY_SCENE,) $(if $(filter platform pick,$(SCENE)),-DV6_PLATFORM_SCENE,) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -c $< -o $@
 
 $(BUILD)/room_codec.o: room_codec.c room_codec.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -98,7 +98,7 @@ test: test-sprites test-terrain $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/test_checkpoints.py
 	python3 $(ROOT)/tools/amiga/test_pixel_collision.py
 	python3 $(ROOT)/tools/amiga/test_transitions.py
-	cc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined -I. -I$(BUILD) player.c slice.c room_codec.c $(ROOT)/tools/amiga/test_slice.c -o $(BUILD)/test_slice
+	cc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined -I. -I$(BUILD) player.c slice.c checkpoints.c room_codec.c $(ROOT)/tools/amiga/test_slice.c -o $(BUILD)/test_slice
 	$(BUILD)/test_slice
 
 FORCE:
@@ -145,3 +145,16 @@ horizontal-capture:
 	python3 $(ROOT)/tools/amiga/test_platform_loop.py
 	$(MAKE) BUILD=$(ROOT)/build/amiga-horizontal-replay SCENE=platform CPPFLAGS=-DV6_HORIZONTAL_REPLAY all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-horizontal-replay --capture --horizontal
+
+.PHONY: pick-run pick-capture
+pick-run:
+	$(MAKE) BUILD=$(ROOT)/build/amiga-pick SCENE=pick all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-pick
+pick-capture:
+	$(MAKE) BUILD=$(ROOT)/build/amiga-pick SCENE=pick all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-pick --capture --pick
+
+.PHONY: pick-checkpoints-capture
+pick-checkpoints-capture:
+	$(MAKE) BUILD=$(ROOT)/build/amiga-pick-checkpoints SCENE=pick CPPFLAGS=-DV6_CHECKPOINT_REPLAY all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-pick-checkpoints --capture --pick-checkpoints

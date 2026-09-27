@@ -12,7 +12,8 @@ Other exits return to the saved checkpoint and show a notice. A separate
 floor checkpoint. **Traffic Jam (115,103)** adds three wide moving enemies;
 its seven-channel capture now passes the video headroom gate.
 **Stop and Reflect (112,106)** adds three moving platforms and a verified
-vertical ride replay. Scripts, wider campaign progression, keyboard controls and
+vertical ride replay. **Just Pick Yourself Down (117,109)** adds an original
+horizontal platform and two working checkpoints. Scripts, wider campaign progression, keyboard controls and
 music remain unimplemented. See [the port plan](../AMIGA_PORT_PLAN.md).
 
 ## Build and run
@@ -32,6 +33,9 @@ make -C amiga_version traffic-capture
 make -C amiga_version platform-run
 make -C amiga_version platform-capture
 make -C amiga_version horizontal-capture
+make -C amiga_version pick-run
+make -C amiga_version pick-capture
+make -C amiga_version pick-checkpoints-capture
 ```
 
 - `all`: host asset conversion, Bartman 68000 compile, ELF/Hunk output, bootable ADF.
@@ -57,6 +61,12 @@ make -C amiga_version horizontal-capture
 - `horizontal-capture`: builds a labelled synthetic horizontal-platform fixture,
   verifies the host reference trace, then compares the target snapshot with the
   matching reference tick. Output is in `build/amiga-horizontal-replay`.
+- `pick-run`: interactive Just Pick Yourself Down in `build/amiga-pick`.
+- `pick-capture`: checks initial checkpoint activation, visible platform,
+  three sprite channels, timing and clean exit.
+- `pick-checkpoints-capture`: separate test build that places the player at the
+  second checkpoint, checks deactivation/redraw of the first, then death/respawn
+  at the second. This isolates checkpoint behavior; it is not a traversal replay.
 - `run`: interactive Copperline window. Joystick left/right moves;
   fire flips gravity when supported. Right mouse restarts from the checkpoint;
   left mouse exits to AmigaDOS. Keyboard input is not implemented yet.
@@ -124,7 +134,7 @@ cycle timing with 512K Chip + 512K slow RAM. At the 16.5-second memory snapshot:
 | Unique packed payloads | 406 |
 | Prototype explicit Chip RAM allocation | 81,934 bytes |
 | Free Chip RAM after startup allocation | 376,520 bytes |
-| Free non-Chip RAM after startup allocation | 416,792 bytes (interactive build) |
+| Free non-Chip RAM after startup allocation | 416,784 bytes (interactive build) |
 | Maximum measured update/draw work | 167 PAL lines / 10.688 ms (transition replay) |
 | Maximum room-change redraw | 167 PAL lines / 10.688 ms |
 | Missed VBL observations including transitions | 0 |
@@ -404,7 +414,7 @@ records **60 vertical transport position changes**, one death and respawn,
 checkpoint activation, three visible platforms and seven hardware channels.
 It passes the unchanged gate at **237 PAL lines / 15.168 ms**, with no missed
 VBL observations and successful return to AmigaDOS. Explicit Chip allocation is
-**43,534 bytes**, with **436,832 bytes** of non-Chip RAM free in the replay build.
+**43,534 bytes**, with **436,824 bytes** of non-Chip RAM free in the replay build.
 The version-5 diagnostic actor fields hold platform position, update count and
 transport count in this scene; the report also provides platform-named counters.
 
@@ -437,13 +447,12 @@ The A500 capture verifies **180 horizontal transport ticks**, with zero player
 X velocity, no deaths or exits, a visible platform and three sprite channels.
 It peaks at **167 PAL lines / 10.688 ms**, with no missed VBL observations and
 successful return to AmigaDOS. Explicit Chip allocation is **43,534 bytes**;
-non-Chip free memory is **437,072 bytes**. The original vertical replay also
+non-Chip free memory is **437,064 bytes**. The original vertical replay also
 still passes at 237 lines.
 
-The reviewed original horizontal-platform rooms require additional support:
-Just Pick Yourself Down has two checkpoints; Gantry and Dolly also has
-disappearing platforms; others include conveyors or enemies and scripts.
-Their setup has not been silently omitted to create a playable export.
+Just Pick Yourself Down is now exported with both checkpoints (see below).
+Gantry and Dolly still needs disappearing platforms; other reviewed rooms need
+conveyors or additional enemy/script support.
 
 ## Multi-checkpoint core
 
@@ -466,17 +475,44 @@ duplicate IDs, both orientations, saved direction and room coordinates.
 Run `python3 tools/amiga/test_checkpoints.py`; `make test` includes it and
 writes `build/amiga/checkpoint-test-report.json`.
 
-Bartman compiles the module. The current native slices still use their existing
-single-checkpoint lifecycle and drawing path, so this is a verified integration
-component, not a newly playable multiple-checkpoint room. Disk persistence,
-nodeath mode and full entity/lifecycle ordering remain outside this test.
+Just Pick Yourself Down now uses this module through `v6_slice_step_entities`.
+Its callback updates checkpoints after input and platform transport, before
+player physics, then arms collisions before stuck prevention. The slice save
+helper records position, gravity and direction for respawn. Earlier scenes keep
+their single-checkpoint path. Disk persistence, nodeath mode and full campaign
+entity/lifecycle ordering remain outside this test.
+
+## Native room with two checkpoints
+
+Just Pick Yourself Down exports all three original room entities: the platform
+at (24,80), moving horizontally at speed 6 with default room bounds, and the
+ceiling checkpoint at (64,176), ID 445550, plus the floor checkpoint at (212,192),
+ID 445551. The strict exporter checks entity order, coordinates and platform
+tile 159. The room starts at its ceiling checkpoint. Unsupported exits use the
+existing slice checkpoint fallback.
+
+Both checkpoint masks are drawn into the background. Save events repaint both
+locations and mark both display buffers dirty, restoring the inactive checkpoint
+as well as the active one. The version-5 diagnostic checkpoint field is an active
+bitmask in this scene (1 for the first, 2 for the second).
+
+The normal smoke capture peaks at **171 PAL lines / 10.944 ms**. The isolated
+checkpoint replay places the player at the second checkpoint on tick 20,
+changes direction on its activation tick, and requests a restart on tick 50.
+It verifies the first checkpoint is white, the second is green, and respawn
+returns to (208,185) with floor gravity. Host lifecycle checks also verify saved
+direction. This replay peaks at **191 PAL lines / 12.224 ms**, with no missed
+VBL observations and a successful return to AmigaDOS. Explicit Chip allocation
+is **43,534 bytes**; non-Chip free memory is **436,136 bytes** in the replay build.
+
+The checkpoint replay does not prove an end-to-end route through this room,
+horizontal riding here, or crushing/death fidelity. Those remain separate tests.
 
 ## Next implementation step
 
-Connect the multi-checkpoint core to slice save/respawn handling and redraw all
-changed checkpoint images. Then export Just Pick Yourself Down with both of its
-checkpoints and its horizontal platform. A deliberate crush/death replay with
-desktop lifecycle comparisons also remains outstanding. Sprite
+Add a traversal/ride replay through Just Pick Yourself Down and a deliberate
+crush/death case with desktop lifecycle comparisons. Then expand room-entity
+support to disappearing platforms and conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. The target replay

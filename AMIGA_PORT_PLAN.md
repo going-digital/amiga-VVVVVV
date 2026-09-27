@@ -124,18 +124,22 @@ All four earlier captures still pass. A separate, clearly labelled synthetic
 horizontal fixture now verifies **180 transport ticks** on target at
 **167 PAL lines / 10.688 ms**, using three sprite channels. Its captured player
 and platform state matches tick 180 of an extracted desktop reference trace.
-The host fixture compares 240 ticks on both terrain paths. Exporting an original
-horizontal room requires more room-entity support (at least multiple
-checkpoints); a deliberate crush/death replay with desktop lifecycle comparison
-also remains outstanding.
+The host fixture compares 240 ticks on both terrain paths. Just Pick Yourself Down now supplies an original horizontal-platform room
+with multiple checkpoints; a deliberate crush/death replay with desktop
+lifecycle comparison remains outstanding.
 
 A caller-owned multi-checkpoint core now matches **32,768 reference ticks**
 across 256 scenarios, including 16,559 activations and 3,388 ticks with multiple
 saves. It preserves reverse entity order, pending activations, duplicate IDs,
 orientation offsets, saved direction and room coordinates. The per-entity API
-supports later integration among other entity updates. The module cross-compiles;
-native slice save/respawn handling and drawing still use one checkpoint per room.
-Those integration changes are needed before exporting Just Pick Yourself Down.
+supports later integration among other entity updates. The native **Just Pick Yourself Down (117,109)** scene now integrates both
+checkpoints and its original horizontal platform. Activation runs after input,
+records save direction, and redraws both checkpoint locations in both buffers.
+The normal capture peaks at **171 PAL lines / 10.944 ms**. A separate test-only
+placement replay verifies deactivation of the first checkpoint, activation of
+the second and respawn at (208,185), peaking at **191 PAL lines / 12.224 ms**.
+It uses **43,534 bytes** of explicit Chip allocation and observes no missed VBLs.
+This is isolated checkpoint coverage, not a traversal replay of the room.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

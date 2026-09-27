@@ -88,7 +88,7 @@ unsupported:
     return events;
 }
 
-static inline __attribute__((always_inline)) unsigned step(V6Slice *s, const V6Room *room, unsigned input, int restart, V6ContactHook hook, V6SliceMovement movement, void *context)
+static inline __attribute__((always_inline)) unsigned step(V6Slice *s, const V6Room *room, unsigned input, int restart, V6ContactHook hook, V6SliceMovement movement, void *context,int external_checkpoints)
 {
     unsigned events = 0;
     int previous_room = s->room_index;
@@ -100,7 +100,7 @@ static inline __attribute__((always_inline)) unsigned step(V6Slice *s, const V6R
             if (previous_room != s->room_index) events |= V6_EVENT_ROOM; }
         return events;
     }
-    if (s->checkpoint_pending) {
+    if (!external_checkpoints && s->checkpoint_pending) {
         s->checkpoint_pending = 0; s->checkpoint_active = 1;
         s->save_dir = s->player.dir;
         s->save_room = s->room_index;
@@ -113,7 +113,7 @@ static inline __attribute__((always_inline)) unsigned step(V6Slice *s, const V6R
     if (s->life_timer > 0) --s->life_timer;
     events |= movement ? movement(&s->player,room,input,s->life_timer,context) :
         v6_player_step_hook(&s->player, room, input, hook, context);
-    if (!s->checkpoint_active && v6_player_overlaps(&s->player,
+    if (!external_checkpoints && !s->checkpoint_active && v6_player_overlaps(&s->player,
             s->checkpoint_x, s->checkpoint_y, 16, 16)) s->checkpoint_pending = 1;
     if (v6_player_hurt(&s->player, room)) s->death_timer = 30;
     events |= v6_slice_transition(s);
@@ -131,10 +131,25 @@ static inline __attribute__((always_inline)) unsigned step(V6Slice *s, const V6R
 }
 
 unsigned v6_slice_step_hook(V6Slice *s,const V6Room *room,unsigned input,int restart,V6ContactHook hook,void *context)
-{ return step(s,room,input,restart,hook,0,context); }
+{ return step(s,room,input,restart,hook,0,context,0); }
 
 unsigned v6_slice_step_movement(V6Slice *s,const V6Room *room,unsigned input,int restart,V6SliceMovement movement,void *context)
-{ return step(s,room,input,restart,0,movement,context); }
+{ return step(s,room,input,restart,0,movement,context,0); }
 
 unsigned v6_slice_step(V6Slice *s, const V6Room *room, unsigned input, int restart)
 { return v6_slice_step_hook(s,room,input,restart,0,0); }
+
+void v6_slice_apply_save(V6Slice *s,const V6CheckpointSave *save)
+{
+    /* The activation belongs to the current room, not a remote save load. */
+    s->save_room=s->room_index;
+    s->save_x=save->x;s->save_y=save->y;
+    s->save_gravity=save->gravity;s->save_dir=save->dir;
+    s->checkpoint_x=save->x+4;
+    s->checkpoint_y=save->y+(save->gravity?2:7);
+    s->checkpoint_tile=save->gravity?20:21;
+    s->checkpoint_active=1;s->checkpoint_pending=0;
+}
+unsigned v6_slice_step_entities(V6Slice *s,const V6Room *room,unsigned input,
+                                int restart,V6SliceMovement movement,void *context)
+{ return step(s,room,input,restart,0,movement,context,1); }
