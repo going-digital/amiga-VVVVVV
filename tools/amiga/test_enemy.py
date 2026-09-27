@@ -8,7 +8,7 @@ import re
 import struct
 import subprocess
 from pack_rooms import ROOT, extract
-from test_player import BUILD, Room, block, original_reference
+from test_player import BUILD, Room, Terrain, block, original_reference
 
 FIELDS = 'x y old_x old_y vx vy behavior speed state onwall x1 y1 x2 y2 cx cy w h'.split()
 class Enemy(C.Structure):
@@ -61,9 +61,10 @@ extern "C" void enemy_reference_step(V6Enemy *p) {
                     '-I'+str(ROOT/'amiga_version'),'-I'+str(ROOT/'tools/amiga'),
                     str(path),'-L/opt/homebrew/lib','-lSDL3','-o',str(BUILD/'enemy_reference.so')],check=True)
     subprocess.run(['cc','-std=c99','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',
-                    '-fsanitize=undefined',str(ROOT/'amiga_version/enemy.c'),
+                    '-fsanitize=undefined',str(ROOT/'amiga_version/enemy.c'),str(ROOT/'amiga_version/terrain.c'),
                     '-o',str(BUILD/'enemy.so')],check=True)
     core=C.CDLL(str(BUILD/'enemy.so')); ref=C.CDLL(str(BUILD/'enemy_reference.so'))
+    core.v6_terrain_build.argtypes=[C.POINTER(Terrain),C.POINTER(Room)]
     core.v6_enemy_init.argtypes=[C.POINTER(Enemy)]+[C.c_int]*12
     core.v6_enemy_step.argtypes=[C.POINTER(Enemy),C.POINTER(Room),C.POINTER(Block),C.c_uint]
     ref.enemy_reference_init.argtypes=[C.POINTER(Enemy),C.POINTER(C.c_uint16),C.c_int,C.c_int,C.POINTER(Block),C.c_uint]
@@ -81,6 +82,7 @@ extern "C" void enemy_reference_step(V6Enemy *p) {
             for y in range(10,20): scene[y*40+20]=14+(scenario//4)%4
         tileset=scenario%3; extra=scenario%2
         raw=(C.c_uint16*1200)(*scene); room=Room(raw,tileset,extra)
+        terrain=Terrain(); core.v6_terrain_build(C.byref(terrain),C.byref(room))
         # The original loader generates these blocks from directional tiles.
         blocks=[Block(x*8,y*8,8,8,2,scene[y*40+x]-14)
                 for y in range(29+extra) for x in range(40) if 14<=scene[y*40+x]<=17]
@@ -91,17 +93,22 @@ extern "C" void enemy_reference_step(V6Enemy *p) {
         assert core.v6_enemy_init(C.byref(p),rng.randrange(-20,320),rng.randrange(-20,240),
             scenario%4,(scenario//4)%33-16,0,0,320,240,rng.randrange(4),rng.randrange(4),w,h)
         expected=Enemy.from_buffer_copy(p)
+        cached=Enemy.from_buffer_copy(p)
         ref.enemy_reference_init(C.byref(p),raw,tileset,extra,custom,1)
         for tick in range(240):
+            room.terrain=C.pointer(terrain)
+            core.v6_enemy_step(C.byref(cached),C.byref(room),native,len(native))
+            room.terrain=None
             core.v6_enemy_step(C.byref(p),C.byref(room),native,len(native))
             ref.enemy_reference_step(C.byref(expected))
             for name in FIELDS:
+                assert getattr(cached,name)==getattr(expected,name), (scenario,tick,name,"cached")
                 assert getattr(p,name)==getattr(expected,name), (scenario,tick,name,getattr(p,name),getattr(expected,name))
             ticks+=1
     p=Enemy()
     for kind,speed,w,h in ((4,2,16,16),(0,17,16,16),(0,2,0,16),(0,2,16,33)):
         assert not core.v6_enemy_init(C.byref(p),80,80,kind,speed,0,0,320,240,0,0,w,h)
-    report=dict(scenarios=528,compared_ticks=ticks,reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
+    report=dict(scenarios=528,compared_ticks=ticks,cached_compared_ticks=ticks,reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
         scope='Movement only: behaviours 0..3, integer speeds, tile/block collisions and patrol bounds; no rendering, damage, platforms or complete entity-loop equivalence.')
     (BUILD/'enemy-test-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS:',json.dumps(report))

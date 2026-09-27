@@ -46,6 +46,7 @@ int v6_player_overlaps(const V6Player *p, int x, int y, int w, int h)
 
 static int solid(const V6Room *room, int x, int y)
 {
+    if (room->terrain) return v6_terrain_solid(room->terrain,x,y);
     int tile, height = 29 + room->extra_row;
     /* Map::collide duplicates the edge tile for exactly one tile outside. */
     if (x == -1) x = 0;
@@ -65,6 +66,7 @@ static int wall(const V6Room *room, int x, int y, int32_t dx, int32_t dy)
     int tx, ty, gy;
     /* Deliberately /8, not >>3: original getgridpoint truncates toward zero. */
     int l = left / 8, r = right / 8, t = top / 8, b = bottom / 8;
+    if (!room->terrain || room->terrain->directional)
     for (ty = t < 0 ? 0 : t; ty <= b && ty < 29 + room->extra_row; ++ty)
         for (tx = l < 0 ? 0 : l; tx <= r && tx < 40; ++tx) {
             int tile = room->tiles[ty * 40 + tx];

@@ -10,7 +10,7 @@ right returns. Checkpoints retain their room, position and gravity for respawn.
 Other exits return to the saved checkpoint and show a notice. A separate
 **Security Sweep (112,103)** scene now includes its original moving enemy and
 floor checkpoint. **Traffic Jam (115,103)** adds three wide moving enemies;
-its functional capture works but currently fails the video headroom gate. Scripts, wider campaign progression, keyboard controls and
+its seven-channel capture now passes the video headroom gate. Scripts, wider campaign progression, keyboard controls and
 music remain unimplemented. See [the port plan](../AMIGA_PORT_PLAN.md).
 
 ## Build and run
@@ -26,7 +26,7 @@ make -C amiga_version run
 make -C amiga_version enemy-run
 make -C amiga_version enemy-capture
 make -C amiga_version traffic-run
-make -C amiga_version traffic-capture  # currently fails the timing gate
+make -C amiga_version traffic-capture
 ```
 
 - `all`: host asset conversion, Bartman 68000 compile, ELF/Hunk output, bootable ADF.
@@ -43,8 +43,8 @@ make -C amiga_version traffic-capture  # currently fails the timing gate
   visible sprites, timing and return to AmigaDOS.
 - `traffic-run`: interactive three-enemy scene in `build/amiga-traffic`.
 - `traffic-capture`: checks seven-channel allocation, three visible red enemies,
-  movement, checkpoint and clean exit; saves evidence before reporting the
-  outstanding timing-gate failure. This replay does not exercise enemy hits.
+  movement, checkpoint, timing and clean exit. This replay does not exercise
+  enemy hits.
 - `run`: interactive Copperline window. Joystick left/right moves;
   fire flips gravity when supported. Right mouse restarts from the checkpoint;
   left mouse exits to AmigaDOS. Keyboard input is not implemented yet.
@@ -84,8 +84,8 @@ committed or bundled for distribution without the relevant permission.
   Requests allocate channels in priority order, with the player submitted first.
   Multiplexing and a general blitter fallback remain to be implemented.
 - Two screen pairs remain cached in Chip RAM; original room backgrounds live
-  in slow RAM. Only checkpoint damage needs CPU restoration; HUD copies occur only when
-  their content changes. The earlier repeating-room scroll
+  in slow RAM. Only checkpoint damage needs CPU restoration; HUD copies update only the
+  eight-row text bands whose content changed. The earlier repeating-room scroll
   stress harness has been replaced; actual tower streaming remains outstanding.
 - Copper waits until line 44 before reading buffer pointers, so publication
   after the VBL interrupt completes before visible display starts at line 52.
@@ -112,9 +112,9 @@ cycle timing with 512K Chip + 512K slow RAM. At the 16.5-second memory snapshot:
 | Unique packed payloads | 406 |
 | Prototype explicit Chip RAM allocation | 81,934 bytes |
 | Free Chip RAM after startup allocation | 376,520 bytes |
-| Free non-Chip RAM after startup allocation | 421,984 bytes (interactive build) |
-| Maximum measured update/draw work | 197 PAL lines / 12.608 ms (transition replay) |
-| Maximum room-change redraw | 195 PAL lines / 12.480 ms |
+| Free non-Chip RAM after startup allocation | 417,264 bytes (interactive build) |
+| Maximum measured update/draw work | 164 PAL lines / 10.496 ms (transition replay) |
+| Maximum room-change redraw | 164 PAL lines / 10.496 ms |
 | Missed VBL observations including transitions | 0 |
 | VBL periods crossed by room-change work | 0 |
 | Flip, checkpoint, spike death and respawn | Passed |
@@ -126,7 +126,7 @@ These are **emulator measurements of this harness**, not real-hardware or
 complete-game performance. The RAM totals do not include a resident full room
 pack: only two compressed rooms and their decoded tile/background caches are
 resident. A cache per room is temporary slice scaffolding, not the full-campaign
-storage design. The ordinary capture peaks at 155 lines / 9.920 ms. During a snapshot
+storage design. The ordinary capture peaks at 86 lines / 5.504 ms. During a snapshot
 the current tick can be one ahead of the completed-render counter.
 
 Reports and evidence:
@@ -203,7 +203,7 @@ These isolated comparisons do not establish full desktop-loop equivalence.
 The enemy capture's diagnostics and screenshot are in
 `build/amiga-enemy/smoke-report.json` and `prototype.png`. Its explicit Chip
 allocation is **43,534 bytes**, with one room's screen pair resident. Peak work
-is **204 PAL lines / 13.056 ms**, with zero missed VBL observations. The replay
+is **133 PAL lines / 8.512 ms**, with zero missed VBL observations. The replay
 verifies an enemy hit, death, checkpoint respawn, visible cyan/pink sprites and
 clean exit. It does not connect this room to the two-room world slice.
 
@@ -230,18 +230,38 @@ Vertical multiplexing and attached sprites remain unimplemented.
 Traffic Jam's capture shows all three original enemies moving, the checkpoint
 activated and a clean AmigaDOS exit. Its 22×32 collision boxes remain separate
 from the 32×32 source graphics. The room uses **43,534 Chip bytes** and peaks at
-**328 PAL lines / 20.992 ms** at tick 2, above the unchanged **250-line gate**.
-`build/amiga-traffic/smoke-report.json` records `video_headroom_passed: false`;
-the command returns failure after saving the screenshot and exit evidence.
-Zero skipped VBL observations in this replay does not mean work fits one PAL
-frame: this peak exceeds a frame. This scene remains a performance experiment.
-Enemy hit/respawn coverage still comes from the Security Sweep replay.
+**245 PAL lines / 15.680 ms** at tick 2, below the unchanged **250-line gate**.
+`build/amiga-traffic/smoke-report.json` records `video_headroom_passed: true`,
+zero missed VBL observations and clean exit. This is a bounded replay result,
+not a worst-case campaign guarantee. Enemy hit/respawn coverage still comes
+from the Security Sweep replay.
+
+## Collision cache and profiling
+
+Each cached room now has a **2,052-byte non-Chip RAM** terrain cache. It stores
+solid-tile classifications with a one-tile duplicated border and a flag for
+whether directional tiles exist. Collision queries retain the original tile
+rules and truncation toward zero; rooms without directional tiles skip that
+scan. Rebuild the cache whenever tiles, tileset or `extra_row` change. The
+uncached path remains available by setting `V6Room.terrain` to null.
+
+Both paths independently match all **36,746 player ticks** and **126,720 enemy
+ticks** against the extracted desktop reference. Another **9,192,768 queries**
+check classification, duplicated edges, out-of-range queries and cache rebuilds
+under UBSan (`make -C amiga_version test-terrain`).
+
+Profiling identified collision work as the largest part of Traffic Jam's former
+328-line peak. The cache, removal of redundant checkpoint mask writes, and
+per-text-row HUD invalidation reduce it to 245 lines without additional Chip RAM.
+An optional `CPPFLAGS=-DV6_PROFILE` build records six phase durations at the
+highest-work update. Use a separate `BUILD` directory, then decode its `slow.bin`
+with `python3 tools/amiga/read_profile.py /path/to/slow.bin`. Values are PAL lines;
+instrumentation adds overhead, so use ordinary builds for timing-gate results.
 
 ## Next implementation step
 
-Profile and reduce Traffic Jam's enemy collision and checkpoint-update costs
-until it passes the video headroom gate. Then add platforms, multiplexing and a
-blitter fallback. Expand the strict room-setup export and
+Add platforms, sprite multiplexing and a blitter fallback for rooms that exceed
+the eight-channel budget. Extend reference traces to cover these interactions. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. The target replay
 currently asserts milestones rather than comparing every target state field.
 Tower row streaming and the music storage/playback experiment remain separate

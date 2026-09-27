@@ -13,7 +13,7 @@ PLANES ?= 2
 SCENE ?= world
 CFLAGS := -DV6_PLANES=$(PLANES) -std=c99 -m68000 -Os -g -nostdlib -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fomit-frame-pointer -Wall -Wextra -Werror -ffunction-sections -fdata-sections -MMD -MP -I$(BUILD)
 LDFLAGS := -nostdlib -m68000 -Wl,--emit-relocs,--gc-sections,-Ttext=0,-Map=$(BUILD)/prototype.map
-OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o
+OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o
 
 .PHONY: all test capture run FORCE
 all: $(BUILD)/prototype.adf
@@ -54,6 +54,9 @@ $(BUILD)/animation.o: animation.c animation.h player.h | $(BUILD)
 $(BUILD)/sprites.o: sprites.c sprites.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD)/terrain.o: terrain.c terrain.h player.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/prototype.elf: $(OBJECTS)
 	$(CC) $(LDFLAGS) $^ -o $@
 
@@ -69,7 +72,12 @@ test-sprites: | $(BUILD)
 	$(BUILD)/test_sprites
 
 .PHONY: test-sprites
-test: test-sprites $(BUILD)/prototype_room.h
+test-terrain: | $(BUILD)
+	cc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I. terrain.c $(ROOT)/tools/amiga/test_terrain.c -o $(BUILD)/test_terrain
+	$(BUILD)/test_terrain
+
+.PHONY: test-terrain
+test: test-sprites test-terrain $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/pack_rooms.py --out $(BUILD) --scene $(SCENE)
 	python3 $(ROOT)/tools/amiga/test_rooms.py
 	python3 $(ROOT)/tools/amiga/test_player.py

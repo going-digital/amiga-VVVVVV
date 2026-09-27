@@ -1,6 +1,7 @@
 #ifndef V6_PLAYER_H
 #define V6_PLAYER_H
 #include <stdint.h>
+#include "terrain.h"
 
 #define V6_ONE 16777216L
 enum { V6_LEFT = 1, V6_RIGHT = 2, V6_FLIP = 4, V6_NO_CONTROL = 8 };
@@ -15,9 +16,11 @@ typedef struct {
     int32_t ground, roof, tap_left, tap_right, held, buffer, gravity, dir, flips;
 } V6Player;
 
-typedef struct {
+typedef struct V6Room {
     const uint16_t *tiles;
     int tileset, extra_row;
+    /* Optional immutable cache; rebuild after changing tiles or room settings. */
+    const V6Terrain *terrain;
 } V6Room;
 
 void v6_player_init(V6Player *p, int x, int y, int gravity);

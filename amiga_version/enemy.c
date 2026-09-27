@@ -44,6 +44,7 @@ int v6_enemy_init(V6Enemy *e, int x, int y, int kind, int speed,
 
 static int solid(const V6Room *r, int x, int y)
 {
+    if (r->terrain) return v6_terrain_solid(r->terrain,x,y);
     int tile, height = 29+r->extra_row;
     if (x == -1) x = 0;
     if (x == 40) x = 39;

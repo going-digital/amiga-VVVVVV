@@ -15,7 +15,7 @@ static void observe_contact(const V6Player *p, void *context)
 int main(void)
 {
     uint16_t tiles[1200] = {0};
-    V6Room room = {tiles, 1, 1};
+    V6Room room = {tiles, 1, 1, 0};
     V6Slice s;
     unsigned events;
     int i;
@@ -83,7 +83,7 @@ int main(void)
             assert(v6_unpack_room(packed_rooms[i],packed_sizes[i],geometry[i],1200));
         v6_slice_init_world(&s,room_setups,SLICE_ROOM_COUNT,0);
         for (i=0;i<(int)sizeof(transition_replay);++i) {
-            V6Room actual={geometry[s.room_index],1,1};
+            V6Room actual={geometry[s.room_index],1,1,0};
             v6_slice_step(&s,&actual,transition_replay[i],0);
             assert(s.deaths==0 && s.exits==0);
         }

@@ -19,8 +19,11 @@ class Player(C.Structure):
     _fields_ = [(name, C.c_int32) for name in FIELDS]
 
 
+class Terrain(C.Structure):
+    _fields_ = [('solid', (C.c_uint8*64)*32), ('directional', C.c_int)]
+
 class Room(C.Structure):
-    _fields_ = [('tiles', C.POINTER(C.c_uint16)), ('tileset', C.c_int), ('extra_row', C.c_int)]
+    _fields_ = [('tiles', C.POINTER(C.c_uint16)), ('tileset', C.c_int), ('extra_row', C.c_int), ('terrain', C.POINTER(Terrain))]
 
 
 def block(text, start):
@@ -102,8 +105,9 @@ def build_libraries():
                     str(BUILD/'player_reference.cpp'), '-L/opt/homebrew/lib', '-lSDL3',
                     '-o', str(BUILD/'player_reference.so')], check=True)
     subprocess.run(['cc', '-std=c99', '-O2', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
-                    str(ROOT/'amiga_version/player.c'), '-o', str(BUILD/'player.so')], check=True)
+                    str(ROOT/'amiga_version/player.c'), str(ROOT/'amiga_version/terrain.c'), '-o', str(BUILD/'player.so')], check=True)
     core, ref = C.CDLL(str(BUILD/'player.so')), C.CDLL(str(BUILD/'player_reference.so'))
+    core.v6_terrain_build.argtypes = [C.POINTER(Terrain), C.POINTER(Room)]
     core.v6_player_init.argtypes = [C.POINTER(Player), C.c_int, C.c_int, C.c_int]
     core.v6_player_step.argtypes = [C.POINTER(Player), C.POINTER(Room), C.c_uint]
     core.v6_player_hurt.argtypes = [C.POINTER(Player), C.POINTER(Room)]
@@ -124,17 +128,23 @@ def main():
         nonlocal tick_count, scenarios, max_velocity_error
         tiles = (C.c_uint16 * 1200)(*values)
         room = Room(tiles, tileset, extra)
+        terrain = Terrain(); core.v6_terrain_build(C.byref(terrain),C.byref(room))
         p, expected = Player(), Player()
         core.v6_player_init(C.byref(p), x, y, gravity)
         ref.reference_init(C.byref(p), tiles, tileset, extra)
+        cached = Player.from_buffer_copy(p)
         history = []
         for tick, buttons in enumerate(sequence):
             history.append(buttons)
             ref.reference_step(buttons)
+            room.terrain=C.pointer(terrain)
+            core.v6_player_step(C.byref(cached), C.byref(room), buttons)
+            room.terrain=None
             core.v6_player_step(C.byref(p), C.byref(room), buttons)
             ref.reference_read(C.byref(expected))
             for field in FIELDS:
                 a, b = getattr(p, field), getattr(expected, field)
+                assert getattr(cached,field)==b, (name,tick,field,"cached",getattr(cached,field),b)
                 if field in ('vx', 'vy', 'ay'):
                     max_velocity_error = max(max_velocity_error, abs(a-b))
                     assert a == b, (name, tick, field, a, b, history[-20:])
@@ -183,7 +193,7 @@ def main():
                     ref.reference_init(C.byref(p),array,tileset,1)
                     assert core.v6_player_hurt(C.byref(p),C.byref(room))==ref.reference_hurt(), (tileset,tile,x,y)
                     damage_cases+=1
-    report=dict(scenarios=scenarios,compared_ticks=tick_count,hazard_cases=damage_cases,
+    report=dict(scenarios=scenarios,compared_ticks=tick_count,cached_compared_ticks=tick_count,hazard_cases=damage_cases,
                 max_velocity_error_q24=max_velocity_error,reference_sha256=digest,
                 scope='Single-player static tile physics/input and spike rectangles; no complete game-loop equivalence.')
     (BUILD/'player-test-report.json').write_text(json.dumps(report,indent=2)+'\n')
