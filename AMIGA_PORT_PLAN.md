@@ -199,6 +199,12 @@ visible player/platform sprites and clean exit, and peaks at **139 PAL lines /
 or complete desktop-loop equivalence. Disappearing platforms and conveyors are
 the next entity expansion.
 
+The ordinary disappearing-platform lifecycle core is now implemented and matches
+40,960 source-derived updates across all six states and sound/disable/create
+events. It compiles for the 68000 without helper-library dependencies. It is not
+yet integrated into a room: collision-bank slot reuse, animation, audio and the
+(111,107) death-time tile exception remain caller work. Native integration is next.
+
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and
 evidence are in [`amiga_version/README.md`](amiga_version/README.md).

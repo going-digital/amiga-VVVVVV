@@ -13,7 +13,7 @@ PLANES ?= 2
 SCENE ?= world
 CFLAGS := -DV6_PLANES=$(PLANES) -std=c99 -m68000 -Os -g -nostdlib -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fomit-frame-pointer -Wall -Wextra -Werror -ffunction-sections -fdata-sections -MMD -MP -I$(BUILD)
 LDFLAGS := -nostdlib -m68000 -Wl,--emit-relocs,--gc-sections,-Ttext=0,-Map=$(BUILD)/prototype.map
-OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/platform.o $(BUILD)/checkpoints.o
+OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/platform.o $(BUILD)/checkpoints.o $(BUILD)/disappearing.o
 
 .PHONY: all test capture run FORCE
 all: $(BUILD)/prototype.adf
@@ -98,6 +98,7 @@ test: test-sprites test-terrain $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/test_death_lifecycle.py
 	python3 $(ROOT)/tools/amiga/test_recovery.py
 	python3 $(ROOT)/tools/amiga/test_platform_recovery.py
+	python3 $(ROOT)/tools/amiga/test_disappearing.py
 	python3 $(ROOT)/tools/amiga/test_checkpoints.py
 	python3 $(ROOT)/tools/amiga/test_pick_route.py
 	python3 $(ROOT)/tools/amiga/test_pixel_collision.py
@@ -196,3 +197,6 @@ crush-replay-capture:
 	python3 $(ROOT)/tools/amiga/crush_replay_trace.py
 	$(MAKE) BUILD=$(ROOT)/build/amiga-crush-replay SCENE=platform CPPFLAGS=-DV6_CRUSH_REPLAY all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-crush-replay --capture --crush
+
+$(BUILD)/disappearing.o: disappearing.c disappearing.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@

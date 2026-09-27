@@ -695,9 +695,32 @@ The target compares selected snapshots against a 240-tick native host integratio
 trace, not every target tick against the complete desktop loop. The command first
 reruns the source-derived compression suite. Normal gameplay scenes are unchanged.
 
+## Disappearing-platform lifecycle core
+
+`disappearing.c` implements the ordinary six-state platform lifecycle. Collision
+arms the platform; its next update starts a 12-tick collapse and emits the sound
+event. Animation advances every third tick, then the platform hides and requests
+collision-block disabling. Death finishes an in-progress collapse and arms
+recharge. Live updates recreate the block and reverse the animation; contact can
+retrigger it during recharge, matching the original `onentity` behavior.
+
+`python3 tools/amiga/test_disappearing.py` compares **40,960 updates** against
+unmodified Entity.cpp update/collision branches and Logic.cpp death handling.
+All six states and the sound/disable/create events are exercised. The UBSan test
+is included in `make test`; its report is `build/amiga/disappearing-report.json`.
+The module also compiles for the 68000 without runtime helper dependencies.
+
+This core is not yet connected to a playable room. It emits requests; the caller
+must disable all blocks at the origin and implement desktop `createblock` slot
+reuse (first disabled slot, otherwise append), draw the animation, and play the
+sound. Collision geometry is 32x10 at Y-1; the solid block is 32x8. The special
+death-time tile patch in room (111,107), supercrewmates, actual block-bank
+mutation and rendered target behavior are not covered by this test.
+
 ## Next implementation step
 
-Expand room-entity support to disappearing platforms and conveyors. Sprite
+Integrate disappearing platforms with the collision-block bank and a native
+room fixture, then add conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. Target replays combine milestone assertions with selected state comparisons;
