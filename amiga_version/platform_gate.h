@@ -10,4 +10,15 @@
  * platform, update blocks or perform player transport. Returns 0 for other
  * behaviours without changing state. */
 int v6_platform_gate_behavior(V6Platform *,const V6Disappearing *,const int *x,unsigned count);
+/* Initialize a waiting platform and execute its creation-time behaviour.
+ * Invalid kind/speed/geometry leaves the destination unchanged. */
+int v6_platform_gate_init(V6Platform *,int x,int y,int kind,int speed,
+    int x1,int y1,int x2,int y2,const V6Disappearing *,const int *gate_x,unsigned gates);
+/* Mixed ordinary/waiting-platform transport. Gate states are a snapshot of
+ * the source entity pass at this point; caller owns their later updates.
+ * Preserves reverse-order, velocity-selected passes (including zero speed),
+ * block relocation, vertical push and life-timer-gated horizontal carrying. */
+void v6_platform_gate_transport(V6Player *,const V6Room *,V6Platform *,unsigned,
+    V6Block *,unsigned,unsigned flags,int life_timer,V6PlatformPush *,
+    const V6Disappearing *,const int *gate_x,unsigned gates);
 #endif

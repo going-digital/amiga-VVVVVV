@@ -41,7 +41,7 @@ extern "C" void reference(V6Platform *p,const V6Disappearing *g,const int *x,uns
         '-I'+str(ROOT/'desktop_version/src'),'-I'+str(ROOT/'amiga_version'),str(path),
         '-o',str(BUILD/'platform_gate_reference.so')],check=True)
     subprocess.run(['cc','-std=c99','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',
-        '-fsanitize=undefined','-fno-sanitize-recover=all',str(ROOT/'amiga_version/platform_gate.c'),
+        '-fsanitize=undefined','-fno-sanitize-recover=all',*[str(ROOT/'amiga_version'/f) for f in ('platform_gate.c','platform.c','enemy.c','player.c','terrain.c','blocks.c')],
         '-o',str(BUILD/'platform_gate.so')],check=True)
     core=C.CDLL(str(BUILD/'platform_gate.so')).v6_platform_gate_behavior
     ref=C.CDLL(str(BUILD/'platform_gate_reference.so')).reference
@@ -70,6 +70,23 @@ extern "C" void reference(V6Platform *p,const V6Disappearing *g,const int *x,uns
     for kind in (14,15):
         p=Enemy();p.behavior=kind;before=bytes(p)
         assert core(C.byref(p),None,None,0)==1 and bytes(p)==before
+    init=C.CDLL(str(BUILD/'platform_gate.so')).v6_platform_gate_init
+    init.argtypes=[C.POINTER(Enemy)]+[C.c_int]*8+[C.POINTER(State),C.POINTER(C.c_int),C.c_uint]
+    for kind in (14,15):
+        for hidden in (False,True):
+            for speed in range(-16,17):
+                gates=(State*1)(State(3 if hidden else 2,0,0,0,0))
+                xs=(C.c_int*1)(88+(-32 if kind==14 else 32))
+                p=Enemy()
+                assert init(C.byref(p),88,72,kind,speed,0,0,320,240,gates,xs,1)
+                expected=Enemy.from_buffer_copy(p)
+                expected.state=expected.onwall=expected.vx=expected.vy=0
+                ref(C.byref(expected),gates,xs,1)
+                assert bytes(p)==bytes(expected)
+    before=bytes(p)
+    for kind,speed in ((13,3),(16,3),(14,17),(15,-17)):
+        assert not init(C.byref(p),88,72,kind,speed,0,0,320,240,None,None,0)
+        assert bytes(p)==before
     (BUILD/'platform-gate-report.json').write_text(json.dumps(dict(cases=checks,
         source_sha256=hashlib.sha256(source.encode()).hexdigest(),
         scope='Source behaviour branches 14/15 and outside(); no movement, collision bank or player transport'),indent=2)+'\n')

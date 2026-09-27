@@ -83,8 +83,13 @@ static int wall(const V6Enemy *e, const V6Room *r, const V6EnemyBlock *blocks,
 
 void v6_enemy_step(V6Enemy *e, const V6Room *r, const V6EnemyBlock *blocks, unsigned count)
 {
-    int next;
     behavior(e);
+    v6_enemy_move(e,r,blocks,count);
+}
+
+void v6_enemy_move(V6Enemy *e,const V6Room *r,const V6EnemyBlock *blocks,unsigned count)
+{
+    int next;
     e->old_x = e->x; e->old_y = e->y;
     next = e->x+e->vx;
     while (wall(e,r,blocks,count,next,e->y)) {

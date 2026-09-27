@@ -22,7 +22,7 @@ int v6_platform_contact_speed(const V6Player *p, const V6Block *blocks, unsigned
         if(b->type!=V6_BLOCK || !v6_block_hit(b,p->x+6,p->y+2+(roof?-1:1),12,21,0,0,0)) continue;
         for(j=0;j<platform_count;++j) {
             const V6Platform *e=&platforms[j];
-            if(e->behavior>=2 && e->behavior<=3 && e->x==b->x && e->y==b->y) return e->vx;
+            if(((e->behavior>=2 && e->behavior<=3) || e->behavior==14 || e->behavior==15) && e->x==b->x && e->y==b->y) return e->vx;
         }
         return -1000;
     }

@@ -12,7 +12,8 @@ int v6_platform_init(V6Platform *, int x, int y, int behavior, int speed,
  * entity order at the caller; this updates one platform and its block. */
 void v6_platform_step(V6Platform *, const V6Room *, V6Block *, unsigned count);
 /* First BLOCK contact, then first horizontal platform at that origin, as in
- * checkplatform/hplatformat. Supports this API's behaviours 0..3 only.
+ * checkplatform/hplatformat. Supports horizontal behaviours 2/3 and waiting
+ * behaviours 14/15 (initialized/updated through platform_gate.h).
  * Returns velocity in integer pixels/tick, or -1000 for no eligible platform.
  * This selects a transport velocity; it does not move the player. */
 int v6_platform_contact_speed(const V6Player *, const V6Block *, unsigned,

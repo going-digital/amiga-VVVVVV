@@ -80,6 +80,7 @@ def main():
     parser.add_argument('--enemy', action='store_true')
     parser.add_argument('--traffic', action='store_true')
     parser.add_argument('--platform', action='store_true')
+    parser.add_argument('--waiting', action='store_true')
     parser.add_argument('--horizontal', action='store_true')
     parser.add_argument('--crush', action='store_true')
     parser.add_argument('--retrigger', action='store_true')
@@ -114,7 +115,7 @@ write_protected = true
     if args.capture:
         env = dict(os.environ, RUST_LOG='info', COPPERLINE_DBG_AFTER='16.5',
                    COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{build / "slow.bin"}')
-        command += ([] if args.retrigger or args.beneath_route or args.beneath or args.platform or args.horizontal or args.crush or args.disappearing or args.pick or args.pick_checkpoints or args.pick_route else
+        command += ([] if args.waiting or args.retrigger or args.beneath_route or args.beneath or args.platform or args.horizontal or args.crush or args.disappearing or args.pick or args.pick_checkpoints or args.pick_route else
                     ['--joy-after','12','left','200'] if args.traffic else
                     ['--joy-after','12','right','300'] if args.enemy else
                     ['--joy-after','13','fire','100','--joy-after','15.5','right','300',
@@ -212,6 +213,16 @@ write_protected = true
             report['visible_platform_pixels']=visible_enemy(build,build/'prototype.png')
             report['native_host_trace_tick_verified']=report['ticks']
             report['fixture']='Synthetic upward spike push; host slice trace, not a complete desktop-loop replay'
+        elif args.waiting:
+            trace=json.loads((ROOT/'build/amiga/waiting-reference-trace.json').read_text())
+            assert 0<report['ticks']<=len(trace),report
+            for field,value in trace[report['ticks']-1].items():
+                assert report[field]==value,(field,report[field],value)
+            assert report['enemy_hits']>100 and report['max_sprite_channels']==3,report
+            assert report['deaths']==0 and report['exits']==0,report
+            report['desktop_transport_tick_verified']=report['ticks']
+            report['visible_platform_pixels']=visible_enemy(build,build/'prototype.png')
+            report['scope']='Synthetic waiting platform: externally staged hidden trigger after 20 ticks, then no-input ride; source movement/transport trace'
         elif args.horizontal:
             assert report['enemy_ticks']>100 and report['max_sprite_channels']==3, report
             assert report['enemy_hits']>100 and report['checkpoint']==1, report
@@ -255,13 +266,13 @@ write_protected = true
             report['visible_enemy_pixels']=visible_enemy(build,build/'prototype.png')
         else:
             assert report['flips'] == 1 and report['checkpoint'] == 1, report
-        if not args.retrigger and not args.beneath_route and not args.beneath and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
+        if not args.waiting and not args.retrigger and not args.beneath_route and not args.beneath and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
             assert report['deaths'] >= 1 and report['respawns'] >= 1, report
         # Snapshot can land between a tick and completion of its render.
         assert report['ticks'] > 100 and 0 <= report['ticks'] - report['renders'] <= 1, report
         report['video_headroom_passed'] = report['missed_frames'] == 0 and report['max_work_lines'] < 250
         report['max_work_ms'] = round(report['max_work_lines'] * 227 / 3546895 * 1000, 3)
-        if not args.retrigger and not args.beneath_route and not args.beneath and not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
+        if not args.waiting and not args.retrigger and not args.beneath_route and not args.beneath and not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
             report['flip_audio_peak'] = audio_peak(build / 'prototype.wav')
             assert report['flip_audio_peak'] > 0.001, report
         report['max_load_ms'] = round(report['max_load_lines'] * 227 / 3546895 * 1000, 3)
@@ -320,6 +331,27 @@ write_protected = true
                 else:
                     record['frame']=phase['enemy_y']
                 phases.append(record)
+            report['phase_captures']=phases
+        if args.waiting:
+            phases=[]
+            start_time=16.5-report['ticks']*0.034
+            for name,target_tick in (('waiting',10),('carrying',40)):
+                for attempt in range(3):
+                    stamp=start_time+target_tick*0.034+0.012+attempt*0.006
+                    env['COPPERLINE_DBG_AFTER']=str(round(stamp,6))
+                    env['COPPERLINE_DBG_RAMDUMP']=f'C00000:80000:{build / (name+"-slow.bin")}'
+                    with (build/(name+'.log')).open('w') as log:
+                        subprocess.run([args.emulator,'--config',str(config),'--noaudio',
+                            '--screenshot-after',str(round(stamp+0.004,6)),str(build/(name+'.png'))],
+                            env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+                    phase=read_diagnostics(build/(name+'-slow.bin'))
+                    if phase['ticks']==phase['renders']:break
+                assert phase['ticks']==phase['renders'] and 0<phase['ticks']<=len(trace),phase
+                for field,value in trace[phase['ticks']-1].items():
+                    assert phase[field]==value,(name,field,phase[field],value)
+                assert phase['enemy_hits']==0 if name=='waiting' else phase['enemy_hits']>0
+                phases.append(dict(phase=name,tick=phase['ticks'],player_x=phase['player_x'],
+                    platform_x=phase['enemy_x'],carry_ticks=phase['enemy_hits']))
             report['phase_captures']=phases
         if args.crush:
             env['COPPERLINE_DBG_AFTER']='10.91'

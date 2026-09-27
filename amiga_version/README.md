@@ -876,15 +876,40 @@ Entity.cpp branches and Ent.cpp `outside()`, covering both behaviours, states
 0–3, integer speeds -16–16, nearby/exact trigger positions, multiple matches
 and boundary crossings. Additional checks cover empty trigger lists and
 unsupported behaviours. The core runs with UBSan and compiles for the 68000
-without runtime helpers. The helper is not yet wired into moving-platform
-collision, carrying or room rendering; this does not make the special room
-playable. The existing platform API still supports only ordinary behaviours.
+without runtime helpers. Creation-time tests cover idle and already-hidden
+triggers and rejection of invalid parameters without modifying the platform.
+
+`v6_platform_gate_init` now initializes a waiting platform and applies its
+creation-time trigger. `v6_platform_gate_transport` integrates behaviours 14/15
+with ordinary platforms: reverse-order passes, map collision, block relocation,
+vertical pushing and horizontal carrying. Contact lookup accepts waiting
+platforms, including zero-speed contact and the existing life-timer lock.
+Movement is shared with ordinary enemies/platforms through `v6_enemy_move`;
+behaviour updates remain separate so an idle gate cannot start prematurely.
+Supply disappearing states as they stand at this point in the entity loop.
+
+`test_platform_loop.py --waiting` compares **23,520 ordered ticks** with the
+desktop source, repeated with cached collision data. It checks player fields,
+platform fields, every block, pending Y and visual contacts. Mixed rooms cover
+both update passes and positive, negative and zero speeds. Dedicated floor and
+ceiling rides remain stationary for 20 ticks then carry on every later tick.
+These tests are included in `make test`.
+
+`make -C amiga_version waiting-capture` runs a synthetic A500 fixture using the
+integrated API. An external trigger becomes hidden after 20 ticks; it is not a
+rendered disappearing entity. Source-derived transport snapshots match at ticks
+**11** (waiting), **41** (carrying) and **179** (later ride), with no player input.
+Peak work is **179 PAL lines / 11.456 ms**, with no missed frames, three sprite
+channels, 43,534 allocated Chip bytes and clean exit. Screenshots and report are
+in `build/amiga-waiting/`. This completes bounded movement/carry integration;
+it does not yet export the special campaign room or implement its trinket and
+sprite scheduling requirements.
 
 ## Next implementation step
 
-Integrate waiting-platform behaviour with movement, collision blocks and player
-carrying, then compare ordered room behaviour against the desktop game loop.
-Then add conveyors. Sprite
+Return to the larger feasibility gates: tower scrolling and music playback.
+Further campaign expansion still needs trinkets, sprite scheduling and conveyors,
+plus full desktop-loop comparisons. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. Target replays combine milestone assertions with selected state comparisons;

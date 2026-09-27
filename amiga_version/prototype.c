@@ -15,6 +15,7 @@
 #include "slice.h"
 #include "enemy.h"
 #include "platform.h"
+#include "platform_gate.h"
 #include "disappearing.h"
 #include "pixel_collision.h"
 #include "animation.h"
@@ -131,6 +132,10 @@ static V6Block platform_blocks[PLATFORM_COUNT];
 static V6PlayerMotion platform_motion;
 static V6PlatformPush platform_push;
 static ULONG platform_ticks, platform_pushes;
+#ifdef V6_WAITING_REPLAY
+static V6Disappearing waiting_gate;
+static const int waiting_gate_x=176;
+#endif
 #ifdef V6_DISAPPEAR_SCENE
 static V6Disappearing disappearing[PLATFORM_COUNT];
 static unsigned disappearing_count,disappearing_sound;
@@ -162,6 +167,13 @@ static void reset_platforms(void)
                          3,3,64,64,288,184);
 #else
                          0,3,100,70,320,160);
+#endif
+#ifdef V6_WAITING_REPLAY
+        /* Synthetic trigger is supplied separately; no disappearing actor is drawn. */
+        v6_disappearing_init(&waiting_gate);
+        waiting_gate.state=2;waiting_gate.life=12;waiting_gate.on_entity=0;
+        v6_platform_gate_init(&platforms[i],platform_setup[i][0],platform_setup[i][1],
+                             15,3,64,64,288,184,&waiting_gate,&waiting_gate_x,1);
 #endif
         platform_blocks[i]=(V6Block){platforms[i].x,platforms[i].y,32,8,V6_BLOCK,0};
     }
@@ -199,6 +211,12 @@ static unsigned platform_movement(V6Player *p,const V6Room *r,unsigned input,
 #else
     before=p->y;
 #endif
+#ifdef V6_WAITING_REPLAY
+    waiting_gate.state=platform_ticks>=20?3:2;
+    v6_platform_gate_transport(p,r,platforms,PLATFORM_COUNT,platform_blocks,PLATFORM_COUNT,
+        V6_PLATFORMS_HORIZONTAL,life_timer,&platform_push,&waiting_gate,&waiting_gate_x,1);
+    if(p->x!=before) ++platform_pushes;
+#else
     v6_platform_transport(p,r,platforms,PLATFORM_COUNT,platform_blocks,PLATFORM_COUNT,
 #if defined(V6_HORIZONTAL_REPLAY) || defined(CHECKPOINT_COUNT)
                            V6_PLATFORMS_HORIZONTAL,life_timer,&platform_push);
@@ -207,6 +225,7 @@ static unsigned platform_movement(V6Player *p,const V6Room *r,unsigned input,
                            V6_PLATFORMS_VERTICAL,life_timer,&platform_push);
     if(p->y!=before) ++platform_pushes;
 #endif
+#endif /* V6_WAITING_REPLAY */
 #ifdef CHECKPOINT_COUNT
     /* These source checkpoints follow the platform and precede the player
      * in the reverse non-platform update pass. Input has already set dir. */

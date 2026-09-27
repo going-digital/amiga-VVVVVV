@@ -14,4 +14,6 @@ typedef V6Block V6EnemyBlock;
 int v6_enemy_init(V6Enemy *, int x, int y, int behavior, int speed,
                   int x1, int y1, int x2, int y2, int cx, int cy, int w, int h);
 void v6_enemy_step(V6Enemy *, const V6Room *, const V6EnemyBlock *, unsigned count);
+/* Movement/collision stage after a caller-supplied behaviour update. */
+void v6_enemy_move(V6Enemy *,const V6Room *,const V6EnemyBlock *,unsigned count);
 #endif

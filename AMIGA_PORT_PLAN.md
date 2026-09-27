@@ -248,8 +248,15 @@ route or independent desktop-loop equivalence.
 A separate behaviour-stage helper now covers waiting platform rules 14/15,
 including hidden-platform activation and boundary/direction updates. It matches
 16,896 extracted-source cases and compiles without 68000 runtime helpers.
-Movement, block synchronization and player-transport integration remain pending;
-the special room is still unsupported.
+Creation, movement, block relocation and player carrying are now integrated
+through the gated-platform transport API, sharing the ordinary movement core.
+A further 23,520 ordered source comparisons run with both cached and uncached
+collision data, including mixed passes, signed speeds and floor/ceiling rides.
+The synthetic native waiting/carry fixture matches at ticks 11/41/179, peaks at
+179 lines / 11.456 ms, uses 43,534 Chip bytes and misses no frames. Its trigger
+state is externally staged; a full mixed-room lifecycle is not claimed. The
+special campaign room still needs trinkets and sprite scheduling. Tower/music
+feasibility are the recommended next focus.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

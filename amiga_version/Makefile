@@ -99,6 +99,7 @@ test: test-sprites test-terrain test-tile-edit $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/test_recovery.py
 	python3 $(ROOT)/tools/amiga/test_platform_recovery.py
 	python3 $(ROOT)/tools/amiga/test_platform_gate.py
+	python3 $(ROOT)/tools/amiga/test_platform_loop.py --waiting
 	python3 $(ROOT)/tools/amiga/test_disappearing.py
 	python3 $(ROOT)/tools/amiga/test_disappearing_scene.py
 	python3 $(ROOT)/tools/amiga/beneath_replay_trace.py
@@ -241,3 +242,9 @@ test-tile-edit: | $(BUILD)
 
 $(BUILD)/platform_gate.o: platform_gate.c platform_gate.h platform.h disappearing.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+.PHONY: waiting-capture
+waiting-capture:
+	python3 $(ROOT)/tools/amiga/test_platform_loop.py --waiting
+	$(MAKE) BUILD=$(ROOT)/build/amiga-waiting SCENE=platform CPPFLAGS="-DV6_HORIZONTAL_REPLAY -DV6_WAITING_REPLAY" all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --build $(ROOT)/build/amiga-waiting --rom "$(ROM)" --emulator "$(COPPERLINE)" --capture --waiting
