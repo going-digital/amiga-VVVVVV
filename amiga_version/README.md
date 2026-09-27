@@ -337,9 +337,9 @@ step remains a wrapper around these stages.
 
 Another **12,000 ordered transport ticks** match extracted input, vertical push,
 horizontal carry and physics code on both terrain paths. These use prescribed
-platform positions to isolate sequencing; complete platform movement scheduling,
-post-physics entity collisions and stuck-player correction remain unverified as
-a combined loop. The results are included in `carry-test-report.json`.
+platform positions to isolate sequencing. The results are included in
+`carry-test-report.json`; the persistent scheduling test below now covers the
+combined movement and collision stages.
 
 The post-physics helpers now reproduce platform-overlap block disabling and
 stuck-player correction in **12,000 additional reference cases per terrain
@@ -353,12 +353,31 @@ The test compares player state and block dimensions with extracted original
 methods, exercising 6,882 corrections, 6,128 velocity changes and 4,950 cases
 with block disabling. These helpers are not yet called by the native scenes.
 
+The pre-physics `v6_platform_transport` scheduler now runs both original
+reverse-order passes, selecting vertical candidates by zero X velocity and
+horizontal candidates by zero Y velocity. Room creation flags control whether
+each pass runs; a stationary platform can run in both. Vertical movement
+updates its block before pushing the player, and horizontal carrying follows
+the complete horizontal pass.
+
+**23,040 persistent ticks per cached/uncached terrain path** match the extracted
+desktop scheduling loops and movement methods across 96 scenarios. Each tick
+compares player state, every platform's movement state, block origins and
+dimensions, pending Y, and visual contact counters. Coverage includes all four
+pass-flag combinations, zero-speed platforms, duplicate block origins,
+directional barriers, all three tilesets, and the respawn carry threshold.
+Run `python3 tools/amiga/test_platform_loop.py` (also part of `make test`);
+results are in `build/amiga/platform-loop-test-report.json`.
+
+This establishes the combined ordinary-platform movement/collision sequence,
+not the full game loop: damage, death/respawn, scripts, conveyors, supercrewmates
+and native rendering are outside this reference harness. The scheduler is not
+yet connected to a playable scene.
+
 ## Next implementation step
 
-Connect platform movement scheduling and post-physics collision handling to the
-staged player API. Use the verified block-disabling and stuck-player
-correction helpers: disabled platform blocks regain their dimensions when relocated by
-subsequent platform updates. Then export a platform room,
+Connect the verified platform scheduler and post-physics helpers to the native
+slice lifecycle. Export a platform room,
 validate carrying and crushing end to end, and measure it on the target. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and

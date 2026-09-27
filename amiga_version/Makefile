@@ -91,6 +91,7 @@ test: test-sprites test-terrain $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/test_enemy.py --platform
 	python3 $(ROOT)/tools/amiga/test_blocks.py
 	python3 $(ROOT)/tools/amiga/test_carry.py
+	python3 $(ROOT)/tools/amiga/test_platform_loop.py
 	python3 $(ROOT)/tools/amiga/test_pixel_collision.py
 	python3 $(ROOT)/tools/amiga/test_transitions.py
 	cc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined -I. -I$(BUILD) player.c slice.c room_codec.c $(ROOT)/tools/amiga/test_slice.c -o $(BUILD)/test_slice

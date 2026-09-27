@@ -16,7 +16,7 @@ class Push(C.Structure):
     _fields_=[(name,C.c_int) for name in ("pending_y","visual_ground","visual_roof")]
 
 
-def main():
+def reference_source():
     BUILD.mkdir(parents=True,exist_ok=True)
     original_reference()
     source=(BUILD/'player_reference.cpp').read_text()
@@ -72,6 +72,11 @@ extern "C" void map_move_reference(int x,int y) {
     source+='for(int j=1;j<int(obj.entities.size());++j) obj.platformcollision(i,j);\n'
     source+='obj.stuckprevention(0);\n'
     source+='for(unsigned j=0;j<count;++j) { const blockclass& b=obj.blocks[obj.blocks.size()-count+j]; blocks[j].w=b.wp; blocks[j].h=b.hp; } }\n'
+    return source
+
+
+def main():
+    source=reference_source()
     (BUILD/'carry_reference.cpp').write_text(source)
     subprocess.run(['c++','-std=c++11','-O2','-fno-fast-math','-shared','-fPIC',
         '-I/opt/homebrew/include','-I'+str(ROOT/'desktop_version/src'),'-I'+str(ROOT/'amiga_version'),

@@ -30,4 +30,13 @@ void v6_platform_push_vertical(V6Platform *, V6Player *, const V6Room *, V6Platf
  * Disabled blocks stay disabled until their next platform update. */
 void v6_platform_disable_overlaps(const V6Player *, const V6Platform *, unsigned,
                                   V6Block *, unsigned);
+enum { V6_PLATFORMS_VERTICAL=1, V6_PLATFORMS_HORIZONTAL=2 };
+/* Pre-physics stage, after player input. Platforms must be in original entity
+ * order; blocks must be the mutable list referenced by room. Flags are room
+ * creation flags, not inferred from current velocities. push.pending_y retains
+ * the player's previous pending Y. Skipped passes leave their state untouched.
+ * Only ordinary platforms (behaviours 0..3); caller handles complete-stop. */
+void v6_platform_transport(V6Player *, const V6Room *, V6Platform *, unsigned,
+                            V6Block *, unsigned, unsigned flags, int life_timer,
+                            V6PlatformPush *);
 #endif

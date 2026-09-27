@@ -71,3 +71,25 @@ void v6_platform_disable_overlaps(const V6Player *p,const V6Platform *platforms,
             v6_blocks_disable_at(blocks,block_count,e->x,e->y);
     }
 }
+
+void v6_platform_transport(V6Player *p,const V6Room *room,V6Platform *platforms,
+                            unsigned count,V6Block *blocks,unsigned block_count,
+                            unsigned flags,int life_timer,V6PlatformPush *push)
+{
+    unsigned i;
+    if(flags&V6_PLATFORMS_VERTICAL)
+        for(i=count;i>0;--i) {
+            V6Platform *e=&platforms[i-1];
+            if(e->vx) continue;
+            v6_platform_step(e,room,blocks,block_count);
+            v6_platform_push_vertical(e,p,room,push);
+        }
+    if(flags&V6_PLATFORMS_HORIZONTAL) {
+        for(i=count;i>0;--i) {
+            V6Platform *e=&platforms[i-1];
+            if(e->vy) continue;
+            v6_platform_step(e,room,blocks,block_count);
+        }
+        v6_platform_carry_horizontal(p,room,platforms,count,life_timer,push->pending_y);
+    }
+}

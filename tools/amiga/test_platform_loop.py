@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Ordinary-platform scheduling and player stages against extracted source."""
+import ctypes as C
+import hashlib
+import json
+import random
+import subprocess
+from pack_rooms import ROOT
+from test_player import BUILD, Player, Room, Terrain, DynamicBlock, FIELDS, block
+from test_enemy import Enemy, FIELDS as ENEMY_FIELDS
+from test_carry import reference_source, Motion, Push
+
+
+def main():
+    source=reference_source()
+    entity=(ROOT/'desktop_version/src/Entity.cpp').read_text()
+    ent=(ROOT/'desktop_version/src/Ent.cpp').read_text()
+    logic=(ROOT/'desktop_version/src/Logic.cpp').read_text()
+    start=entity.index('case 0: //Bounce, Start moving down')
+    end=entity.index('case 4: //Always move left',start)
+    source+=block(ent,ent.index('bool entclass::outside(void)'))+'\n'
+    source+='bool entityclass::updateentities(int i) { switch(entities[i].behave) {\n'+entity[start:end]+'} return false; }\n'
+    source+=block(entity,entity.index('void entityclass::moveblockto('))+'\n'
+    start=logic.index('            if(obj.vertplatforms)',logic.index('//Ok, moving platform'))
+    end=logic.index('\n            for (int ie',logic.index('//is the player standing on a moving platform?',start))
+    scheduling=logic[start:end]
+    source+=r'''
+extern "C" void loop_init(const V6Player *p,const uint16_t *tiles,int set,int extra,
+    const V6Block *blocks,unsigned count,const V6Platform *platforms,unsigned n) {
+    carry_init(p,tiles,set,extra,blocks,count,platforms,n);
+    obj.entities[0].newyp=p->y;
+    for(unsigned i=0;i<n;++i) {
+        entclass& e=obj.entities[i+1]; const V6Platform& a=platforms[i];
+        e.type=EntityType_MOVING;e.isplatform=true;e.gravity=false;
+        e.oldxp=a.old_x;e.oldyp=a.old_y;e.para=a.speed;
+        e.x1=a.x1;e.y1=a.y1;e.x2=a.x2;e.y2=a.y2;
+    }
+}
+extern "C" void loop_step(unsigned input,unsigned flags,int life,V6Platform *platforms,
+    unsigned count,V6Block *blocks,unsigned block_count,V6PlatformPush *push) {
+    reference_input(input);
+    obj.vertplatforms=flags&1;obj.horplatforms=flags&2;game.lifeseq=life;
+'''+scheduling+r'''
+    reference_physics();
+    post_reference(blocks,block_count);
+    for(unsigned i=0;i<count;++i) {
+        const entclass& e=obj.entities[i+1]; V6Platform& a=platforms[i];
+        a.x=e.xp;a.y=e.yp;a.old_x=e.oldxp;a.old_y=e.oldyp;
+        a.vx=e.vx;a.vy=e.vy;a.state=e.state;a.onwall=e.onwall;
+    }
+    for(unsigned i=0;i<block_count;++i) {
+        const blockclass& b=obj.blocks[obj.blocks.size()-block_count+i];
+        blocks[i].x=b.xp;blocks[i].y=b.yp;
+    }
+    push->visual_ground=obj.entities[0].visualonground;
+    push->visual_roof=obj.entities[0].visualonroof;
+}
+'''
+    (BUILD/'platform_loop_reference.cpp').write_text(source)
+    subprocess.run(['c++','-std=c++11','-O2','-fno-fast-math','-shared','-fPIC',
+        '-I/opt/homebrew/include','-I'+str(ROOT/'desktop_version/src'),
+        '-I'+str(ROOT/'amiga_version'),'-I'+str(ROOT/'tools/amiga'),
+        str(BUILD/'platform_loop_reference.cpp'),'-L/opt/homebrew/lib','-lSDL3',
+        '-o',str(BUILD/'platform_loop_reference.so')],check=True)
+    subprocess.run(['cc','-std=c99','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',
+        '-fsanitize=undefined','-fno-sanitize-recover=all',
+        *[str(ROOT/'amiga_version'/f) for f in ('player.c','enemy.c','platform.c','blocks.c','terrain.c')],
+        '-o',str(BUILD/'platform_loop.so')],check=True)
+    core=C.CDLL(str(BUILD/'platform_loop.so'));ref=C.CDLL(str(BUILD/'platform_loop_reference.so'))
+    pp=C.POINTER(Player);rp=C.POINTER(Room);ep=C.POINTER(Enemy);bp=C.POINTER(DynamicBlock)
+    core.v6_player_init.argtypes=[pp]+[C.c_int]*3
+    core.v6_platform_init.argtypes=[ep]+[C.c_int]*8
+    core.v6_terrain_build.argtypes=[C.POINTER(Terrain),rp]
+    core.v6_player_input.argtypes=[pp,C.c_uint,C.POINTER(Motion)]
+    core.v6_player_physics.argtypes=[pp,rp,C.POINTER(Motion),C.c_void_p,C.c_void_p]
+    core.v6_platform_transport.argtypes=[pp,rp,ep,C.c_uint,bp,C.c_uint,C.c_uint,C.c_int,C.POINTER(Push)]
+    core.v6_platform_disable_overlaps.argtypes=[pp,ep,C.c_uint,bp,C.c_uint]
+    core.v6_player_unstick.argtypes=[pp,rp]
+    ref.loop_init.argtypes=[pp,C.POINTER(C.c_uint16),C.c_int,C.c_int,bp,C.c_uint,ep,C.c_uint]
+    ref.loop_step.argtypes=[C.c_uint,C.c_uint,C.c_int,ep,C.c_uint,bp,C.c_uint,C.POINTER(Push)]
+    ref.reference_read.argtypes=[pp]
+    rng=random.Random(6800016);ticks=0
+    for scenario in range(96):
+        tiles=(C.c_uint16*1200)()
+        for y in range(30):
+            for x in range(40):
+                if x in (0,39) or y in (0,29):
+                    tiles[y*40+x]=12 if scenario%3==2 else 80
+                elif scenario%4==0 and x==20 and 6<y<22:
+                    tiles[y*40+x]=14+(y%4)
+        actors=(Enemy*4)()
+        flags=scenario%4
+        for i in range(4):
+            # Zero speeds plus mixed-axis rooms expose membership in both passes.
+            speed=(0,1,3,8)[(scenario//4+i)%4]
+            assert core.v6_platform_init(C.byref(actors[i]),96+i*8,96+i*12,
+                i,speed,64,64,248,184)
+        initial=Player();core.v6_player_init(C.byref(initial),96,73 if scenario%2==0 else 106,scenario%2)
+        blocks=(DynamicBlock*6)(*[DynamicBlock(a.x,a.y,32,8,0,0) for a in actors],
+            DynamicBlock(96,96,32,8,0,0),DynamicBlock(144,72,8,96,2,scenario%4))
+        expected_actors=(Enemy*4).from_buffer_copy(actors)
+        expected_blocks=(DynamicBlock*6).from_buffer_copy(blocks)
+        ref.loop_init(C.byref(initial),tiles,scenario%3,1,blocks,6,actors,4)
+        states=[]
+        for cached in (False,True):
+            p=Player.from_buffer_copy(initial)
+            a=(Enemy*4).from_buffer_copy(actors);b=(DynamicBlock*6).from_buffer_copy(blocks)
+            room=Room(tiles,scenario%3,1);room.blocks=b;room.block_count=6
+            terrain=Terrain();core.v6_terrain_build(C.byref(terrain),C.byref(room))
+            if cached:room.terrain=C.pointer(terrain)
+            states.append((p,a,b,room,terrain,Motion(0,p.y),Push(p.y,0,0)))
+        expected_push=Push(initial.y,0,0)
+        for tick in range(240):
+            buttons=rng.choice((0,0,1,2,4,5,6));life=max(0,10-tick)
+            if life>5:buttons|=8
+            ref.loop_step(buttons,flags,life,expected_actors,4,expected_blocks,6,C.byref(expected_push))
+            expected=Player();ref.reference_read(C.byref(expected))
+            for cached,(p,a,b,room,terrain,motion,push) in enumerate(states):
+                core.v6_player_input(C.byref(p),buttons,C.byref(motion))
+                push.pending_y=motion.pending_y
+                core.v6_platform_transport(C.byref(p),C.byref(room),a,4,b,6,flags,life,C.byref(push))
+                core.v6_player_physics(C.byref(p),C.byref(room),C.byref(motion),None,None)
+                core.v6_platform_disable_overlaps(C.byref(p),a,4,b,6)
+                core.v6_player_unstick(C.byref(p),C.byref(room))
+                for field in FIELDS:
+                    assert getattr(p,field)==getattr(expected,field),(scenario,tick,cached,field,getattr(p,field),getattr(expected,field))
+                for i in range(4):
+                    for field in ENEMY_FIELDS:
+                        assert getattr(a[i],field)==getattr(expected_actors[i],field),(scenario,tick,cached,i,field)
+                assert bytes(b)==bytes(expected_blocks),(scenario,tick,cached,'blocks')
+                assert motion.pending_y==ref.reference_pending(),(scenario,tick,cached,'pending')
+                assert (push.visual_ground,push.visual_roof)==(expected_push.visual_ground,expected_push.visual_roof),(scenario,tick,cached,'visual')
+            ticks+=1
+    report=dict(scenarios=96,compared_ticks=ticks,cached_compared_ticks=ticks,
+        reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
+        scope='Persistent ordinary-platform reverse-order scheduling, player input/transport/physics and overlap/stuck correction; no damage, lifecycle, scripts, conveyors, supercrewmates or native scene.')
+    (BUILD/'platform-loop-test-report.json').write_text(json.dumps(report,indent=2)+'\n')
+    print('PASS:',json.dumps(report))
+
+
+if __name__=='__main__':main()

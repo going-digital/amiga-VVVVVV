@@ -22,6 +22,7 @@ struct Game {
     float inertia;
     int lifeseq;
     int deathseq, gravitycontrol, tapleft, tapright, jumppressed, totalflips;
+    bool supercrewmate;
     bool press_left, press_right, press_action, jumpheld;
 } game;
 struct Music { void playef(int) {} } music;
@@ -36,6 +37,8 @@ struct mapclass {
 } map;
 struct entityclass {
     int getplayer() { return 0; }
+    int getscm() { std::abort(); }
+    bool vertplatforms, horplatforms;
     std::vector<entclass> entities;
     std::vector<blockclass> blocks;
     void disableblock(int);

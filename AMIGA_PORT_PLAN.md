@@ -107,9 +107,14 @@ caller-owned motion state. **12,000 ordered input/push/carry/physics ticks** mat
 extracted reference code with prescribed platform positions. Post-physics block
 disabling and stuck-player correction now match **12,000 additional reference
 cases per terrain path**, including duplicate origins and directional-barrier
-skipping. Complete platform movement scheduling, combined post-physics handling,
-crush/death behavior and a native platform room remain the next integration
-milestone. All four existing native captures still pass.
+skipping. The reverse-order platform scheduler now matches **23,040 persistent
+ticks per terrain path** across 96 scenarios, together with player input,
+transport, physics and post-physics overlap/stuck correction. Tests preserve
+blocks between ticks and compare every platform's movement state; zero-speed
+platforms can participate in both velocity-selected passes. Native lifecycle
+integration, crush/death behavior and a playable platform room remain next.
+The four existing native captures remain the baseline; the new scheduler is
+not called by those scenes.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and
