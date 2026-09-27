@@ -191,6 +191,14 @@ No gameplay changes were needed. A complete death-to-recovery replay, visibility
 tower-specific timing and the full desktop loop remain unverified. Current
 checkpoint-route peak work is 197 PAL lines with clean exit.
 
+A rendered synthetic upward spike-push replay now passes on the A500 profile:
+`make -C amiga_version crush-replay-capture`. It compares the death pause at tick
+17 and post-respawn state at tick 180 with the host integration trace, verifies
+visible player/platform sprites and clean exit, and peaks at **139 PAL lines /
+8.896 ms** with no missed VBLs. This is a labelled fixture, not a campaign room
+or complete desktop-loop equivalence. Disappearing platforms and conveyors are
+the next entity expansion.
+
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and
 evidence are in [`amiga_version/README.md`](amiga_version/README.md).

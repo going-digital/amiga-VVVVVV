@@ -21,6 +21,9 @@
 #ifdef V6_HORIZONTAL_REPLAY
 #include "horizontal_fixture.h"
 #endif
+#ifdef V6_CRUSH_REPLAY
+#include "crush_fixture.h"
+#endif
 #include "prototype_room.h"
 #include "prototype_assets.h"
 #ifdef V6_PICK_REPLAY
@@ -127,6 +130,8 @@ static void reset_platforms(void)
         v6_platform_init(&platforms[i],platform_setup[i][0],platform_setup[i][1],
 #ifdef CHECKPOINT_COUNT
                          3,6,0,0,320,240);
+#elif defined(V6_CRUSH_REPLAY)
+                         1,3,48,32,224,200);
 #elif defined(V6_HORIZONTAL_REPLAY)
                          3,3,64,64,288,184);
 #else
@@ -532,6 +537,9 @@ static int run(void)
 #ifdef V6_HORIZONTAL_REPLAY
         horizontal_fixture_tiles(room_tiles[i]);
 #endif
+#ifdef V6_CRUSH_REPLAY
+        crush_fixture_tiles(room_tiles[i]);
+#endif
         room = room_tiles[i];
         background = room_backgrounds[i];
         draw_room();
@@ -624,7 +632,7 @@ static int run(void)
                 if(diagnostics.ticks==21) input=V6_LEFT;
                 if(diagnostics.ticks==50) restart_pending=1;
 #endif
-#ifdef V6_HORIZONTAL_REPLAY
+#if defined(V6_HORIZONTAL_REPLAY) || defined(V6_CRUSH_REPLAY)
                 input=0;
 #endif
 #ifdef V6_PLATFORM_REPLAY

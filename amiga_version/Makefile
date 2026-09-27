@@ -189,3 +189,10 @@ $(BUILD)/crush.adf: $(BUILD)/crush.exe
 	"$(CTL)" exe2adf $< --boot --out $@
 
 -include $(BUILD)/crush_target.d $(BUILD)/crush_session.d
+
+.PHONY: crush-replay-capture
+crush-replay-capture:
+	python3 $(ROOT)/tools/amiga/test_platform_crush.py
+	python3 $(ROOT)/tools/amiga/crush_replay_trace.py
+	$(MAKE) BUILD=$(ROOT)/build/amiga-crush-replay SCENE=platform CPPFLAGS=-DV6_CRUSH_REPLAY all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-crush-replay --capture --crush

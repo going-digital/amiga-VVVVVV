@@ -673,10 +673,31 @@ These are initialized recovery states, not complete death-to-recovery or target
 replays. Checkpoint entities, rendering, conveyors and full campaign behavior
 remain outside the comparison.
 
+## Rendered spike-push replay
+
+`make crush-replay-capture` builds a separate `V6_CRUSH_REPLAY` scene using the
+upward spike-push geometry from the compression suite: player (108,70), platform
+(104,93) moving upward at 3 pixels/tick, and spike tile 6 across row 8. It is
+labelled **SYNTHETIC SPIKE PUSH TEST**, not exported campaign content. No player
+placement or restart is injected after initialization.
+
+The first live update triggers damage. A RAM snapshot during death matches the
+host slice trace at **tick 17**, with one platform update and its Y frozen at 90.
+The main snapshot matches at **tick 180**, after one death and one respawn. Both
+captures verify visible player/platform sprites; screenshots are `death.png` and
+`prototype.png` in `build/amiga-crush-replay/`. The report is `smoke-report.json`.
+The early capture requires a completed render tick, avoiding mixed diagnostic
+fields from an update in progress.
+
+Peak work is **139 PAL lines / 8.896 ms**, with no missed VBLs, three hardware
+sprite channels, 43,534 explicitly allocated Chip bytes and clean AmigaDOS exit.
+The target compares selected snapshots against a 240-tick native host integration
+trace, not every target tick against the complete desktop loop. The command first
+reruns the source-derived compression suite. Normal gameplay scenes are unchanged.
+
 ## Next implementation step
 
-Add an integrated visual compression/spike-push replay. Then expand room-entity
-support to disappearing platforms and conveyors. Sprite
+Expand room-entity support to disappearing platforms and conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. Target replays combine milestone assertions with selected state comparisons;
