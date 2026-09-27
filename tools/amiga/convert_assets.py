@@ -17,6 +17,7 @@ DEFAULT_DATA = Path.home() / 'Library/Application Support/Steam/steamapps/common
 
 
 def build(data, out, scene="world", disappearing=False):
+    disappearing = disappearing or scene=="beneath"
     out.mkdir(parents=True, exist_ok=True)
     fingerprint = dict(disappearing=disappearing,scene=scene, path=str(data.resolve()), size=data.stat().st_size,
                        mtime_ns=data.stat().st_mtime_ns,
@@ -80,7 +81,7 @@ def build(data, out, scene="world", disappearing=False):
                 platform_rows[y]=row*0x01010101
         disappearing_frames=[]
         if disappearing:
-            for tile in range(2,(w//8)*(h//8)):
+            for tile in range(707 if scene=="beneath" else 2,(w//8)*(h//8)):
                 ox,oy=(tile%(w//8))*8,(tile//(w//8))*8
                 rows=[]
                 for y in range(8):
@@ -175,7 +176,7 @@ def build(data, out, scene="world", disappearing=False):
                   scene_palette_slots=13, checkpoint_palette_index=13, sprite_palette_index=14, text_palette_index=15,
                   font_bytes=1024, sound_bytes=len(sound), vanish_sound_bytes=len(vanish), sound_rate=target_rate,
                   disappearing_mask_bytes=len(disappearing_frames)*8,
-                  note=('Synthetic disappearing-platform fixture: compact tile masks from tile 2 onward, jump.wav and vanish.wav.' if disappearing else 'Just Pick Yourself Down (117,109): both checkpoints and horizontal platform, tile 159.' if scene=='pick' else 'Stop and Reflect (112,106): three platforms using repeated tile 616.' if scene == 'platform' else 'Traffic Jam (115,103): original tiles, three enemies, frames 28-31 and red-channel collision masks.' if scene == 'traffic' else 'Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
+                  note=('What Lies Beneath? (116,110): checkpoint, three disappearing platforms, base tile 707.' if scene=='beneath' else 'Synthetic disappearing-platform fixture: compact tile masks from tile 2 onward, jump.wav and vanish.wav.' if disappearing else 'Just Pick Yourself Down (117,109): both checkpoints and horizontal platform, tile 159.' if scene=='pick' else 'Stop and Reflect (112,106): three platforms using repeated tile 616.' if scene == 'platform' else 'Traffic Jam (115,103): original tiles, three enemies, frames 28-31 and red-channel collision masks.' if scene == 'traffic' else 'Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
                         'Rooms (100,110) and (119,110), static tiles, player animation and checkpoints. No other room entities or scripts.'))
     (out / 'assets.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))
@@ -185,7 +186,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, default=DEFAULT_DATA)
     parser.add_argument('--out', type=Path, default=ROOT / 'build/amiga')
-    parser.add_argument('--scene', choices=('world','enemy','traffic','platform','pick'), default='world')
+    parser.add_argument('--scene', choices=('world','enemy','traffic','platform','pick','beneath'), default='world')
     parser.add_argument('--disappearing', action='store_true')
     args = parser.parse_args()
     build(args.data, args.out, args.scene, args.disappearing)

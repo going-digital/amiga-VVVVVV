@@ -15,7 +15,7 @@ def main():
 #include "platform.h"
 #include "disappearing.h"
 #define V6_PLATFORM_SCENE
-#define V6_DISAPPEAR_REPLAY
+#define V6_DISAPPEAR_SCENE
 #define PLATFORM_COUNT 3
 #define ULONG unsigned long
 /* Positions from What Lies Beneath?; terrain is deliberately empty here. */

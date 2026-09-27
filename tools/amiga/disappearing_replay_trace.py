@@ -18,7 +18,7 @@ def main():
 #include "disappearing.h"
 #include "disappearing_fixture.h"
 #define V6_PLATFORM_SCENE
-#define V6_DISAPPEAR_REPLAY
+#define V6_DISAPPEAR_SCENE
 #define ULONG unsigned long
 static V6Slice slice;
 static struct {unsigned error;} diagnostics;

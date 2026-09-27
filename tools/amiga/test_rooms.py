@@ -7,7 +7,7 @@ import struct
 import subprocess
 import tempfile
 
-from pack_rooms import ROOT, encode, extract
+from pack_rooms import ROOT, encode, extract, enemy_record
 
 
 def main():
@@ -31,6 +31,10 @@ def main():
         records = extract()
         for meta, raw, packed in records:
             check(packed, list(struct.unpack('>1200H', raw)))
+        # Strict scene selectors reject unsupported entity/setup changes.
+        for scene in ('enemy','traffic','platform','pick','beneath'):
+            meta,raw,packed=enemy_record(records,scene)
+            check(packed,list(struct.unpack('>1200H',raw)))
         rng = random.Random(6)
         for n in (0, 1, 2, 3, 1200, 32767, 32768):
             for values in ([65535] * n, [rng.randrange(65536) for _ in range(n)]):

@@ -219,8 +219,13 @@ next original-room candidate (one checkpoint, three platforms, seven sprite
 channels). Separate flip/vanish samples are now resident and selected by event.
 Compact tile masks (9,584 ordinary-memory bytes) replace the five-frame renderer
 limit; host adapter checks reach frame 48 through repeated recharge contacts.
-Original-room integration still needs tile-707 selection and a target traversal
-covering retriggers; the current target capture only covers the ordinary cycle.
+“What Lies Beneath?” now has a separate interactive build (`beneath-run`), with
+its original tiles, checkpoint, three disappearing platforms and tile-707 masks.
+The `beneath-capture` idle smoke verifies all three visible platforms, seven
+sprite channels, checkpoint spawn and clean exit. Peak work is 206 PAL lines /
+13.184 ms, with 45,384 allocated Chip bytes and no missed VBLs. A normal-input
+traversal with collapse/recharge and respawn assertions remains next; this is
+not yet a full room-behaviour replay.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

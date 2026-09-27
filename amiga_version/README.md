@@ -772,12 +772,27 @@ still covers the ordinary five-frame cycle, not a retrigger traversal.
 These are host adapter checks with empty terrain, not a three-platform campaign
 replay. The existing single-platform Copperline fixture remains the target test.
 
+## What Lies Beneath?
+
+`make -C amiga_version beneath-run` launches the original room (116,110), with
+normal joystick controls, flip, restart and exit. The strict exporter accepts
+its original checkpoint and all three disappearing platforms, using base tile
+707. No synthetic terrain, player placement or forced input is applied.
+The room uses seven hardware sprite channels and both jump/vanish cues.
+
+`make -C amiga_version beneath-capture` checks the idle checkpoint spawn at
+(60,145), all three visible platforms, no deaths/exits, and clean AmigaDOS
+restoration on the minimum A500 profile. Peak work is **206 PAL lines / 13.184 ms**,
+with **45,384 allocated Chip bytes** and no missed VBLs. Output is in
+`build/amiga-beneath/`, including `prototype.png` and `smoke-report.json`.
+This is a single-room playable build with an idle smoke test; room traversal,
+collapse/recharge timing and extended retrigger rendering still need a target
+replay. Neighbouring rooms are not included.
+
 ## Next implementation step
 
-Export and integrate “What Lies Beneath?” (116,110): its checkpoint and three
-disappearing platforms fit within seven hardware sprite channels. Select its
-base tile 707 in the converter and add an original-room traversal/retrigger
-capture. Extended tile masks and separate flip/vanish cues are now available.
+Add a normal-input traversal of “What Lies Beneath?” covering its disappearing
+platforms, death/respawn and recharge contacts, with host/target state comparisons.
 Then add conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and

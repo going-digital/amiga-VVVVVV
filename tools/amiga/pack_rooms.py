@@ -107,8 +107,8 @@ def extract():
 
 def enemy_record(records=None, scene="enemy"):
     records = extract() if records is None else records
-    label = {"pick":"55,45","platform":"50,42","traffic":"53,39","enemy":"50,39"}[scene]
-    name = {"pick":"Just Pick Yourself Down","platform":"Stop and Reflect","traffic":"Traffic Jam","enemy":"Security Sweep"}[scene]
+    label = {"beneath":"54,46","pick":"55,45","platform":"50,42","traffic":"53,39","enemy":"50,39"}[scene]
+    name = {"beneath":"What Lies Beneath?","pick":"Just Pick Yourself Down","platform":"Stop and Reflect","traffic":"Traffic Jam","enemy":"Security Sweep"}[scene]
     matches = [r for r in records if r[0]['source'].endswith('/Spacestation2.cpp')
                and r[0]['enclosing_label'] == f'case rn({label})']
     if len(matches) != 1: raise ValueError(f'{name} source ambiguous')
@@ -125,9 +125,10 @@ def enemy_record(records=None, scene="enemy"):
         expected=[[288,160,10,1,442500],[135,75,2,0,3,100,70,320,160],
                   [185,110,2,0,3,100,70,320,160],[235,145,2,0,3,100,70,320,160]]
     if scene=='pick':expected=[[24,80,2,3,6],[64,176,10,0,445550],[212,192,10,1,445551]]
+    if scene=="beneath":expected=[[64,152,10,1,446540],[120,72,3,707],[248,72,3,707],[184,200,3,707]]
     if values != expected:
         raise ValueError(f'{name} setup changed; review native actor metadata')
-    body=re.sub(rf'obj\.createentity\([^;]+\);|roomname = "{name}";','',body)
+    body=re.sub(rf'obj\.createentity\([^;]+\);|roomname = "{re.escape(name)}";','',body)
     body=re.sub(r'case rn\(\d+,\d+\):|result\s*=\s*contents;|break;|[{}\s]','',body)
     if scene=='pick':
         if body.count('obj.platformtile=159;')!=1:
@@ -157,7 +158,7 @@ def build(out, scene="world"):
                   scope='Literal tile arrays only; no entities, room setup, scripts, or tower.',
                   rooms=manifest)
     (out / 'rooms.json').write_text(json.dumps(report, indent=2) + '\n')
-    if scene in ('enemy','traffic','platform','pick'):
+    if scene in ('enemy','traffic','platform','pick','beneath'):
         selected=enemy_record(records,scene)[2]
         header = '/* Generated bounded enemy room: literal actors and checkpoint. */\n'
         header += 'static const unsigned char packed_room_0[] = {' + ','.join(map(str,selected)) + '};\n'
@@ -182,6 +183,13 @@ def build(out, scene="world"):
             header+='#define PLATFORM_COUNT 1\n#define CHECKPOINT_COUNT 2\n#define SLICE_CAPTION "117,109 - JUST PICK YOURSELF DOWN"\n'
             header+='static const int platform_setup[1][2]={{24,80}};\n'
             header+='static const int checkpoint_setup[2][4]={{64,176,20,445550},{212,192,21,445551}};\n'
+        if scene=='beneath':
+            header='/* Generated What Lies Beneath?: all original room entities. */\n'
+            header+='static const unsigned char packed_room_0[] = {'+','.join(map(str,selected))+'};\n'
+            header+='#define SLICE_ROOM_COUNT 1\n#define SLICE_TILESET 0\n#define SLICE_EXTRA_ROW 0\n'
+            header+='static const V6RoomSetup room_setups[]={{116,110,64,152,21,446540}};\n'
+            header+='#define PLATFORM_COUNT 3\n#define SLICE_CAPTION "116,110 - WHAT LIES BENEATH?"\n'
+            header+='static const int platform_setup[3][2]={{120,72},{248,72},{184,200}};\n'
         header += 'static const unsigned char * const packed_rooms[] = {packed_room_0};\n'
         header += 'static const unsigned short packed_sizes[] = {sizeof(packed_room_0)};\n'
     else:
@@ -205,6 +213,6 @@ def build(out, scene="world"):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, default=ROOT / 'build/amiga')
-    parser.add_argument('--scene', choices=('world','enemy','traffic','platform','pick'), default='world')
+    parser.add_argument('--scene', choices=('world','enemy','traffic','platform','pick','beneath'), default='world')
     args=parser.parse_args()
     build(args.out, args.scene)

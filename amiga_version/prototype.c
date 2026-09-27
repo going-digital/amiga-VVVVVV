@@ -26,6 +26,7 @@
 #include "crush_fixture.h"
 #endif
 #ifdef V6_DISAPPEAR_REPLAY
+#define V6_DISAPPEAR_SCENE
 #include "disappearing_fixture.h"
 #endif
 #include "prototype_room.h"
@@ -127,7 +128,7 @@ static V6Block platform_blocks[PLATFORM_COUNT];
 static V6PlayerMotion platform_motion;
 static V6PlatformPush platform_push;
 static ULONG platform_ticks, platform_pushes;
-#ifdef V6_DISAPPEAR_REPLAY
+#ifdef V6_DISAPPEAR_SCENE
 static V6Disappearing disappearing[PLATFORM_COUNT];
 static unsigned disappearing_count,disappearing_sound;
 static void update_disappearing(int dying)
@@ -162,7 +163,7 @@ static void reset_platforms(void)
         platform_blocks[i]=(V6Block){platforms[i].x,platforms[i].y,32,8,V6_BLOCK,0};
     }
     current_room.blocks=platform_blocks;current_room.block_count=PLATFORM_COUNT;
-#ifdef V6_DISAPPEAR_REPLAY
+#ifdef V6_DISAPPEAR_SCENE
     for(i=0;i<PLATFORM_COUNT;++i) v6_disappearing_init(&disappearing[i]);
     disappearing_count=PLATFORM_COUNT;disappearing_sound=0;
 #endif
@@ -172,13 +173,13 @@ static void reset_platforms(void)
 static unsigned platform_movement(V6Player *p,const V6Room *r,unsigned input,
                                   int life_timer,void *context)
 {
-#ifndef V6_DISAPPEAR_REPLAY
+#ifndef V6_DISAPPEAR_SCENE
     int before;
 #endif
     unsigned events;
     (void)context;
     events=v6_player_input(p,input,&platform_motion);
-#ifdef V6_DISAPPEAR_REPLAY
+#ifdef V6_DISAPPEAR_SCENE
     (void)life_timer;
     update_disappearing(0);
     v6_player_physics(p,r,&platform_motion,0,0);
@@ -708,7 +709,7 @@ static int run(void)
                     v6_enemy_step(&drones[n], &current_room, 0, 0); }
                 ++enemy_ticks;
 #endif
-#ifdef V6_DISAPPEAR_REPLAY
+#ifdef V6_DISAPPEAR_SCENE
                 if(slice.death_timer>=0 || restart_pending) update_disappearing(1);
 #endif
                 PROFILE_MARK(1);
@@ -752,7 +753,7 @@ static int run(void)
                 PROFILE_MARK(2);
                 restart_pending = 0;
                 if (events & V6_EVENT_FLIP) sound(sample,sizeof(flip_sound));
-#ifdef V6_DISAPPEAR_REPLAY
+#ifdef V6_DISAPPEAR_SCENE
                 if(disappearing_sound) {
                     sound(sample+sizeof(flip_sound),VANISH_SOUND_BYTES);
                     disappearing_sound=0;
@@ -811,7 +812,7 @@ static int run(void)
         {
             unsigned n;
             for(n=0;n<PLATFORM_COUNT;++n) {
-#ifdef V6_DISAPPEAR_REPLAY
+#ifdef V6_DISAPPEAR_SCENE
                 if(disappearing[n].invisible) continue;
                 uint32_t rows[32];
                 unsigned row;
@@ -834,7 +835,7 @@ static int run(void)
         /* Version-5 actor slots describe platforms in this separate scene. */
         diagnostics.enemy_x=platforms[0].x;diagnostics.enemy_y=platforms[0].y;
         diagnostics.enemy_ticks=platform_ticks;diagnostics.enemy_hits=platform_pushes;
-#ifdef V6_DISAPPEAR_REPLAY
+#ifdef V6_DISAPPEAR_SCENE
         diagnostics.enemy_x=disappearing[0].state;diagnostics.enemy_y=disappearing[0].walking_frame;
 #endif
 #endif
