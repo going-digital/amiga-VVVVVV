@@ -129,6 +129,14 @@ horizontal room requires more room-entity support (at least multiple
 checkpoints); a deliberate crush/death replay with desktop lifecycle comparison
 also remains outstanding.
 
+A caller-owned multi-checkpoint core now matches **32,768 reference ticks**
+across 256 scenarios, including 16,559 activations and 3,388 ticks with multiple
+saves. It preserves reverse entity order, pending activations, duplicate IDs,
+orientation offsets, saved direction and room coordinates. The per-entity API
+supports later integration among other entity updates. The module cross-compiles;
+native slice save/respawn handling and drawing still use one checkpoint per room.
+Those integration changes are needed before exporting Just Pick Yourself Down.
+
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and
 evidence are in [`amiga_version/README.md`](amiga_version/README.md).

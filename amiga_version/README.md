@@ -445,10 +445,38 @@ Just Pick Yourself Down has two checkpoints; Gantry and Dolly also has
 disappearing platforms; others include conveyors or enemies and scripts.
 Their setup has not been silently omitted to create a playable export.
 
+## Multi-checkpoint core
+
+`checkpoints.c` adds caller-owned state for ordinary floor and ceiling
+checkpoints. It preserves initial activation by saved ID, collision arming for
+the next update, deactivation of other checkpoints, and floor/ceiling respawn
+offsets. Activation records the player's direction at update time.
+
+The per-entity update API lets room integration preserve the original order
+among other entity updates. A reverse-order convenience pass is also available.
+Activating one checkpoint does not erase other pending activations: overlapping
+checkpoints can therefore save multiple times in a tick, with the last processed
+one supplying the final save record. The return value counts activations so the
+caller can handle sound and persistence for each event.
+
+**32,768 ticks across 256 scenarios** match checkpoint creation, update and
+collision branches extracted from the desktop source. The comparison includes
+16,559 activations, 3,388 ticks with multiple saves, overlapping positions,
+duplicate IDs, both orientations, saved direction and room coordinates.
+Run `python3 tools/amiga/test_checkpoints.py`; `make test` includes it and
+writes `build/amiga/checkpoint-test-report.json`.
+
+Bartman compiles the module. The current native slices still use their existing
+single-checkpoint lifecycle and drawing path, so this is a verified integration
+component, not a newly playable multiple-checkpoint room. Disk persistence,
+nodeath mode and full entity/lifecycle ordering remain outside this test.
+
 ## Next implementation step
 
-Support multiple checkpoints to export an original horizontal-platform room,
-and add a deliberate crush/death replay with desktop lifecycle comparisons. Sprite
+Connect the multi-checkpoint core to slice save/respawn handling and redraw all
+changed checkpoint images. Then export Just Pick Yourself Down with both of its
+checkpoints and its horizontal platform. A deliberate crush/death replay with
+desktop lifecycle comparisons also remains outstanding. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. The target replay
