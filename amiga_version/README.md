@@ -156,10 +156,33 @@ cached; the general campaign cache remains to be designed.
 are for the default two-plane build. Prototype compilation is forced so changing
 render flags cannot silently reuse an old object.
 
+## Enemy movement foundation
+
+`enemy.c` implements ordinary bounce behaviours 0–3 with integer speeds from
+−16 to 16, hitboxes up to 32×32, patrol-bound clamping and static tile/block
+collision. It preserves delayed state changes and the original axis order.
+Unsupported initialization parameters fail explicitly. Fractional speeds,
+gravity, emitters, platforms and special enemy behaviours are outside this API.
+
+The host differential test extracts the original bounce cases, `outside`,
+physics and collision methods. **528 scenarios / 126,720 ticks** match every
+tracked state field, including negative speeds, different hitbox sizes, actual
+source tile arrays and enemy-only safe blocks. The C implementation runs with
+UBSan during these comparisons; `enemy-test-report.json` records the scope and
+reference hash. Bartman also compiles it for the 68000.
+
+The core is **not yet called by the playable slice**: its two rooms have no
+moving enemies, and the linker discards the unused code. Native execution,
+room-specific graphics/animation, sprite assignment and player-hit detection
+remain integration gates. No enemy performance or complete entity-loop fidelity
+is claimed from these isolated movement tests.
+
 ## Next implementation step
 
-Add moving hazards and platforms, a bounded hardware-sprite allocator and
-blitter fallback with reference traces covering entity/update ordering. Expand the
+Integrate an original enemy room using this movement core, add room-specific
+graphics/animation, a bounded hardware-sprite allocator and player-hit detection.
+Then add platforms and blitter fallback with reference traces covering
+entity/update ordering. Expand the
 strict room-setup export and add full desktop-loop traces. The target replay
 currently asserts milestones rather than comparing every target state field. Tower row streaming and the
 music storage/playback experiment remain separate feasibility gates.

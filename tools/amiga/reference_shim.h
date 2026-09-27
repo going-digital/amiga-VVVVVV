@@ -40,6 +40,7 @@ struct entityclass {
     bool testwallsx(int, int, int, bool);
     bool testwallsy(int, int, int);
     void applyfriction(int, float, float);
+    bool updateentities(int);
     void updateentitylogic(int);
     void entitymapcollision(int);
     bool checkdamage(bool scm = false);

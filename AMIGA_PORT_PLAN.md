@@ -54,6 +54,14 @@ The earlier repeating-room scroll probe was replaced by the playable slice.
 Actual tower streaming, music feasibility, full desktop-loop traces and general
 room setup/transitions remain outstanding, so stages 0–2 are not complete.
 
+A separate enemy movement core now matches **126,720 extracted-reference ticks
+across 528 scenarios**. It covers bounce behaviours 0–3, bounded hitboxes and
+integer speeds, including patrol boundaries, tile collisions and enemy barriers.
+It cross-compiles for the 68000 but is not yet integrated into the playable
+slice. Room-specific enemy setup/animation, hardware sprite allocation and
+player-hit detection remain the next integration gates; fractional speeds and
+special behaviours need additional coverage.
+
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and
 evidence are in [`amiga_version/README.md`](amiga_version/README.md).

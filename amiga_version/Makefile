@@ -12,7 +12,7 @@ DATA ?= $(HOME)/Library/Application Support/Steam/steamapps/common/vvvvvv/VVVVVV
 PLANES ?= 2
 CFLAGS := -DV6_PLANES=$(PLANES) -std=c99 -m68000 -Os -g -nostdlib -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fomit-frame-pointer -Wall -Wextra -Werror -ffunction-sections -fdata-sections -MMD -MP -I$(BUILD)
 LDFLAGS := -nostdlib -m68000 -Wl,--emit-relocs,--gc-sections,-Ttext=0,-Map=$(BUILD)/prototype.map
-OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o
+OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o
 
 .PHONY: all test capture run FORCE
 all: $(BUILD)/prototype.adf
@@ -38,6 +38,9 @@ $(BUILD)/player.o: player.c player.h | $(BUILD)
 $(BUILD)/slice.o: slice.c slice.h player.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD)/enemy.o: enemy.c enemy.h player.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/prototype.elf: $(OBJECTS)
 	$(CC) $(LDFLAGS) $^ -o $@
 
@@ -52,6 +55,7 @@ test: $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/pack_rooms.py --out $(BUILD)
 	python3 $(ROOT)/tools/amiga/test_rooms.py
 	python3 $(ROOT)/tools/amiga/test_player.py
+	python3 $(ROOT)/tools/amiga/test_enemy.py
 	python3 $(ROOT)/tools/amiga/test_transitions.py
 	cc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined -I. -I$(BUILD) player.c slice.c room_codec.c $(ROOT)/tools/amiga/test_slice.c -o $(BUILD)/test_slice
 	$(BUILD)/test_slice
