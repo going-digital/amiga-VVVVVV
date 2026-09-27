@@ -49,6 +49,18 @@ def audio_peak(path):
     return max(abs(v[0]) for v in struct.iter_unpack('<f', audio[start:end]))
 
 
+def visible_player(build, path):
+    # In the default two-plane build only hardware sprite colour 17 is cyan.
+    # This catches a disabled/mistimed sprite DMA list despite healthy logic.
+    header, rgba = subprocess.check_output([str(build / 'png_rgba'), str(path)]).split(b'\n', 1)
+    w, h = map(int, header.split())
+    assert len(rgba) == w*h*4
+    pixels = sum(rgba[i] < 180 and rgba[i+1] > 180 and rgba[i+2] > 180
+                 for i in range(0, len(rgba), 4))
+    assert pixels > 40, f'Hardware player missing from {path}'
+    return pixels
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--rom', type=Path, default=Path.home() / 'amiga/KICK13.ROM')
@@ -91,16 +103,18 @@ write_protected = true
         with (build / 'copperline.log').open('w') as log:
             subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, env=env, check=True)
         report = read_diagnostics(build / 'slow.bin')
+        report['visible_player_pixels'] = visible_player(build, build / 'prototype.png')
         assert report['error'] == 0 and report['status'] == 1, report
         if args.transitions:
             assert report['transitions'] >= 1 and report['room_index'] == 0, report
-            assert report['max_load_lines'] > 0 and report['exits'] == 0, report
+            assert 0 < report['max_load_lines'] < 250 and report['exits'] == 0, report
+            assert report['load_frames'] == 0, report
         else:
             assert report['flips'] == 1 and report['checkpoint'] == 1, report
         assert report['deaths'] >= 1 and report['respawns'] >= 1, report
         # Snapshot can land between a tick and completion of its render.
         assert report['ticks'] > 100 and 0 <= report['ticks'] - report['renders'] <= 1, report
-        assert report['missed_frames'] == 0 and report['max_work_lines'] < 312, report
+        assert report['missed_frames'] == 0 and report['max_work_lines'] < 250, report
         report['max_work_ms'] = round(report['max_work_lines'] * 227 / 3546895 * 1000, 3)
         if not args.transitions:
             report['flip_audio_peak'] = audio_peak(build / 'prototype.wav')
@@ -128,6 +142,7 @@ write_protected = true
             neighbor = read_diagnostics(build / 'neighbor-slow.bin')
             assert neighbor['room_index'] == 1 and neighbor['transitions'] == 1, neighbor
             assert neighbor['deaths'] == 0 and neighbor['respawns'] == 0, neighbor
+            report['neighbor_player_pixels'] = visible_player(build, build / 'neighbor.png')
             report['neighbor_verified'] = True
         (build / 'smoke-report.json').write_text(json.dumps(report, indent=2) + '\n')
         print(json.dumps(report, indent=2))

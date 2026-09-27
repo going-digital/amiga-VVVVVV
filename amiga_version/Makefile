@@ -9,7 +9,8 @@ COPPERLINE ?= /Applications/Copperline.app/Contents/MacOS/copperline
 CTL ?= /Applications/Copperline.app/Contents/MacOS/copperline-ctl
 ROM ?= $(HOME)/amiga/KICK13.ROM
 DATA ?= $(HOME)/Library/Application Support/Steam/steamapps/common/vvvvvv/VVVVVV.app/Contents/Resources/data.zip
-CFLAGS := -std=c99 -m68000 -Os -g -nostdlib -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fomit-frame-pointer -Wall -Wextra -Werror -ffunction-sections -fdata-sections -MMD -MP -I$(BUILD)
+PLANES ?= 2
+CFLAGS := -DV6_PLANES=$(PLANES) -std=c99 -m68000 -Os -g -nostdlib -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fomit-frame-pointer -Wall -Wextra -Werror -ffunction-sections -fdata-sections -MMD -MP -I$(BUILD)
 LDFLAGS := -nostdlib -m68000 -Wl,--emit-relocs,--gc-sections,-Ttext=0,-Map=$(BUILD)/prototype.map
 OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o
 
@@ -25,7 +26,7 @@ $(BUILD)/prototype_room.h: $(ROOT)/tools/amiga/pack_rooms.py $(addprefix $(ROOT)
 $(BUILD)/prototype_assets.h: FORCE $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/convert_assets.py --data "$(DATA)" --out $(BUILD)
 
-$(BUILD)/prototype.o: prototype.c $(ROOT)/tools/amiga/transition_replay.h $(BUILD)/prototype_room.h $(BUILD)/prototype_assets.h
+$(BUILD)/prototype.o: prototype.c $(ROOT)/tools/amiga/transition_replay.h $(BUILD)/prototype_room.h $(BUILD)/prototype_assets.h FORCE
 	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -c $< -o $@
 
 $(BUILD)/room_codec.o: room_codec.c room_codec.h | $(BUILD)

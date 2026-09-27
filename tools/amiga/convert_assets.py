@@ -85,6 +85,7 @@ def build(data, out):
             sprite_frames.append([sum((sprites[((oy+y)*sw+ox+x)*4+3] > 127 and
                                       max(sprites[((oy+y)*sw+ox+x)*4:((oy+y)*sw+ox+x)*4+3]) > 0) << (31-x)
                                      for x in range(32)) for y in range(32)])
+        assert all((bits & ~0x03fffc00) == 0 for frame in sprite_frames[:16] for bits in frame), 'Player exceeds 16-pixel crop'
         with wave.open(io.BytesIO(archive.read('sounds/jump.wav'))) as wav:
             channels, width, rate, count = wav.getnchannels(), wav.getsampwidth(), wav.getframerate(), wav.getnframes()
             pcm = wav.readframes(count)
@@ -107,8 +108,21 @@ def build(data, out):
     def matrix(name, rows):
         return f'static const unsigned char {name}[{len(rows)}][{len(rows[0])}] = {{\n' + ',\n'.join('{' + ','.join(map(str,r)) + '}' for r in rows) + '\n};\n'
     header = '/* Generated from user-supplied assets; do not redistribute without permission. */\n'
+    room_colors = []
+    for coords in SLICE_ROOMS:
+        used = set(struct.unpack('>1200H', prototype_record(coords=coords)[1]))
+        candidates = [c for tile, pixels in zip(ids, tiles) if tile in used for c in pixels]
+        room_colors.append(max(candidates, key=lambda c: sum(c)))
+    two_planes = [[sum((max(pixels[y*8+x]) >= 3) << (7-x) for x in range(8))
+                   for y in range(8)] + [0]*8 for pixels in tiles]
+    header += '#if V6_PLANES == 2\n'
+    header += 'static const unsigned short palette[4] = {0,' + hex(sum(v << shift for v, shift in zip(room_colors[0], (8,4,0)))) + ',0x6f6,0xfff};\n'
+    header += 'static const unsigned short room_colors[] = {' + ','.join(hex(r<<8|g<<4|b) for r,g,b in room_colors) + '};\n'
+    header += matrix('tile_planes', two_planes)
+    header += '#define CHECKPOINT_COLOR 2\n#define TEXT_COLOR 3\n#else\n'
     header += 'static const unsigned short palette[16] = {' + ','.join(hex(r<<8|g<<4|b) for r,g,b in palette) + '};\n'
     header += matrix('tile_planes', planar)
+    header += '#define CHECKPOINT_COLOR 13\n#define TEXT_COLOR 15\n#endif\n'
     header += 'static const unsigned char tile_mapping[] = {' + ','.join(map(str,mapping)) + '};\n'
     header += matrix('font_rows', glyphs)
     header += 'static const unsigned long sprite_rows[22][32] = {\n' + ',\n'.join(
@@ -116,6 +130,7 @@ def build(data, out):
     header += 'static const unsigned char flip_sound[] = {' + ','.join(map(str,sound)) + '};\n'
     (out / 'prototype_assets.h').write_text(header)
     report = dict(input_fingerprint=fingerprint, tiles=len(ids), tile_bytes=len(ids)*32, source_room_ocs_colors=len(colors)+1,
+                  two_plane_tile_bytes=len(ids)*16, two_plane_room_colors=room_colors,
                   scene_palette_slots=13, checkpoint_palette_index=13, sprite_palette_index=14, text_palette_index=15,
                   font_bytes=1024, sound_bytes=len(sound), sound_rate=target_rate,
                   note='Rooms (100,110) and (119,110), static tiles, player animation and checkpoints. No other room entities or scripts.')

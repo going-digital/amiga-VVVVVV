@@ -29,17 +29,23 @@ movement state. The target replay reaches the neighboring room through normal
 inputs without death and verifies a later cross-room respawn. These checks do
 not cover full `loadlevel` side effects or special-room transitions.
 
-On Copperline's stock PAL A500, 512K Chip + 512K slow RAM profile, the two-room
-slice allocates **161,486 Chip bytes**. The ordinary capture peaks at **296
-scanlines / 18.944 ms**; the transition replay reaches **309 / 19.776 ms** outside
-loading. Room-change redraw peaks at **708 / 45.312 ms**, with six VBL periods
-spent loading across the replay. The renderer explicitly pauses its gameplay
-clock during loading and reports that separately. Removing that pause and
-meeting the 20% headroom target remain open gates. Both capture modes pass
-clean exit, and the ordinary capture also verifies flip audio.
+The renderer now uses **two bitplanes** and hardware sprite 0 for the player.
+The player's visible pixels fit one 16-pixel channel; seven channels remain
+available for a future moving-object allocator. The four playfield colours are
+black, one room accent, green checkpoints and white text; the player has an
+independent cyan sprite colour. Low-intensity tile shading is omitted.
 
-Two tile maps and planar backgrounds are cached at startup. This is bounded
-slice scaffolding; a per-room Chip RAM cache cannot scale to the campaign.
+On Copperline's stock PAL A500, 512K Chip + 512K slow RAM profile, the slice
+allocates **80,030 Chip bytes**. Ordinary work peaks at **210 lines / 13.44 ms**;
+the transition replay peaks at **245 / 15.68 ms**, with room-change work at
+**240 / 15.36 ms**. Both pass the 20% video-headroom gate, zero missed VBL checks,
+visible-player checks and clean exit; the ordinary capture also verifies audio.
+The previous 45.312 ms full-room redraw and explicit loading pause are gone.
+
+Each of the two cached rooms retains a screen pair in Chip RAM. Backgrounds
+occupy **38,400 bytes of slow RAM** and supply small checkpoint restorations.
+This is bounded slice scaffolding; screen pairs cannot remain resident for the
+whole campaign. Measurements do not establish full-game or real-hardware limits.
 
 The offline codec passes all **422 literal arrays / 1,012,800 raw bytes**, packed
 to **252,832 bytes** with simple RLE and deduplication. This exceeds the proposed
@@ -108,11 +114,11 @@ Start with the original arithmetic in the host comparison build. Audit constants
 
 ### 3. Native graphics
 
-Prototype a **four-bitplane, 16-color** renderer, with a measured five-bitplane fallback if essential simultaneous colors cannot fit. Allocate colors by gameplay role and room; reserve readable UI and distinct crew/hazard colors. Quantize RGB to the OCS color range offline and translate fades/glows into palette changes where possible. Validate actual assets before committing to a palette design.
+Use the measured **two-bitplane, four-color playfield with hardware sprites** as the baseline. Retain the four-plane build for visual comparison; expand depth only if essential campaign colours cannot be represented. Allocate colors by gameplay role and room; reserve readable UI and distinct crew/hazard colors. Quantize RGB to the OCS color range offline and translate fades/glows into palette changes where possible. Validate actual assets before committing to a palette design.
 
 Use native planar tiles, masked blitter objects, and a bitmap font. Draw the room background on entry and restore damaged regions for moving objects. Each back buffer needs its own damage history. Merge overlapping regions and fall back to larger redraws when cheaper. Avoid converting an entire chunky framebuffer to planar every frame.
 
-Hardware sprites may help the player or selected effects but are optional optimizations: check width, palette sharing, and overlap constraints first. The blitter path must cover general entities. Preserve clipping, flipped graphics, text boxes, gravity lines, and layer order.
+Hardware sprite 0 now renders the player. Allocate the remaining seven channels to moving objects where width, palette sharing and overlap allow; reuse channels across separated vertical bands only after timing tests. The blitter path must cover general entities. Preserve clipping, flipped graphics, text boxes, gravity lines, and layer order.
 
 Treat the tower and animated backgrounds as an early dedicated prototype: use scrolling planar buffers and redraw incoming tile rows where suitable, with guard rows and explicit wrap handling. Benchmark with full display DMA, sound, and moving hazards enabled. Stationary-room performance is not evidence that the tower will work.
 
@@ -160,13 +166,13 @@ These are **allocation targets, not measurements**. Figures are KiB, rounded upw
 
 | Chip RAM allocation | Target KiB |
 |---|---:|
-| Two four-plane 320×240 screens | 75 |
+| Two two-plane 320×240 screens | 38 |
 | Background restoration cache / scroll storage | 48 |
 | Current planar tiles, object masks, font | 80 |
 | Music samples / SFX / audio DMA buffers | 96 |
 | Copper lists, sprites, disk/DMA scratch | 24 |
-| Subtotal | **323** |
-| Remaining from 512 KiB: OS use, alignment, temporary peaks, contingency | **189** |
+| Subtotal | **286** |
+| Remaining from 512 KiB: OS use, alignment, temporary peaks, contingency | **226** |
 
 | Expansion RAM allocation | Target KiB |
 |---|---:|

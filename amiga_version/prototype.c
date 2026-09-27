@@ -25,14 +25,14 @@ struct DosLibrary *DOSBase;
 static volatile struct Custom * const hw = (void *)0xdff000;
 #define BACKGROUND_PLANE_BYTES 9600
 #define PLANE_BYTES BACKGROUND_PLANE_BYTES
-#define SCREEN_BYTES (4 * PLANE_BYTES)
-#define BACKGROUND_BYTES (4 * BACKGROUND_PLANE_BYTES)
-#define BACKGROUND_CACHE_BYTES (SLICE_ROOM_COUNT * BACKGROUND_BYTES)
-#define COPPER_BYTES 256
+#define SCREEN_BYTES (V6_PLANES * PLANE_BYTES)
+#define BACKGROUND_BYTES (V6_PLANES * BACKGROUND_PLANE_BYTES)
+#define DISPLAY_BUFFER_COUNT (2 * SLICE_ROOM_COUNT)
+#define COPPER_BYTES 320
 #define HUD_PLANE_BYTES (40 * 40)
-#define HUD_BYTES (4 * HUD_PLANE_BYTES)
-#define MASK_BYTES (32 * 6)
-#define CHIP_BYTES (2 * SCREEN_BYTES + BACKGROUND_CACHE_BYTES + COPPER_BYTES + sizeof(flip_sound) + 4 + HUD_BYTES + MASK_BYTES)
+#define HUD_BYTES HUD_PLANE_BYTES
+#define MASK_BYTES (2 * 68 * 2) /* two DMA sprite lists, 32 rows each */
+#define CHIP_BYTES (DISPLAY_BUFFER_COUNT * SCREEN_BYTES + COPPER_BYTES + sizeof(flip_sound) + 4 + HUD_BYTES + MASK_BYTES)
 
 /* Located by the host smoke test in a RAM dump. Fixed-width big-endian fields. */
 static volatile struct {
@@ -44,9 +44,10 @@ static volatile struct {
 } diagnostics = {.magic = 0x56364447, .version = 3, .chip_allocated = CHIP_BYTES};
 
 static volatile ULONG frames;
-static UBYTE *chip, *screen[2], *background, *sample, *hud;
-static UWORD *sprite_masks;
-static UWORD *copper, *plane_words, *silence;
+static UBYTE *chip, *screen[DISPLAY_BUFFER_COUNT], *background, *sample, *hud;
+static UBYTE room_backgrounds[SLICE_ROOM_COUNT][BACKGROUND_BYTES];
+static UWORD *sprite_data[2], *sprite_words;
+static UWORD *copper, *plane_words, *color_words, *silence;
 static UWORD room_tiles[SLICE_ROOM_COUNT][1200];
 static UWORD *room = room_tiles[0];
 static V6Slice slice;
@@ -95,8 +96,13 @@ static UWORD *move_reg(UWORD *p, UWORD reg, UWORD value)
 
 static void set_screen(UBYTE *data)
 {
+#if V6_PLANES == 2
+    color_words[3] = room_colors[slice.room_index];
+#endif
     UWORD p;
-    for (p = 0; p < 4; ++p) {
+    ULONG sprite_address = (ULONG)sprite_data[data == screen[slice.room_index*2] ? 0 : 1];
+    sprite_words[1] = sprite_address >> 16; sprite_words[3] = sprite_address;
+    for (p = 0; p < V6_PLANES; ++p) {
         ULONG address = (ULONG)(data + p * PLANE_BYTES);
         plane_words[p * 4 + 1] = address >> 16;
         plane_words[p * 4 + 3] = address;
@@ -107,24 +113,34 @@ static void create_copper(void)
 {
     UWORD *p = copper;
     UWORD i;
-    p = move_reg(p, 0x100, 0x4200); /* four planes, color */
+    p = move_reg(p, 0x100, (V6_PLANES << 12) | 0x0200); /* planar color display */
     p = move_reg(p, 0x102, 0);
-    p = move_reg(p, 0x104, 0);
+    p = move_reg(p, 0x104, 0x24);
     p = move_reg(p, 0x108, 0);
     p = move_reg(p, 0x10a, 0);
     p = move_reg(p, 0x08e, 0x3481); /* PAL: y=52, x=129 */
     p = move_reg(p, 0x090, 0x24c1); /* y=292, x=449 */
     p = move_reg(p, 0x092, 0x0038);
     p = move_reg(p, 0x094, 0x00d0);
+    /* Publish after the CPU VBL handoff but before sprite DMA control fetch. */
+    *p++ = 0x1401; *p++ = 0xfffe;
+    sprite_words = p;
+    for (i = 0; i < 8; ++i) {
+        ULONG address = (ULONG)silence;
+        p = move_reg(p, 0x120 + i*4, address >> 16);
+        p = move_reg(p, 0x122 + i*4, address);
+    }
+    p = move_reg(p, 0x1a2, 0x6ff); /* sprite 0 colour 1: cyan */
     /* The CPU publishes completed buffer pointers just after the VBL IRQ.
      * Delay Copper pointer reads until line 44, before the visible line 52. */
     *p++ = 0x2c01; *p++ = 0xfffe;
     plane_words = p;
-    for (i = 0; i < 4; ++i) {
+    for (i = 0; i < V6_PLANES; ++i) {
         p = move_reg(p, 0x0e0 + 4 * i, 0);
         p = move_reg(p, 0x0e2 + 4 * i, 0);
     }
-    for (i = 0; i < 16; ++i) p = move_reg(p, 0x180 + i * 2, palette[i]);
+    color_words = p;
+    for (i = 0; i < (1 << V6_PLANES); ++i) p = move_reg(p, 0x180 + i * 2, palette[i]);
     *p++ = 0xffff; *p = 0xfffe;
     set_screen(screen[0]);
 }
@@ -149,7 +165,7 @@ static void take_system(void)
     wait_pal_blank();
     hw->cop1lc = (ULONG)copper;
     hw->copjmp1 = 0;
-    hw->dmacon = DMAF_SETCLR | DMAF_MASTER | DMAF_RASTER | DMAF_COPPER | DMAF_BLITTER;
+    hw->dmacon = DMAF_SETCLR | DMAF_MASTER | DMAF_RASTER | DMAF_COPPER | DMAF_BLITTER | DMAF_SPRITE;
     hw->intena = INTF_SETCLR | INTF_INTEN | INTF_VERTB;
     Enable();
 }
@@ -183,7 +199,7 @@ static void draw_room(void)
     for (y = 0; y < 30; ++y) for (x = 0; x < 40; ++x) {
         UWORD tile = room[y * 40 + x];
         UWORD mapped = tile_mapping[tile];
-        for (plane = 0; plane < 4; ++plane) for (row = 0; row < 8; ++row)
+        for (plane = 0; plane < V6_PLANES; ++plane) for (row = 0; row < 8; ++row)
             background[plane * BACKGROUND_PLANE_BYTES + (y * 8 + row) * 40 + x] =
                 tile_planes[mapped][plane * 8 + row];
     }
@@ -214,64 +230,61 @@ static void restore_rectangle(UBYTE *dst, int x, int y, int width, int height)
     if (right <= x || bottom <= y) return;
     left_word = x / 16;
     words = (right + 15) / 16 - left_word;
-    for (plane = 0; plane < 4; ++plane) {
-        ULONG offset = plane * PLANE_BYTES + y * 40 + left_word * 2;
-        wait_blit();
-        hw->bltcon0 = 0x09f0; hw->bltcon1 = 0;
-        hw->bltafwm = hw->bltalwm = 0xffff;
-        hw->bltamod = hw->bltdmod = 40 - words * 2;
-        hw->bltapt = background + offset;
-        hw->bltdpt = dst + offset;
-        hw->bltsize = ((bottom-y) << 6) | words;
-    }
+    /* Backgrounds live in non-DMA RAM. Copy only the damaged words with the
+     * CPU; retain each room's screen pair instead of copying a whole room on
+     * entry. 68000 longword accesses need only word alignment. */
     wait_blit();
+    for (plane = 0; plane < V6_PLANES; ++plane) {
+        int row;
+        ULONG offset = plane * PLANE_BYTES + y * 40 + left_word * 2;
+        for (row = y; row < bottom; ++row) {
+            const UWORD *src = (const UWORD *)(background + offset);
+            UWORD *target = (UWORD *)(dst + offset);
+            int count = words;
+            while (count >= 2) {
+                *(ULONG *)target = *(const ULONG *)src;
+                target += 2; src += 2; count -= 2;
+            }
+            if (count) *target = *src;
+            offset += 40;
+        }
+    }
 }
 
-static void draw_player(UBYTE *dst, int x, int y, UWORD frame)
+/* All player frames fit inside source columns 6..21. One 16-pixel OCS
+ * sprite channel suffices. Build only the inactive DMA list and publish it
+ * with the completed playfield at the next VBL. */
+static void draw_player(UWORD buffer, int x, int y, UWORD frame)
 {
-    UWORD plane, row, shift = x & 15;
-    int left_word = x < 0 ? (x-15)/16 : x/16;
-    int skip_words = left_word < 0 ? -left_word : 0;
-    int width = (shift ? 3 : 2) - skip_words;
-    int skip_rows = y < 0 ? -y : 0, rows = 32 - skip_rows;
-    UWORD *mask;
-    if (left_word < 0) left_word = 0;
-    if (left_word + width > 20) width = 20 - left_word;
-    if (y < 0) y = 0;
-    if (y + rows > 240) rows = 240-y;
-    if (width <= 0 || rows <= 0) return;
-    wait_blit();
-    for (row = 0; row < 32; ++row) {
-        ULONG bits = sprite_rows[frame][row], upper = bits >> shift;
-        sprite_masks[row*3] = upper >> 16;
-        sprite_masks[row*3+1] = upper;
-        sprite_masks[row*3+2] = shift ? (UWORD)bits << (16-shift) : 0;
+    UWORD *data = sprite_data[buffer];
+    int first = y < 16 ? 16-y : 0;
+    int last = y+32 > 216 ? 216-y : 32;
+    int row, column;
+    UWORD horizontal = 129 + x + 6, start, stop, clip = 0xffff;
+    if (first >= last || first >= 32 || last <= 0) {
+        data[0] = data[1] = 0; return;
     }
-    mask = sprite_masks + skip_rows*3 + skip_words;
-    for (plane = 0; plane < 4; ++plane) {
-        UBYTE *target = dst + plane * PLANE_BYTES + y * 40 + left_word * 2;
-        wait_blit();
-        /* Set cyan index 14 under opaque mask; preserve the background. */
-        hw->bltcon0 = plane ? 0x0bfa : 0x0b0a; /* A | C or ~A & C */
-        hw->bltcon1 = 0;
-        hw->bltafwm = hw->bltalwm = 0xffff;
-        hw->bltamod = 6 - width * 2;
-        hw->bltcmod = hw->bltdmod = 40 - width * 2;
-        hw->bltapt = (APTR)mask;
-        hw->bltcpt = target;
-        hw->bltdpt = target;
-        hw->bltsize = (rows << 6) | width;
+    for (column = 0; column < 16; ++column)
+        if (x+6+column < 0 || x+6+column >= 320) clip &= ~(0x8000 >> column);
+    start = 52+y+first; stop = 52+y+last;
+    data[0] = ((start & 255) << 8) | (horizontal >> 1);
+    data[1] = ((stop & 255) << 8) | ((start & 256) >> 6)
+        | ((stop & 256) >> 7) | (horizontal & 1);
+    data += 2;
+    for (row = first; row < last; ++row) {
+        *data++ = (sprite_rows[frame][row] >> 10) & clip;
+        *data++ = 0;
     }
-    wait_blit();
+    data[0] = data[1] = 0;
 }
 
 static void text(UWORD x, UWORD y, const char *s)
 {
-    UWORD row, plane;
+    UWORD row;
     while (*s && x < 40) {
         const UBYTE *glyph = font_rows[(UBYTE)*s++ & 127];
-        for (plane = 0; plane < 4; ++plane) for (row = 0; row < 8; ++row)
-            hud[plane * HUD_PLANE_BYTES + (y + row) * 40 + x] = glyph[row];
+        for (row = 0; row < 8; ++row)
+            hud[(y + row) * 40 + x] = glyph[row];
         ++x;
     }
 }
@@ -288,9 +301,9 @@ static void number(UWORD x, UWORD y, UWORD value)
 static void overlay_hud(UBYTE *dst)
 {
     UWORD plane;
-    for (plane = 0; plane < 4; ++plane) {
-        blit_rows(hud + plane * HUD_PLANE_BYTES, dst + plane * PLANE_BYTES, 16);
-        blit_rows(hud + plane * HUD_PLANE_BYTES + 16 * 40,
+    for (plane = 0; plane < V6_PLANES; ++plane) {
+        blit_rows(hud, dst + plane * PLANE_BYTES, 16);
+        blit_rows(hud + 16 * 40,
                   dst + plane * PLANE_BYTES + 216 * 40, 24);
     }
     wait_blit();
@@ -298,7 +311,7 @@ static void overlay_hud(UBYTE *dst)
 
 static void draw_checkpoint(void)
 {
-    UWORD row, plane, color = slice.checkpoint_active ? 13 : 15;
+    UWORD row, plane, color = slice.checkpoint_active ? CHECKPOINT_COLOR : TEXT_COLOR;
     UWORD shift = slice.checkpoint_x & 15;
     for (row = 0; row < 32; ++row) {
         ULONG bits = sprite_rows[slice.checkpoint_tile][row];
@@ -307,7 +320,7 @@ static void draw_checkpoint(void)
         UWORD tail = shift ? bits << (16-shift) : 0;
         UWORD *p = (UWORD *)(background + (slice.checkpoint_y + row) * 40
             + (slice.checkpoint_x / 16) * 2);
-        for (plane = 0; plane < 4; ++plane) {
+        for (plane = 0; plane < V6_PLANES; ++plane) {
             if (color & (1 << plane)) {
                 p[0] |= first; p[1] |= second;
                 if (shift) p[2] |= tail;
@@ -340,8 +353,7 @@ static void sound(void)
 static int run(void)
 {
     UWORD back = 1, ready = 0, last_right = 0, restart_pending = 0;
-    WORD old_x[2], old_y[2];
-    UWORD checkpoint_dirty[2] = {0,0}, room_dirty[2] = {0,0};
+    UWORD checkpoint_dirty[DISPLAY_BUFFER_COUNT] = {0};
     LONG shown_deaths = -1, shown_flips = -1, shown_work = -1;
     UWORD exit_notice = 0;
     ULONG observed = 0, elapsed_us = 0;
@@ -366,13 +378,13 @@ static int run(void)
         CloseLibrary((struct Library *)GfxBase);
         return 20;
     }
-    screen[0] = chip; screen[1] = chip + SCREEN_BYTES;
-    background = chip + SCREEN_BYTES * 2;
-    copper = (UWORD *)(background + BACKGROUND_CACHE_BYTES);
+    for (i = 0; i < DISPLAY_BUFFER_COUNT; ++i) screen[i] = chip + i * SCREEN_BYTES;
+    copper = (UWORD *)(chip + DISPLAY_BUFFER_COUNT * SCREEN_BYTES);
     sample = (UBYTE *)copper + COPPER_BYTES;
     silence = (UWORD *)(sample + sizeof(flip_sound));
     hud = (UBYTE *)(silence + 2);
-    sprite_masks = (UWORD *)(hud + HUD_BYTES);
+    sprite_data[0] = (UWORD *)(hud + HUD_BYTES);
+    sprite_data[1] = sprite_data[0] + 68;
     for (i = 0; i < sizeof(flip_sound); ++i) sample[i] = flip_sound[i];
     for (i = 0; i < SLICE_ROOM_COUNT; ++i) {
         if (!v6_unpack_room(packed_rooms[i], packed_sizes[i], room_tiles[i], 1200)) {
@@ -383,15 +395,18 @@ static int run(void)
             return 20;
         }
         room = room_tiles[i];
-        background = chip + SCREEN_BYTES * 2 + i * BACKGROUND_BYTES;
+        background = room_backgrounds[i];
         draw_room();
+        restore_rectangle(screen[i*2], 0, 0, 320, 240);
+        restore_rectangle(screen[i*2+1], 0, 0, 320, 240);
     }
-    room = room_tiles[0]; background = chip + SCREEN_BYTES * 2;
+    room = room_tiles[0]; background = room_backgrounds[0];
     diagnostics.chip_free = AvailMem(MEMF_CHIP);
     diagnostics.other_free = AvailMem(MEMF_FAST);
     v6_slice_init_world(&slice, room_setups, SLICE_ROOM_COUNT, 0);
-    old_x[0] = old_x[1] = slice.player.x;
-    old_y[0] = old_y[1] = slice.player.y;
+    for (i = 0; i < DISPLAY_BUFFER_COUNT; ++i) {
+        checkpoint_dirty[i] = 1;
+    }
     draw_checkpoint();
     text(1, 0, "VVVVVV AMIGA - PLAYABLE ROOM");
     text(1, 8, "100,110 - TWO ROOM SLICE");
@@ -399,20 +414,19 @@ static int run(void)
     text(1, 32, "JOY L/R FIRE FLIP RMB RESET LMB EXIT");
     create_copper();
     take_system();
-    restore_rectangle(screen[0], 0, 0, 320, 240);
-    restore_rectangle(screen[1], 0, 0, 320, 240);
+
     observed = frames;
     diagnostics.status = 1;
     while (*(volatile UBYTE *)0xbfe001 & 0x40) { /* left mouse exits */
         ULONG current, delta, start, work;
-        UWORD loading;
+        UWORD loading = 0, buffer;
         UWORD joy, fire, right_mouse, input = 0;
         while (frames == observed) {}
         current = frames;
         delta = current - observed;
         observed = current;
         if (delta > 1) diagnostics.missed_frames += delta - 1;
-        if (ready) { set_screen(screen[back]); back ^= 1; ready = 0; }
+        if (ready) { set_screen(screen[slice.room_index * 2 + back]); back ^= 1; ready = 0; }
         joy = hw->joy1dat;
         fire = !(*(volatile UBYTE *)0xbfe001 & 0x80);
         right_mouse = !(hw->potinp & 0x0400);
@@ -441,15 +455,16 @@ static int run(void)
                 restart_pending = 0;
                 if (events & V6_EVENT_FLIP) sound();
                 if (events & V6_EVENT_ROOM) {
-                    background = chip + SCREEN_BYTES * 2 + slice.room_index * BACKGROUND_BYTES;
+                    background = room_backgrounds[slice.room_index];
                     room = room_tiles[slice.room_index];
-                    room_dirty[0] = room_dirty[1] = 1;
-                    checkpoint_dirty[0] = checkpoint_dirty[1] = 0;
+                    loading = 1;
+                    checkpoint_dirty[slice.room_index*2] = checkpoint_dirty[slice.room_index*2+1] = 1;
                     draw_checkpoint();
                     text(1, 8, slice.room_index ? "119,110 - TWO ROOM SLICE           " : "100,110 - TWO ROOM SLICE           ");
                 }
                 if (events & V6_EVENT_SAVE) {
-                    draw_checkpoint(); checkpoint_dirty[0] = checkpoint_dirty[1] = 1;
+                    draw_checkpoint();
+                    checkpoint_dirty[slice.room_index*2] = checkpoint_dirty[slice.room_index*2+1] = 1;
                 }
                 if (events & V6_EVENT_EXIT) {
                     exit_notice = 60;
@@ -458,29 +473,21 @@ static int run(void)
             }
             if (exit_notice && --exit_notice == 0) text(1, 8, slice.room_index ? "119,110 - TWO ROOM SLICE           " : "100,110 - TWO ROOM SLICE           ");
         }
-        loading = room_dirty[back];
-        if (loading) {
-            restore_rectangle(screen[back], 0, 0, 320, 240);
-            room_dirty[back] = 0;
-        } else restore_rectangle(screen[back], old_x[back], old_y[back], 32, 32);
-        if (checkpoint_dirty[back]) {
-            restore_rectangle(screen[back], slice.checkpoint_x, slice.checkpoint_y, 32, 32);
-            checkpoint_dirty[back] = 0;
+        buffer = slice.room_index * 2 + back;
+        if (checkpoint_dirty[buffer]) {
+            restore_rectangle(screen[buffer], slice.checkpoint_x, slice.checkpoint_y, 32, 32);
+            checkpoint_dirty[buffer] = 0;
         }
-        draw_player(screen[back], slice.player.x, slice.player.y, slice.frame);
+        draw_player(back, slice.player.x, slice.player.y, slice.frame);
         if (shown_deaths != slice.deaths) { shown_deaths = slice.deaths; number(8,16,shown_deaths); }
         if (shown_flips != slice.player.flips) { shown_flips = slice.player.flips; number(20,16,shown_flips); }
         if (shown_work != (LONG)diagnostics.max_work_lines) { shown_work = diagnostics.max_work_lines; number(32,16,shown_work); }
-        overlay_hud(screen[back]);
-        old_x[back] = slice.player.x;
-        old_y[back] = slice.player.y;
+        overlay_hud(screen[buffer]);
         work = beam_clock() - start;
         if (loading) {
             if (work > diagnostics.max_load_lines) diagnostics.max_load_lines = work;
             diagnostics.load_frames += frames - observed;
-            /* Explicit slice loading pause; never feed rendering backlog into
-             * a burst of player updates. Full-game timing remains a later gate. */
-            observed = frames; elapsed_us = 0;
+
         }
         if (!loading && work > diagnostics.max_work_lines) diagnostics.max_work_lines = work;
         ++diagnostics.renders;
