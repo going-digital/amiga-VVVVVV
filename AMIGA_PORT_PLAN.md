@@ -30,15 +30,15 @@ inputs without death and verifies a later cross-room respawn. These checks do
 not cover full `loadlevel` side effects or special-room transitions.
 
 The renderer now uses **two bitplanes** and hardware sprite 0 for the player.
-The player's visible pixels fit one 16-pixel channel; seven channels remain
-available for a future moving-object allocator. The four playfield colours are
+The player's visible pixels fit one 16-pixel channel. A separate Security Sweep
+scene uses channel 1 for its drone, leaving six channels for future allocation. The four playfield colours are
 black, one room accent, green checkpoints and white text; the player has an
 independent cyan sprite colour. Low-intensity tile shading is omitted.
 
 On Copperline's stock PAL A500, 512K Chip + 512K slow RAM profile, the slice
-allocates **80,030 Chip bytes**. Ordinary work peaks at **210 lines / 13.44 ms**;
-the transition replay peaks at **245 / 15.68 ms**, with room-change work at
-**240 / 15.36 ms**. Both pass the 20% video-headroom gate, zero missed VBL checks,
+allocates **80,302 Chip bytes**. Ordinary work peaks at **152 lines / 9.728 ms**;
+the transition replay peaks at **197 / 12.608 ms**, with room-change work at
+**196 / 12.544 ms**. Both pass the 20% video-headroom gate, zero missed VBL checks,
 visible-player checks and clean exit; the ordinary capture also verifies audio.
 The previous 45.312 ms full-room redraw and explicit loading pause are gone.
 
@@ -57,10 +57,20 @@ room setup/transitions remain outstanding, so stages 0–2 are not complete.
 A separate enemy movement core now matches **126,720 extracted-reference ticks
 across 528 scenarios**. It covers bounce behaviours 0–3, bounded hitboxes and
 integer speeds, including patrol boundaries, tile collisions and enemy barriers.
-It cross-compiles for the 68000 but is not yet integrated into the playable
-slice. Room-specific enemy setup/animation, hardware sprite allocation and
-player-hit detection remain the next integration gates; fractional speeds and
-special behaviours need additional coverage.
+It now runs on the 68000 in the original **Security Sweep (112,103)** room,
+with its speed-8 vertical drone, checkpoint, hardware sprite and player-hit
+handling. This separate one-room scene allocates **41,902 Chip bytes** and peaks
+at **217 PAL lines / 13.888 ms**, with zero missed VBL observations.
+Pixel-mask collision matches **53,868 reference cases**, and collision animation
+matches **20,000 ticks**, using the original red-channel mask semantics and
+pre-physics frame selection. The target replay verifies a hit, death, respawn,
+both visible sprites and clean exit. HUD caching and smaller checkpoint damage
+restoration reduce rendering work. Existing player and enemy differential tests
+also cover the movement optimizations.
+
+General sprite allocation/multiplexing, blitter fallback, fractional speeds,
+platforms and special behaviours remain outstanding. Full entity-loop fidelity
+is not claimed from isolated reference tests and target milestone assertions.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

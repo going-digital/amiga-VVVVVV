@@ -7,8 +7,10 @@ room (100,110)'s ceiling checkpoint, rather than the campaign starting position.
 
 Moving left from (100,110) enters (119,110), preserving movement state; moving
 right returns. Checkpoints retain their room, position and gravity for respawn.
-Other exits return to the saved checkpoint and show a notice. Moving entities,
-scripts, wider campaign progression, keyboard controls and music remain unimplemented. See [the port plan](../AMIGA_PORT_PLAN.md).
+Other exits return to the saved checkpoint and show a notice. A separate
+**Security Sweep (112,103)** scene now includes its original moving enemy and
+floor checkpoint. Scripts, wider campaign progression, keyboard controls and
+music remain unimplemented. See [the port plan](../AMIGA_PORT_PLAN.md).
 
 ## Build and run
 
@@ -20,6 +22,8 @@ make -C amiga_version test
 make -C amiga_version capture
 make -C amiga_version capture-transitions
 make -C amiga_version run
+make -C amiga_version enemy-run
+make -C amiga_version enemy-capture
 ```
 
 - `all`: host asset conversion, Bartman 68000 compile, ELF/Hunk output, bootable ADF.
@@ -31,6 +35,9 @@ make -C amiga_version run
 - `capture-transitions`: builds a separate test-only input replay in
   `build/amiga-transitions`, verifies the world-wrap crossing without death,
   captures the neighboring room, then checks cross-room respawn and clean exit.
+- `enemy-run`: interactive Security Sweep scene, built in `build/amiga-enemy`.
+- `enemy-capture`: verifies enemy movement, a player hit, death/respawn, both
+  visible sprites, timing and return to AmigaDOS.
 - `run`: interactive Copperline window. Joystick left/right moves;
   fire flips gravity when supported. Right mouse restarts from the checkpoint;
   left mouse exits to AmigaDOS. Keyboard input is not implemented yet.
@@ -66,10 +73,12 @@ committed or bundled for distribution without the relevant permission.
   outlines and hazards. The cyan player uses an independent sprite palette.
 - The visible player fits source columns 6–21 and uses one 16-pixel sprite.
   Two DMA lists publish animation/position with the completed screen. The
-  other seven channels are unused; moving-object allocation/multiplexing and
+  enemy scene also uses channel 1 for its pink drone; six channels remain unused.
+  General moving-object allocation/multiplexing and
   a general blitter fallback are still to be implemented.
 - Two screen pairs remain cached in Chip RAM; original room backgrounds live
-  in slow RAM. Only checkpoint damage needs CPU restoration. The earlier repeating-room scroll
+  in slow RAM. Only checkpoint damage needs CPU restoration; HUD copies occur only when
+  their content changes. The earlier repeating-room scroll
   stress harness has been replaced; actual tower streaming remains outstanding.
 - Copper waits until line 44 before reading buffer pointers, so publication
   after the VBL interrupt completes before visible display starts at line 52.
@@ -94,11 +103,11 @@ cycle timing with 512K Chip + 512K slow RAM. At the 16.5-second memory snapshot:
 | Raw tile bytes | 1,012,800 |
 | Packed tile bytes, including directory | 252,832 |
 | Unique packed payloads | 406 |
-| Prototype explicit Chip RAM allocation | 80,030 bytes |
-| Free Chip RAM after startup allocation | 378,424 bytes |
-| Free non-Chip RAM after startup allocation | 425,376 bytes (interactive build) |
-| Maximum measured update/draw work | 245 PAL lines / 15.68 ms (transition replay) |
-| Maximum room-change redraw | 240 PAL lines / 15.36 ms |
+| Prototype explicit Chip RAM allocation | 80,302 bytes |
+| Free Chip RAM after startup allocation | 378,152 bytes |
+| Free non-Chip RAM after startup allocation | 422,600 bytes (interactive build) |
+| Maximum measured update/draw work | 197 PAL lines / 12.608 ms (transition replay) |
+| Maximum room-change redraw | 196 PAL lines / 12.544 ms |
 | Missed VBL observations including transitions | 0 |
 | VBL periods crossed by room-change work | 0 |
 | Flip, checkpoint, spike death and respawn | Passed |
@@ -110,7 +119,7 @@ These are **emulator measurements of this harness**, not real-hardware or
 complete-game performance. The RAM totals do not include a resident full room
 pack: only two compressed rooms and their decoded tile/background caches are
 resident. A cache per room is temporary slice scaffolding, not the full-campaign
-storage design. The ordinary capture peaks at 210 lines / 13.44 ms. During a snapshot
+storage design. The ordinary capture peaks at 152 lines / 9.728 ms. During a snapshot
 the current tick can be one ahead of the completed-render counter.
 
 Reports and evidence:
@@ -171,21 +180,34 @@ source tile arrays and enemy-only safe blocks. The C implementation runs with
 UBSan during these comparisons; `enemy-test-report.json` records the scope and
 reference hash. Bartman also compiles it for the 68000.
 
-The core is **not yet called by the playable slice**: its two rooms have no
-moving enemies, and the linker discards the unused code. Native execution,
-room-specific graphics/animation, sprite assignment and player-hit detection
-remain integration gates. No enemy performance or complete entity-loop fidelity
-is claimed from these isolated movement tests.
+The separate Security Sweep scene runs the core on the 68000 with the original
+vertical speed-8 enemy, frames 36–39, and checkpoint setup. Channel 0 displays
+the player and channel 1 the drone, using distinct colours in their shared
+sprite palette. This is fixed assignment for one enemy, not a general allocator.
+
+Player/enemy collision uses the original rectangle broad phase followed by
+32×32 row masks based on **nonzero source red**, matching `Graphics::Hitest`
+even where alpha is zero. Separate collision animation preserves the source's
+pre-physics frame selection; enemy animation advances before game logic.
+**53,868 pixel tests and 20,000 collision-animation ticks** match extracted C++
+methods under UBSan. See `build/amiga/pixel-test-report.json` for scope and hash.
+These isolated comparisons do not establish full desktop-loop equivalence.
+
+The enemy capture's diagnostics and screenshot are in
+`build/amiga-enemy/smoke-report.json` and `prototype.png`. Its explicit Chip
+allocation is **41,902 bytes**, with one room's screen pair resident. Peak work
+is **217 PAL lines / 13.888 ms**, with zero missed VBL observations. The replay
+verifies an enemy hit, death, checkpoint respawn, visible cyan/pink sprites and
+clean exit. It does not connect this room to the two-room world slice.
 
 ## Next implementation step
 
-Integrate an original enemy room using this movement core, add room-specific
-graphics/animation, a bounded hardware-sprite allocator and player-hit detection.
-Then add platforms and blitter fallback with reference traces covering
-entity/update ordering. Expand the
-strict room-setup export and add full desktop-loop traces. The target replay
-currently asserts milestones rather than comparing every target state field. Tower row streaming and the
-music storage/playback experiment remain separate feasibility gates.
+Add a bounded hardware-sprite allocator for rooms with multiple moving objects,
+then platforms and a blitter fallback. Expand the strict room-setup export and
+add full desktop-loop traces covering entity/update ordering. The target replay
+currently asserts milestones rather than comparing every target state field.
+Tower row streaming and the music storage/playback experiment remain separate
+feasibility gates.
 
 The 252,832-byte simple-RLE pack exceeds the plan's provisional 128 KiB combined
 content/cache budget before scripts. Evaluate stronger compression and regional

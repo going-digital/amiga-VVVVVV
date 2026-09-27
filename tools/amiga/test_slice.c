@@ -5,6 +5,13 @@
 #include "room_codec.h"
 #include "prototype_room.h"
 #include "transition_replay.h"
+static int contact_calls;
+static void observe_contact(const V6Player *p, void *context)
+{
+    assert(context == &contact_calls);
+    assert(p->x == 76 && p->y == 73 && p->vx == 0 && p->dir == 1);
+    ++contact_calls;
+}
 int main(void)
 {
     uint16_t tiles[1200] = {0};
@@ -12,6 +19,11 @@ int main(void)
     V6Slice s;
     unsigned events;
     int i;
+    v6_slice_init(&s, 80, 80, 21);
+    v6_slice_step_hook(&s,&room,V6_RIGHT,0,observe_contact,&contact_calls);
+    assert(contact_calls==1 && s.player.x>76);
+    v6_slice_step_hook(&s,&room,0,1,observe_contact,&contact_calls);
+    assert(contact_calls==1);
     v6_slice_init(&s, 80, 80, 21);
     assert(s.player.x == 76 && s.player.y == 73 && s.player.gravity == 0);
     v6_slice_step(&s, &room, 0, 0);

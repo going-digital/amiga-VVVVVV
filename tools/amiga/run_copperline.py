@@ -13,17 +13,18 @@ ROOT = Path(__file__).resolve().parents[2]
 def read_diagnostics(path):
     ram = path.read_bytes()
     # Require a running/stopped record, not a coincidental executable byte string.
-    for offset in range(0, len(ram) - 112, 2):
-        if ram[offset:offset+8] == b'V6DG\0\0\0\3':
-            values = struct.unpack_from('>14I6i8I', ram, offset)
+    for offset in range(0, len(ram) - 128, 2):
+        if ram[offset:offset+8] == b'V6DG\0\0\0\4':
+            values = struct.unpack_from('>14I6i8I2i2I', ram, offset)
             if values[13] not in (1, 2):
                 continue
             names = ('magic', 'version', 'frames', 'ticks', 'renders', 'max_work_lines',
-                     'missed_frames', 'flips', 'scroll_mode', 'chip_free', 'other_free',
+                     'missed_frames', 'flips', 'peak_tick', 'chip_free', 'other_free',
                      'chip_allocated', 'error', 'status', 'player_x', 'player_y',
                      'player_vx', 'player_vy', 'gravity', 'death_timer',
                      'deaths', 'respawns', 'checkpoint', 'exits',
-                     'room_index', 'transitions', 'max_load_lines', 'load_frames')
+                     'room_index', 'transitions', 'max_load_lines', 'load_frames',
+                     'enemy_x','enemy_y','enemy_ticks','enemy_hits')
             return dict(zip(names, values))
     raise RuntimeError(f'No live prototype diagnostics in {path}')
 
@@ -61,6 +62,14 @@ def visible_player(build, path):
     return pixels
 
 
+def visible_enemy(build, path):
+    _, rgba = subprocess.check_output([str(build / 'png_rgba'), str(path)]).split(b'\n', 1)
+    pixels=sum(rgba[i]>230 and 70<rgba[i+1]<160 and 150<rgba[i+2]<225
+               for i in range(0,len(rgba),4))
+    assert pixels>20, f'Hardware drone missing from {path}'
+    return pixels
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--rom', type=Path, default=Path.home() / 'amiga/KICK13.ROM')
@@ -68,6 +77,7 @@ def main():
     parser.add_argument('--capture', action='store_true')
     parser.add_argument('--build', type=Path, default=ROOT / 'build/amiga')
     parser.add_argument('--transitions', action='store_true', help='Validate the test-only transition replay build')
+    parser.add_argument('--enemy', action='store_true')
     args = parser.parse_args()
     build = args.build.resolve()
     config = build / 'copperline.toml'
@@ -93,10 +103,10 @@ write_protected = true
     if args.capture:
         env = dict(os.environ, RUST_LOG='info', COPPERLINE_DBG_AFTER='16.5',
                    COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{build / "slow.bin"}')
+        command += (['--joy-after','12','right','300'] if args.enemy else
+                    ['--joy-after','13','fire','100','--joy-after','15.5','right','300',
+                     '--joy-after','16','left','300'])
         command += ['--noaudio',
-                    '--joy-after', '13', 'fire', '100',
-                    '--joy-after', '15.5', 'right', '300',
-                    '--joy-after', '16', 'left', '300',
                     '--save-state-after', '16', str(build / 'prototype.clstate'),
                     '--audio-wav', str(build / 'prototype.wav'),
                     '--screenshot-after', '17', str(build / 'prototype.png')]
@@ -109,6 +119,9 @@ write_protected = true
             assert report['transitions'] >= 1 and report['room_index'] == 0, report
             assert 0 < report['max_load_lines'] < 250 and report['exits'] == 0, report
             assert report['load_frames'] == 0, report
+        elif args.enemy:
+            assert report['enemy_ticks'] > 100 and report['enemy_hits'] >= 1, report
+            report['visible_enemy_pixels']=visible_enemy(build,build/'prototype.png')
         else:
             assert report['flips'] == 1 and report['checkpoint'] == 1, report
         assert report['deaths'] >= 1 and report['respawns'] >= 1, report
@@ -116,7 +129,7 @@ write_protected = true
         assert report['ticks'] > 100 and 0 <= report['ticks'] - report['renders'] <= 1, report
         assert report['missed_frames'] == 0 and report['max_work_lines'] < 250, report
         report['max_work_ms'] = round(report['max_work_lines'] * 227 / 3546895 * 1000, 3)
-        if not args.transitions:
+        if not args.transitions and not args.enemy:
             report['flip_audio_peak'] = audio_peak(build / 'prototype.wav')
             assert report['flip_audio_peak'] > 0.001, report
         report['max_load_ms'] = round(report['max_load_lines'] * 227 / 3546895 * 1000, 3)

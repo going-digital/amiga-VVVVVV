@@ -11,19 +11,20 @@ import subprocess
 import wave
 import zipfile
 
-from pack_rooms import ROOT, prototype_record, SLICE_ROOMS
+from pack_rooms import ROOT, prototype_record, SLICE_ROOMS, enemy_record
 
 DEFAULT_DATA = Path.home() / 'Library/Application Support/Steam/steamapps/common/vvvvvv/VVVVVV.app/Contents/Resources/data.zip'
 
 
-def build(data, out):
+def build(data, out, scene="world"):
     out.mkdir(parents=True, exist_ok=True)
-    fingerprint = dict(path=str(data.resolve()), size=data.stat().st_size,
+    fingerprint = dict(scene=scene, path=str(data.resolve()), size=data.stat().st_size,
                        mtime_ns=data.stat().st_mtime_ns,
                        tools=hashlib.sha256(Path(__file__).read_bytes() +
                            (ROOT / 'tools/amiga/png_rgba.cpp').read_bytes() +
                            (ROOT / 'tools/amiga/pack_rooms.py').read_bytes() +
-                           (ROOT / 'desktop_version/src/Otherlevel.cpp').read_bytes()).hexdigest())
+                           (ROOT / 'desktop_version/src/Otherlevel.cpp').read_bytes() +
+                           (ROOT / 'desktop_version/src/Spacestation2.cpp').read_bytes()).hexdigest())
     report_path = out / 'assets.json'
     if report_path.exists() and (out / 'prototype_assets.h').exists():
         if json.loads(report_path.read_text()).get('input_fingerprint') == fingerprint:
@@ -41,9 +42,9 @@ def build(data, out):
             assert len(rgba) == w * h * 4
             return w, h, rgba
 
-        w, h, rgba = png('graphics/tiles2.png')
-        ids = sorted({tile for coords in SLICE_ROOMS
-                      for tile in struct.unpack('>1200H', prototype_record(coords=coords)[1])})
+        records = [enemy_record()] if scene == 'enemy' else [prototype_record(coords=c) for c in SLICE_ROOMS]
+        w, h, rgba = png('graphics/tiles.png' if scene == 'enemy' else 'graphics/tiles2.png')
+        ids = sorted({tile for record in records for tile in struct.unpack('>1200H', record[1])})
         tiles = []
         colors = Counter()
         for tile in ids:
@@ -79,13 +80,19 @@ def build(data, out):
         sw, sh, sprites = png('graphics/sprites.png')
         assert sw >= 32 and sh >= 32
         sprite_frames = []
-        for tile in range(22):
+        collision_frames = []
+        for tile in range(40):
             ox, oy = tile % (sw//32)*32, tile // (sw//32)*32
             assert oy+32 <= sh
             sprite_frames.append([sum((sprites[((oy+y)*sw+ox+x)*4+3] > 127 and
                                       max(sprites[((oy+y)*sw+ox+x)*4:((oy+y)*sw+ox+x)*4+3]) > 0) << (31-x)
                                      for x in range(32)) for y in range(32)])
+            collision_frames.append([sum((sprites[((oy+y)*sw+ox+x)*4] != 0) << (31-x)
+                                           for x in range(32)) for y in range(32)])
         assert all((bits & ~0x03fffc00) == 0 for frame in sprite_frames[:16] for bits in frame), 'Player exceeds 16-pixel crop'
+        assert all((bits & 0xffff) == 0 for frame in sprite_frames[36:40] for bits in frame), 'Drone exceeds one sprite channel'
+        assert all((bits & 0xffff) == 0 and (y < 16 or bits == 0)
+                   for frame in sprite_frames[20:22] for y,bits in enumerate(frame)), 'Checkpoint exceeds 16x16'
         with wave.open(io.BytesIO(archive.read('sounds/jump.wav'))) as wav:
             channels, width, rate, count = wav.getnchannels(), wav.getsampwidth(), wav.getframerate(), wav.getnframes()
             pcm = wav.readframes(count)
@@ -109,8 +116,8 @@ def build(data, out):
         return f'static const unsigned char {name}[{len(rows)}][{len(rows[0])}] = {{\n' + ',\n'.join('{' + ','.join(map(str,r)) + '}' for r in rows) + '\n};\n'
     header = '/* Generated from user-supplied assets; do not redistribute without permission. */\n'
     room_colors = []
-    for coords in SLICE_ROOMS:
-        used = set(struct.unpack('>1200H', prototype_record(coords=coords)[1]))
+    for record in records:
+        used = set(struct.unpack('>1200H', record[1]))
         candidates = [c for tile, pixels in zip(ids, tiles) if tile in used for c in pixels]
         room_colors.append(max(candidates, key=lambda c: sum(c)))
     two_planes = [[sum((max(pixels[y*8+x]) >= 3) << (7-x) for x in range(8))
@@ -125,15 +132,18 @@ def build(data, out):
     header += '#define CHECKPOINT_COLOR 13\n#define TEXT_COLOR 15\n#endif\n'
     header += 'static const unsigned char tile_mapping[] = {' + ','.join(map(str,mapping)) + '};\n'
     header += matrix('font_rows', glyphs)
-    header += 'static const unsigned long sprite_rows[22][32] = {\n' + ',\n'.join(
+    header += 'static const unsigned long sprite_rows[40][32] = {\n' + ',\n'.join(
         '{' + ','.join(hex(v)+'UL' for v in sprite) + '}' for sprite in sprite_frames) + '\n};\n'
+    header += 'static const uint32_t collision_rows[40][32] = {\n' + ',\n'.join(
+        '{' + ','.join(hex(v)+'UL' for v in sprite) + '}' for sprite in collision_frames) + '\n};\n'
     header += 'static const unsigned char flip_sound[] = {' + ','.join(map(str,sound)) + '};\n'
     (out / 'prototype_assets.h').write_text(header)
     report = dict(input_fingerprint=fingerprint, tiles=len(ids), tile_bytes=len(ids)*32, source_room_ocs_colors=len(colors)+1,
                   two_plane_tile_bytes=len(ids)*16, two_plane_room_colors=room_colors,
                   scene_palette_slots=13, checkpoint_palette_index=13, sprite_palette_index=14, text_palette_index=15,
                   font_bytes=1024, sound_bytes=len(sound), sound_rate=target_rate,
-                  note='Rooms (100,110) and (119,110), static tiles, player animation and checkpoints. No other room entities or scripts.')
+                  note=('Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
+                        'Rooms (100,110) and (119,110), static tiles, player animation and checkpoints. No other room entities or scripts.'))
     (out / 'assets.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))
 
@@ -142,5 +152,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, default=DEFAULT_DATA)
     parser.add_argument('--out', type=Path, default=ROOT / 'build/amiga')
+    parser.add_argument('--scene', choices=('world','enemy'), default='world')
     args = parser.parse_args()
-    build(args.data, args.out)
+    build(args.data, args.out, args.scene)

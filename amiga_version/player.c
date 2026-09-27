@@ -20,6 +20,10 @@ static int32_t velocity_round(int32_t value)
 
 static int position(int x, int32_t velocity)
 {
+    /* In room coordinates an integer plus a quarter-pixel velocity is exactly
+     * representable in binary32. Avoid 64-bit rounding for these common cases. */
+    if (x >= -1024 && x <= 1024 && (velocity & (V6_ONE/4-1)) == 0)
+        return (x*4 + velocity/(V6_ONE/4))/4;
     int64_t value = (int64_t)x * V6_ONE + velocity;
     uint64_t magnitude = value < 0 ? -value : value;
     uint64_t reduced = magnitude, step = 1, rounded, tail;
@@ -70,9 +74,12 @@ static int wall(const V6Room *room, int x, int y, int32_t dx, int32_t dy)
         }
     if (solid(room, l, t) || solid(room, r, t) ||
         solid(room, l, b) || solid(room, r, b)) return 1;
-    for (gy = 6; gy <= 12; gy += 6)
-        if (solid(room, l, (top + gy) / 8) || solid(room, r, (top + gy) / 8)) return 1;
-    return solid(room, (left + 6) / 8, t) || solid(room, (left + 6) / 8, b);
+    for (gy = 6; gy <= 12; gy += 6) {
+        int row=(top+gy)/8;
+        if (row != t && row != b && (solid(room,l,row) || solid(room,r,row))) return 1;
+    }
+    tx=(left+6)/8;
+    return tx != l && tx != r && (solid(room,tx,t) || solid(room,tx,b));
 }
 
 void v6_player_init(V6Player *p, int x, int y, int gravity)
@@ -86,7 +93,7 @@ void v6_player_init(V6Player *p, int x, int y, int gravity)
     p->dir = 1;
 }
 
-unsigned v6_player_step(V6Player *p, const V6Room *room, unsigned input)
+unsigned v6_player_step_hook(V6Player *p, const V6Room *room, unsigned input, V6ContactHook hook, void *context)
 {
     int32_t ax = 0, next;
     const int32_t friction = 18454938; /* exact binary32 1.1f, scaled by 2^24 */
@@ -121,6 +128,7 @@ unsigned v6_player_step(V6Player *p, const V6Room *room, unsigned input)
     }
     p->ground = wall(room, p->x, p->y + 1, 0, 0) ? 2 : p->ground - 1;
     p->roof = wall(room, p->x, p->y - 1, 0, 0) ? 2 : p->roof - 1;
+    if (hook) hook(p, context);
     p->old_x = p->x; p->old_y = p->y;
     p->vx = velocity_round(p->vx + ax); p->vy = velocity_round(p->vy + p->ay);
     p->ay = p->gravity ? -3 * V6_ONE : 3 * V6_ONE;
@@ -177,3 +185,8 @@ int v6_player_hurt(const V6Player *p, const V6Room *room)
         }
     return 0;
 }
+
+unsigned v6_player_step(V6Player *p, const V6Room *room, unsigned input)
+{ return v6_player_step_hook(p,room,input,0,0); }
+int v6_player_contacts(const V6Player *p, const V6Room *room)
+{ return wall(room,p->x,p->y+1,0,0) | (wall(room,p->x,p->y-1,0,0)<<1); }

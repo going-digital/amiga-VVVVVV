@@ -71,9 +71,14 @@ static int wall(const V6Enemy *e, const V6Room *r, const V6EnemyBlock *blocks,
             left < p->x+p->w && right > p->x && top < p->y+p->h && bottom > p->y) return 1;
     }
     if (solid(r,l,t) || solid(r,rr,t) || solid(r,l,b) || solid(r,rr,b)) return 1;
-    for (offset=6; offset<=18 && e->h>=offset+6; offset+=6)
-        if (solid(r,l,(top+offset)/8) || solid(r,rr,(top+offset)/8)) return 1;
-    if (e->w>=12 && (solid(r,(left+6)/8,t) || solid(r,(left+6)/8,b))) return 1;
+    for (offset=6; offset<=18 && e->h>=offset+6; offset+=6) {
+        int row=(top+offset)/8;
+        if (row != t && row != b && (solid(r,l,row) || solid(r,rr,row))) return 1;
+    }
+    if (e->w>=12) {
+        int column=(left+6)/8;
+        if (column != l && column != rr && (solid(r,column,t) || solid(r,column,b))) return 1;
+    }
     return 0;
 }
 

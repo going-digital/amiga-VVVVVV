@@ -16,7 +16,7 @@ enum { Sound_FLIP, Sound_UNFLIP };
 struct blockclass { int type, trigger; SDL_Rect rect; };
 struct Game {
     float inertia;
-    int gravitycontrol, tapleft, tapright, jumppressed, totalflips;
+    int deathseq, gravitycontrol, tapleft, tapright, jumppressed, totalflips;
     bool press_left, press_right, press_action, jumpheld;
 } game;
 struct Music { void playef(int) {} } music;
@@ -40,6 +40,7 @@ struct entityclass {
     bool testwallsx(int, int, int, bool);
     bool testwallsy(int, int, int);
     void applyfriction(int, float, float);
+    void animatehumanoidcollision(int);
     bool updateentities(int);
     void updateentitylogic(int);
     void entitymapcollision(int);

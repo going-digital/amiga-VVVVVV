@@ -13,6 +13,9 @@
 #include <hardware/intbits.h>
 #include "room_codec.h"
 #include "slice.h"
+#include "enemy.h"
+#include "pixel_collision.h"
+#include "animation.h"
 #include "prototype_room.h"
 #include "prototype_assets.h"
 #ifdef V6_TRANSITION_REPLAY
@@ -31,30 +34,63 @@ static volatile struct Custom * const hw = (void *)0xdff000;
 #define COPPER_BYTES 320
 #define HUD_PLANE_BYTES (40 * 40)
 #define HUD_BYTES HUD_PLANE_BYTES
-#define MASK_BYTES (2 * 68 * 2) /* two DMA sprite lists, 32 rows each */
+#define MASK_BYTES (2 * 2 * 68 * 2) /* two DMA sprite lists, 32 rows each */
 #define CHIP_BYTES (DISPLAY_BUFFER_COUNT * SCREEN_BYTES + COPPER_BYTES + sizeof(flip_sound) + 4 + HUD_BYTES + MASK_BYTES)
 
 /* Located by the host smoke test in a RAM dump. Fixed-width big-endian fields. */
 static volatile struct {
     ULONG magic, version, frames, ticks, renders, max_work_lines, missed_frames;
-    ULONG flips, scroll_mode, chip_free, other_free, chip_allocated, error, status;
+    ULONG flips, peak_tick, chip_free, other_free, chip_allocated, error, status;
     LONG player_x, player_y, player_vx, player_vy, gravity, death_timer;
     ULONG deaths, respawns, checkpoint, exits;
     ULONG room_index, transitions, max_load_lines, load_frames;
-} diagnostics = {.magic = 0x56364447, .version = 3, .chip_allocated = CHIP_BYTES};
+    LONG enemy_x, enemy_y;
+    ULONG enemy_ticks, enemy_hits;
+} diagnostics = {.magic = 0x56364447, .version = 4, .chip_allocated = CHIP_BYTES};
 
 static volatile ULONG frames;
 static UBYTE *chip, *screen[DISPLAY_BUFFER_COUNT], *background, *sample, *hud;
+static ULONG hud_generation = 1, hud_versions[DISPLAY_BUFFER_COUNT];
 static UBYTE room_backgrounds[SLICE_ROOM_COUNT][BACKGROUND_BYTES];
-static UWORD *sprite_data[2], *sprite_words;
+static UWORD *sprite_data[2][2], *sprite_words;
 static UWORD *copper, *plane_words, *color_words, *silence;
 static UWORD room_tiles[SLICE_ROOM_COUNT][1200];
 static UWORD *room = room_tiles[0];
 static V6Slice slice;
-static V6Room current_room = {room_tiles[0], 1, 1};
+static V6Room current_room = {room_tiles[0], SLICE_TILESET, SLICE_EXTRA_ROW};
+#ifdef V6_ENEMY_SCENE
+static V6Enemy drone;
+static UWORD drone_frame = 36, drone_walk, drone_delay;
+static ULONG enemy_hits, enemy_ticks;
+static V6CollisionAnimation collision_animation;
+static int visual_ground, visual_roof, collision_frame;
+static void collision_contact(const V6Player *p, void *context)
+{
+    (void)context;
+    /* Input leaves position unchanged: reuse the same static contact probes
+     * that gamerenderfixed would perform before input, avoiding duplicate work. */
+    visual_ground=p->ground==2?2:visual_ground-1;
+    visual_roof=p->roof==2?2:visual_roof-1;
+    collision_frame=v6_collision_frame(&collision_animation,p,visual_ground,visual_roof,slice.death_timer);
+}
+static void reset_drone(void)
+{
+    v6_enemy_init(&drone,200,32,0,8,0,0,320,240,0,0,16,16);
+    drone_frame=36; drone_walk=drone_delay=0;
+}
+#endif
 static UWORD saved_dma, saved_ints, saved_adk;
 static APTR saved_irq;
 static struct View *saved_view;
+
+static const char *room_caption(void)
+{
+#ifdef V6_ENEMY_SCENE
+    return "112,103 - SECURITY SWEEP          ";
+#else
+    return slice.room_index ? "119,110 - TWO ROOM SLICE           " : "100,110 - TWO ROOM SLICE           ";
+#endif
+}
 
 static void wait_blit(void)
 {
@@ -100,8 +136,11 @@ static void set_screen(UBYTE *data)
     color_words[3] = room_colors[slice.room_index];
 #endif
     UWORD p;
-    ULONG sprite_address = (ULONG)sprite_data[data == screen[slice.room_index*2] ? 0 : 1];
-    sprite_words[1] = sprite_address >> 16; sprite_words[3] = sprite_address;
+    UWORD buffer = data == screen[slice.room_index*2] ? 0 : 1;
+    for (p = 0; p < 2; ++p) {
+        ULONG address = (ULONG)sprite_data[buffer][p];
+        sprite_words[p*4+1] = address >> 16; sprite_words[p*4+3] = address;
+    }
     for (p = 0; p < V6_PLANES; ++p) {
         ULONG address = (ULONG)(data + p * PLANE_BYTES);
         plane_words[p * 4 + 1] = address >> 16;
@@ -130,6 +169,7 @@ static void create_copper(void)
         p = move_reg(p, 0x120 + i*4, address >> 16);
         p = move_reg(p, 0x122 + i*4, address);
     }
+    p = move_reg(p, 0x1a6, 0xf6b); /* sprite 1 colour 3: pink */
     p = move_reg(p, 0x1a2, 0x6ff); /* sprite 0 colour 1: cyan */
     /* The CPU publishes completed buffer pointers just after the VBL IRQ.
      * Delay Copper pointer reads until line 44, before the visible line 52. */
@@ -251,29 +291,30 @@ static void restore_rectangle(UBYTE *dst, int x, int y, int width, int height)
     }
 }
 
-/* All player frames fit inside source columns 6..21. One 16-pixel OCS
- * sprite channel suffices. Build only the inactive DMA list and publish it
+/* The player uses source columns 6..21, the drone columns 0..15.
+ * Each fits one 16-pixel OCS sprite channel. Build only the inactive DMA list and publish it
  * with the completed playfield at the next VBL. */
-static void draw_player(UWORD buffer, int x, int y, UWORD frame)
+static void draw_sprite(UWORD buffer, UWORD channel, int x, int y, UWORD frame, UWORD crop, UWORD colour)
 {
-    UWORD *data = sprite_data[buffer];
+    UWORD *data = sprite_data[buffer][channel];
     int first = y < 16 ? 16-y : 0;
     int last = y+32 > 216 ? 216-y : 32;
     int row, column;
-    UWORD horizontal = 129 + x + 6, start, stop, clip = 0xffff;
+    UWORD horizontal = 129 + x + crop, start, stop, clip = 0xffff;
     if (first >= last || first >= 32 || last <= 0) {
         data[0] = data[1] = 0; return;
     }
     for (column = 0; column < 16; ++column)
-        if (x+6+column < 0 || x+6+column >= 320) clip &= ~(0x8000 >> column);
+        if (x+crop+column < 0 || x+crop+column >= 320) clip &= ~(0x8000 >> column);
     start = 52+y+first; stop = 52+y+last;
     data[0] = ((start & 255) << 8) | (horizontal >> 1);
     data[1] = ((stop & 255) << 8) | ((start & 256) >> 6)
         | ((stop & 256) >> 7) | (horizontal & 1);
     data += 2;
     for (row = first; row < last; ++row) {
-        *data++ = (sprite_rows[frame][row] >> 10) & clip;
-        *data++ = 0;
+        UWORD bits = (sprite_rows[frame][row] >> (16-crop)) & clip;
+        *data++ = colour & 1 ? bits : 0;
+        *data++ = colour & 2 ? bits : 0;
     }
     data[0] = data[1] = 0;
 }
@@ -281,6 +322,7 @@ static void draw_player(UWORD buffer, int x, int y, UWORD frame)
 static void text(UWORD x, UWORD y, const char *s)
 {
     UWORD row;
+    ++hud_generation;
     while (*s && x < 40) {
         const UBYTE *glyph = font_rows[(UBYTE)*s++ & 127];
         for (row = 0; row < 8; ++row)
@@ -313,7 +355,7 @@ static void draw_checkpoint(void)
 {
     UWORD row, plane, color = slice.checkpoint_active ? CHECKPOINT_COLOR : TEXT_COLOR;
     UWORD shift = slice.checkpoint_x & 15;
-    for (row = 0; row < 32; ++row) {
+    for (row = 0; row < 16; ++row) {
         ULONG bits = sprite_rows[slice.checkpoint_tile][row];
         ULONG shifted = bits >> shift;
         UWORD first = shifted >> 16, second = shifted;
@@ -383,8 +425,7 @@ static int run(void)
     sample = (UBYTE *)copper + COPPER_BYTES;
     silence = (UWORD *)(sample + sizeof(flip_sound));
     hud = (UBYTE *)(silence + 2);
-    sprite_data[0] = (UWORD *)(hud + HUD_BYTES);
-    sprite_data[1] = sprite_data[0] + 68;
+    for (i=0;i<4;++i) sprite_data[i/2][i%2] = (UWORD *)(hud + HUD_BYTES) + i*68;
     for (i = 0; i < sizeof(flip_sound); ++i) sample[i] = flip_sound[i];
     for (i = 0; i < SLICE_ROOM_COUNT; ++i) {
         if (!v6_unpack_room(packed_rooms[i], packed_sizes[i], room_tiles[i], 1200)) {
@@ -408,12 +449,22 @@ static int run(void)
         checkpoint_dirty[i] = 1;
     }
     draw_checkpoint();
+#ifdef V6_ENEMY_SCENE
+    reset_drone();
+#endif
     text(1, 0, "VVVVVV AMIGA - PLAYABLE ROOM");
-    text(1, 8, "100,110 - TWO ROOM SLICE");
+    text(1, 8, room_caption());
     text(1, 16, "DEATHS       FLIPS       LINES");
     text(1, 32, "JOY L/R FIRE FLIP RMB RESET LMB EXIT");
+    number(8,16,0); number(20,16,0); number(32,16,0);
+    shown_deaths=shown_flips=shown_work=0;
     create_copper();
     take_system();
+    for (i=0;i<2;++i) {
+        restore_rectangle(screen[i],slice.checkpoint_x,slice.checkpoint_y,16,16);
+        overlay_hud(screen[i]); hud_versions[i]=hud_generation;
+        checkpoint_dirty[i]=0;
+    }
 
     observed = frames;
     diagnostics.status = 1;
@@ -451,7 +502,36 @@ static int run(void)
                 if (diagnostics.ticks == 100) restart_pending = 1;
 #endif
                 current_room.tiles = room_tiles[slice.room_index];
+#ifdef V6_ENEMY_SCENE
+                /* Fixed rendering advances the enemy frame before gamelogic. */
+                if (!drone_delay || --drone_delay == 0) {
+                    drone_delay=8; drone_walk=(drone_walk+1)&3;
+                }
+                drone_frame=36+drone_walk;
+                v6_enemy_step(&drone, &current_room, 0, 0);
+                ++enemy_ticks;
+#endif
+#ifdef V6_ENEMY_SCENE
+                events = v6_slice_step_hook(&slice, &current_room, input, restart_pending,collision_contact,0);
+#else
                 events = v6_slice_step(&slice, &current_room, input, restart_pending);
+#endif
+#ifdef V6_ENEMY_SCENE
+                if (events & V6_EVENT_RESPAWN) {
+                    reset_drone(); collision_animation.delay=collision_animation.walk=0;
+                    visual_ground=visual_roof=0;
+                }
+                else if (slice.death_timer < 0 && v6_player_overlaps(&slice.player,
+                        drone.x+drone.cx,drone.y+drone.cy,drone.w,drone.h) &&
+                        v6_pixel_hit(collision_rows[collision_frame],slice.player.x,slice.player.y,
+                                     collision_rows[drone_frame],drone.x,drone.y)) {
+                    slice.death_timer=30; ++enemy_hits;
+                }
+                if (!(events & V6_EVENT_RESPAWN)) {
+                    slice.frame=slice.death_timer<0?collision_frame:
+                        (slice.player.dir?12:13)+(slice.player.gravity?2:0);
+                }
+#endif
                 restart_pending = 0;
                 if (events & V6_EVENT_FLIP) sound();
                 if (events & V6_EVENT_ROOM) {
@@ -460,7 +540,7 @@ static int run(void)
                     loading = 1;
                     checkpoint_dirty[slice.room_index*2] = checkpoint_dirty[slice.room_index*2+1] = 1;
                     draw_checkpoint();
-                    text(1, 8, slice.room_index ? "119,110 - TWO ROOM SLICE           " : "100,110 - TWO ROOM SLICE           ");
+                    text(1, 8, room_caption());
                 }
                 if (events & V6_EVENT_SAVE) {
                     draw_checkpoint();
@@ -471,25 +551,35 @@ static int run(void)
                     text(1, 8, "ROOM EXIT: BACK TO SLICE CHECKPOINT");
                 }
             }
-            if (exit_notice && --exit_notice == 0) text(1, 8, slice.room_index ? "119,110 - TWO ROOM SLICE           " : "100,110 - TWO ROOM SLICE           ");
+            if (exit_notice && --exit_notice == 0) text(1, 8, room_caption());
         }
         buffer = slice.room_index * 2 + back;
         if (checkpoint_dirty[buffer]) {
-            restore_rectangle(screen[buffer], slice.checkpoint_x, slice.checkpoint_y, 32, 32);
+            restore_rectangle(screen[buffer], slice.checkpoint_x, slice.checkpoint_y, 16, 16);
             checkpoint_dirty[buffer] = 0;
+            if (slice.checkpoint_y < 16 || slice.checkpoint_y+16 > 216) hud_versions[buffer] = 0;
         }
-        draw_player(back, slice.player.x, slice.player.y, slice.frame);
+        draw_sprite(back,0,slice.player.x,slice.player.y,slice.frame,6,1);
+#ifdef V6_ENEMY_SCENE
+        draw_sprite(back,1,drone.x,drone.y,drone_frame,0,3);
+        diagnostics.enemy_x=drone.x; diagnostics.enemy_y=drone.y;
+        diagnostics.enemy_ticks=enemy_ticks; diagnostics.enemy_hits=enemy_hits;
+#endif
         if (shown_deaths != slice.deaths) { shown_deaths = slice.deaths; number(8,16,shown_deaths); }
         if (shown_flips != slice.player.flips) { shown_flips = slice.player.flips; number(20,16,shown_flips); }
-        if (shown_work != (LONG)diagnostics.max_work_lines) { shown_work = diagnostics.max_work_lines; number(32,16,shown_work); }
-        overlay_hud(screen[buffer]);
+        if ((diagnostics.ticks & 31) == 0 && shown_work != (LONG)diagnostics.max_work_lines) { shown_work = diagnostics.max_work_lines; number(32,16,shown_work); }
+        if (hud_versions[buffer] != hud_generation) {
+            overlay_hud(screen[buffer]); hud_versions[buffer]=hud_generation;
+        }
         work = beam_clock() - start;
         if (loading) {
             if (work > diagnostics.max_load_lines) diagnostics.max_load_lines = work;
             diagnostics.load_frames += frames - observed;
 
         }
-        if (!loading && work > diagnostics.max_work_lines) diagnostics.max_work_lines = work;
+        if (!loading && work > diagnostics.max_work_lines) {
+            diagnostics.max_work_lines = work; diagnostics.peak_tick = diagnostics.ticks;
+        }
         ++diagnostics.renders;
         diagnostics.frames = frames;
         diagnostics.flips = slice.player.flips;

@@ -21,6 +21,11 @@ typedef struct {
 } V6Room;
 
 void v6_player_init(V6Player *p, int x, int y, int gravity);
+/* Optional collision-animation hook: after input/contact probes, before
+ * velocity integration. The callback must not mutate the player. */
+typedef void (*V6ContactHook)(const V6Player *, void *);
+int v6_player_contacts(const V6Player *, const V6Room *);
+unsigned v6_player_step_hook(V6Player *, const V6Room *, unsigned, V6ContactHook, void *);
 unsigned v6_player_step(V6Player *p, const V6Room *room, unsigned input);
 int v6_player_hurt(const V6Player *p, const V6Room *room);
 int v6_player_overlaps(const V6Player *p, int x, int y, int w, int h);
