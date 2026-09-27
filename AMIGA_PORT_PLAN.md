@@ -258,6 +258,19 @@ state is externally staged; a full mixed-room lifecycle is not claimed. The
 special campaign room still needs trinkets and sprite scheduling. Tower/music
 feasibility are the recommended next focus.
 
+Tower inventory now includes the actual 700-row main map, 120-row background
+and both 100-row mini-towers. Independent-row RLE with duplicate-row sharing
+packs them into 18,312 / 7,260 / 2,776 / 3,238 bytes respectively, including
+row directories. A 32-row decoded tile cache needs 2,560 bytes. The host probe
+checks every packed row with the native C decoder and exercises wrap, reverse
+scrolling and jumps; normal synthetic camera steps up to 16 pixels refill at
+most two rows. This is storage/decoder evidence, not a native scrolling timing
+result. Copper wrap, row drawing, parallax and gameplay remain to be tested.
+
+Music now assumes Lightspeedplayer and a musician-produced tracker soundtrack,
+per the user's direction. PCM streaming is no longer the working path. Measure
+tracker playback together with gameplay once a representative module is ready.
+
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and
 evidence are in [`amiga_version/README.md`](amiga_version/README.md).
@@ -346,11 +359,21 @@ Do PNG, ZIP, XML content processing and audio conversion on the development mach
 
 Use Paula-native signed 8-bit sample playback for effects, with priorities and an explicit music/SFX channel policy. Preserve the 28 enumerated effect meanings and 16 base music IDs. Test fades, interruptions, reversed music cues, looping, death, and room changes.
 
-Preferred small-memory route: obtain suitable source music and create approved Amiga tracker arrangements with a bounded sample bank. Existing tracker music cannot be assumed to be available, four-channel compatible, or small enough. Converting an Ogg recording into a faithful compact MOD is not an automatic format conversion. Reserve a channel for SFX or define/test channel stealing; account for audio quality changes.
+**Working decision:** use Lightspeedplayer for music. The user will work with a
+musician to port the soundtrack to tracker modules. Treat this as the music
+architecture assumption; do not continue developing PCM streaming as the default.
 
-Alternative: preconverted PCM or a low-cost compressed stream for hard-drive installs, after measuring decode cost and I/O reliability. At 11,025 Hz, mono 8-bit PCM alone consumes 661,500 bytes per minute. Full tracks cannot simply remain resident alongside the game. Sustained floppy music streaming is not the baseline solution.
+Once a representative module and player integration are available, measure
+player code/workspace, module and sample Chip RAM, worst-case replay CPU cost
+alongside tower rendering, and the music/SFX channel policy. Confirm cue changes,
+loops, fades and interruptions against the game. No particular tracker format,
+channel count or Lightspeedplayer resource usage has been verified yet.
 
-The first playable build can use effects only. Full music remains a release requirement to resolve explicitly, not a hidden omission from the campaign port. Benchmark at least one representative song with gameplay before committing to a soundtrack approach.
+The initial PCM storage experiment remains exploratory evidence, not a release
+path: a full 219.43-second song required 1.76–3.07 MB at 8–14 kHz mono 8-bit.
+Tower scrolling is now the immediate feasibility priority. Full soundtrack
+integration remains a release requirement; musician-produced modules will supply
+the representative assets for its acceptance tests.
 
 ### 6. Platform, storage, and build
 

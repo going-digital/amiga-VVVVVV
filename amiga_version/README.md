@@ -907,7 +907,8 @@ sprite scheduling requirements.
 
 ## Next implementation step
 
-Return to the larger feasibility gates: tower scrolling and music playback.
+Prioritize native tower row streaming and scrolling. Music uses the working
+Lightspeedplayer/tracker plan; benchmark it when a representative module is ready.
 Further campaign expansion still needs trinkets, sprite scheduling and conveyors,
 plus full desktop-loop comparisons. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
@@ -925,3 +926,32 @@ The lifecycle checks pass with UBSan. An AddressSanitizer build stalled on this
 host and was interrupted; ASan validation is not claimed.
 
 Sprite register encoding follows the [Commodore hardware manual](https://www.ikod.se/wp-content/uploads/2020/08/Amiga_Hardware_Reference_Manual_3rd_Edition.pdf).
+
+## Tower and music feasibility
+
+`make -C amiga_version feasibility-probe` extracts all four literal tower maps,
+packs independently decodable rows with duplicate sharing, and validates them
+with the actual C room decoder. It also exercises a bounded decoded-row cache
+through forward/reverse scrolling, wraps and jumps. Private generated packs and
+`tower-feasibility.json` are in `build/amiga-feasibility/`.
+
+| Map | Raw 16-bit tiles | Packed rows and index |
+|---|---:|---:|
+| Main tower (700 rows) | 56,000 bytes | 18,312 bytes |
+| Background (120 rows) | 9,600 bytes | 7,260 bytes |
+| Mini-tower 1 | 8,000 bytes | 2,776 bytes |
+| Mini-tower 2 | 8,000 bytes | 3,238 bytes |
+
+A 32-row tile cache requires 2,560 bytes. A proposed 320x256 two-plane display
+ring would require 20,480 Chip bytes, or 40,960 for two buffers, before HUD,
+sprites and other DMA data. These are layout budgets, not implemented scrolling.
+The probe's normal camera steps up to 16 pixels need at most two row decodes;
+jumps require refilling the visible rows. It does not yet measure 68000 row
+rendering, Copper wrap, parallax, camera gameplay or contention with music.
+
+Music assumes **Lightspeedplayer with tracker modules produced by a musician**.
+PCM streaming is not the current plan. The optional `probe_feasibility.py --music`
+retains an offline PCM comparison for reference; it is not required for tower
+work. Player/module memory, worst-case replay time and SFX channel sharing need
+measurement once a representative tracker module is supplied. No tracker format
+or Lightspeedplayer resource budget has yet been verified.

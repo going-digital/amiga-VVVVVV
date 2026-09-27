@@ -248,3 +248,7 @@ waiting-capture:
 	python3 $(ROOT)/tools/amiga/test_platform_loop.py --waiting
 	$(MAKE) BUILD=$(ROOT)/build/amiga-waiting SCENE=platform CPPFLAGS="-DV6_HORIZONTAL_REPLAY -DV6_WAITING_REPLAY" all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --build $(ROOT)/build/amiga-waiting --rom "$(ROM)" --emulator "$(COPPERLINE)" --capture --waiting
+
+.PHONY: feasibility-probe
+feasibility-probe:
+	python3 $(ROOT)/tools/amiga/probe_feasibility.py --data "$(DATA)"
