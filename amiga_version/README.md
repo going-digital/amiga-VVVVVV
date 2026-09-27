@@ -36,6 +36,7 @@ make -C amiga_version horizontal-capture
 make -C amiga_version pick-run
 make -C amiga_version pick-capture
 make -C amiga_version pick-checkpoints-capture
+make -C amiga_version pick-route-capture
 ```
 
 - `all`: host asset conversion, Bartman 68000 compile, ELF/Hunk output, bootable ADF.
@@ -67,6 +68,9 @@ make -C amiga_version pick-checkpoints-capture
 - `pick-checkpoints-capture`: separate test build that places the player at the
   second checkpoint, checks deactivation/redraw of the first, then death/respawn
   at the second. This isolates checkpoint behavior; it is not a traversal replay.
+- `pick-route-capture`: normal-input traversal and platform ride to the second
+  checkpoint, followed by a requested restart. Checks a live movement snapshot
+  against desktop code and the post-respawn snapshot against the host scene.
 - `run`: interactive Copperline window. Joystick left/right moves;
   fire flips gravity when supported. Right mouse restarts from the checkpoint;
   left mouse exits to AmigaDOS. Keyboard input is not implemented yet.
@@ -379,8 +383,8 @@ each pass runs; a stationary platform can run in both. Vertical movement
 updates its block before pushing the player, and horizontal carrying follows
 the complete horizontal pass.
 
-**23,280 persistent ticks per cached/uncached terrain path** match the extracted
-desktop scheduling loops and movement methods across 97 scenarios. Each tick
+**23,409 persistent ticks per cached/uncached terrain path** match the extracted
+desktop scheduling loops and movement methods across 98 scenarios. Each tick
 compares player state, every platform's movement state, block origins and
 dimensions, pending Y, and visual contact counters. Coverage includes all four
 pass-flag combinations, zero-speed platforms, duplicate block origins,
@@ -505,18 +509,47 @@ direction. This replay peaks at **191 PAL lines / 12.224 ms**, with no missed
 VBL observations and a successful return to AmigaDOS. Explicit Chip allocation
 is **43,534 bytes**; non-Chip free memory is **436,136 bytes** in the replay build.
 
-The checkpoint replay does not prove an end-to-end route through this room,
-horizontal riding here, or crushing/death fidelity. Those remain separate tests.
+The placement replay isolates checkpoint behavior. The separate normal-input
+route below verifies traversal and riding; crushing/death fidelity remains
+outside both replays.
+
+## Normal-input room traversal
+
+`tools/amiga/pick_replay.h` records a route from the initial checkpoint to the
+second checkpoint using only left/right/flip input. It activates the first save
+on tick 2 and the second on **tick 124**, with **15 horizontal transport ticks**,
+no deaths and no unsupported exits. It requests a restart on tick 130, then
+verifies respawn at the checkpoint reached by the route. There are no player
+placement edits in this replay.
+
+`test_pick_route.py` compiles the native scene adapter for the host and checks
+240 ticks with UBSan. Its first 129 movement ticks also match the extracted
+desktop platform/player methods on both cached and uncached terrain. This
+comparison covers movement before the restart; checkpoint branch equivalence
+is covered by the separate checkpoint suite. The generated integration trace
+includes the restart/respawn period.
+
+The A500 capture independently checks the live state at **tick 126** against the
+desktop movement trace and the post-respawn state at **tick 179** against the
+host integration trace. Peak work is **196 PAL lines / 12.544 ms**, with no missed
+VBL observations and successful AmigaDOS restoration. Explicit Chip allocation
+is **43,534 bytes**, with **436,072 bytes** of non-Chip RAM free.
+
+Run `make -C amiga_version pick-route-capture`. Outputs are under
+`build/amiga-pick-route`; host traces and reports are under `build/amiga`.
+These are two target-state comparisons, not a comparison of every target tick
+or an independent full desktop death/respawn loop. Pink-sprite image checks now
+exclude this room's pink terrain colour, so terrain cannot mask a missing
+platform.
 
 ## Next implementation step
 
-Add a traversal/ride replay through Just Pick Yourself Down and a deliberate
-crush/death case with desktop lifecycle comparisons. Then expand room-entity
+Add a deliberate crush/death case with desktop lifecycle comparisons. Then expand room-entity
 support to disappearing platforms and conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
-add full desktop-loop traces covering entity/update ordering. The target replay
-currently asserts milestones rather than comparing every target state field.
+add full desktop-loop traces covering entity/update ordering. Target replays combine milestone assertions with selected state comparisons;
+they do not yet compare every target state field on every tick.
 Tower row streaming and the music storage/playback experiment remain separate
 feasibility gates.
 

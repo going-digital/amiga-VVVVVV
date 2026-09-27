@@ -107,8 +107,8 @@ caller-owned motion state. **12,000 ordered input/push/carry/physics ticks** mat
 extracted reference code with prescribed platform positions. Post-physics block
 disabling and stuck-player correction now match **12,000 additional reference
 cases per terrain path**, including duplicate origins and directional-barrier
-skipping. The reverse-order platform scheduler now matches **23,280 persistent
-ticks per terrain path** across 97 scenarios, together with player input,
+skipping. The reverse-order platform scheduler now matches **23,409 persistent
+ticks per terrain path** across 98 scenarios, together with player input,
 transport, physics and post-physics overlap/stuck correction. Tests preserve
 blocks between ticks and compare every platform's movement state; zero-speed
 platforms can participate in both velocity-selected passes. A separate native **Stop and Reflect (112,106)** scene now connects this
@@ -139,7 +139,13 @@ The normal capture peaks at **171 PAL lines / 10.944 ms**. A separate test-only
 placement replay verifies deactivation of the first checkpoint, activation of
 the second and respawn at (208,185), peaking at **191 PAL lines / 12.224 ms**.
 It uses **43,534 bytes** of explicit Chip allocation and observes no missed VBLs.
-This is isolated checkpoint coverage, not a traversal replay of the room.
+This is isolated checkpoint coverage. A further **normal-input traversal**
+now reaches the second checkpoint at **tick 124**, with **15 platform-transport
+ticks** and no deaths or unsupported exits, then requests a restart on tick 130.
+Its first 129 host movement ticks match extracted desktop methods. Target
+snapshots match desktop movement at tick 126 and the host integration trace
+after respawn at tick 179. Peak work is **196 PAL lines / 12.544 ms**, with no
+missed VBLs. Full desktop death/respawn-loop equivalence is still not claimed.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

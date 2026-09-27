@@ -4,8 +4,10 @@ import ctypes as C
 import hashlib
 import json
 import random
+import re
+import struct
 import subprocess
-from pack_rooms import ROOT
+from pack_rooms import ROOT, enemy_record
 from test_player import BUILD, Player, Room, Terrain, DynamicBlock, FIELDS, block
 from test_enemy import Enemy, FIELDS as ENEMY_FIELDS
 from test_carry import reference_source, Motion, Push
@@ -80,7 +82,9 @@ extern "C" void loop_step(unsigned input,unsigned flags,int life,V6Platform *pla
     ref.loop_step.argtypes=[C.c_uint,C.c_uint,C.c_int,ep,C.c_uint,bp,C.c_uint,C.POINTER(Push)]
     ref.reference_read.argtypes=[pp]
     rng=random.Random(6800016);ticks=0;fixture_trace=[];transport_ticks=0;reference_previous_x=156
-    for scenario in range(97):
+    pick_trace=[]
+    pick_buttons=[int(v) for v in re.findall(r'\d+',(ROOT/'tools/amiga/pick_replay.h').read_text().split('{',1)[1])]
+    for scenario in range(98):
         tiles=(C.c_uint16*1200)()
         for y in range(30):
             for x in range(40):
@@ -107,6 +111,13 @@ extern "C" void loop_step(unsigned input,unsigned flags,int life,V6Platform *pla
             assert core.v6_platform_init(C.byref(actors[0]),144,116,3,3,64,64,288,184)
             core.v6_player_init(C.byref(initial),156,93,0)
             blocks=(DynamicBlock*1)(DynamicBlock(144,116,32,8,0,0))
+        if scenario==97:
+            count=block_count=1;tileset=0;extra=0;flags=2
+            tiles=(C.c_uint16*1200)(*struct.unpack('>1200H',enemy_record(scene='pick')[1]))
+            actors=(Enemy*1)()
+            assert core.v6_platform_init(C.byref(actors[0]),24,80,3,6,0,0,320,240)
+            core.v6_player_init(C.byref(initial),60,174,1)
+            blocks=(DynamicBlock*1)(DynamicBlock(24,80,32,8,0,0))
         expected_actors=(Enemy*count).from_buffer_copy(actors)
         expected_blocks=(DynamicBlock*block_count).from_buffer_copy(blocks)
         ref.loop_init(C.byref(initial),tiles,tileset,extra,blocks,block_count,actors,count)
@@ -119,9 +130,10 @@ extern "C" void loop_step(unsigned input,unsigned flags,int life,V6Platform *pla
             if cached:room.terrain=C.pointer(terrain)
             states.append((p,a,b,room,terrain,Motion(0,p.y),Push(p.y,0,0)))
         expected_push=Push(initial.y,0,0)
-        for tick in range(240):
+        for tick in range(129 if scenario==97 else 240):
             buttons=rng.choice((0,0,1,2,4,5,6));life=max(0,10-tick)
             if scenario==96:buttons=life=0
+            if scenario==97:buttons=pick_buttons[tick] if tick<len(pick_buttons) else 0;life=0
             if life>5:buttons|=8
             ref.loop_step(buttons,flags,life,expected_actors,count,expected_blocks,block_count,C.byref(expected_push))
             expected=Player();ref.reference_read(C.byref(expected))
@@ -152,12 +164,17 @@ extern "C" void loop_step(unsigned input,unsigned flags,int life,V6Platform *pla
                     player_vx=expected.vx,player_vy=expected.vy,gravity=expected.gravity,
                     enemy_x=expected_actors[0].x,enemy_y=expected_actors[0].y,
                     enemy_hits=tick+1))
+            if scenario==97:
+                pick_trace.append(dict(player_x=expected.x,player_y=expected.y,
+                    player_vx=expected.vx,player_vy=expected.vy,gravity=expected.gravity,
+                    flips=expected.flips,enemy_x=expected_actors[0].x,enemy_y=expected_actors[0].y))
             ticks+=1
-    report=dict(scenarios=97,compared_ticks=ticks,cached_compared_ticks=ticks,
+    report=dict(scenarios=98,compared_ticks=ticks,cached_compared_ticks=ticks,
         reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
         scope='Persistent ordinary-platform reverse-order scheduling, player input/transport/physics and overlap/stuck correction; no damage, lifecycle, scripts, conveyors, supercrewmates or native scene.')
     (BUILD/'platform-loop-test-report.json').write_text(json.dumps(report,indent=2)+'\n')
     (BUILD/'horizontal-reference-trace.json').write_text(json.dumps(fixture_trace,indent=2)+'\n')
+    (BUILD/'pick-movement-reference.json').write_text(json.dumps(pick_trace,indent=2)+chr(10))
     print('PASS:',json.dumps(report))
 
 

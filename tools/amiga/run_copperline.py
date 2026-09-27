@@ -64,7 +64,7 @@ def visible_player(build, path):
 
 def visible_enemy(build, path):
     _, rgba = subprocess.check_output([str(build / 'png_rgba'), str(path)]).split(b'\n', 1)
-    pixels=sum(rgba[i]>230 and 70<rgba[i+1]<160 and 150<rgba[i+2]<225
+    pixels=sum(rgba[i]>245 and 80<rgba[i+1]<125 and 170<rgba[i+2]<200
                for i in range(0,len(rgba),4))
     assert pixels>20, f'Hardware drone missing from {path}'
     return pixels
@@ -83,6 +83,7 @@ def main():
     parser.add_argument('--horizontal', action='store_true')
     parser.add_argument('--pick', action='store_true')
     parser.add_argument('--pick-checkpoints', action='store_true')
+    parser.add_argument('--pick-route', action='store_true')
     args = parser.parse_args()
     build = args.build.resolve()
     config = build / 'copperline.toml'
@@ -108,7 +109,7 @@ write_protected = true
     if args.capture:
         env = dict(os.environ, RUST_LOG='info', COPPERLINE_DBG_AFTER='16.5',
                    COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{build / "slow.bin"}')
-        command += ([] if args.platform or args.horizontal or args.pick or args.pick_checkpoints else
+        command += ([] if args.platform or args.horizontal or args.pick or args.pick_checkpoints or args.pick_route else
                     ['--joy-after','12','left','200'] if args.traffic else
                     ['--joy-after','12','right','300'] if args.enemy else
                     ['--joy-after','13','fire','100','--joy-after','15.5','right','300',
@@ -126,6 +127,16 @@ write_protected = true
             assert report['transitions'] >= 1 and report['room_index'] == 0, report
             assert 0 < report['max_load_lines'] < 250 and report['exits'] == 0, report
             assert report['load_frames'] == 0, report
+        elif args.pick_route:
+            trace=json.loads((ROOT/'build/amiga/pick-route-trace.json').read_text())
+            assert 0<report['ticks']<=len(trace), report
+            for field,value in trace[report['ticks']-1].items():
+                assert report[field]==value, (field,report[field],value)
+            assert report['checkpoint']==2 and report['deaths']==1 and report['respawns']==1, report
+            assert report['enemy_hits']>=15 and report['exits']==0, report
+            report['visible_platform_pixels']=visible_enemy(build,build/'prototype.png')
+            report['native_host_trace_tick_verified']=report['ticks']
+            report['route_scope']='Normal-input traversal and ride, then requested restart; host integration trace, not independent desktop-loop equivalence'
         elif args.pick_checkpoints:
             assert report['checkpoint']==2 and report['deaths']==1 and report['respawns']==1, report
             assert report['player_x']==208 and report['player_y']==185 and report['gravity']==0, report
@@ -184,13 +195,13 @@ write_protected = true
             report['visible_enemy_pixels']=visible_enemy(build,build/'prototype.png')
         else:
             assert report['flips'] == 1 and report['checkpoint'] == 1, report
-        if not args.traffic and not args.platform and not args.horizontal and not args.pick and not args.pick_checkpoints:
+        if not args.traffic and not args.platform and not args.horizontal and not args.pick and not args.pick_checkpoints and not args.pick_route:
             assert report['deaths'] >= 1 and report['respawns'] >= 1, report
         # Snapshot can land between a tick and completion of its render.
         assert report['ticks'] > 100 and 0 <= report['ticks'] - report['renders'] <= 1, report
         report['video_headroom_passed'] = report['missed_frames'] == 0 and report['max_work_lines'] < 250
         report['max_work_ms'] = round(report['max_work_lines'] * 227 / 3546895 * 1000, 3)
-        if not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal and not args.pick and not args.pick_checkpoints:
+        if not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal and not args.pick and not args.pick_checkpoints and not args.pick_route:
             report['flip_audio_peak'] = audio_peak(build / 'prototype.wav')
             assert report['flip_audio_peak'] > 0.001, report
         report['max_load_ms'] = round(report['max_load_lines'] * 227 / 3546895 * 1000, 3)
@@ -218,6 +229,22 @@ write_protected = true
             assert neighbor['deaths'] == 0 and neighbor['respawns'] == 0, neighbor
             report['neighbor_player_pixels'] = visible_player(build, build / 'neighbor.png')
             report['neighbor_verified'] = True
+        if args.pick_route:
+            # Capture after reaching the second checkpoint but before restart.
+            env['COPPERLINE_DBG_AFTER']='14.7'
+            env['COPPERLINE_DBG_RAMDUMP']=f'C00000:80000:{build / "route-live-slow.bin"}'
+            with (build/'route-live.log').open('w') as log:
+                subprocess.run([args.emulator,'--config',str(config),'--noaudio',
+                    '--screenshot-after','14.8',str(build/'route-live.png')],
+                    stdout=log,stderr=subprocess.STDOUT,env=env,check=True)
+            live=read_diagnostics(build/'route-live-slow.bin')
+            reference=json.loads((ROOT/'build/amiga/pick-movement-reference.json').read_text())
+            assert 124<=live['ticks']<=len(reference), live
+            assert live['checkpoint']==2 and live['deaths']==0 and live['exits']==0, live
+            for field,value in reference[live['ticks']-1].items():
+                assert live[field]==value, ('desktop movement',field,live[field],value)
+            report['desktop_movement_tick_verified']=live['ticks']
+            report['checkpoint_reached_without_death']=True
         (build / 'smoke-report.json').write_text(json.dumps(report, indent=2) + '\n')
         print(json.dumps(report, indent=2))
         assert report['video_headroom_passed'], report

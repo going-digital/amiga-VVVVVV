@@ -94,8 +94,8 @@ test: test-sprites test-terrain $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/test_enemy.py --platform
 	python3 $(ROOT)/tools/amiga/test_blocks.py
 	python3 $(ROOT)/tools/amiga/test_carry.py
-	python3 $(ROOT)/tools/amiga/test_platform_loop.py
 	python3 $(ROOT)/tools/amiga/test_checkpoints.py
+	python3 $(ROOT)/tools/amiga/test_pick_route.py
 	python3 $(ROOT)/tools/amiga/test_pixel_collision.py
 	python3 $(ROOT)/tools/amiga/test_transitions.py
 	cc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined -I. -I$(BUILD) player.c slice.c checkpoints.c room_codec.c $(ROOT)/tools/amiga/test_slice.c -o $(BUILD)/test_slice
@@ -158,3 +158,9 @@ pick-capture:
 pick-checkpoints-capture:
 	$(MAKE) BUILD=$(ROOT)/build/amiga-pick-checkpoints SCENE=pick CPPFLAGS=-DV6_CHECKPOINT_REPLAY all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-pick-checkpoints --capture --pick-checkpoints
+
+.PHONY: pick-route-capture
+pick-route-capture:
+	python3 $(ROOT)/tools/amiga/test_pick_route.py
+	$(MAKE) BUILD=$(ROOT)/build/amiga-pick-route SCENE=pick CPPFLAGS=-DV6_PICK_REPLAY all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-pick-route --capture --pick-route

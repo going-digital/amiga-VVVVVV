@@ -23,6 +23,9 @@
 #endif
 #include "prototype_room.h"
 #include "prototype_assets.h"
+#ifdef V6_PICK_REPLAY
+#include "../tools/amiga/pick_replay.h"
+#endif
 #ifdef V6_TRANSITION_REPLAY
 #include "../tools/amiga/transition_replay.h"
 #endif
@@ -605,6 +608,10 @@ static int run(void)
             ++diagnostics.ticks;
             {
                 unsigned events;
+#ifdef V6_PICK_REPLAY
+                input=diagnostics.ticks<=sizeof(pick_replay)?pick_replay[diagnostics.ticks-1]:0;
+                if(diagnostics.ticks==130) restart_pending=1;
+#endif
 #ifdef V6_CHECKPOINT_REPLAY
                 /* Test-only placement isolates activation/deactivation and
                  * respawn; this is not a traversal replay of the room. */
