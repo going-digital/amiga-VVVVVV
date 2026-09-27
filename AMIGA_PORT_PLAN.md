@@ -93,8 +93,12 @@ an origin and moving only the first match follow the original lifecycle.
 **21,600 query cases**, **16,000 lifecycle operations** and **43,200 player ticks
 per cached/uncached path** match extracted desktop methods. Empty blocks are
 correctly ignored by both player and enemy collision. Native scenes still use
-empty dynamic-block lists: platform movement, carrying/crushing order and a
-playable platform room remain the next integration milestone.
+empty dynamic-block lists. An ordinary **32×8 platform movement core** now
+matches **126,720 rule-2 reference ticks per cached/uncached path**, plus
+**20,000 floor/ceiling contact-velocity queries**. Platforms ignore collision
+blocks while still colliding with map tiles; block relocation preserves source
+ordering. The module cross-compiles but is not called by a playable scene yet.
+Carrying/crushing order and a native platform room remain the next milestone.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

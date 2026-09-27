@@ -39,6 +39,10 @@ struct entityclass {
     void disableblock(int);
     void disableblockat(int,int);
     void moveblockto(int,int,int,int,int,int);
+    bool checkplatform(const SDL_Rect&,int*,int*);
+    float hplatformat(int,int);
+    float entitycollideplatformfloor(int);
+    float entitycollideplatformroof(int);
     bool checkblocks(const SDL_Rect&, float, float, int, bool);
     bool checkwall(bool, const SDL_Rect&, float, float, int, bool, bool);
     bool checkwall(bool, const SDL_Rect&);

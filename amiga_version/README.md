@@ -281,7 +281,30 @@ This is a collision prerequisite for platforms. The native scenes currently
 supply empty dynamic-block lists; no playable platform or performance result
 with active platform blocks is claimed yet. The original game separately moves
 platforms, carries the player and resolves crushing before normal player logic.
-Those interactions still need implementation and source-reference coverage.
+Carrying/crushing and the complete platform update loop still need
+implementation and source-reference coverage.
+
+## Ordinary platform movement
+
+`platform.c` implements 32×8 bouncing platforms with behaviours 0–3 and integer
+speeds from −16 to 16. It disables the old block, runs the shared bounded
+movement core with rule-2 collision semantics, and relocates the block. Platforms
+collide with map tiles but ignore collision blocks, including other platforms
+and directional barriers.
+
+Floor/ceiling contact lookup preserves `checkplatform`/`hplatformat` ordering:
+the first overlapping solid block selects the origin, then the first horizontal
+platform at that origin supplies its velocity. A first block with no eligible
+platform returns the original −1000 sentinel; zero velocity is a valid result.
+The lookup does not itself transport the player. Conveyors are outside this API.
+
+**528 scenarios / 126,720 ticks per cached and uncached path** match extracted
+rule-2 movement, and **20,000 contact queries** match the original lookup methods.
+`build/amiga/platform-test-report.json` records the scope and source hash.
+`make test` includes these checks; run them alone with
+`python3 tools/amiga/test_enemy.py --platform`. Bartman compiles the module, but
+the playable scenes do not call it yet, and the linker discards unused functions.
+No native platform performance or full carrying/crushing fidelity is claimed.
 
 ## Next implementation step
 
