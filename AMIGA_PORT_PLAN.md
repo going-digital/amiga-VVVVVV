@@ -182,10 +182,14 @@ A separate static-room recovery comparison now covers 240 states / 5,760
 movement ticks plus 120 life-timer checks across ten restart timings. It exposed
 and fixed the timer not decrementing during another death; saved gravity is now
 restored above life timer five. Input gating, buffered flips, floor/ceiling spawns
-and cached/uncached movement match extracted source. Moving-platform recovery,
-visibility and tower-specific life timing remain outside this comparison. The full desktop
-loop is unverified. The A500 compression and checkpoint-route captures pass after
-the reset fix; the route remains at 196 PAL lines with clean exit.
+and cached/uncached movement match extracted source.
+A further host comparison covers recovery on ordinary moving platforms: **480
+cases / 11,520 ticks**, all four directions, speeds 0/1/3/6 and mixed-axis actors
+sharing an origin. Player/platform state, blocks, pending movement, visual
+contacts and the life timer agree; horizontal carry resumes at life timer 7.
+No gameplay changes were needed. A complete death-to-recovery replay, visibility,
+tower-specific timing and the full desktop loop remain unverified. Current
+checkpoint-route peak work is 197 PAL lines with clean exit.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

@@ -38,7 +38,7 @@ extern "C" int recovery_reference_life() { return game.lifeseq; }
         '-L/opt/homebrew/lib','-lSDL3','-o',str(BUILD/'recovery_reference.so')],check=True)
     subprocess.run(['cc','-std=c99','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',
         '-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(ROOT/'amiga_version'),
-        *[str(ROOT/'amiga_version'/f) for f in ('player.c','slice.c','terrain.c')],
+        *[str(ROOT/'amiga_version'/f) for f in ('player.c','slice.c','terrain.c','platform.c','enemy.c','blocks.c')],
         str(ROOT/'tools/amiga/recovery_session.c'),'-o',str(BUILD/'recovery.so')],check=True)
     ref=C.CDLL(str(BUILD/'recovery_reference.so'));core=C.CDLL(str(BUILD/'recovery.so'))
     pp=C.POINTER(Player);tp=C.POINTER(C.c_uint16)

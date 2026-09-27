@@ -653,10 +653,29 @@ camera delays are outside its scope. The full host suite passes. After the fix,
 A500 Traffic Jam and checkpoint-route captures pass at **249** and **197 PAL
 lines** respectively, with no missed VBLs and clean exits.
 
+## Recovery on ordinary moving platforms
+
+`python3 tools/amiga/test_platform_recovery.py` adds **480 synthetic cases /
+11,520 ticks** through the slice movement callback. It compares all player and
+platform fields, collision blocks, pending Y, visual contact counters and the life
+timer with extracted desktop input, `Game::lifesequence`, reverse-order platform
+scheduling, physics and overlap/stuck correction.
+
+Cases cover each of the four ordinary directions, speeds 0/1/3/6, floor and
+ceiling riders, held/buffered/repeated flip, cached and uncached terrain, plus
+four mixed-axis actors sharing an origin. Each runs 24 ticks. A focused check
+confirms horizontal carry is suppressed at life timers 9 and 8, then resumes at
+7, independently of the five-tick player-control lock.
+
+`make test` includes this UBSan host regression; its report and source hash are
+in `build/amiga/platform-recovery-report.json`. Gameplay code is unchanged.
+These are initialized recovery states, not complete death-to-recovery or target
+replays. Checkpoint entities, rendering, conveyors and full campaign behavior
+remain outside the comparison.
+
 ## Next implementation step
 
-Extend recovery comparison to moving platforms and add an integrated visual
-compression/spike-push replay. Then expand room-entity
+Add an integrated visual compression/spike-push replay. Then expand room-entity
 support to disappearing platforms and conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
