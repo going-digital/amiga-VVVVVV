@@ -54,3 +54,8 @@ void crush_session_read(V6Player *p,V6Platform *e,V6Block *b,int *state)
     state[2]=slice.deaths;state[3]=slice.respawns;
     state[4]=(int)updates;state[5]=(int)events;
 }
+/* Test-only damage-boundary state injection for reset-retention comparisons. */
+void crush_session_seed_player(const V6Player *p)
+{
+    slice.player=*p;
+}

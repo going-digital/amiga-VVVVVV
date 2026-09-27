@@ -4,7 +4,7 @@ import ctypes as C
 import hashlib
 import json
 import subprocess
-from test_player import ROOT, BUILD, Player, DynamicBlock, block
+from test_player import ROOT, BUILD, Player, DynamicBlock, FIELDS, block
 from test_enemy import Enemy
 
 
@@ -45,6 +45,7 @@ struct Graphics {
 struct Script { bool running; } script;
 struct Game {
     int deathseq,lifeseq,deathcounts,gravitycontrol,savegc,gameoverdelay;
+    int tapleft,tapright,jumppressed,totalflips;bool jumpheld;
     int roomx,roomy,saverx,savery,savex,savey,savedir,savecolour,currentroomdeaths;
     int swngame,swntimer,swnmessage,swnrank,state,scmprogress;
     bool supercrewmate,scmhurt,nodeathmode,noflashingmode,swnmode,hascontrol,completestop,advancetext;
@@ -75,6 +76,20 @@ extern "C" void death_init(const V6Player *p,int x,int y,int gravity,int dir) {
     music.currentsong=-1;game.gravitycontrol=p->gravity;
     obj.entities[0].xp=p->x;obj.entities[0].yp=p->y;obj.entities[0].dir=p->dir;
     obj.entities[0].vx=p->vx/float(V6_ONE);obj.entities[0].vy=p->vy/float(V6_ONE);
+    obj.entities[0].ay=p->ay/float(V6_ONE);
+    obj.entities[0].oldxp=p->old_x;obj.entities[0].oldyp=p->old_y;
+    obj.entities[0].onground=p->ground;obj.entities[0].onroof=p->roof;
+    game.tapleft=p->tap_left;game.tapright=p->tap_right;
+    game.jumpheld=p->held;game.jumppressed=p->buffer;game.totalflips=p->flips;
+}
+extern "C" void death_player_read(V6Player *p) {
+    const entclass& e=obj.entities[0];
+    p->x=e.xp;p->y=e.yp;p->old_x=e.oldxp;p->old_y=e.oldyp;
+    p->vx=std::lround(e.vx*double(V6_ONE));p->vy=std::lround(e.vy*double(V6_ONE));
+    p->ay=std::lround(e.ay*double(V6_ONE));p->ground=e.onground;p->roof=e.onroof;
+    p->tap_left=game.tapleft;p->tap_right=game.tapright;p->held=game.jumpheld;
+    p->buffer=game.jumppressed;p->flips=game.totalflips;
+    p->gravity=game.gravitycontrol;p->dir=e.dir;
 }
 extern "C" void death_read(int *s) {
     const entclass& e=obj.entities[0];
@@ -109,6 +124,8 @@ def main():
     ref.death_init.argtypes=[C.POINTER(Player)]+[C.c_int]*4;ref.death_read.argtypes=[C.POINTER(C.c_int)]
     core.crush_session_init.argtypes=[C.c_int]*6
     core.crush_session_read.argtypes=[C.POINTER(Player),C.POINTER(Enemy),C.POINTER(DynamicBlock),C.POINTER(C.c_int)]
+    core.crush_session_seed_player.argtypes=[C.POINTER(Player)]
+    ref.death_player_read.argtypes=[C.POINTER(Player)]
     cases=ticks=0
     for tileset in (0,1):
         for down in (0,1):
@@ -123,12 +140,21 @@ def main():
                                 core.crush_session_read(C.byref(p),C.byref(e),C.byref(b),state)
                                 if state[0]==30:break
                             else:raise AssertionError('Fixture did not reach damage')
+                            # Vary retained controls/contacts at the damage boundary.
+                            # These are explicit synthetic reset states, not live input replays.
+                            p.held=cases%2;p.buffer=cases%6;p.tap_left=cases%7;p.tap_right=cases%5
+                            p.ground=cases%4-1;p.roof=cases%3-1;p.flips=cases%11
+                            core.crush_session_seed_player(C.byref(p))
                             ref.death_init(C.byref(p),x,97 if down else 70,down,1)
+                            expected_player=Player()
                             for delay in range(30):
                                 ref.death_tick();core.crush_session_step()
                                 ref.death_read(original)
                                 core.crush_session_read(C.byref(p),C.byref(e),C.byref(b),state)
                                 assert list(state[:3])==list(original[:3]),(cases,delay,list(state),list(original))
+                                ref.death_player_read(C.byref(expected_player))
+                                for field in FIELDS:
+                                    assert getattr(p,field)==getattr(expected_player,field),(cases,delay,field,getattr(p,field),getattr(expected_player,field))
                                 assert original[10]==state[2],(cases,delay,'room deaths')
                                 assert [p.x,p.y,p.vx,p.vy,p.gravity,p.dir]==list(original[3:9]),(cases,delay,'player')
                                 if delay==29:
@@ -136,7 +162,7 @@ def main():
                                 ticks+=1
                             cases+=1
     report=dict(cases=cases,death_ticks=ticks,reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
-        scope='Extracted Game::deathsequence and Map::resetplayer plus Logic.cpp countdown/reset branch; ordinary same-room death only. Compare timer, life timer and death count each tick; player position, velocity, gravity and direction through freeze and respawn. Excludes input/contact retention, rendering, other rooms, scripts, towers and special modes.')
+        scope='Extracted Game::deathsequence and Map::resetplayer plus Logic.cpp countdown/reset branch; ordinary same-room death only. Compare timer, life timer and death count each tick; all player fields including retained input/contact state through freeze and respawn, using synthetic damage-boundary states. Excludes post-respawn movement, rendering, other rooms, scripts, towers and special modes.')
     (BUILD/'death-lifecycle-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS:',json.dumps(report))
 

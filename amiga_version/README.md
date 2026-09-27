@@ -576,7 +576,7 @@ asset-free standalone Bartman executable and runs it in Copperline's A500 / 6800
 OCS / 512K Chip + 512K slow profile. All **672 cached/uncached fixture runs**
 complete: **19,896 simulation ticks**, including **576 respawns**. A 32-bit digest
 of every tick's player, platform, collision-block and lifecycle snapshot matches
-the UBSan host run (**3010616724**). Fields are folded individually, avoiding
+the UBSan host run (**368903396**). Fields are folded individually, avoiding
 host/68000 byte-order and structure-padding differences.
 
 Results are written to `build/amiga-crush/crush-target-report.json`. The runner
@@ -589,21 +589,38 @@ Ordinary gameplay code is unchanged.
 `Game::deathsequence`, `mapclass::resetplayer(bool)` and the countdown/reset
 branch in `Logic.cpp`. Starting from the damage-boundary snapshot, it compares
 **576 cached/uncached spike-push cases** through **17,280 death-delay ticks**.
-The death timer, life timer, death count, player position, velocity, gravity and
-facing match on every tick, including the saved-position reset. Desktop room
-death counts also match the slice death count.
+The death timer, life timer, death count and **all player fields** match on every
+tick, including the saved-position reset. Synthetic damage-boundary states vary
+held-flip, buffered-flip, tap counters and contacts. Desktop room death counts
+also match the slice death count.
+
+This exposed a same-room reset mismatch: the slice reinitialized input latches,
+contacts and old positions, while `Map::resetplayer` retains them. The reset now
+changes only position, velocity/acceleration, gravity and facing. A behavioral
+regression holds flip across death and ten recovery ticks: it does not flip until
+the button is released and pressed again. Cross-room reset behavior remains
+outside this source comparison.
 
 This test compiles the original method bodies with a small host environment.
 Audio, textbox and achievement/statistics side effects are stubbed; unsupported
 room changes, tower camera and special-mode operations abort. It covers ordinary
-same-room deaths through respawn, not the full game loop, post-respawn input/contact
-retention, visibility, scripts or other modes. `make test` includes it; its source
+same-room deaths through respawn, not the full game loop, subsequent movement,
+visibility, scripts or other modes. `make test` includes it; its source
 hash and results are in `build/amiga/death-lifecycle-report.json`.
+The extracted death/reset methods do not include the surrounding input and
+contact stages: desktop input still updates flip latches without control, and
+Logic.cpp updates contact counters during death. Those stages need a combined
+loop comparison before claiming complete death-state fidelity.
+
+After the retention fix, the full host suite, the standalone A500 compression
+regression and the checkpoint-route capture pass. The route remains at **196 PAL
+lines / 12.544 ms**, with zero missed VBLs and clean AmigaDOS restoration.
 
 ## Next implementation step
 
-Extend the independent desktop comparison into post-respawn input/contact state
-and add an integrated visual compression/spike-push replay. Then expand room-entity
+Extend the independent desktop comparison to input while control is locked,
+contact updates during death and post-respawn movement. Add an integrated visual
+compression/spike-push replay. Then expand room-entity
 support to disappearing platforms and conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and

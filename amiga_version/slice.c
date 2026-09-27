@@ -15,8 +15,16 @@ static void enter_room(V6Slice *s, int index)
 static void respawn(V6Slice *s)
 {
     int flips = s->player.flips;
-    if (s->rooms && s->room_index != s->save_room) enter_room(s, s->save_room);
-    v6_player_init(&s->player, s->save_x, s->save_y, s->save_gravity);
+    if (s->rooms && s->room_index != s->save_room) {
+        enter_room(s, s->save_room);
+        v6_player_init(&s->player, s->save_x, s->save_y, s->save_gravity);
+    } else {
+        /* Map::resetplayer retains contact counters, input latches and old
+         * positions when the existing player stays in the same room. */
+        s->player.x = s->save_x; s->player.y = s->save_y;
+        s->player.vx = s->player.vy = s->player.ay = 0;
+        s->player.gravity = s->save_gravity;
+    }
     s->player.dir = s->save_dir;
     s->player.flips = flips;
     s->life_timer = 10;

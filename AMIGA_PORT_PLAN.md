@@ -161,10 +161,17 @@ and independent full desktop-loop comparison remain future work.
 
 A further source-extracted same-room death regression now compares **576 cases /
 17,280 ticks** against `Game::deathsequence`, `Map::resetplayer` and the original
-Logic.cpp countdown/reset branch. Timers, death counts, position, velocity,
-gravity and facing match through respawn. It begins at the damage boundary;
-post-respawn input/contact retention, visibility, cross-room resets and special
-modes are outside this comparison. The full desktop loop remains unverified.
+Logic.cpp countdown/reset branch. Timers, death counts and all player fields
+match through respawn, including synthetic input/contact retention states. This
+exposed and fixed the slice clearing input latches, contacts and old positions
+on same-room reset. Holding flip across death now requires release/repress for a
+new flip, checked through ten recovery ticks. The source comparison begins at the
+damage boundary and stops at respawn; subsequent movement, visibility, cross-room
+resets and special modes remain outside it. The surrounding desktop loop also
+updates flip latches without control and contact counters during death; combining
+those stages with this reference is the next fidelity check. The full desktop
+loop is unverified. The A500 compression and checkpoint-route captures pass after
+the reset fix; the route remains at 196 PAL lines with clean exit.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

@@ -71,6 +71,28 @@ static void multiple_checkpoints(void)
     assert(c.checkpoints[1].active && c.save.id==445551);
     assert(s.life_timer==10 && !s.checkpoint_pending);
 }
+/* Holding flip through a death must not become a fresh press on respawn. */
+static void held_flip_respawn(void)
+{
+    uint16_t tiles[1200]={0};
+    V6Room room={tiles,0,0,0,0,0};
+    V6Slice s;
+    int i;
+    for(i=0;i<40;++i) tiles[20*40+i]=80;
+    v6_slice_init(&s,80,144,21);
+    s.player.ground=2;s.player.held=1;s.player.flips=3;
+    v6_slice_step(&s,&room,V6_FLIP,1);
+    for(i=0;i<29;++i) v6_slice_step(&s,&room,V6_FLIP,0);
+    assert(s.respawns==1 && s.player.held==1);
+    for(i=0;i<10;++i) {
+        assert(!(v6_slice_step(&s,&room,V6_FLIP,0)&V6_EVENT_FLIP));
+        assert(s.player.gravity==0 && s.player.flips==3);
+    }
+    v6_slice_step(&s,&room,0,0);
+    assert(v6_slice_step(&s,&room,V6_FLIP,0)&V6_EVENT_FLIP);
+    assert(s.player.gravity==1 && s.player.flips==4);
+}
+
 int main(void)
 {
     multiple_checkpoints();
@@ -165,6 +187,7 @@ int main(void)
         assert(events & V6_EVENT_ROOM);
         assert(s.room_index==0 && s.player.x==220 && s.player.y==94);
     }
+    held_flip_respawn();
     puts("PASS: checkpoint, death delay, respawn controls, ceiling spawn, room wrap, cross-room saves/respawns, original-room replay");
     return 0;
 }
