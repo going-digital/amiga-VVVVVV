@@ -14,6 +14,7 @@
 #include "room_codec.h"
 #include "slice.h"
 #include "enemy.h"
+#include "platform.h"
 #include "pixel_collision.h"
 #include "animation.h"
 #include "sprites.h"
@@ -96,13 +97,50 @@ static void reset_drone(void)
     drone_frame=ENEMY_TILE; drone_walk=drone_delay=0;
 }
 #endif
+#ifdef V6_PLATFORM_SCENE
+static V6Platform platforms[PLATFORM_COUNT];
+static V6Block platform_blocks[PLATFORM_COUNT];
+static V6PlayerMotion platform_motion;
+static V6PlatformPush platform_push;
+static ULONG platform_ticks, platform_pushes;
+static void reset_platforms(void)
+{
+    unsigned i;
+    for(i=0;i<PLATFORM_COUNT;++i) {
+        v6_platform_init(&platforms[i],platform_setup[i][0],platform_setup[i][1],
+                         0,3,100,70,320,160);
+        platform_blocks[i]=(V6Block){platforms[i].x,platforms[i].y,32,8,V6_BLOCK,0};
+    }
+    current_room.blocks=platform_blocks;current_room.block_count=PLATFORM_COUNT;
+    platform_motion=(V6PlayerMotion){0,slice.player.y};
+    platform_push=(V6PlatformPush){slice.player.y,0,0};
+}
+static unsigned platform_movement(V6Player *p,const V6Room *r,unsigned input,
+                                  int life_timer,void *context)
+{
+    int before;
+    unsigned events;
+    (void)context;
+    events=v6_player_input(p,input,&platform_motion);
+    platform_push.pending_y=platform_motion.pending_y;
+    before=p->y;
+    v6_platform_transport(p,r,platforms,PLATFORM_COUNT,platform_blocks,PLATFORM_COUNT,
+                           V6_PLATFORMS_VERTICAL,life_timer,&platform_push);
+    if(p->y!=before) ++platform_pushes;
+    v6_player_physics(p,r,&platform_motion,0,0);
+    v6_platform_disable_overlaps(p,platforms,PLATFORM_COUNT,platform_blocks,PLATFORM_COUNT);
+    v6_player_unstick(p,r);
+    ++platform_ticks;
+    return events;
+}
+#endif
 static UWORD saved_dma, saved_ints, saved_adk;
 static APTR saved_irq;
 static struct View *saved_view;
 
 static const char *room_caption(void)
 {
-#ifdef V6_ENEMY_SCENE
+#if defined(V6_ENEMY_SCENE) || defined(V6_PLATFORM_SCENE)
     return SLICE_CAPTION;
 #else
     return slice.room_index ? "119,110 - TWO ROOM SLICE           " : "100,110 - TWO ROOM SLICE           ";
@@ -445,6 +483,9 @@ static int run(void)
 #ifdef V6_ENEMY_SCENE
     reset_drone();
 #endif
+#ifdef V6_PLATFORM_SCENE
+    reset_platforms();
+#endif
     text(1, 0, "VVVVVV AMIGA - PLAYABLE ROOM");
     text(1, 8, room_caption());
     text(1, 16, "DEATHS       FLIPS       LINES");
@@ -494,6 +535,12 @@ static int run(void)
             ++diagnostics.ticks;
             {
                 unsigned events;
+#ifdef V6_PLATFORM_REPLAY
+                /* Walk off the checkpoint ledge, then flip onto the third
+                 * platform. This deterministic capture also exercises respawn. */
+                input=diagnostics.ticks<=50?V6_LEFT:0;
+                if(diagnostics.ticks==50) input|=V6_FLIP;
+#endif
 #ifdef V6_TRANSITION_REPLAY
                 input = diagnostics.ticks <= sizeof(transition_replay)
                     ? transition_replay[diagnostics.ticks - 1] : 0;
@@ -512,7 +559,14 @@ static int run(void)
                 ++enemy_ticks;
 #endif
                 PROFILE_MARK(1);
-#ifdef V6_ENEMY_SCENE
+#ifdef V6_PLATFORM_SCENE
+                events=v6_slice_step_movement(&slice,&current_room,input,restart_pending,platform_movement,0);
+                if(events & V6_EVENT_RESPAWN) {
+                    /* Same-room respawn preserves platform positions and blocks. */
+                    platform_motion=(V6PlayerMotion){0,slice.player.y};
+                    platform_push=(V6PlatformPush){slice.player.y,0,0};
+                }
+#elif defined(V6_ENEMY_SCENE)
                 events = v6_slice_step_hook(&slice, &current_room, input, restart_pending,collision_contact,0);
 #else
                 events = v6_slice_step(&slice, &current_room, input, restart_pending);
@@ -585,6 +639,20 @@ static int run(void)
         }
         diagnostics.enemy_x=drones[0].x; diagnostics.enemy_y=drones[0].y;
         diagnostics.enemy_ticks=enemy_ticks; diagnostics.enemy_hits=enemy_hits;
+#endif
+#ifdef V6_PLATFORM_SCENE
+        {
+            unsigned n;
+            for(n=0;n<PLATFORM_COUNT;++n)
+                if(v6_sprites_add_rect(&sprites[back],platform_rows,platforms[n].x,
+                        platforms[n].y,0,32,8,0xf6b)<V6_SPRITE_CLIPPED) {
+                    diagnostics.error=4;break;
+                }
+            if(diagnostics.error) break;
+        }
+        /* Version-5 actor slots describe platforms in this separate scene. */
+        diagnostics.enemy_x=platforms[0].x;diagnostics.enemy_y=platforms[0].y;
+        diagnostics.enemy_ticks=platform_ticks;diagnostics.enemy_hits=platform_pushes;
 #endif
         PROFILE_MARK(5);
         diagnostics.sprite_channels=sprites[back].count;

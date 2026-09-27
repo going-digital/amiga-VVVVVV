@@ -12,6 +12,14 @@ static void observe_contact(const V6Player *p, void *context)
     assert(p->x == 76 && p->y == 73 && p->vx == 0 && p->dir == 1);
     ++contact_calls;
 }
+static int movement_calls, observed_life;
+static unsigned observed_input;
+static unsigned observe_movement(V6Player *p,const V6Room *room,unsigned input,int life,void *context)
+{
+    assert(context==&movement_calls);
+    ++movement_calls;observed_life=life;observed_input=input;
+    return v6_player_step(p,room,input);
+}
 int main(void)
 {
     uint16_t tiles[1200] = {0};
@@ -19,6 +27,16 @@ int main(void)
     V6Slice s;
     unsigned events;
     int i;
+    v6_slice_init(&s,80,80,21);
+    s.life_timer=8;
+    v6_slice_step_movement(&s,&room,V6_RIGHT,0,observe_movement,&movement_calls);
+    assert(movement_calls==1 && observed_life==7 && (observed_input&V6_NO_CONTROL));
+    assert(s.checkpoint_pending);
+    v6_slice_step_movement(&s,&room,0,1,observe_movement,&movement_calls);
+    for(i=0;i<29;++i) v6_slice_step_movement(&s,&room,0,0,observe_movement,&movement_calls);
+    assert(movement_calls==1 && s.respawns==1);
+    v6_slice_step_movement(&s,&room,V6_RIGHT,0,observe_movement,&movement_calls);
+    assert(movement_calls==2 && observed_life==9 && (observed_input&V6_NO_CONTROL));
     v6_slice_init(&s, 80, 80, 21);
     v6_slice_step_hook(&s,&room,V6_RIGHT,0,observe_contact,&contact_calls);
     assert(contact_calls==1 && s.player.x>76);

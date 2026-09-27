@@ -24,5 +24,9 @@ int v6_sprites_add(V6Sprites *batch, const uint32_t rows[32],
  * 1..32, crop+width<=32. Return the first channel; failure changes no DMA data. */
 int v6_sprites_add_wide(V6Sprites *, const uint32_t rows[32],
                         int x, int y, unsigned crop, unsigned width, unsigned colour);
+/* As above, emitting only height rows (1..32), for short objects. */
+int v6_sprites_add_rect(V6Sprites *, const uint32_t rows[32],
+                        int x, int y, unsigned crop, unsigned width,
+                        unsigned height, unsigned colour);
 unsigned v6_sprite_colour_register(unsigned channel);
 #endif

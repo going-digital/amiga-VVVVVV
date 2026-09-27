@@ -10,7 +10,9 @@ right returns. Checkpoints retain their room, position and gravity for respawn.
 Other exits return to the saved checkpoint and show a notice. A separate
 **Security Sweep (112,103)** scene now includes its original moving enemy and
 floor checkpoint. **Traffic Jam (115,103)** adds three wide moving enemies;
-its seven-channel capture now passes the video headroom gate. Scripts, wider campaign progression, keyboard controls and
+its seven-channel capture now passes the video headroom gate.
+**Stop and Reflect (112,106)** adds three moving platforms and a verified
+vertical ride replay. Scripts, wider campaign progression, keyboard controls and
 music remain unimplemented. See [the port plan](../AMIGA_PORT_PLAN.md).
 
 ## Build and run
@@ -27,6 +29,8 @@ make -C amiga_version enemy-run
 make -C amiga_version enemy-capture
 make -C amiga_version traffic-run
 make -C amiga_version traffic-capture
+make -C amiga_version platform-run
+make -C amiga_version platform-capture
 ```
 
 - `all`: host asset conversion, Bartman 68000 compile, ELF/Hunk output, bootable ADF.
@@ -45,6 +49,10 @@ make -C amiga_version traffic-capture
 - `traffic-capture`: checks seven-channel allocation, three visible red enemies,
   movement, checkpoint, timing and clean exit. This replay does not exercise
   enemy hits.
+- `platform-run`: interactive Stop and Reflect in `build/amiga-platform`.
+- `platform-capture`: separate deterministic input build in
+  `build/amiga-platform-replay`; checks platform transport, three visible
+  platforms, seven channels, death/respawn, timing and clean exit.
 - `run`: interactive Copperline window. Joystick left/right moves;
   fire flips gravity when supported. Right mouse restarts from the checkpoint;
   left mouse exits to AmigaDOS. Keyboard input is not implemented yet.
@@ -113,8 +121,8 @@ cycle timing with 512K Chip + 512K slow RAM. At the 16.5-second memory snapshot:
 | Prototype explicit Chip RAM allocation | 81,934 bytes |
 | Free Chip RAM after startup allocation | 376,520 bytes |
 | Free non-Chip RAM after startup allocation | 416,792 bytes (interactive build) |
-| Maximum measured update/draw work | 168 PAL lines / 10.752 ms (transition replay) |
-| Maximum room-change redraw | 168 PAL lines / 10.752 ms |
+| Maximum measured update/draw work | 167 PAL lines / 10.688 ms (transition replay) |
+| Maximum room-change redraw | 167 PAL lines / 10.688 ms |
 | Missed VBL observations including transitions | 0 |
 | VBL periods crossed by room-change work | 0 |
 | Flip, checkpoint, spike death and respawn | Passed |
@@ -126,7 +134,7 @@ These are **emulator measurements of this harness**, not real-hardware or
 complete-game performance. The RAM totals do not include a resident full room
 pack: only two compressed rooms and their decoded tile/background caches are
 resident. A cache per room is temporary slice scaffolding, not the full-campaign
-storage design. The ordinary capture peaks at 92 lines / 5.888 ms. During a snapshot
+storage design. The ordinary capture peaks at 91 lines / 5.824 ms. During a snapshot
 the current tick can be one ahead of the completed-render counter.
 
 Reports and evidence:
@@ -277,12 +285,9 @@ floor/ceiling contacts, gravity flips, directional barriers, changing rectangle
 positions, disabled blocks and duplicate origins. Results and the reference
 hash are in `build/amiga/blocks-test-report.json`; `make test` includes the suite.
 
-This is a collision prerequisite for platforms. The native scenes currently
-supply empty dynamic-block lists; no playable platform or performance result
-with active platform blocks is claimed yet. The original game separately moves
-platforms, carries the player and resolves crushing before normal player logic.
-The complete platform update loop and crush/death behavior still need
-integration and source-reference coverage.
+The Stop and Reflect scene uses three live platform blocks. The earlier world
+and enemy scenes retain empty lists. Full crush/death source-reference coverage
+remains outstanding.
 
 ## Ordinary platform movement
 
@@ -302,9 +307,9 @@ The lookup does not itself transport the player. Conveyors are outside this API.
 rule-2 movement, and **20,000 contact queries** match the original lookup methods.
 `build/amiga/platform-test-report.json` records the scope and source hash.
 `make test` includes these checks; run them alone with
-`python3 tools/amiga/test_enemy.py --platform`. Bartman compiles the module, but
-the playable scenes do not call it yet, and the linker discards unused functions.
-No native platform performance or full carrying/crushing fidelity is claimed.
+`python3 tools/amiga/test_enemy.py --platform`. The Stop and Reflect scene calls this module; the linker still discards unused
+platform functions in the other scenes. Full carrying/crushing fidelity across
+the campaign is not claimed.
 
 ## Platform transport stages
 
@@ -351,7 +356,7 @@ terrain (including tileset-2 solids). Horizontal retries change velocity without
 committing X; an unresolved collision shifts Y three pixels against gravity.
 The test compares player state and block dimensions with extracted original
 methods, exercising 6,882 corrections, 6,128 velocity changes and 4,950 cases
-with block disabling. These helpers are not yet called by the native scenes.
+with block disabling. The Stop and Reflect scene now calls these helpers.
 
 The pre-physics `v6_platform_transport` scheduler now runs both original
 reverse-order passes, selecting vertical candidates by zero X velocity and
@@ -371,14 +376,48 @@ results are in `build/amiga/platform-loop-test-report.json`.
 
 This establishes the combined ordinary-platform movement/collision sequence,
 not the full game loop: damage, death/respawn, scripts, conveyors, supercrewmates
-and native rendering are outside this reference harness. The scheduler is not
-yet connected to a playable scene.
+and native rendering are outside this reference harness. The native scene below
+uses the verified scheduler.
+
+## Native platform scene
+
+Stop and Reflect uses the original room, checkpoint and three vertical platforms
+at (135,75), (185,110) and (235,145), with speed 3 and bounds (100,70)–(320,160).
+The exporter rejects changes to this literal room setup. Each 32×8 sprite repeats
+source tile 616 four times; it uses two hardware channels. The player takes the
+seventh channel. Platform colour is adapted to monochrome pink.
+
+`v6_slice_step_movement` runs the platform movement callback on live ticks,
+after respawn input gating and the life-timer decrement. It runs input,
+platform transport, player physics, overlap disabling and stuck correction
+before the slice checks checkpoints, tile hazards and exits. Platforms pause
+during death and retain positions and block state on same-room respawn; player
+pending motion is reset. Unsupported exits still use the slice's checkpoint
+fallback, so this is a separate scene, not a campaign connection.
+
+The deterministic capture walks left for 50 ticks and flips on tick 50. It
+records **60 vertical transport position changes**, one death and respawn,
+checkpoint activation, three visible platforms and seven hardware channels.
+It passes the unchanged gate at **237 PAL lines / 15.168 ms**, with no missed
+VBL observations and successful return to AmigaDOS. Explicit Chip allocation is
+**43,534 bytes**, with **436,832 bytes** of non-Chip RAM free in the replay build.
+The version-5 diagnostic actor fields hold platform position, update count and
+transport count in this scene; the report also provides platform-named counters.
+
+The initial smoke run cost 267 lines. Emitting only the platform's eight sprite
+rows reduced its cost; `v6_sprites_add_rect` adds a height parameter while
+preserving atomic wide-sprite allocation. **63,744 variable-height cases** check
+DMA positions, pixels, terminators, clipping and capacity, alongside the existing
+sprite suite. All four earlier native captures still pass.
+
+The replay demonstrates vertical riding and the slice death/respawn path.
+Horizontal carrying on target and a deliberate crushing scenario still need
+dedicated replays; the host movement tests do not establish full death fidelity.
 
 ## Next implementation step
 
-Connect the verified platform scheduler and post-physics helpers to the native
-slice lifecycle. Export a platform room,
-validate carrying and crushing end to end, and measure it on the target. Sprite
+Add a horizontal-platform scene and a deliberate crush/death replay, with
+full desktop-loop state comparisons for the lifecycle. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. The target replay

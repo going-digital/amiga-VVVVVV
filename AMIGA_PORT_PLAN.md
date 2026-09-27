@@ -37,9 +37,9 @@ black, one room accent, green checkpoints and white text; the player has an
 independent cyan sprite colour. Low-intensity tile shading is omitted.
 
 On Copperline's stock PAL A500, 512K Chip + 512K slow RAM profile, the slice
-allocates **81,934 Chip bytes**. Ordinary work peaks at **92 lines / 5.888 ms**;
-the transition replay peaks at **168 / 10.752 ms**, with room-change work at
-**168 / 10.752 ms**. Both pass the 20% video-headroom gate, zero missed VBL checks,
+allocates **81,934 Chip bytes**. Ordinary work peaks at **91 lines / 5.824 ms**;
+the transition replay peaks at **167 / 10.688 ms**, with room-change work at
+**167 / 10.688 ms**. Both pass the 20% video-headroom gate, zero missed VBL checks,
 visible-player checks and clean exit; the ordinary capture also verifies audio.
 The previous 45.312 ms full-room redraw and explicit loading pause are gone.
 
@@ -84,7 +84,7 @@ and borders. Caches must be rebuilt when tile data or room settings change.
 These replay measurements do not establish worst-case full-campaign performance.
 
 Sprite multiplexing, blitter fallback, fractional speeds,
-platforms and special behaviours remain outstanding. Full entity-loop fidelity
+conveyors and special behaviours remain outstanding. Full entity-loop fidelity
 is not claimed from isolated reference tests and target milestone assertions.
 
 A shared dynamic-block layer now supplies solid/directional rectangles to player
@@ -92,12 +92,12 @@ physics while preserving SAFE blocks for enemies only. Disabling all blocks at
 an origin and moving only the first match follow the original lifecycle.
 **21,600 query cases**, **16,000 lifecycle operations** and **43,200 player ticks
 per cached/uncached path** match extracted desktop methods. Empty blocks are
-correctly ignored by both player and enemy collision. Native scenes still use
-empty dynamic-block lists. An ordinary **32×8 platform movement core** now
+correctly ignored by both player and enemy collision. The original world/enemy scenes use empty dynamic-block lists; Stop and Reflect
+now supplies three live platform blocks. An ordinary **32×8 platform movement core** now
 matches **126,720 rule-2 reference ticks per cached/uncached path**, plus
 **20,000 floor/ceiling contact-velocity queries**. Platforms ignore collision
 blocks while still colliding with map tiles; block relocation preserves source
-ordering. The module cross-compiles but is not called by a playable scene yet.
+ordering. The Stop and Reflect native scene now calls this module.
 Horizontal carrying and vertical `movingplatformfix` now also have isolated
 implementations. **24,000 cases each** match their original methods, alongside
 **24,000 explicit-target map-collision cases**, with cached and uncached terrain.
@@ -111,10 +111,17 @@ skipping. The reverse-order platform scheduler now matches **23,040 persistent
 ticks per terrain path** across 96 scenarios, together with player input,
 transport, physics and post-physics overlap/stuck correction. Tests preserve
 blocks between ticks and compare every platform's movement state; zero-speed
-platforms can participate in both velocity-selected passes. Native lifecycle
-integration, crush/death behavior and a playable platform room remain next.
-The four existing native captures remain the baseline; the new scheduler is
-not called by those scenes.
+platforms can participate in both velocity-selected passes. A separate native **Stop and Reflect (112,106)** scene now connects this
+scheduler to the slice lifecycle and renders all three 32×8 platforms using
+six hardware channels plus the player. Its deterministic replay records
+**60 vertical transport position changes**, one death/respawn and an active
+checkpoint, with all three platforms visible. It passes the unchanged gate at
+**237 PAL lines / 15.168 ms**, with **43,534 bytes** of explicit Chip allocation
+and no missed VBL observations. Same-room respawn preserves platform state.
+Height-limited sprite DMA avoids writing 24 unused rows per platform half;
+63,744 new host cases validate height, clipping and atomic allocation.
+All four earlier captures still pass. Horizontal carrying on target and a
+deliberate crush/death replay with full desktop lifecycle comparison remain next.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

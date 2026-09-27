@@ -69,6 +69,14 @@ def build(data, out, scene="world"):
         mapping = [0] * (max(ids) + 1)
         for i, tile in enumerate(ids): mapping[tile] = i
         assert len(ids) <= 256
+        # Source size-2 platforms repeat the selected 8x8 tile four times.
+        platform_rows=[0]*32
+        if scene == 'platform':
+            ox,oy=(616%(w//8))*8,(616//(w//8))*8
+            for y in range(8):
+                row=sum((rgba[((oy+y)*w+ox+x)*4+3]>127 and
+                         max(rgba[((oy+y)*w+ox+x)*4:((oy+y)*w+ox+x)*4+3])>0) << (7-x) for x in range(8))
+                platform_rows[y]=row*0x01010101
         fw, fh, font = png('graphics/font.png')
         glyphs = []
         for ch in range(128):
@@ -134,6 +142,8 @@ def build(data, out, scene="world"):
     header += matrix('font_rows', glyphs)
     header += 'static const unsigned long sprite_rows[40][32] = {\n' + ',\n'.join(
         '{' + ','.join(hex(v)+'UL' for v in sprite) + '}' for sprite in sprite_frames) + '\n};\n'
+    if scene == 'platform':
+        header += 'static const uint32_t platform_rows[32] = {' + ','.join(hex(v)+'UL' for v in platform_rows) + '};\n'
     header += 'static const uint32_t collision_rows[40][32] = {\n' + ',\n'.join(
         '{' + ','.join(hex(v)+'UL' for v in sprite) + '}' for sprite in collision_frames) + '\n};\n'
     header += 'static const unsigned char flip_sound[] = {' + ','.join(map(str,sound)) + '};\n'
@@ -142,7 +152,7 @@ def build(data, out, scene="world"):
                   two_plane_tile_bytes=len(ids)*16, two_plane_room_colors=room_colors,
                   scene_palette_slots=13, checkpoint_palette_index=13, sprite_palette_index=14, text_palette_index=15,
                   font_bytes=1024, sound_bytes=len(sound), sound_rate=target_rate,
-                  note=('Traffic Jam (115,103): original tiles, three enemies, frames 28-31 and red-channel collision masks.' if scene == 'traffic' else 'Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
+                  note=('Stop and Reflect (112,106): three platforms using repeated tile 616.' if scene == 'platform' else 'Traffic Jam (115,103): original tiles, three enemies, frames 28-31 and red-channel collision masks.' if scene == 'traffic' else 'Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
                         'Rooms (100,110) and (119,110), static tiles, player animation and checkpoints. No other room entities or scripts.'))
     (out / 'assets.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))
@@ -152,6 +162,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, default=DEFAULT_DATA)
     parser.add_argument('--out', type=Path, default=ROOT / 'build/amiga')
-    parser.add_argument('--scene', choices=('world','enemy','traffic'), default='world')
+    parser.add_argument('--scene', choices=('world','enemy','traffic','platform'), default='world')
     args = parser.parse_args()
     build(args.data, args.out, args.scene)

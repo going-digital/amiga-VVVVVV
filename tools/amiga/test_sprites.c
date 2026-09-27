@@ -57,6 +57,44 @@ static void wide_tests(void)
     }
     printf("PASS: %u wide-sprite decode and atomic allocation cases\n",cases);
 }
+static void rectangle_tests(void)
+{
+    unsigned height,prefix,cases=0;
+    int y;
+    for(height=1;height<=32;++height) for(y=-32;y<=216;++y)
+    for(prefix=0;prefix<8;++prefix) {
+        int result,top=y<16?16:y,bottom=y+(int)height;
+        unsigned i;
+        uint16_t before[8*68];
+        if(bottom>216) bottom=216;
+        reset();
+        for(i=0;i<prefix;++i) v6_sprites_add(&batch,rows,0,16,0,0x123);
+        memcpy(before,batch.dma,sizeof(before));
+        result=v6_sprites_add_rect(&batch,rows,100,y,0,32,height,0xf6b);
+        if(top>=bottom || prefix>6) {
+            assert(result==(top>=bottom?V6_SPRITE_CLIPPED:V6_SPRITE_FULL));
+            assert(batch.count==prefix && !memcmp(before,batch.dma,sizeof(before)));
+        } else {
+            assert(result==(int)prefix && batch.count==prefix+2);
+            for(i=prefix;i<batch.count;++i) {
+                uint16_t *d=batch.dma+i*68;
+                unsigned r;
+                assert(((d[0]>>8)|((d[1]&4)<<6))-52==top);
+                assert(((d[1]>>8)|((d[1]&2)<<7))-52==bottom);
+                for(r=0;r<(unsigned)(bottom-top);++r) {
+                    uint16_t bits=i==prefix?rows[top-y+r]>>16:rows[top-y+r];
+                    assert(d[2+r*2]==bits && d[3+r*2]==((i&1)?bits:0));
+                }
+                assert(!d[2+r*2] && !d[3+r*2]);
+            }
+        }
+        guards();++cases;
+    }
+    reset();
+    assert(v6_sprites_add_rect(&batch,rows,0,16,0,32,0,0)==V6_SPRITE_INVALID);
+    assert(v6_sprites_add_rect(&batch,rows,0,16,0,32,33,0)==V6_SPRITE_INVALID);
+    printf("PASS: %u variable-height sprite cases\n",cases);
+}
 int main(void)
 {
     static const int xs[]={-32768,-33,-17,-16,-15,-7,-1,0,1,303,304,305,319,320,32767};
@@ -119,5 +157,6 @@ int main(void)
     assert(!batch.count); guards();
     printf("PASS: %u sprite DMA decode cases; capacity, reset, invalid requests and guards\n",cases);
     wide_tests();
+    rectangle_tests();
     return 0;
 }

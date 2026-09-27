@@ -16,15 +16,15 @@ void v6_sprites_begin(V6Sprites *batch, uint16_t *dma)
 }
 
 static int add_part(V6Sprites *batch, const uint32_t rows[32],
-                    int x, int y, unsigned crop, unsigned width, unsigned colour)
+                    int x, int y, unsigned crop, unsigned width, unsigned height, unsigned colour)
 {
     int first, last, left, row;
     unsigned channel, start, stop, horizontal;
     uint16_t clip=0xffff, *data;
     left=x+(int)crop;
     first=y<16?16-y:0;
-    last=y+32>216?216-y:32;
-    if (first>=last || first>=32 || last<=0 || left>=320 || left<=-16)
+    last=y+(int)height>216?216-y:(int)height;
+    if (first>=last || first>=(int)height || last<=0 || left>=320 || left<=-16)
         return V6_SPRITE_CLIPPED;
     if (batch->count==V6_SPRITE_CHANNELS) return V6_SPRITE_FULL;
     channel=batch->count++;
@@ -70,18 +70,18 @@ int v6_sprites_add(V6Sprites *batch, const uint32_t rows[32],
 {
     if (!rows || crop>16 || colour>0xfff || x < -32768 || x > 32767 ||
         y < -32768 || y > 32767) return V6_SPRITE_INVALID;
-    return add_part(batch,rows,x,y,crop,16,colour);
+    return add_part(batch,rows,x,y,crop,16,32,colour);
 }
 
-int v6_sprites_add_wide(V6Sprites *batch, const uint32_t rows[32],
-                        int x, int y, unsigned crop, unsigned width, unsigned colour)
+int v6_sprites_add_rect(V6Sprites *batch, const uint32_t rows[32],
+                        int x, int y, unsigned crop, unsigned width, unsigned height, unsigned colour)
 {
     unsigned first, end, channels, offset;
     int result;
-    if (!rows || !width || width>32 || crop>32-width || colour>0xfff ||
+    if (!rows || !width || width>32 || !height || height>32 || crop>32-width || colour>0xfff ||
         x < -32768 || x > 32767 || y < -32768 || y > 32767)
         return V6_SPRITE_INVALID;
-    if (y>=216 || y+32<=16 || x+(int)crop>=320 || x+(int)(crop+width)<=0)
+    if (y>=216 || y+(int)height<=16 || x+(int)crop>=320 || x+(int)(crop+width)<=0)
         return V6_SPRITE_CLIPPED;
     first=crop; end=crop+width;
     /* Restrict to visible source columns before reserving channels. */
@@ -92,7 +92,11 @@ int v6_sprites_add_wide(V6Sprites *batch, const uint32_t rows[32],
     result=(int)batch->count;
     for (offset=first;offset<end;offset+=16) {
         unsigned n=end-offset<16?end-offset:16;
-        add_part(batch,rows,x,y,offset,n,colour);
+        add_part(batch,rows,x,y,offset,n,height,colour);
     }
     return result;
 }
+
+int v6_sprites_add_wide(V6Sprites *batch,const uint32_t rows[32],
+                        int x,int y,unsigned crop,unsigned width,unsigned colour)
+{ return v6_sprites_add_rect(batch,rows,x,y,crop,width,32,colour); }

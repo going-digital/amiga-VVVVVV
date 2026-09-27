@@ -79,6 +79,7 @@ def main():
     parser.add_argument('--transitions', action='store_true', help='Validate the test-only transition replay build')
     parser.add_argument('--enemy', action='store_true')
     parser.add_argument('--traffic', action='store_true')
+    parser.add_argument('--platform', action='store_true')
     args = parser.parse_args()
     build = args.build.resolve()
     config = build / 'copperline.toml'
@@ -104,7 +105,8 @@ write_protected = true
     if args.capture:
         env = dict(os.environ, RUST_LOG='info', COPPERLINE_DBG_AFTER='16.5',
                    COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{build / "slow.bin"}')
-        command += (['--joy-after','12','left','200'] if args.traffic else
+        command += ([] if args.platform else
+                    ['--joy-after','12','left','200'] if args.traffic else
                     ['--joy-after','12','right','300'] if args.enemy else
                     ['--joy-after','13','fire','100','--joy-after','15.5','right','300',
                      '--joy-after','16','left','300'])
@@ -121,6 +123,19 @@ write_protected = true
             assert report['transitions'] >= 1 and report['room_index'] == 0, report
             assert 0 < report['max_load_lines'] < 250 and report['exits'] == 0, report
             assert report['load_frames'] == 0, report
+        elif args.platform:
+            assert report['enemy_ticks']>100 and report['max_sprite_channels']==7, report
+            assert report['enemy_y']!=75 and report['checkpoint']==1, report
+            assert report['enemy_hits']>=8 and report['deaths']>=1 and report['respawns']>=1, report
+            header,rgba=subprocess.check_output([str(build/'png_rgba'),str(build/'prototype.png')]).split(b'\n',1)
+            w,h=map(int,header.split())
+            columns=sorted({(i//4)%w for i in range(0,len(rgba),4)
+                            if rgba[i]>245 and 80<rgba[i+1]<125 and 170<rgba[i+2]<200})
+            bands=sum(i==0 or x-columns[i-1]>8 for i,x in enumerate(columns))
+            assert bands==3, f'Expected three pink platforms, got {bands} bands'
+            report['visible_platform_bands']=bands
+            report['platform_ticks']=report['enemy_ticks']
+            report['platform_pushes']=report['enemy_hits']
         elif args.traffic:
             assert report['enemy_ticks'] > 100 and report['max_sprite_channels'] == 7, report
             assert report['enemy_y'] != 118 and report['checkpoint'] == 1, report
@@ -136,13 +151,13 @@ write_protected = true
             report['visible_enemy_pixels']=visible_enemy(build,build/'prototype.png')
         else:
             assert report['flips'] == 1 and report['checkpoint'] == 1, report
-        if not args.traffic:
+        if not args.traffic and not args.platform:
             assert report['deaths'] >= 1 and report['respawns'] >= 1, report
         # Snapshot can land between a tick and completion of its render.
         assert report['ticks'] > 100 and 0 <= report['ticks'] - report['renders'] <= 1, report
         report['video_headroom_passed'] = report['missed_frames'] == 0 and report['max_work_lines'] < 250
         report['max_work_ms'] = round(report['max_work_lines'] * 227 / 3546895 * 1000, 3)
-        if not args.transitions and not args.enemy and not args.traffic:
+        if not args.transitions and not args.enemy and not args.traffic and not args.platform:
             report['flip_audio_peak'] = audio_peak(build / 'prototype.wav')
             assert report['flip_audio_peak'] > 0.001, report
         report['max_load_ms'] = round(report['max_load_lines'] * 227 / 3546895 * 1000, 3)

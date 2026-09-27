@@ -88,7 +88,7 @@ unsupported:
     return events;
 }
 
-unsigned v6_slice_step_hook(V6Slice *s, const V6Room *room, unsigned input, int restart, V6ContactHook hook, void *context)
+static inline __attribute__((always_inline)) unsigned step(V6Slice *s, const V6Room *room, unsigned input, int restart, V6ContactHook hook, V6SliceMovement movement, void *context)
 {
     unsigned events = 0;
     int previous_room = s->room_index;
@@ -111,7 +111,8 @@ unsigned v6_slice_step_hook(V6Slice *s, const V6Room *room, unsigned input, int 
     }
     if (s->life_timer > 5) input |= V6_NO_CONTROL;
     if (s->life_timer > 0) --s->life_timer;
-    events |= v6_player_step_hook(&s->player, room, input, hook, context);
+    events |= movement ? movement(&s->player,room,input,s->life_timer,context) :
+        v6_player_step_hook(&s->player, room, input, hook, context);
     if (!s->checkpoint_active && v6_player_overlaps(&s->player,
             s->checkpoint_x, s->checkpoint_y, 16, 16)) s->checkpoint_pending = 1;
     if (v6_player_hurt(&s->player, room)) s->death_timer = 30;
@@ -128,6 +129,12 @@ unsigned v6_slice_step_hook(V6Slice *s, const V6Room *room, unsigned input, int 
     } else s->frame += 1 + (s->player.gravity ? 6 : 0);
     return events;
 }
+
+unsigned v6_slice_step_hook(V6Slice *s,const V6Room *room,unsigned input,int restart,V6ContactHook hook,void *context)
+{ return step(s,room,input,restart,hook,0,context); }
+
+unsigned v6_slice_step_movement(V6Slice *s,const V6Room *room,unsigned input,int restart,V6SliceMovement movement,void *context)
+{ return step(s,room,input,restart,0,movement,context); }
 
 unsigned v6_slice_step(V6Slice *s, const V6Room *room, unsigned input, int restart)
 { return v6_slice_step_hook(s,room,input,restart,0,0); }
