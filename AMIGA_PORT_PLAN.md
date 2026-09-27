@@ -230,8 +230,12 @@ the native host trace at collapse/hidden/recharge ticks 17/61/85 and final tick
 170, exposing all three states and frames in packed diagnostic fields. Peak
 work is 214 lines / 13.696 ms with no missed frames and clean exit. The 240-tick
 UBSan host trace visits all six states per platform and verifies restoration
-of all three solid blocks. Recharge retriggers and independent desktop-loop
-comparisons still need route coverage.
+of all three solid blocks. A separate synthetic `retrigger-capture` fixture now respawns directly on a
+recharging platform, automatically retriggering it. Target snapshots match the
+host at tick 61 (visible frame 5) and tick 160 (frame 10, three deaths/respawns).
+Peak work is 131 lines / 8.384 ms with no missed frames and clean exit. This
+covers extended rendering on target but does not establish a campaign retrigger
+route or independent desktop-loop equivalence.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

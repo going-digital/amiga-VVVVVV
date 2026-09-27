@@ -805,13 +805,29 @@ check that all pink platforms disappear and return. Peak work is **214 PAL
 lines / 13.696 ms**, with no missed frames, seven sprite channels, 45,384 allocated
 Chip bytes and clean exit. Artifacts are in `build/amiga-beneath-route/`.
 This compares the native adapter across host and 68000, not an independent full
-desktop game loop. Recharge retriggers and extended frames still need target
-traversal coverage.
+desktop game loop. Campaign recharge retriggers still need traversal coverage; the separate
+fixture below covers them on target with deliberate checkpoint placement.
+
+## Recharge-contact fixture
+
+`make -C amiga_version retrigger-capture` builds a separate synthetic scene
+with its saved checkpoint directly on the disappearing platform. Following
+spike death, respawn contacts the platform during recharge, triggering another
+collapse without input or subsequent forced placement. State 5 can become
+state 1 in the same live tick because contact follows the recharge update.
+
+The 240-tick host trace runs with UBSan and checks repeated collapses/respawns,
+no exits and frames beyond four; it is included in `make test`. Target state
+matches the trace at tick **61**, with walking frame **5** visibly rendered,
+and tick **160**, with frame **10**, three deaths and three respawns. Peak work
+is **131 PAL lines / 8.384 ms**, with no missed frames, 45,384 allocated Chip
+bytes, three sprite channels and clean exit. Artifacts, including `extended.png`,
+are in `build/amiga-retrigger/`. This tests the native adapter and renderer;
+it is not a campaign route or independent desktop-loop comparison.
 
 ## Next implementation step
 
-Cover recharge contacts and extended frames on target, and compare ordered
-room behaviour against the desktop game loop.
+Compare ordered room behaviour against the desktop game loop.
 Then add conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and

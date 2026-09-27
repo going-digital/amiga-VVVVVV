@@ -101,6 +101,7 @@ test: test-sprites test-terrain $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/test_disappearing.py
 	python3 $(ROOT)/tools/amiga/test_disappearing_scene.py
 	python3 $(ROOT)/tools/amiga/beneath_replay_trace.py
+	python3 $(ROOT)/tools/amiga/disappearing_replay_trace.py --retrigger
 	python3 $(ROOT)/tools/amiga/test_checkpoints.py
 	python3 $(ROOT)/tools/amiga/test_pick_route.py
 	python3 $(ROOT)/tools/amiga/test_pixel_collision.py
@@ -225,3 +226,9 @@ beneath-route-capture:
 	python3 $(ROOT)/tools/amiga/beneath_replay_trace.py
 	$(MAKE) BUILD=$(ROOT)/build/amiga-beneath-route SCENE=beneath CPPFLAGS=-DV6_BENEATH_REPLAY all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-beneath-route --capture --beneath-route
+
+.PHONY: retrigger-capture
+retrigger-capture:
+	python3 $(ROOT)/tools/amiga/disappearing_replay_trace.py --retrigger
+	$(MAKE) BUILD=$(ROOT)/build/amiga-retrigger SCENE=platform CPPFLAGS="-DV6_DISAPPEAR_REPLAY -DV6_RETRIGGER_REPLAY" all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-retrigger --capture --retrigger

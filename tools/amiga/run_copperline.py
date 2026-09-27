@@ -82,6 +82,7 @@ def main():
     parser.add_argument('--platform', action='store_true')
     parser.add_argument('--horizontal', action='store_true')
     parser.add_argument('--crush', action='store_true')
+    parser.add_argument('--retrigger', action='store_true')
     parser.add_argument('--disappearing', action='store_true')
     parser.add_argument('--beneath-route', action='store_true')
     parser.add_argument('--beneath', action='store_true')
@@ -113,7 +114,7 @@ write_protected = true
     if args.capture:
         env = dict(os.environ, RUST_LOG='info', COPPERLINE_DBG_AFTER='16.5',
                    COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{build / "slow.bin"}')
-        command += ([] if args.beneath_route or args.beneath or args.platform or args.horizontal or args.crush or args.disappearing or args.pick or args.pick_checkpoints or args.pick_route else
+        command += ([] if args.retrigger or args.beneath_route or args.beneath or args.platform or args.horizontal or args.crush or args.disappearing or args.pick or args.pick_checkpoints or args.pick_route else
                     ['--joy-after','12','left','200'] if args.traffic else
                     ['--joy-after','12','right','300'] if args.enemy else
                     ['--joy-after','13','fire','100','--joy-after','15.5','right','300',
@@ -179,6 +180,15 @@ write_protected = true
             assert report['enemy_ticks']>100 and report['max_sprite_channels']==3, report
             assert report['checkpoint']==1, report
             report['visible_platform_pixels']=visible_enemy(build,build/'prototype.png')
+        elif args.retrigger:
+            trace=json.loads((ROOT/'build/amiga/retrigger-replay-trace.json').read_text())
+            assert report['ticks']==report['renders'] and 0<report['ticks']<=len(trace),report
+            for field,value in trace[report['ticks']-1].items():
+                assert report[field]==value,(field,report[field],value)
+            assert report['deaths']>=2 and report['respawns']>=2 and report['enemy_hits']>=3,report
+            assert report['enemy_y']>4 and report['exits']==0 and report['max_sprite_channels']==3,report
+            report['native_host_trace_tick_verified']=report['ticks']
+            report['scope']='Synthetic checkpoint on disappearing platform; automatic recharge contact and extended frames'
         elif args.disappearing:
             trace=json.loads((ROOT/'build/amiga/disappearing-replay-trace.json').read_text())
             assert report['ticks']==report['renders'] and 0<report['ticks']<=len(trace),report
@@ -245,13 +255,13 @@ write_protected = true
             report['visible_enemy_pixels']=visible_enemy(build,build/'prototype.png')
         else:
             assert report['flips'] == 1 and report['checkpoint'] == 1, report
-        if not args.beneath_route and not args.beneath and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
+        if not args.retrigger and not args.beneath_route and not args.beneath and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
             assert report['deaths'] >= 1 and report['respawns'] >= 1, report
         # Snapshot can land between a tick and completion of its render.
         assert report['ticks'] > 100 and 0 <= report['ticks'] - report['renders'] <= 1, report
         report['video_headroom_passed'] = report['missed_frames'] == 0 and report['max_work_lines'] < 250
         report['max_work_ms'] = round(report['max_work_lines'] * 227 / 3546895 * 1000, 3)
-        if not args.beneath_route and not args.beneath and not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
+        if not args.retrigger and not args.beneath_route and not args.beneath and not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
             report['flip_audio_peak'] = audio_peak(build / 'prototype.wav')
             assert report['flip_audio_peak'] > 0.001, report
         report['max_load_ms'] = round(report['max_load_lines'] * 227 / 3546895 * 1000, 3)
@@ -279,10 +289,11 @@ write_protected = true
             assert neighbor['deaths'] == 0 and neighbor['respawns'] == 0, neighbor
             report['neighbor_player_pixels'] = visible_player(build, build / 'neighbor.png')
             report['neighbor_verified'] = True
-        if args.disappearing or args.beneath_route:
+        if args.disappearing or args.beneath_route or args.retrigger:
             start_time=16.5-report['ticks']*0.034
             phases=[]
             targets=(('collapse',16,2),('hidden',60,0x444),('recharge',84,0x555)) if args.beneath_route else (('collapse',8,2),('hidden',28,4),('recharge',53,5))
+            if args.retrigger: targets=(('extended',60,2),)
             for name,target_tick,state in targets:
                 for attempt in range(3):
                     stamp=start_time+target_tick*0.034+0.012+attempt*0.006
@@ -298,6 +309,7 @@ write_protected = true
                 for field,value in trace[phase['ticks']-1].items():
                     assert phase[field]==value,(name,field,phase[field],value)
                 assert phase['enemy_x']==state,(name,phase)
+                if args.retrigger: assert phase['enemy_y']>4,phase
                 _,rgba=subprocess.check_output([str(build/'png_rgba'),str(build/(name+'.png'))]).split(b'\n',1)
                 pink=sum(rgba[i]>245 and 80<rgba[i+1]<125 and 170<rgba[i+2]<200 for i in range(0,len(rgba),4))
                 assert (pink==0 if name=='hidden' else pink>20),(name,pink)

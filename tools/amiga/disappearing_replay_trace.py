@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Host trace of the native synthetic disappearing-platform scene adapter."""
+import argparse
 import json
 import subprocess
 from test_player import ROOT,BUILD
 
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--retrigger",action="store_true")
+    args=parser.parse_args()
     native=(ROOT/'amiga_version/prototype.c').read_text()
     start=native.index('#ifdef V6_PLATFORM_SCENE\nstatic V6Platform')
     end=native.index('static UWORD saved_dma',start)
@@ -41,7 +45,7 @@ int main(void) {
             platform_push=(V6PlatformPush){slice.player.y,0,0};
         }
         states|=1u<<disappearing[0].state;
-        assert(!diagnostics.error && !slice.exits && disappearing[0].walking_frame>=0 && disappearing[0].walking_frame<5);
+        assert(!diagnostics.error && !slice.exits && disappearing[0].walking_frame>=0 && disappearing[0].walking_frame<1198);
         printf("%s{\"ticks\":%u,\"player_x\":%d,\"player_y\":%d,\"player_vx\":%d,\"player_vy\":%d,"
                "\"gravity\":%d,\"death_timer\":%d,\"deaths\":%d,\"respawns\":%d,\"checkpoint\":%d,"
                "\"enemy_x\":%d,\"enemy_y\":%d,\"enemy_ticks\":%lu,\"enemy_hits\":%lu}",
@@ -50,17 +54,29 @@ int main(void) {
                disappearing[0].state,disappearing[0].walking_frame,platform_ticks,platform_pushes);
     }
     puts("\n]");
+#ifdef V6_RETRIGGER_REPLAY
+    assert((states&30)==30);
+    assert(slice.deaths>=3 && slice.respawns>=3 && platform_pushes>=4);
+    assert(disappearing[0].walking_frame>4);
+#else
     assert(states==63 && slice.deaths==1 && slice.respawns==1 && platform_pushes==1);
+#endif
     return 0;
 }
 '''
-    path=BUILD/'disappearing_replay.c';path.write_text(source)
+    if args.retrigger: source='#define V6_RETRIGGER_REPLAY\n'+source
+    stem='retrigger' if args.retrigger else 'disappearing'
+    path=BUILD/(stem+'_replay.c');path.write_text(source)
     subprocess.run(['cc','-std=c99','-O2','-Wall','-Wextra','-Werror',
         '-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(ROOT/'amiga_version'),str(path),
         *[str(ROOT/'amiga_version'/f) for f in ('player.c','slice.c','terrain.c','platform.c','enemy.c','blocks.c','disappearing.c')],
-        '-o',str(BUILD/'disappearing_replay')],check=True)
-    trace=json.loads(subprocess.check_output([str(BUILD/'disappearing_replay')]))
-    (BUILD/'disappearing-replay-trace.json').write_text(json.dumps(trace,indent=2)+'\n')
+        '-o',str(BUILD/(stem+'_replay'))],check=True)
+    trace=json.loads(subprocess.check_output([str(BUILD/(stem+'_replay'))]))
+    (BUILD/(stem+'-replay-trace.json')).write_text(json.dumps(trace,indent=2)+'\n')
+    if args.retrigger:
+        assert any(row['enemy_y']>4 and row['enemy_x']==2 for row in trace)
+        print('PASS: 240-tick recharge-contact host trace; repeated collapses and frames beyond four')
+        return
     print('PASS: 240-tick native scene host trace; all six lifecycle states, one collapse and respawn')
 
 
