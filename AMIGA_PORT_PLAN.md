@@ -210,8 +210,10 @@ separate tests cover failure and retry. A synthetic native replay now connects a
 snapshots (ticks 9/29/54) and the final state (tick 180) match the host scene
 trace. Peak work is 153 PAL lines / 9.792 ms, using 45,384 explicit Chip bytes,
 with no missed VBLs and clean exit. It is an automated fixture, not an original
-campaign room. Original-room export, the (111,107) tile exception and conveyors
-remain next steps. The native adapter now supports independent states and
+campaign room. Original-room export and conveyors are described below; the
+(111,107) tile exception now has a context-aware death event API, compared against
+1,296 source cases plus repeated death ticks. Actual tile/cache mutation remains
+for integration of that room. The native adapter now supports independent states and
 room-provided positions for multiple disappearing platforms. Host checks cover
 three independent contacts and 32 shared-bank collapse/death/recharge cycles,
 including reverse-order block restoration. “What Lies Beneath?” (116,110) is the

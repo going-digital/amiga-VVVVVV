@@ -42,7 +42,7 @@ static unsigned events;
 enum { Sound_DISAPPEAR };
 struct Music { void playef(int) { events|=1; } } music;
 struct Game { int roomx=100,roomy=100; } game;
-struct Map { bool custommode=false;void settile(int,int,int) { std::abort(); } } map;
+struct Map { bool custommode=false;void settile(int x,int y,int tile) { if(x!=18 || y!=9 || tile!=59) std::abort(); events|=16; } } map;
 enum { BLOCK=0 };
 struct blockclass {
     int type,trigger,xp,yp,wp,hp,r,g,b,activity_y;SDL_Rect rect;
@@ -74,6 +74,7 @@ bool Entity::updateentities(int i) { switch(entities[i].type) {
 '''+update+r'''
     default: std::abort(); } return false;
 }
+extern "C" void reference_room(int x,int y,int custom) { game.roomx=x;game.roomy=y;map.custommode=custom; }
 extern "C" unsigned reference_step(V6Disappearing *p,int dying,int hit) {
     load(p);events=0;
     if(dying) { size_t i=0;
@@ -179,8 +180,31 @@ extern "C" unsigned bank_read(V6Block *b) {
     # A zero dimension alone does not qualify as a fully disabled slot.
     bank[0]=DynamicBlock(1,2,0,8,0,0)
     assert core.v6_blocks_create_solid(bank,C.byref(count),2,80,96,32,8)==-1
-    report=dict(bank_ticks=bank_ticks,capacity_failure_checks=3,ticks=ticks,states=counts,events=event_counts,reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
-        scope='Ordinary disappearing-platform update, collision arming and death recharge scheduling; collision-bank allocation/disable and sound events compared with source branches. Bounded-capacity failure tested separately. No room integration, rendering or room (111,107) tile exception.')
+    # The room exception tests the state at entry, not the state reached by
+    # finishing a collapse in the death loop. Compare the unmodified branch.
+    core.v6_disappearing_death_room.argtypes=[pp,C.c_int,C.c_int,C.c_int]
+    ref.reference_room.argtypes=[C.c_int,C.c_int,C.c_int]
+    context_checks=0;patches=0
+    for x in (110,111,112):
+        for y in (106,107,108):
+            for custom in (0,1):
+                ref.reference_room(x,y,custom)
+                for state in range(6):
+                    for life in range(1,13):
+                        actual=State(state,life,2,0,state in (3,4))
+                        expected=State.from_buffer_copy(actual)
+                        event=core.v6_disappearing_death_room(C.byref(actual),x,y,custom)
+                        want=ref.reference_step(C.byref(expected),1,0)
+                        assert event==want and bytes(actual)==bytes(expected),(x,y,custom,state,life)
+                        assert bool(event&16)==(x==111 and y==107 and not custom and state==3)
+                        # Repeated death ticks must not request the tile again.
+                        again=core.v6_disappearing_death_room(C.byref(actual),x,y,custom)
+                        assert again==ref.reference_step(C.byref(expected),1,0)
+                        assert not again&16 and bytes(actual)==bytes(expected)
+                        context_checks+=1;patches+=bool(event&16)
+    assert context_checks==1296 and patches==12
+    report=dict(context_checks=context_checks,tile_patch_events=patches,bank_ticks=bank_ticks,capacity_failure_checks=3,ticks=ticks,states=counts,events=event_counts,reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
+        scope='Ordinary disappearing-platform update, collision arming and death recharge scheduling; collision-bank allocation/disable and sound events compared with source branches. Bounded-capacity failure tested separately. Room (111,107) death tile request compared, including custom-mode exclusion and repeat ticks. Tile/cache mutation and room integration remain caller-owned.')
     (BUILD/'disappearing-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS:',json.dumps(report))
 

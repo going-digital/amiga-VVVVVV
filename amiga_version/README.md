@@ -723,9 +723,20 @@ disable branches. Tests cover shared origins, unrelated disabled slots and
 appending; separate checks cover full capacity, retry and partly empty rectangles
 that must not be reused. The 68000 module references only the native block helpers.
 
-The separate synthetic native replay below now connects the core to animation
-and sound. Campaign-room integration remains pending. Collision geometry is 32x10 at Y-1; the solid block is 32x8. The special
-death-time tile patch in room (111,107), supercrewmates are not covered by this component test.
+The native replays below connect the core to animation and sound, including
+an original campaign room. Collision geometry is 32x10 at Y-1; the solid block
+is 32x8. Room tile/cache mutation and supercrewmates are not covered by this
+component test.
+
+`v6_disappearing_death_room` adds the campaign exception for room (111,107).
+It returns `V6_DISAPPEAR_DEATH_TILE` only when entering the death update in
+state 3 and outside custom mode. The caller must set tile (18,9) to 59 and
+refresh terrain/render caches. Finishing a state-2 collapse during death does
+not request the patch, nor do subsequent death ticks. The source-derived test
+checks 1,296 combinations of room coordinates, custom mode, state and life,
+plus a repeated death tick for each. The new 68000 function introduces no runtime
+helper dependency. This room is not exported yet; the API does not itself
+change tiles or apply collision-bank events.
 
 ## Native disappearing-platform replay
 

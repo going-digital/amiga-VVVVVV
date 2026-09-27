@@ -8,13 +8,18 @@
  * it must not simply restore the block formerly associated with this platform.
  * The special death-time tile patch in room (111,107) is caller-owned. */
 typedef struct { int state,life,walking_frame,on_entity,invisible; } V6Disappearing;
-enum { V6_DISAPPEAR_SOUND=1,V6_DISAPPEAR_DISABLE=2,V6_DISAPPEAR_CREATE=4,V6_DISAPPEAR_FULL=8 };
+enum { V6_DISAPPEAR_SOUND=1,V6_DISAPPEAR_DISABLE=2,V6_DISAPPEAR_CREATE=4,V6_DISAPPEAR_FULL=8,V6_DISAPPEAR_DEATH_TILE=16 };
 void v6_disappearing_init(V6Disappearing *);
 void v6_disappearing_contact(V6Disappearing *,int overlapping);
 unsigned v6_disappearing_step(V6Disappearing *);
 /* Run during death instead of the normal update; finish collapse and arm
  * recharge. State 4 does not advance until live entity updates resume. */
 unsigned v6_disappearing_death(V6Disappearing *);
+/* Context-aware death branch. DEATH_TILE asks the caller to set tile (18,9)
+ * to 59 and refresh terrain/render caches. Only campaign room (111,107),
+ * entered in state 3, requests it; finishing state 2 does not. This function
+ * does not apply collision-bank events or mutate caller-owned room tiles. */
+unsigned v6_disappearing_death_room(V6Disappearing *,int room_x,int room_y,int custom);
 /* Apply lifecycle and collision-bank changes together. On FULL neither the
  * platform nor the bank changes; provision space or retry the update. Keep
  * V6Room.block_count synchronized with the returned bank count. */

@@ -38,6 +38,13 @@ unsigned v6_disappearing_death(V6Disappearing *p)
     return events;
 }
 
+unsigned v6_disappearing_death_room(V6Disappearing *p,int room_x,int room_y,int custom)
+{
+    unsigned patch=(p->state==3 && room_x==111 && room_y==107 && !custom)
+        ?V6_DISAPPEAR_DEATH_TILE:0;
+    return v6_disappearing_death(p)|patch;
+}
+
 unsigned v6_disappearing_update(V6Disappearing *p,int x,int y,V6Block *blocks,
                                 unsigned *count,unsigned capacity,int dying)
 {
