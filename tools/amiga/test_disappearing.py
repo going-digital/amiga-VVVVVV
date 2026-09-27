@@ -183,6 +183,7 @@ extern "C" unsigned bank_read(V6Block *b) {
     # The room exception tests the state at entry, not the state reached by
     # finishing a collapse in the death loop. Compare the unmodified branch.
     core.v6_disappearing_death_room.argtypes=[pp,C.c_int,C.c_int,C.c_int]
+    core.v6_disappearing_update_room.argtypes=[pp,C.c_int,C.c_int,bp,C.POINTER(C.c_uint),C.c_uint,C.c_int,C.c_int,C.c_int,C.c_int]
     ref.reference_room.argtypes=[C.c_int,C.c_int,C.c_int]
     context_checks=0;patches=0
     for x in (110,111,112):
@@ -201,9 +202,33 @@ extern "C" unsigned bank_read(V6Block *b) {
                         again=core.v6_disappearing_death_room(C.byref(actual),x,y,custom)
                         assert again==ref.reference_step(C.byref(expected),1,0)
                         assert not again&16 and bytes(actual)==bytes(expected)
+                        # Repeat through the integrated bank API: hidden platforms
+                        # already have disabled blocks; state 2 disables them here.
+                        integrated=State(state,life,2,0,state in (3,4))
+                        expected=State.from_buffer_copy(integrated)
+                        bank=(DynamicBlock*1)(DynamicBlock(80,96,0 if state in (3,4) else 32,
+                                                           0 if state in (3,4) else 8,0,0))
+                        count=C.c_uint(1);expected_bank=(DynamicBlock*1)()
+                        ref.bank_load(bank,1,80,96)
+                        result=core.v6_disappearing_update_room(C.byref(integrated),80,96,bank,
+                            C.byref(count),1,1,x,y,custom)
+                        assert result==ref.reference_step(C.byref(expected),1,0)==event
+                        assert bytes(integrated)==bytes(expected)
+                        assert ref.bank_read(expected_bank)==count.value==1
+                        assert bytes(bank)==bytes(expected_bank)
                         context_checks+=1;patches+=bool(event&16)
     assert context_checks==1296 and patches==12
-    report=dict(context_checks=context_checks,tile_patch_events=patches,bank_ticks=bank_ticks,capacity_failure_checks=3,ticks=ticks,states=counts,events=event_counts,reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
+    # A live recharge at full capacity must not mutate state/bank or emit a
+    # room patch; the first free slot allows a later retry to succeed.
+    actual=State(4,0,4,0,1);bank=(DynamicBlock*1)(DynamicBlock(1,2,32,8,0,0));count=C.c_uint(1)
+    before=(bytes(actual),bytes(bank))
+    assert core.v6_disappearing_update_room(C.byref(actual),80,96,bank,C.byref(count),1,0,111,107,0)==8
+    assert (bytes(actual),bytes(bank))==before and count.value==1
+    bank[0].w=bank[0].h=0
+    assert core.v6_disappearing_update_room(C.byref(actual),80,96,bank,C.byref(count),1,0,111,107,0)==4
+    assert actual.state==5 and bytes(bank[0])==bytes(DynamicBlock(80,96,32,8,0,0))
+
+    report=dict(context_checks=context_checks,context_bank_checks=context_checks,context_capacity_checks=2,tile_patch_events=patches,bank_ticks=bank_ticks,capacity_failure_checks=3,ticks=ticks,states=counts,events=event_counts,reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
         scope='Ordinary disappearing-platform update, collision arming and death recharge scheduling; collision-bank allocation/disable and sound events compared with source branches. Bounded-capacity failure tested separately. Room (111,107) death tile request compared, including custom-mode exclusion and repeat ticks. Tile/cache mutation and room integration remain caller-owned.')
     (BUILD/'disappearing-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS:',json.dumps(report))

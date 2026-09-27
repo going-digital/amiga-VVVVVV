@@ -750,6 +750,20 @@ The 68000 object has no undefined runtime helpers. This is a full cache rebuild;
 its cost during live Amiga gameplay has not been measured, and the special
 room still needs scene integration and a redraw of its background buffers.
 
+`v6_disappearing_update_room` combines the room context with the existing
+collision-bank update. It returns the tile request alongside block/sound events,
+so callers need not run the death lifecycle twice. Another 1,296 source-derived
+checks compare state, events and collision slots, and two capacity tests verify
+unchanged state on failure and successful retry. The tile-edit test now follows
+the combined path through death, tile-59 collision refresh, repeated death and
+live recharge, checking that the platform block returns while the tile remains
+solid. These are host component checks, not a native special-room replay.
+
+“Prize for the Reckless” (111,107) also contains a behaviour-15 platform and a
+trinket, and its four wide platforms plus player exceed eight sprite channels.
+Those mechanics and sprite scheduling must be supported before exporting the
+whole room; it is not currently a playable scene.
+
 ## Native disappearing-platform replay
 
 `make disappearing-capture` builds a separate `V6_DISAPPEAR_REPLAY` scene. The

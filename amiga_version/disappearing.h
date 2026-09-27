@@ -25,4 +25,10 @@ unsigned v6_disappearing_death_room(V6Disappearing *,int room_x,int room_y,int c
  * V6Room.block_count synchronized with the returned bank count. */
 unsigned v6_disappearing_update(V6Disappearing *,int x,int y,V6Block *,
                                 unsigned *count,unsigned capacity,int dying);
+/* Context-aware variant: preserves update's collision-bank/failure contract
+ * and also reports DEATH_TILE. Apply the requested tile edit only after this
+ * returns, using v6_terrain_set_tile; redraw only when that edit changes a tile.
+ * The room is ordinary campaign unless custom is nonzero. */
+unsigned v6_disappearing_update_room(V6Disappearing *,int x,int y,V6Block *,
+    unsigned *count,unsigned capacity,int dying,int room_x,int room_y,int custom);
 #endif

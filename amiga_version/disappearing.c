@@ -58,3 +58,13 @@ unsigned v6_disappearing_update(V6Disappearing *p,int x,int y,V6Block *blocks,
     p->on_entity=next.on_entity;p->invisible=next.invisible;
     return events;
 }
+
+unsigned v6_disappearing_update_room(V6Disappearing *p,int x,int y,V6Block *blocks,
+    unsigned *count,unsigned capacity,int dying,int room_x,int room_y,int custom)
+{
+    /* Capture entry state: finishing state 2 during death must not patch tiles. */
+    unsigned patch=(dying && p->state==3 && room_x==111 && room_y==107 && !custom)
+        ?V6_DISAPPEAR_DEATH_TILE:0;
+    unsigned events=v6_disappearing_update(p,x,y,blocks,count,capacity,dying);
+    return (events&V6_DISAPPEAR_FULL)?events:events|patch;
+}

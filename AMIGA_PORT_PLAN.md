@@ -214,8 +214,12 @@ campaign room. Original-room export and conveyors are described below; the
 (111,107) tile exception now has a context-aware death event API, compared against
 1,296 source cases plus repeated death ticks. A tile-edit API now updates the mutable room buffer and rebuilds collision
 classification; 64,800 edits plus the tile-59 death-patch path pass UBSan checks.
-Special-room scene integration, background redraw and target timing of cache
-rebuilds remain pending. The native adapter now supports independent states and
+The context-aware collision-bank update now reports the tile request alongside
+normal block events, with another 1,296 source comparisons and failure/retry
+checks. A host test applies the edit and verifies the solid tile persists through
+platform recharge. Special-room scene integration, background redraw and target
+timing remain pending: this room also needs a behaviour-15 platform, trinket
+handling and more than eight sprite channels for its four wide platforms/player. The native adapter now supports independent states and
 room-provided positions for multiple disappearing platforms. Host checks cover
 three independent contacts and 32 shared-bank collapse/death/recharge cycles,
 including reverse-order block restoration. “What Lies Beneath?” (116,110) is the
