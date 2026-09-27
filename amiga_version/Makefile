@@ -260,3 +260,7 @@ $(BUILD)/tower_stream.o: tower_stream.c tower_stream.h room_codec.h | $(BUILD)
 
 $(BUILD)/tower_draw.o: tower_draw.c tower_draw.h tower_stream.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+.PHONY: tower-assets
+tower-assets:
+	python3 $(ROOT)/tools/amiga/convert_tower_assets.py --data "$(DATA)"

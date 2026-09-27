@@ -988,3 +988,20 @@ subsequent one-row-per-frame camera steps need at most two rows per alternating
 buffer. Each ring is 20,480 bytes. UBSan tests and the 68000 build pass, with no
 new runtime helper dependency. This is not yet a hardware scrolling demo: actual
 tower graphics conversion, Copper wrap and DMA-contended timing remain next.
+
+`make -C amiga_version tower-assets` converts colour bank 0 of the user's
+`graphics/tiles3.png` into a 480-byte planar atlas and four OCS palette entries.
+The source renderer selects tiles as `tile + bank*30`; the converter supports
+`--bank` to select another bank. Alpha is composited onto black, with the most
+frequent three nonblack OCS colours and nearest-colour mapping. Bank 0 has seven
+source OCS colours, so this is a colour reduction rather than exact source art.
+
+The same command validates the actual C row renderer against converted source
+pixels: **691,200 pixel checks** at camera positions 0, 1, 7, 8, 249, 255, 256,
+5599 and 5600. It uses a separate Python packet decoder for expected tile IDs.
+Generated private output includes `tower_assets.h`, `tower_tiles.bin`,
+`tower-assets.json` and PNG previews at camera positions 0, 255 and 5599, all in
+`build/amiga-feasibility/`. These previews are host-generated, not emulator
+captures; no parallax, bank cycling or gameplay is included. The next step is
+Copper publication and vertical ring wrap on the A500, followed by timing with
+row refill and graphics DMA active.

@@ -272,8 +272,11 @@ The planar row writer and per-buffer display tags now prepare 31 visible rows
 in a 320x256 two-plane ring. Tests cover 2,600 alternating-buffer frames and
 80,600 rows with a patterned atlas and original maps; initial fill is 31 rows,
 then at most two dirty rows per buffer for one-row camera steps. The 68000 object
-adds no runtime helpers. Actual graphics conversion, Copper wrap, DMA timing,
-parallax and gameplay remain to be tested.
+adds no runtime helpers. The actual `tiles3.png` colour-bank converter now produces a 480-byte atlas;
+691,200 pixel comparisons pass through the C renderer at fine-scroll, ring-wrap
+and map-wrap positions. Alpha is baked onto black and colours are reduced to
+four; previews are host-generated. Copper wrap, DMA timing, parallax and gameplay
+remain to be tested.
 
 Music now assumes Lightspeedplayer and a musician-produced tracker soundtrack,
 per the user's direction. PCM streaming is no longer the working path. Measure
