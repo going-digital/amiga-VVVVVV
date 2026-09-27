@@ -265,7 +265,10 @@ row directories. A 32-row decoded tile cache needs 2,560 bytes. The host probe
 checks every packed row with the native C decoder and exercises wrap, reverse
 scrolling and jumps; normal synthetic camera steps up to 16 pixels refill at
 most two rows. This is storage/decoder evidence, not a native scrolling timing
-result. Copper wrap, row drawing, parallax and gameplay remain to be tested.
+result. The native C directory reader and bounded row cache are now implemented and
+pass 1,011,840 source-map queries plus signed-limit and malformed-data tests.
+The 68000 object has no runtime helper dependencies beyond the row decoder.
+Copper wrap, row drawing, parallax and gameplay remain to be tested.
 
 Music now assumes Lightspeedplayer and a musician-produced tracker soundtrack,
 per the user's direction. PCM streaming is no longer the working path. Measure

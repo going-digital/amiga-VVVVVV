@@ -955,3 +955,18 @@ retains an offline PCM comparison for reference; it is not required for tower
 work. Player/module memory, worst-case replay time and SFX channel sharing need
 measurement once a representative tracker module is supplied. No tracker format
 or Lightspeedplayer resource budget has yet been verified.
+
+The native `tower_stream.c` reader now validates V6TR headers and directory spans
+and decodes rows on demand through a fixed 32-slot cache. Logical row numbers
+select slots; wrapped source rows select data, avoiding cache aliasing when the
+visible window crosses a map whose height is not a multiple of 32. Invalid
+packets cannot leave a valid cached row. Packed buffers must remain immutable
+and resident; this is memory streaming, not disk I/O.
+
+`test_tower_stream.py` compares 1,011,840 C-cache queries with all four original
+maps, tests malformed headers/directories/packets, cache hits, signed row limits
+and additional map heights. The 68000 object depends only on the existing row
+decoder, with no runtime division helper. The cache stores 2,560 tile bytes plus
+metadata. Its pointer views are temporary until a colliding logical row replaces
+the slot. `make test` includes these checks. It is not yet connected to Copper
+scrolling or row drawing; native display timing remains the next feasibility gate.

@@ -13,7 +13,7 @@ PLANES ?= 2
 SCENE ?= world
 CFLAGS := -DV6_PLANES=$(PLANES) -std=c99 -m68000 -Os -g -nostdlib -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fomit-frame-pointer -Wall -Wextra -Werror -ffunction-sections -fdata-sections -MMD -MP -I$(BUILD)
 LDFLAGS := -nostdlib -m68000 -Wl,--emit-relocs,--gc-sections,-Ttext=0,-Map=$(BUILD)/prototype.map
-OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/platform.o $(BUILD)/checkpoints.o $(BUILD)/disappearing.o $(BUILD)/platform_gate.o
+OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/platform.o $(BUILD)/checkpoints.o $(BUILD)/disappearing.o $(BUILD)/platform_gate.o $(BUILD)/tower_stream.o
 
 .PHONY: all test capture run FORCE
 all: $(BUILD)/prototype.adf
@@ -89,6 +89,7 @@ test-terrain: | $(BUILD)
 test: test-sprites test-terrain test-tile-edit $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/pack_rooms.py --out $(BUILD) --scene $(SCENE)
 	python3 $(ROOT)/tools/amiga/test_rooms.py
+	python3 $(ROOT)/tools/amiga/test_tower_stream.py
 	python3 $(ROOT)/tools/amiga/test_player.py
 	python3 $(ROOT)/tools/amiga/test_enemy.py
 	python3 $(ROOT)/tools/amiga/test_enemy.py --platform
@@ -252,3 +253,6 @@ waiting-capture:
 .PHONY: feasibility-probe
 feasibility-probe:
 	python3 $(ROOT)/tools/amiga/probe_feasibility.py --data "$(DATA)"
+
+$(BUILD)/tower_stream.o: tower_stream.c tower_stream.h room_codec.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
