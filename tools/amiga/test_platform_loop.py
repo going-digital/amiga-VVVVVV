@@ -10,11 +10,11 @@ import subprocess
 from pack_rooms import ROOT, enemy_record
 from test_player import BUILD, Player, Room, Terrain, DynamicBlock, FIELDS, block
 from test_enemy import Enemy, FIELDS as ENEMY_FIELDS
-from test_carry import reference_source, Motion, Push
+from test_carry import reference_source as carry_reference_source, Motion, Push
 
 
-def main():
-    source=reference_source()
+def reference_source():
+    source=carry_reference_source()
     entity=(ROOT/'desktop_version/src/Entity.cpp').read_text()
     ent=(ROOT/'desktop_version/src/Ent.cpp').read_text()
     logic=(ROOT/'desktop_version/src/Logic.cpp').read_text()
@@ -58,6 +58,11 @@ extern "C" void loop_step(unsigned input,unsigned flags,int life,V6Platform *pla
     push->visual_roof=obj.entities[0].visualonroof;
 }
 '''
+    return source
+
+
+def main():
+    source=reference_source()
     (BUILD/'platform_loop_reference.cpp').write_text(source)
     subprocess.run(['c++','-std=c++11','-O2','-fno-fast-math','-shared','-fPIC',
         '-I/opt/homebrew/include','-I'+str(ROOT/'desktop_version/src'),

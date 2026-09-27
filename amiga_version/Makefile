@@ -94,6 +94,7 @@ test: test-sprites test-terrain $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/test_enemy.py --platform
 	python3 $(ROOT)/tools/amiga/test_blocks.py
 	python3 $(ROOT)/tools/amiga/test_carry.py
+	python3 $(ROOT)/tools/amiga/test_platform_crush.py
 	python3 $(ROOT)/tools/amiga/test_checkpoints.py
 	python3 $(ROOT)/tools/amiga/test_pick_route.py
 	python3 $(ROOT)/tools/amiga/test_pixel_collision.py

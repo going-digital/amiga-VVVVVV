@@ -429,8 +429,8 @@ DMA positions, pixels, terminators, clipping and capacity, alongside the existin
 sprite suite. All four earlier native captures still pass.
 
 The replay demonstrates vertical riding and the slice death/respawn path.
-The horizontal target fixture below covers ordinary floor carrying. A deliberate
-crushing scenario still needs a dedicated replay; the host movement tests do not establish full death fidelity.
+The horizontal target fixture below covers ordinary floor carrying. A target
+compression/spike-push replay is still needed; the host movement tests do not establish full death fidelity.
 
 ## Horizontal target fixture
 
@@ -542,9 +542,39 @@ or an independent full desktop death/respawn loop. Pink-sprite image checks now
 exclude this room's pink terrain colour, so terrain cannot mask a missing
 platform.
 
+## Compression and spike-push regression
+
+The ordinary vertical-platform code does not directly kill a player when a push
+is blocked. `movingplatformfix` schedules the platform's reversal; overlap
+disabling and stuck correction follow, then the damage check can start death.
+The tests distinguish compression against solid terrain from being pushed into
+a spike, rather than adding an unconditional crush death.
+
+`python3 tools/amiga/test_platform_crush.py` exercises **336 synthetic fixtures**
+on cached and uncached terrain. They cover upward and downward pushes, both
+ordinary tilesets, four platform speeds, three horizontal offsets, a solid wall,
+and six spike tiles. **1,308 live movement ticks per terrain path** match the
+extracted scheduling, movement, overlap/stuck and map-damage methods.
+
+All **48 solid-wall fixtures** schedule a reversal without damage. All **288
+spike-push fixtures** first start outside damage and then trigger it through the
+ordered movement/collision stages. Comparison stops at that first damage tick.
+
+A separate host adapter runs the same fixtures through the slice lifecycle.
+It checks death timer 30 on damage, frozen player/platform/block state during
+the death pause, and respawn at the saved position and gravity with zero
+velocity and a life timer of 10. This covers **17,280 death-delay ticks** across
+both terrain paths. These lifecycle assertions are not an independent extraction
+of the desktop's full death/respawn loop.
+
+`make test` includes the suite; detailed fixtures and their damage ticks are in
+`build/amiga/crush-test-report.json`. These are host regressions; no new target
+compression replay is claimed, and ordinary gameplay code is unchanged.
+
 ## Next implementation step
 
-Add a deliberate crush/death case with desktop lifecycle comparisons. Then expand room-entity
+Run the compression/spike-push fixtures on target and extend the independent
+desktop comparison through death/respawn. Then expand room-entity
 support to disappearing platforms and conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
