@@ -429,8 +429,9 @@ DMA positions, pixels, terminators, clipping and capacity, alongside the existin
 sprite suite. All four earlier native captures still pass.
 
 The replay demonstrates vertical riding and the slice death/respawn path.
-The horizontal target fixture below covers ordinary floor carrying. A target
-compression/spike-push replay is still needed; the host movement tests do not establish full death fidelity.
+The horizontal target fixture below covers ordinary floor carrying. The standalone target
+compression/spike-push regression below covers the logic; an integrated visual
+replay and full desktop death fidelity remain outstanding.
 
 ## Horizontal target fixture
 
@@ -568,13 +569,26 @@ both terrain paths. These lifecycle assertions are not an independent extraction
 of the desktop's full death/respawn loop.
 
 `make test` includes the suite; detailed fixtures and their damage ticks are in
-`build/amiga/crush-test-report.json`. These are host regressions; no new target
-compression replay is claimed, and ordinary gameplay code is unchanged.
+`build/amiga/crush-test-report.json`.
+
+`make crush-capture` first reruns those source comparisons, then builds an
+asset-free standalone Bartman executable and runs it in Copperline's A500 / 68000 /
+OCS / 512K Chip + 512K slow profile. All **672 cached/uncached fixture runs**
+complete: **19,896 simulation ticks**, including **576 respawns**. A 32-bit digest
+of every tick's player, platform, collision-block and lifecycle snapshot matches
+the UBSan host run (**3010616724**). Fields are folded individually, avoiding
+host/68000 byte-order and structure-padding differences.
+
+Results are written to `build/amiga-crush/crush-target-report.json`. The runner
+captures RAM at 240 emulated seconds while the completed executable keeps its
+record allocated. This is a logic regression, not a rendered compression replay,
+a gameplay timing measurement, or an independent desktop death/respawn comparison.
+Ordinary gameplay code is unchanged.
 
 ## Next implementation step
 
-Run the compression/spike-push fixtures on target and extend the independent
-desktop comparison through death/respawn. Then expand room-entity
+Extend the independent desktop comparison through death/respawn and add an
+integrated visual compression/spike-push replay. Then expand room-entity
 support to disappearing platforms and conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and

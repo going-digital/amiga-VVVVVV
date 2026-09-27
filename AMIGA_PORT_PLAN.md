@@ -125,8 +125,8 @@ horizontal fixture now verifies **180 transport ticks** on target at
 **167 PAL lines / 10.688 ms**, using three sprite channels. Its captured player
 and platform state matches tick 180 of an extracted desktop reference trace.
 The host fixture compares 240 ticks on both terrain paths. Just Pick Yourself Down now supplies an original horizontal-platform room
-with multiple checkpoints. Focused host compression tests are described below;
-target coverage and full desktop lifecycle comparison remain outstanding.
+with multiple checkpoints. Focused host and standalone target compression tests
+are described below; full desktop lifecycle comparison remains outstanding.
 
 A caller-owned multi-checkpoint core now matches **32,768 reference ticks**
 across 256 scenarios, including 16,559 activations and 3,388 ticks with multiple
@@ -153,8 +153,11 @@ damage checks. All 48 solid-wall fixtures reverse the platform without damage;
 all 288 spike-push fixtures trigger damage after starting outside it. The source
 does not impose unconditional death for a blocked vertical push. Separate slice
 checks verify the 30-tick pause, frozen platform state and respawn across 17,280
-death-delay ticks. These are host checks; target compression coverage and an
-independent full desktop death/respawn comparison remain future work.
+death-delay ticks. A standalone Bartman/Copperline A500 regression now runs all
+672 cached/uncached variants: 19,896 ticks and 576 respawns, with the per-tick
+state digest matching the host run. `make -C amiga_version crush-capture`
+reproduces this asset-free logic test. An integrated visual compression replay
+and independent full desktop death/respawn comparison remain future work.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

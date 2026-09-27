@@ -1,4 +1,4 @@
-/* Host fixture using the same slice movement callback contract as native scenes. */
+/* Host/68000 fixture using the same slice movement callback contract as native scenes. */
 #include "slice.h"
 #include "platform.h"
 static V6Slice slice;

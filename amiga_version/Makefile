@@ -165,3 +165,24 @@ pick-route-capture:
 	python3 $(ROOT)/tools/amiga/test_pick_route.py
 	$(MAKE) BUILD=$(ROOT)/build/amiga-pick-route SCENE=pick CPPFLAGS=-DV6_PICK_REPLAY all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-pick-route --capture --pick-route
+
+# Standalone test executable; no game assets, graphics takeover or runtime changes.
+.PHONY: crush-capture crush-target
+crush-capture:
+	python3 $(ROOT)/tools/amiga/test_platform_crush.py
+	$(MAKE) BUILD=$(ROOT)/build/amiga-crush crush-target
+	python3 $(ROOT)/tools/amiga/run_crush_target.py --build $(ROOT)/build/amiga-crush --rom "$(ROM)" --emulator "$(COPPERLINE)"
+
+crush-target: $(BUILD)/crush.adf
+$(BUILD)/crush_target.o: $(ROOT)/tools/amiga/crush_target.c | $(BUILD)
+	$(CC) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -I. -c $< -o $@
+$(BUILD)/crush_session.o: $(ROOT)/tools/amiga/crush_session.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+$(BUILD)/crush.elf: $(BUILD)/crush_target.o $(BUILD)/crush_session.o $(addprefix $(BUILD)/,player.o platform.o enemy.o blocks.o terrain.o slice.o animation.o)
+	$(CC) $(LDFLAGS) $^ -o $@
+$(BUILD)/crush.exe: $(BUILD)/crush.elf
+	$(ELF2HUNK) $< $@
+$(BUILD)/crush.adf: $(BUILD)/crush.exe
+	"$(CTL)" exe2adf $< --boot --out $@
+
+-include $(BUILD)/crush_target.d $(BUILD)/crush_session.d
