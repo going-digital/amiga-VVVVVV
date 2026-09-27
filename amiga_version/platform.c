@@ -28,3 +28,35 @@ int v6_platform_contact_speed(const V6Player *p, const V6Block *blocks, unsigned
     }
     return -1000;
 }
+
+int v6_platform_carry_horizontal(V6Player *p,const V6Room *room,
+                                 const V6Platform *platforms,unsigned count,int life_timer,int pending_y)
+{
+    int speed;
+    if(life_timer>=8) return 0;
+    speed=v6_platform_contact_speed(p,room->blocks,room->block_count,platforms,count,0);
+    if(speed<=-1000)
+        speed=v6_platform_contact_speed(p,room->blocks,room->block_count,platforms,count,1);
+    if(speed<=-1000) return 0;
+    v6_player_map_move(p,room,p->x+speed,pending_y);
+    return 1;
+}
+
+void v6_platform_push_vertical(V6Platform *e,V6Player *p,const V6Room *room,V6PlatformPush *state)
+{
+    int dy;
+    if(!v6_player_overlaps(p,e->x+e->cx,e->y+e->cy,e->w,e->h)) return;
+    dy=p->vy/V6_ONE;
+    p->y+=dy;
+    if(!v6_player_overlaps(p,e->x+e->cx,e->y+e->cy,e->w,e->h)) return;
+    p->y-=dy;
+    p->vy=e->vy*V6_ONE;
+    state->pending_y=p->y+e->vy;
+    if(v6_player_test_y(p,room,&state->pending_y)) {
+        if(e->vy>0) {
+            p->y=e->y+e->h; p->vy=0; p->roof=2; state->visual_roof=1;
+        } else {
+            p->y=e->y-21-2; p->vy=0; p->ground=2; state->visual_ground=1;
+        }
+    } else e->state=e->onwall;
+}

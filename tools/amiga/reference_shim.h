@@ -20,6 +20,7 @@ struct blockclass {
 };
 struct Game {
     float inertia;
+    int lifeseq;
     int deathseq, gravitycontrol, tapleft, tapright, jumppressed, totalflips;
     bool press_left, press_right, press_action, jumpheld;
 } game;
@@ -34,11 +35,14 @@ struct mapclass {
     bool collide(int, int, bool);
 } map;
 struct entityclass {
+    int getplayer() { return 0; }
     std::vector<entclass> entities;
     std::vector<blockclass> blocks;
     void disableblock(int);
     void disableblockat(int,int);
     void moveblockto(int,int,int,int,int,int);
+    bool entitycollide(int,int);
+    void movingplatformfix(int,int);
     bool checkplatform(const SDL_Rect&,int*,int*);
     float hplatformat(int,int);
     float entitycollideplatformfloor(int);

@@ -112,9 +112,9 @@ cycle timing with 512K Chip + 512K slow RAM. At the 16.5-second memory snapshot:
 | Unique packed payloads | 406 |
 | Prototype explicit Chip RAM allocation | 81,934 bytes |
 | Free Chip RAM after startup allocation | 376,520 bytes |
-| Free non-Chip RAM after startup allocation | 417,104 bytes (interactive build) |
-| Maximum measured update/draw work | 164 PAL lines / 10.496 ms (transition replay) |
-| Maximum room-change redraw | 164 PAL lines / 10.496 ms |
+| Free non-Chip RAM after startup allocation | 416,984 bytes (interactive build) |
+| Maximum measured update/draw work | 166 PAL lines / 10.624 ms (transition replay) |
+| Maximum room-change redraw | 166 PAL lines / 10.624 ms |
 | Missed VBL observations including transitions | 0 |
 | VBL periods crossed by room-change work | 0 |
 | Flip, checkpoint, spike death and respawn | Passed |
@@ -126,7 +126,7 @@ These are **emulator measurements of this harness**, not real-hardware or
 complete-game performance. The RAM totals do not include a resident full room
 pack: only two compressed rooms and their decoded tile/background caches are
 resident. A cache per room is temporary slice scaffolding, not the full-campaign
-storage design. The ordinary capture peaks at 87 lines / 5.568 ms. During a snapshot
+storage design. The ordinary capture peaks at 89 lines / 5.696 ms. During a snapshot
 the current tick can be one ahead of the completed-render counter.
 
 Reports and evidence:
@@ -203,7 +203,7 @@ These isolated comparisons do not establish full desktop-loop equivalence.
 The enemy capture's diagnostics and screenshot are in
 `build/amiga-enemy/smoke-report.json` and `prototype.png`. Its explicit Chip
 allocation is **43,534 bytes**, with one room's screen pair resident. Peak work
-is **133 PAL lines / 8.512 ms**, with zero missed VBL observations. The replay
+is **135 PAL lines / 8.640 ms**, with zero missed VBL observations. The replay
 verifies an enemy hit, death, checkpoint respawn, visible cyan/pink sprites and
 clean exit. It does not connect this room to the two-room world slice.
 
@@ -230,7 +230,7 @@ Vertical multiplexing and attached sprites remain unimplemented.
 Traffic Jam's capture shows all three original enemies moving, the checkpoint
 activated and a clean AmigaDOS exit. Its 22×32 collision boxes remain separate
 from the 32×32 source graphics. The room uses **43,534 Chip bytes** and peaks at
-**245 PAL lines / 15.680 ms** at tick 2, below the unchanged **250-line gate**.
+**247 PAL lines / 15.808 ms** at tick 2, below the unchanged **250-line gate**.
 `build/amiga-traffic/smoke-report.json` records `video_headroom_passed: true`,
 zero missed VBL observations and clean exit. This is a bounded replay result,
 not a worst-case campaign guarantee. Enemy hit/respawn coverage still comes
@@ -252,7 +252,7 @@ under UBSan (`make -C amiga_version test-terrain`).
 
 Profiling identified collision work as the largest part of Traffic Jam's former
 328-line peak. The cache, removal of redundant checkpoint mask writes, and
-per-text-row HUD invalidation reduce it to 245 lines without additional Chip RAM.
+per-text-row HUD invalidation reduce it to 247 lines without additional Chip RAM.
 An optional `CPPFLAGS=-DV6_PROFILE` build records six phase durations at the
 highest-work update. Use a separate `BUILD` directory, then decode its `slow.bin`
 with `python3 tools/amiga/read_profile.py /path/to/slow.bin`. Values are PAL lines;
@@ -281,8 +281,8 @@ This is a collision prerequisite for platforms. The native scenes currently
 supply empty dynamic-block lists; no playable platform or performance result
 with active platform blocks is claimed yet. The original game separately moves
 platforms, carries the player and resolves crushing before normal player logic.
-Carrying/crushing and the complete platform update loop still need
-implementation and source-reference coverage.
+The complete platform update loop and crush/death behavior still need
+integration and source-reference coverage.
 
 ## Ordinary platform movement
 
@@ -306,10 +306,33 @@ rule-2 movement, and **20,000 contact queries** match the original lookup method
 the playable scenes do not call it yet, and the linker discards unused functions.
 No native platform performance or full carrying/crushing fidelity is claimed.
 
+## Platform transport stages
+
+Horizontal carrying now follows the original `Logic.cpp` stage, including
+floor-before-roof lookup and suppression while `lifeseq >= 8`. It reuses the
+player's collision routine with explicit target coordinates. The caller supplies
+the retained pending Y position: the source reruns both axes rather than simply
+adding platform speed to X. When blocked, collision retries use player velocity,
+which can differ from the requested transport distance.
+
+The vertical push/separation helper matches `movingplatformfix`: it probes the
+player's existing vertical motion, adopts platform velocity if still overlapping,
+and either separates the player or changes the platform's state when blocked.
+Pending Y and visual floor/roof contact counters are explicit caller-owned state.
+This helper alone does not establish the game's complete crush/death behavior.
+
+**24,000 map-collision cases**, **24,000 horizontal-carry cases**, and **24,000
+vertical-push cases** match extracted original code with cached and uncached
+terrain, including fractional player velocities and disabled/overlapping blocks.
+Run `python3 tools/amiga/test_carry.py`; `make test` also includes it. The report
+is `build/amiga/carry-test-report.json`. All four existing native captures pass
+after the shared player-collision refactor; they still contain no platforms.
+
 ## Next implementation step
 
-Integrate platform movement, carrying and crushing in the original update
-order, then export a platform room and validate it on the target. Sprite
+Connect the platform stages in the original input/logic order, retaining pending
+positions and block restoration across updates. Then export a platform room,
+validate carrying and crushing end to end, and measure it on the target. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. The target replay

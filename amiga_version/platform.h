@@ -17,4 +17,13 @@ void v6_platform_step(V6Platform *, const V6Room *, V6Block *, unsigned count);
  * This selects a transport velocity; it does not move the player. */
 int v6_platform_contact_speed(const V6Player *, const V6Block *, unsigned,
                                const V6Platform *, unsigned, int roof);
+/* Horizontal transport stage, after platform updates and before normal player
+ * physics. pending_y is the retained Entity::newyp, not necessarily player.y.
+ * Returns 1 when transport was attempted (including a zero-speed platform).
+ * life_timer >= 8 suppresses transport as in Logic.cpp. */
+int v6_platform_carry_horizontal(V6Player *, const V6Room *,
+                                 const V6Platform *, unsigned, int life_timer, int pending_y);
+/* Pending position and render-contact fields used by movingplatformfix. */
+typedef struct { int pending_y, visual_ground, visual_roof; } V6PlatformPush;
+void v6_platform_push_vertical(V6Platform *, V6Player *, const V6Room *, V6PlatformPush *);
 #endif

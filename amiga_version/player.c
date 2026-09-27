@@ -100,7 +100,7 @@ void v6_player_init(V6Player *p, int x, int y, int gravity)
 
 unsigned v6_player_step_hook(V6Player *p, const V6Room *room, unsigned input, V6ContactHook hook, void *context)
 {
-    int32_t ax = 0, next;
+    int32_t ax = 0;
     const int32_t friction = 18454938; /* exact binary32 1.1f, scaled by 2^24 */
     unsigned event = 0;
     if (!(input & V6_NO_CONTROL)) {
@@ -148,22 +148,7 @@ unsigned v6_player_step_hook(V6Player *p, const V6Room *room, unsigned input, V6
     if (p->vy < -10 * V6_ONE) p->vy = -10 * V6_ONE;
     if (p->vx > -friction && p->vx < friction) p->vx = 0;
     if (p->vy > -V6_ONE/4 && p->vy < V6_ONE/4) p->vy = 0;
-    next = position(p->x, p->vx);
-    while (wall(room, next, p->y, p->vx, 0)) {
-        if (p->vx > V6_ONE) p->vx = velocity_round(p->vx - V6_ONE);
-        else if (p->vx < -V6_ONE) p->vx = velocity_round(p->vx + V6_ONE);
-        else { p->vx = 0; break; }
-        next = position(p->x, p->vx);
-    }
-    if (p->vx) p->x = next;
-    next = position(p->y, p->vy);
-    while (wall(room, p->x, next, 0, p->vy)) {
-        if (p->vy > V6_ONE) p->vy -= V6_ONE;
-        else if (p->vy < -V6_ONE) p->vy += V6_ONE;
-        else { p->vy = 0; break; }
-        next = position(p->y, p->vy);
-    }
-    if (p->vy) p->y = next;
+    v6_player_map_move(p,room,position(p->x,p->vx),position(p->y,p->vy));
     return event;
 }
 
@@ -195,3 +180,29 @@ unsigned v6_player_step(V6Player *p, const V6Room *room, unsigned input)
 { return v6_player_step_hook(p,room,input,0,0); }
 int v6_player_contacts(const V6Player *p, const V6Room *room)
 { return wall(room,p->x,p->y+1,0,0) | (wall(room,p->x,p->y-1,0,0)<<1); }
+
+void v6_player_map_move(V6Player *p,const V6Room *room,int target_x,int target_y)
+{
+    int next=target_x, allowed=1;
+    while (wall(room, next, p->y, p->vx, 0)) {
+        if (p->vx > V6_ONE) p->vx = velocity_round(p->vx - V6_ONE);
+        else if (p->vx < -V6_ONE) p->vx = velocity_round(p->vx + V6_ONE);
+        else { p->vx = 0; allowed=0; break; }
+        next = position(p->x, p->vx);
+    }
+    if (allowed) p->x = next;
+    if (v6_player_test_y(p,room,&target_y)) p->y=target_y;
+}
+
+int v6_player_test_y(V6Player *p,const V6Room *room,int *target_y)
+{
+    int next=*target_y;
+    while (wall(room, p->x, next, 0, p->vy)) {
+        if (p->vy > V6_ONE) p->vy -= V6_ONE;
+        else if (p->vy < -V6_ONE) p->vy += V6_ONE;
+        else { p->vy = 0; return 0; }
+        next = position(p->y, p->vy);
+        *target_y=next;
+    }
+    return 1;
+}

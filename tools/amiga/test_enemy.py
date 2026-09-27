@@ -85,7 +85,7 @@ extern "C" int platform_contact_reference(const V6Player *p,const V6EnemyBlock *
                     '-I'+str(ROOT/'amiga_version'),'-I'+str(ROOT/'tools/amiga'),
                     str(path),'-L/opt/homebrew/lib','-lSDL3','-o',str(BUILD/(prefix+'_reference.so'))],check=True)
     subprocess.run(['cc','-std=c99','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',
-                    '-fsanitize=undefined',str(ROOT/'amiga_version/enemy.c'),str(ROOT/'amiga_version/terrain.c'),str(ROOT/'amiga_version/platform.c'),str(ROOT/'amiga_version/blocks.c'),
+                    '-fsanitize=undefined',str(ROOT/'amiga_version/enemy.c'),str(ROOT/'amiga_version/terrain.c'),str(ROOT/'amiga_version/platform.c'),str(ROOT/'amiga_version/player.c'),str(ROOT/'amiga_version/blocks.c'),
                     '-o',str(BUILD/(prefix+'.so'))],check=True)
     core=C.CDLL(str(BUILD/(prefix+'.so'))); ref=C.CDLL(str(BUILD/(prefix+'_reference.so')))
     core.v6_terrain_build.argtypes=[C.POINTER(Terrain),C.POINTER(Room)]

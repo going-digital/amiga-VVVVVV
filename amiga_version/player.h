@@ -28,6 +28,11 @@ typedef struct V6Room {
     unsigned block_count;
 } V6Room;
 
+/* Vertical collision retry only: updates velocity/pending Y without moving Y. */
+int v6_player_test_y(V6Player *, const V6Room *, int *target_y);
+/* Entity::entitymapcollision stage with explicit pending positions. On a
+ * blocked move, retries use the player's velocity, not requested displacement. */
+void v6_player_map_move(V6Player *, const V6Room *, int target_x, int target_y);
 void v6_player_init(V6Player *p, int x, int y, int gravity);
 /* Optional collision-animation hook: after input/contact probes, before
  * velocity integration. The callback must not mutate the player. */
