@@ -99,6 +99,7 @@ test: test-sprites test-terrain $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/test_recovery.py
 	python3 $(ROOT)/tools/amiga/test_platform_recovery.py
 	python3 $(ROOT)/tools/amiga/test_disappearing.py
+	python3 $(ROOT)/tools/amiga/test_disappearing_scene.py
 	python3 $(ROOT)/tools/amiga/test_checkpoints.py
 	python3 $(ROOT)/tools/amiga/test_pick_route.py
 	python3 $(ROOT)/tools/amiga/test_pixel_collision.py
@@ -204,6 +205,7 @@ $(BUILD)/disappearing.o: disappearing.c disappearing.h | $(BUILD)
 .PHONY: disappearing-capture
 disappearing-capture:
 	python3 $(ROOT)/tools/amiga/test_disappearing.py
+	python3 $(ROOT)/tools/amiga/test_disappearing_scene.py
 	python3 $(ROOT)/tools/amiga/disappearing_replay_trace.py
 	$(MAKE) BUILD=$(ROOT)/build/amiga-disappearing SCENE=platform CPPFLAGS=-DV6_DISAPPEAR_REPLAY all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-disappearing --capture --disappearing

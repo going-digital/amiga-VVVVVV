@@ -128,14 +128,20 @@ static V6PlayerMotion platform_motion;
 static V6PlatformPush platform_push;
 static ULONG platform_ticks, platform_pushes;
 #ifdef V6_DISAPPEAR_REPLAY
-static V6Disappearing disappearing;
+static V6Disappearing disappearing[PLATFORM_COUNT];
 static unsigned disappearing_count,disappearing_sound;
 static void update_disappearing(int dying)
 {
-    unsigned events=v6_disappearing_update(&disappearing,104,93,platform_blocks,
-                                          &disappearing_count,PLATFORM_COUNT,dying);
-    if(events&V6_DISAPPEAR_FULL) diagnostics.error=5;
-    if(events&V6_DISAPPEAR_SOUND) {disappearing_sound=1;++platform_pushes;}
+    unsigned i=PLATFORM_COUNT;
+    /* Original non-moving entities update in reverse entity order. Restored
+     * blocks reuse the first disabled slot, regardless of entity index. */
+    while(i--) {
+        unsigned events=v6_disappearing_update(&disappearing[i],
+            platforms[i].x,platforms[i].y,platform_blocks,
+            &disappearing_count,PLATFORM_COUNT,dying);
+        if(events&V6_DISAPPEAR_FULL) diagnostics.error=5;
+        if(events&V6_DISAPPEAR_SOUND) {disappearing_sound=1;++platform_pushes;}
+    }
     current_room.block_count=disappearing_count;
 }
 #endif
@@ -157,7 +163,8 @@ static void reset_platforms(void)
     }
     current_room.blocks=platform_blocks;current_room.block_count=PLATFORM_COUNT;
 #ifdef V6_DISAPPEAR_REPLAY
-    v6_disappearing_init(&disappearing);disappearing_count=1;disappearing_sound=0;
+    for(i=0;i<PLATFORM_COUNT;++i) v6_disappearing_init(&disappearing[i]);
+    disappearing_count=PLATFORM_COUNT;disappearing_sound=0;
 #endif
     platform_motion=(V6PlayerMotion){0,slice.player.y};
     platform_push=(V6PlatformPush){slice.player.y,0,0};
@@ -175,7 +182,12 @@ static unsigned platform_movement(V6Player *p,const V6Room *r,unsigned input,
     (void)life_timer;
     update_disappearing(0);
     v6_player_physics(p,r,&platform_motion,0,0);
-    v6_disappearing_contact(&disappearing,v6_player_overlaps(p,104,92,32,10));
+    {
+        unsigned i;
+        for(i=0;i<PLATFORM_COUNT;++i)
+            v6_disappearing_contact(&disappearing[i],
+                v6_player_overlaps(p,platforms[i].x,platforms[i].y-1,32,10));
+    }
 #else
     platform_push.pending_y=platform_motion.pending_y;
 #if defined(V6_HORIZONTAL_REPLAY) || defined(CHECKPOINT_COUNT)
@@ -792,28 +804,28 @@ static int run(void)
 #ifdef V6_PLATFORM_SCENE
         {
             unsigned n;
+            for(n=0;n<PLATFORM_COUNT;++n) {
 #ifdef V6_DISAPPEAR_REPLAY
-            if(disappearing.walking_frame<0 || disappearing.walking_frame>=5) {
-                diagnostics.error=6;break;
-            }
-#endif
-            for(n=0;n<PLATFORM_COUNT;++n)
-#ifdef V6_DISAPPEAR_REPLAY
-                if(!disappearing.invisible && v6_sprites_add_rect(&sprites[back],
-                        disappearing_rows[disappearing.walking_frame],platforms[n].x,
+                if(disappearing[n].invisible) continue;
+                if(disappearing[n].walking_frame<0 || disappearing[n].walking_frame>=5) {
+                    diagnostics.error=6;break;
+                }
+                if(v6_sprites_add_rect(&sprites[back],
+                        disappearing_rows[disappearing[n].walking_frame],platforms[n].x,
 #else
                 if(v6_sprites_add_rect(&sprites[back],platform_rows,platforms[n].x,
 #endif
                         platforms[n].y,0,32,8,0xf6b)<V6_SPRITE_CLIPPED) {
                     diagnostics.error=4;break;
                 }
+            }
             if(diagnostics.error) break;
         }
         /* Version-5 actor slots describe platforms in this separate scene. */
         diagnostics.enemy_x=platforms[0].x;diagnostics.enemy_y=platforms[0].y;
         diagnostics.enemy_ticks=platform_ticks;diagnostics.enemy_hits=platform_pushes;
 #ifdef V6_DISAPPEAR_REPLAY
-        diagnostics.enemy_x=disappearing.state;diagnostics.enemy_y=disappearing.walking_frame;
+        diagnostics.enemy_x=disappearing[0].state;diagnostics.enemy_y=disappearing[0].walking_frame;
 #endif
 #endif
         PROFILE_MARK(5);

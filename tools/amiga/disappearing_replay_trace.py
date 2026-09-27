@@ -40,14 +40,14 @@ int main(void) {
             platform_motion=(V6PlayerMotion){0,slice.player.y};
             platform_push=(V6PlatformPush){slice.player.y,0,0};
         }
-        states|=1u<<disappearing.state;
-        assert(!diagnostics.error && !slice.exits && disappearing.walking_frame>=0 && disappearing.walking_frame<5);
+        states|=1u<<disappearing[0].state;
+        assert(!diagnostics.error && !slice.exits && disappearing[0].walking_frame>=0 && disappearing[0].walking_frame<5);
         printf("%s{\"ticks\":%u,\"player_x\":%d,\"player_y\":%d,\"player_vx\":%d,\"player_vy\":%d,"
                "\"gravity\":%d,\"death_timer\":%d,\"deaths\":%d,\"respawns\":%d,\"checkpoint\":%d,"
                "\"enemy_x\":%d,\"enemy_y\":%d,\"enemy_ticks\":%lu,\"enemy_hits\":%lu}",
                tick==1?"":",\n",tick,slice.player.x,slice.player.y,slice.player.vx,slice.player.vy,
                slice.player.gravity,slice.death_timer,slice.deaths,slice.respawns,slice.checkpoint_active,
-               disappearing.state,disappearing.walking_frame,platform_ticks,platform_pushes);
+               disappearing[0].state,disappearing[0].walking_frame,platform_ticks,platform_pushes);
     }
     puts("\n]");
     assert(states==63 && slice.deaths==1 && slice.respawns==1 && platform_pushes==1);

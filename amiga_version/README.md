@@ -756,10 +756,21 @@ exit. This is an automated synthetic replay, not a playable campaign room or
 full desktop-loop comparison. Retriggering during recharge is covered by the
 host core tests; the native fixture respawns away so one recharge completes.
 
+The native adapter now keeps separate lifecycle and animation state for each
+platform, uses room-provided positions, and updates entities in reverse order.
+`tools/amiga/test_disappearing_scene.py` exercises three independent contacts
+and 32 simultaneous collapse/death/recharge cycles with UBSan, checking that
+restored collision blocks reuse free slots independently of entity indices.
+These are host adapter checks with empty terrain, not a three-platform campaign
+replay. The existing single-platform Copperline fixture remains the target test.
+
 ## Next implementation step
 
-Export and integrate an original room containing disappearing platforms, then
-add conveyors. Sprite
+Export and integrate “What Lies Beneath?” (116,110): its checkpoint and three
+disappearing platforms fit within seven hardware sprite channels. Before making
+it interactive, handle animation frames reached by retriggering during recharge
+(the current fixture exports only five) and separate flip and vanish sound cues.
+Then add conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. Target replays combine milestone assertions with selected state comparisons;

@@ -202,7 +202,7 @@ the next entity expansion.
 The ordinary disappearing-platform lifecycle core is now implemented and matches
 40,960 source-derived updates across all six states and sound/disable/create
 events. It compiles for the 68000 without helper-library dependencies. It is not
-yet integrated into a room. Collision-bank integration now matches 30,720 source
+yet integrated into an original campaign room. Collision-bank integration now matches 30,720 source
 updates, including first-disabled-slot reuse, metadata clearing, shared origins
 and appends. Fixed-capacity exhaustion leaves both state and bank unchanged;
 separate tests cover failure and retry. A synthetic native replay now connects animation and the original vanish cue:
@@ -211,7 +211,13 @@ snapshots (ticks 9/29/54) and the final state (tick 180) match the host scene
 trace. Peak work is 145 PAL lines / 9.280 ms, using 44,350 explicit Chip bytes,
 with no missed VBLs and clean exit. It is an automated fixture, not an original
 campaign room. Original-room export, the (111,107) tile exception and conveyors
-remain next steps.
+remain next steps. The native adapter now supports independent states and
+room-provided positions for multiple disappearing platforms. Host checks cover
+three independent contacts and 32 shared-bank collapse/death/recharge cycles,
+including reverse-order block restoration. “What Lies Beneath?” (116,110) is the
+next original-room candidate (one checkpoint, three platforms, seven sprite
+channels); interactive integration still needs extended recharge-retrigger
+animation coverage and separate flip/vanish cues.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and
