@@ -164,9 +164,10 @@ def build(out, scene="world"):
             header = '/* Generated bounded Stop and Reflect setup. */\n'
             header += 'static const unsigned char packed_room_0[] = {' + ','.join(map(str,selected)) + '};\n'
             header += '#define SLICE_ROOM_COUNT 1\n#define SLICE_TILESET 0\n#define SLICE_EXTRA_ROW 0\n'
+            header += '#ifndef V6_HORIZONTAL_REPLAY\n'
             header += 'static const V6RoomSetup room_setups[] = {{112,106,288,160,21,442500}};\n'
             header += '#define PLATFORM_COUNT 3\n#define SLICE_CAPTION "112,106 - STOP AND REFLECT        "\n'
-            header += 'static const int platform_setup[3][2]={{135,75},{185,110},{235,145}};\n'
+            header += 'static const int platform_setup[3][2]={{135,75},{185,110},{235,145}};\n#endif\n'
         header += 'static const unsigned char * const packed_rooms[] = {packed_room_0};\n'
         header += 'static const unsigned short packed_sizes[] = {sizeof(packed_room_0)};\n'
     else:

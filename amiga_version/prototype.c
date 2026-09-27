@@ -18,6 +18,9 @@
 #include "pixel_collision.h"
 #include "animation.h"
 #include "sprites.h"
+#ifdef V6_HORIZONTAL_REPLAY
+#include "horizontal_fixture.h"
+#endif
 #include "prototype_room.h"
 #include "prototype_assets.h"
 #ifdef V6_TRANSITION_REPLAY
@@ -108,7 +111,11 @@ static void reset_platforms(void)
     unsigned i;
     for(i=0;i<PLATFORM_COUNT;++i) {
         v6_platform_init(&platforms[i],platform_setup[i][0],platform_setup[i][1],
+#ifdef V6_HORIZONTAL_REPLAY
+                         3,3,64,64,288,184);
+#else
                          0,3,100,70,320,160);
+#endif
         platform_blocks[i]=(V6Block){platforms[i].x,platforms[i].y,32,8,V6_BLOCK,0};
     }
     current_room.blocks=platform_blocks;current_room.block_count=PLATFORM_COUNT;
@@ -123,10 +130,19 @@ static unsigned platform_movement(V6Player *p,const V6Room *r,unsigned input,
     (void)context;
     events=v6_player_input(p,input,&platform_motion);
     platform_push.pending_y=platform_motion.pending_y;
+#ifdef V6_HORIZONTAL_REPLAY
+    before=p->x;
+#else
     before=p->y;
+#endif
     v6_platform_transport(p,r,platforms,PLATFORM_COUNT,platform_blocks,PLATFORM_COUNT,
+#ifdef V6_HORIZONTAL_REPLAY
+                           V6_PLATFORMS_HORIZONTAL,life_timer,&platform_push);
+    if(p->x!=before) ++platform_pushes;
+#else
                            V6_PLATFORMS_VERTICAL,life_timer,&platform_push);
     if(p->y!=before) ++platform_pushes;
+#endif
     v6_player_physics(p,r,&platform_motion,0,0);
     v6_platform_disable_overlaps(p,platforms,PLATFORM_COUNT,platform_blocks,PLATFORM_COUNT);
     v6_player_unstick(p,r);
@@ -466,6 +482,9 @@ static int run(void)
             CloseLibrary((struct Library *)GfxBase);
             return 20;
         }
+#ifdef V6_HORIZONTAL_REPLAY
+        horizontal_fixture_tiles(room_tiles[i]);
+#endif
         room = room_tiles[i];
         background = room_backgrounds[i];
         draw_room();
@@ -535,6 +554,9 @@ static int run(void)
             ++diagnostics.ticks;
             {
                 unsigned events;
+#ifdef V6_HORIZONTAL_REPLAY
+                input=0;
+#endif
 #ifdef V6_PLATFORM_REPLAY
                 /* Walk off the checkpoint ledge, then flip onto the third
                  * platform. This deterministic capture also exercises respawn. */

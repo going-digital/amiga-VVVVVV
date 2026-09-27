@@ -79,8 +79,8 @@ extern "C" void loop_step(unsigned input,unsigned flags,int life,V6Platform *pla
     ref.loop_init.argtypes=[pp,C.POINTER(C.c_uint16),C.c_int,C.c_int,bp,C.c_uint,ep,C.c_uint]
     ref.loop_step.argtypes=[C.c_uint,C.c_uint,C.c_int,ep,C.c_uint,bp,C.c_uint,C.POINTER(Push)]
     ref.reference_read.argtypes=[pp]
-    rng=random.Random(6800016);ticks=0
-    for scenario in range(96):
+    rng=random.Random(6800016);ticks=0;fixture_trace=[];transport_ticks=0;reference_previous_x=156
+    for scenario in range(97):
         tiles=(C.c_uint16*1200)()
         for y in range(30):
             for x in range(40):
@@ -98,43 +98,66 @@ extern "C" void loop_step(unsigned input,unsigned flags,int life,V6Platform *pla
         initial=Player();core.v6_player_init(C.byref(initial),96,73 if scenario%2==0 else 106,scenario%2)
         blocks=(DynamicBlock*6)(*[DynamicBlock(a.x,a.y,32,8,0,0) for a in actors],
             DynamicBlock(96,96,32,8,0,0),DynamicBlock(144,72,8,96,2,scenario%4))
-        expected_actors=(Enemy*4).from_buffer_copy(actors)
-        expected_blocks=(DynamicBlock*6).from_buffer_copy(blocks)
-        ref.loop_init(C.byref(initial),tiles,scenario%3,1,blocks,6,actors,4)
+        count=4;block_count=6;tileset=scenario%3;extra=1
+        if scenario==96:
+            count=block_count=1;tileset=0;extra=0;flags=2
+            for y in range(30):
+                for x in range(40):tiles[y*40+x]=495 if y>=27 or x in (0,39) else 0
+            actors=(Enemy*1)()
+            assert core.v6_platform_init(C.byref(actors[0]),144,116,3,3,64,64,288,184)
+            core.v6_player_init(C.byref(initial),156,93,0)
+            blocks=(DynamicBlock*1)(DynamicBlock(144,116,32,8,0,0))
+        expected_actors=(Enemy*count).from_buffer_copy(actors)
+        expected_blocks=(DynamicBlock*block_count).from_buffer_copy(blocks)
+        ref.loop_init(C.byref(initial),tiles,tileset,extra,blocks,block_count,actors,count)
         states=[]
         for cached in (False,True):
             p=Player.from_buffer_copy(initial)
-            a=(Enemy*4).from_buffer_copy(actors);b=(DynamicBlock*6).from_buffer_copy(blocks)
-            room=Room(tiles,scenario%3,1);room.blocks=b;room.block_count=6
+            a=(Enemy*count).from_buffer_copy(actors);b=(DynamicBlock*block_count).from_buffer_copy(blocks)
+            room=Room(tiles,tileset,extra);room.blocks=b;room.block_count=block_count
             terrain=Terrain();core.v6_terrain_build(C.byref(terrain),C.byref(room))
             if cached:room.terrain=C.pointer(terrain)
             states.append((p,a,b,room,terrain,Motion(0,p.y),Push(p.y,0,0)))
         expected_push=Push(initial.y,0,0)
         for tick in range(240):
             buttons=rng.choice((0,0,1,2,4,5,6));life=max(0,10-tick)
+            if scenario==96:buttons=life=0
             if life>5:buttons|=8
-            ref.loop_step(buttons,flags,life,expected_actors,4,expected_blocks,6,C.byref(expected_push))
+            ref.loop_step(buttons,flags,life,expected_actors,count,expected_blocks,block_count,C.byref(expected_push))
             expected=Player();ref.reference_read(C.byref(expected))
             for cached,(p,a,b,room,terrain,motion,push) in enumerate(states):
                 core.v6_player_input(C.byref(p),buttons,C.byref(motion))
                 push.pending_y=motion.pending_y
-                core.v6_platform_transport(C.byref(p),C.byref(room),a,4,b,6,flags,life,C.byref(push))
+                before=p.x
+                core.v6_platform_transport(C.byref(p),C.byref(room),a,count,b,block_count,flags,life,C.byref(push))
+                if scenario==96 and not cached and p.x!=before:transport_ticks+=1
                 core.v6_player_physics(C.byref(p),C.byref(room),C.byref(motion),None,None)
-                core.v6_platform_disable_overlaps(C.byref(p),a,4,b,6)
+                core.v6_platform_disable_overlaps(C.byref(p),a,count,b,block_count)
                 core.v6_player_unstick(C.byref(p),C.byref(room))
                 for field in FIELDS:
                     assert getattr(p,field)==getattr(expected,field),(scenario,tick,cached,field,getattr(p,field),getattr(expected,field))
-                for i in range(4):
+                for i in range(count):
                     for field in ENEMY_FIELDS:
                         assert getattr(a[i],field)==getattr(expected_actors[i],field),(scenario,tick,cached,i,field)
                 assert bytes(b)==bytes(expected_blocks),(scenario,tick,cached,'blocks')
                 assert motion.pending_y==ref.reference_pending(),(scenario,tick,cached,'pending')
                 assert (push.visual_ground,push.visual_roof)==(expected_push.visual_ground,expected_push.visual_roof),(scenario,tick,cached,'visual')
+            if scenario==96:
+                assert expected.vx==0
+                reference_moved=expected.x!=reference_previous_x
+                reference_previous_x=expected.x
+                assert reference_moved
+                assert transport_ticks==tick+1
+                fixture_trace.append(dict(player_x=expected.x,player_y=expected.y,
+                    player_vx=expected.vx,player_vy=expected.vy,gravity=expected.gravity,
+                    enemy_x=expected_actors[0].x,enemy_y=expected_actors[0].y,
+                    enemy_hits=tick+1))
             ticks+=1
-    report=dict(scenarios=96,compared_ticks=ticks,cached_compared_ticks=ticks,
+    report=dict(scenarios=97,compared_ticks=ticks,cached_compared_ticks=ticks,
         reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
         scope='Persistent ordinary-platform reverse-order scheduling, player input/transport/physics and overlap/stuck correction; no damage, lifecycle, scripts, conveyors, supercrewmates or native scene.')
     (BUILD/'platform-loop-test-report.json').write_text(json.dumps(report,indent=2)+'\n')
+    (BUILD/'horizontal-reference-trace.json').write_text(json.dumps(fixture_trace,indent=2)+'\n')
     print('PASS:',json.dumps(report))
 
 

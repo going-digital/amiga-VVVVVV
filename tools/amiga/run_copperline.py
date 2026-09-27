@@ -80,6 +80,7 @@ def main():
     parser.add_argument('--enemy', action='store_true')
     parser.add_argument('--traffic', action='store_true')
     parser.add_argument('--platform', action='store_true')
+    parser.add_argument('--horizontal', action='store_true')
     args = parser.parse_args()
     build = args.build.resolve()
     config = build / 'copperline.toml'
@@ -105,7 +106,7 @@ write_protected = true
     if args.capture:
         env = dict(os.environ, RUST_LOG='info', COPPERLINE_DBG_AFTER='16.5',
                    COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{build / "slow.bin"}')
-        command += ([] if args.platform else
+        command += ([] if args.platform or args.horizontal else
                     ['--joy-after','12','left','200'] if args.traffic else
                     ['--joy-after','12','right','300'] if args.enemy else
                     ['--joy-after','13','fire','100','--joy-after','15.5','right','300',
@@ -123,6 +124,21 @@ write_protected = true
             assert report['transitions'] >= 1 and report['room_index'] == 0, report
             assert 0 < report['max_load_lines'] < 250 and report['exits'] == 0, report
             assert report['load_frames'] == 0, report
+        elif args.horizontal:
+            assert report['enemy_ticks']>100 and report['max_sprite_channels']==3, report
+            assert report['enemy_hits']>100 and report['checkpoint']==1, report
+            assert report['player_vx']==0 and report['player_y']==93, report
+            assert report['deaths']==0 and report['respawns']==0 and report['exits']==0, report
+            report['visible_platform_pixels']=visible_enemy(build,build/'prototype.png')
+            report['horizontal_transport_ticks']=report['enemy_hits']
+            report['fixture']='Synthetic horizontal ride; not a campaign room'
+            trace=json.loads((ROOT/'build/amiga/horizontal-reference-trace.json').read_text())
+            assert report['ticks']==report['enemy_ticks'], 'Snapshot fell within an unfinished tick'
+            assert 0<report['ticks']<=len(trace), report
+            expected=trace[report['ticks']-1]
+            for field,value in expected.items():
+                assert report[field]==value, (field,report[field],value)
+            report['reference_tick_verified']=report['ticks']
         elif args.platform:
             assert report['enemy_ticks']>100 and report['max_sprite_channels']==7, report
             assert report['enemy_y']!=75 and report['checkpoint']==1, report
@@ -151,13 +167,13 @@ write_protected = true
             report['visible_enemy_pixels']=visible_enemy(build,build/'prototype.png')
         else:
             assert report['flips'] == 1 and report['checkpoint'] == 1, report
-        if not args.traffic and not args.platform:
+        if not args.traffic and not args.platform and not args.horizontal:
             assert report['deaths'] >= 1 and report['respawns'] >= 1, report
         # Snapshot can land between a tick and completion of its render.
         assert report['ticks'] > 100 and 0 <= report['ticks'] - report['renders'] <= 1, report
         report['video_headroom_passed'] = report['missed_frames'] == 0 and report['max_work_lines'] < 250
         report['max_work_ms'] = round(report['max_work_lines'] * 227 / 3546895 * 1000, 3)
-        if not args.transitions and not args.enemy and not args.traffic and not args.platform:
+        if not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal:
             report['flip_audio_peak'] = audio_peak(build / 'prototype.wav')
             assert report['flip_audio_peak'] > 0.001, report
         report['max_load_ms'] = round(report['max_load_lines'] * 227 / 3546895 * 1000, 3)

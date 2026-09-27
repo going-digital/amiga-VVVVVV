@@ -135,3 +135,9 @@ platform-run:
 platform-capture:
 	$(MAKE) BUILD=$(ROOT)/build/amiga-platform-replay SCENE=platform CPPFLAGS=-DV6_PLATFORM_REPLAY all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-platform-replay --capture --platform
+
+.PHONY: horizontal-capture
+horizontal-capture:
+	python3 $(ROOT)/tools/amiga/test_platform_loop.py
+	$(MAKE) BUILD=$(ROOT)/build/amiga-horizontal-replay SCENE=platform CPPFLAGS=-DV6_HORIZONTAL_REPLAY all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-horizontal-replay --capture --horizontal

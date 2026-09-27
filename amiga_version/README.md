@@ -31,6 +31,7 @@ make -C amiga_version traffic-run
 make -C amiga_version traffic-capture
 make -C amiga_version platform-run
 make -C amiga_version platform-capture
+make -C amiga_version horizontal-capture
 ```
 
 - `all`: host asset conversion, Bartman 68000 compile, ELF/Hunk output, bootable ADF.
@@ -53,6 +54,9 @@ make -C amiga_version platform-capture
 - `platform-capture`: separate deterministic input build in
   `build/amiga-platform-replay`; checks platform transport, three visible
   platforms, seven channels, death/respawn, timing and clean exit.
+- `horizontal-capture`: builds a labelled synthetic horizontal-platform fixture,
+  verifies the host reference trace, then compares the target snapshot with the
+  matching reference tick. Output is in `build/amiga-horizontal-replay`.
 - `run`: interactive Copperline window. Joystick left/right moves;
   fire flips gravity when supported. Right mouse restarts from the checkpoint;
   left mouse exits to AmigaDOS. Keyboard input is not implemented yet.
@@ -365,8 +369,8 @@ each pass runs; a stationary platform can run in both. Vertical movement
 updates its block before pushing the player, and horizontal carrying follows
 the complete horizontal pass.
 
-**23,040 persistent ticks per cached/uncached terrain path** match the extracted
-desktop scheduling loops and movement methods across 96 scenarios. Each tick
+**23,280 persistent ticks per cached/uncached terrain path** match the extracted
+desktop scheduling loops and movement methods across 97 scenarios. Each tick
 compares player state, every platform's movement state, block origins and
 dimensions, pending Y, and visual contact counters. Coverage includes all four
 pass-flag combinations, zero-speed platforms, duplicate block origins,
@@ -411,13 +415,40 @@ DMA positions, pixels, terminators, clipping and capacity, alongside the existin
 sprite suite. All four earlier native captures still pass.
 
 The replay demonstrates vertical riding and the slice death/respawn path.
-Horizontal carrying on target and a deliberate crushing scenario still need
-dedicated replays; the host movement tests do not establish full death fidelity.
+The horizontal target fixture below covers ordinary floor carrying. A deliberate
+crushing scenario still needs a dedicated replay; the host movement tests do not establish full death fidelity.
+
+## Horizontal target fixture
+
+`horizontal-capture` is a synthetic regression test, explicitly labelled on
+screen. It uses a single 32×8 platform starting at (144,116), behaviour 3,
+speed 3 and bounds (64,64)–(288,184). The player starts on it at (156,93).
+All input is zero, isolating platform transport from player acceleration.
+It is separate from Stop and Reflect and does not represent another ported room.
+
+The host suite compares this fixture with extracted desktop scheduling and
+physics for 240 ticks on both terrain paths. The capture target regenerates
+`build/amiga/horizontal-reference-trace.json`, then compares the emulator's
+player position, velocity and gravity, platform position, and transport count
+with the matching reference tick. This checks the captured tick, not every
+target tick or the full lifecycle.
+
+The A500 capture verifies **180 horizontal transport ticks**, with zero player
+X velocity, no deaths or exits, a visible platform and three sprite channels.
+It peaks at **167 PAL lines / 10.688 ms**, with no missed VBL observations and
+successful return to AmigaDOS. Explicit Chip allocation is **43,534 bytes**;
+non-Chip free memory is **437,072 bytes**. The original vertical replay also
+still passes at 237 lines.
+
+The reviewed original horizontal-platform rooms require additional support:
+Just Pick Yourself Down has two checkpoints; Gantry and Dolly also has
+disappearing platforms; others include conveyors or enemies and scripts.
+Their setup has not been silently omitted to create a playable export.
 
 ## Next implementation step
 
-Add a horizontal-platform scene and a deliberate crush/death replay, with
-full desktop-loop state comparisons for the lifecycle. Sprite
+Support multiple checkpoints to export an original horizontal-platform room,
+and add a deliberate crush/death replay with desktop lifecycle comparisons. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. The target replay

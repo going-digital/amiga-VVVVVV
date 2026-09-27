@@ -107,8 +107,8 @@ caller-owned motion state. **12,000 ordered input/push/carry/physics ticks** mat
 extracted reference code with prescribed platform positions. Post-physics block
 disabling and stuck-player correction now match **12,000 additional reference
 cases per terrain path**, including duplicate origins and directional-barrier
-skipping. The reverse-order platform scheduler now matches **23,040 persistent
-ticks per terrain path** across 96 scenarios, together with player input,
+skipping. The reverse-order platform scheduler now matches **23,280 persistent
+ticks per terrain path** across 97 scenarios, together with player input,
 transport, physics and post-physics overlap/stuck correction. Tests preserve
 blocks between ticks and compare every platform's movement state; zero-speed
 platforms can participate in both velocity-selected passes. A separate native **Stop and Reflect (112,106)** scene now connects this
@@ -120,8 +120,14 @@ checkpoint, with all three platforms visible. It passes the unchanged gate at
 and no missed VBL observations. Same-room respawn preserves platform state.
 Height-limited sprite DMA avoids writing 24 unused rows per platform half;
 63,744 new host cases validate height, clipping and atomic allocation.
-All four earlier captures still pass. Horizontal carrying on target and a
-deliberate crush/death replay with full desktop lifecycle comparison remain next.
+All four earlier captures still pass. A separate, clearly labelled synthetic
+horizontal fixture now verifies **180 transport ticks** on target at
+**167 PAL lines / 10.688 ms**, using three sprite channels. Its captured player
+and platform state matches tick 180 of an extracted desktop reference trace.
+The host fixture compares 240 ticks on both terrain paths. Exporting an original
+horizontal room requires more room-entity support (at least multiple
+checkpoints); a deliberate crush/death replay with desktop lifecycle comparison
+also remains outstanding.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and
