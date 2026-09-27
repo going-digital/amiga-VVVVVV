@@ -62,13 +62,15 @@ def original_reference():
     move_end = inp.index('\n            }', movement)
     movement_body = inp[movement:move_end]
     controls = inp.index('if (has_control)', move_end)
+    controlled=block(inp,controls)
+    locked=block(inp,inp.index('else',controls+len(controlled)))
     chunks.append('''extern "C" void reference_step(unsigned input) {
         game.press_left = input & V6_LEFT;
         game.press_right = input & V6_RIGHT;
         game.press_action = input & V6_FLIP;
         const bool has_control = !(input & V6_NO_CONTROL);
         if (has_control) { const size_t ie = 0;
-        ''' + movement_body + '\n}\n' + block(inp, controls) + '''
+        ''' + movement_body + '\n}\n' + controlled + '\n' + locked + '''
         entclass& e = obj.entities[0];
         if (obj.entitycollidefloor(0)) e.onground = 2; else --e.onground;
         if (obj.entitycollideroof(0)) e.onroof = 2; else --e.onroof;

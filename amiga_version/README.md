@@ -607,10 +607,19 @@ room changes, tower camera and special-mode operations abort. It covers ordinary
 same-room deaths through respawn, not the full game loop, subsequent movement,
 visibility, scripts or other modes. `make test` includes it; its source
 hash and results are in `build/amiga/death-lifecycle-report.json`.
-The extracted death/reset methods do not include the surrounding input and
-contact stages: desktop input still updates flip latches without control, and
-Logic.cpp updates contact counters during death. Those stages need a combined
-loop comparison before claiming complete death-state fidelity.
+The reference now also extracts Input.cpp's locked-control branch. Flip presses
+and releases update the held latch and buffer while movement/flip execution is
+locked, including during death. The player reference previously omitted this
+branch; it now covers it in the existing 3,000 control-lock ticks. The death
+comparison exercises held, released and repeated presses across all 576 cases.
+A slice regression releases during death and presses on its last tick: the buffer
+survives five recovery ticks and flips on the sixth, when control returns.
+The full host suite passes after this change. Traffic Jam's A500 capture still
+peaks at **249 PAL lines**, with no missed VBLs and clean exit.
+
+Logic.cpp also updates contact counters during death. That surrounding stage
+still needs a combined loop comparison before claiming complete death-state
+fidelity.
 
 After the retention fix, the full host suite, the standalone A500 compression
 regression and the checkpoint-route capture pass. The route remains at **196 PAL
@@ -618,8 +627,8 @@ lines / 12.544 ms**, with zero missed VBLs and clean AmigaDOS restoration.
 
 ## Next implementation step
 
-Extend the independent desktop comparison to input while control is locked,
-contact updates during death and post-respawn movement. Add an integrated visual
+Extend the independent desktop comparison to contact updates during death
+and post-respawn movement. Add an integrated visual
 compression/spike-push replay. Then expand room-entity
 support to disappearing platforms and conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed

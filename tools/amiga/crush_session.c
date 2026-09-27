@@ -39,9 +39,9 @@ void crush_session_init(int tileset,int down,int tile,int speed,int x,int cached
     push=(V6PlatformPush){slice.player.y,0,0};
     updates=events=0;
 }
-void crush_session_step(void)
+void crush_session_step_input(unsigned input)
 {
-    events=v6_slice_step_movement(&slice,&room,0,0,move,0);
+    events=v6_slice_step_movement(&slice,&room,input,0,move,0);
     if(events&V6_EVENT_RESPAWN) {
         motion=(V6PlayerMotion){0,slice.player.y};
         push=(V6PlatformPush){slice.player.y,0,0};
@@ -58,4 +58,9 @@ void crush_session_read(V6Player *p,V6Platform *e,V6Block *b,int *state)
 void crush_session_seed_player(const V6Player *p)
 {
     slice.player=*p;
+}
+
+void crush_session_step(void)
+{
+    crush_session_step_input(0);
 }

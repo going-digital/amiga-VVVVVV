@@ -12,6 +12,9 @@ def reference_source():
     game=(ROOT/'desktop_version/src/Game.cpp').read_text()
     maps=(ROOT/'desktop_version/src/Map.cpp').read_text()
     logic=(ROOT/'desktop_version/src/Logic.cpp').read_text()
+    inp=(ROOT/'desktop_version/src/Input.cpp').read_text()
+    controls=inp.index('    if (has_control)',inp.index('void gameinput(void)'))
+    locked=block(inp,inp.index('else',controls+len(block(inp,controls))))
     methods=[block(game,game.index('void Game::'+name+'(void)'))
              for name in ('deathsequence',)]
     methods.append(block(maps,maps.index('void mapclass::resetplayer(const bool player_died)')))
@@ -45,7 +48,7 @@ struct Graphics {
 struct Script { bool running; } script;
 struct Game {
     int deathseq,lifeseq,deathcounts,gravitycontrol,savegc,gameoverdelay;
-    int tapleft,tapright,jumppressed,totalflips;bool jumpheld;
+    int tapleft,tapright,jumppressed,totalflips;bool jumpheld,press_action;
     int roomx,roomy,saverx,savery,savex,savey,savedir,savecolour,currentroomdeaths;
     int swngame,swntimer,swnmessage,swnrank,state,scmprogress;
     bool supercrewmate,scmhurt,nodeathmode,noflashingmode,swnmode,hascontrol,completestop,advancetext;
@@ -100,11 +103,11 @@ extern "C" void death_read(int *s) {
 }
 '''
     return shim+'\n'.join(methods)+'''
-extern "C" void death_tick() {
+extern "C" void death_tick(unsigned input) {
     if(game.nodeathmode || game.swnmode || game.supercrewmate || map.towermode ||
        game.roomx!=game.saverx || game.roomy!=game.savery || script.running ||
        game.completestop) std::abort();
-'''+timer+'\n}\n'
+'''+ 'game.press_action=input & V6_FLIP;\nif(false) {}\n'+locked+'\n'+timer+'\n}\n'
 
 
 def main():
@@ -124,6 +127,8 @@ def main():
     ref.death_init.argtypes=[C.POINTER(Player)]+[C.c_int]*4;ref.death_read.argtypes=[C.POINTER(C.c_int)]
     core.crush_session_init.argtypes=[C.c_int]*6
     core.crush_session_read.argtypes=[C.POINTER(Player),C.POINTER(Enemy),C.POINTER(DynamicBlock),C.POINTER(C.c_int)]
+    ref.death_tick.argtypes=[C.c_uint]
+    core.crush_session_step_input.argtypes=[C.c_uint]
     core.crush_session_seed_player.argtypes=[C.POINTER(Player)]
     ref.death_player_read.argtypes=[C.POINTER(Player)]
     cases=ticks=0
@@ -148,7 +153,8 @@ def main():
                             ref.death_init(C.byref(p),x,97 if down else 70,down,1)
                             expected_player=Player()
                             for delay in range(30):
-                                ref.death_tick();core.crush_session_step()
+                                buttons=4 if (cases%3==0 or (cases%3==1 and delay%8<4)) else 0
+                                ref.death_tick(buttons);core.crush_session_step_input(buttons)
                                 ref.death_read(original)
                                 core.crush_session_read(C.byref(p),C.byref(e),C.byref(b),state)
                                 assert list(state[:3])==list(original[:3]),(cases,delay,list(state),list(original))
@@ -162,7 +168,7 @@ def main():
                                 ticks+=1
                             cases+=1
     report=dict(cases=cases,death_ticks=ticks,reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
-        scope='Extracted Game::deathsequence and Map::resetplayer plus Logic.cpp countdown/reset branch; ordinary same-room death only. Compare timer, life timer and death count each tick; all player fields including retained input/contact state through freeze and respawn, using synthetic damage-boundary states. Excludes post-respawn movement, rendering, other rooms, scripts, towers and special modes.')
+        scope='Extracted Input.cpp locked-control branch, Game::deathsequence and Map::resetplayer plus Logic.cpp countdown/reset branch; ordinary same-room death only. Compare timer, life timer and death count each tick; all player fields including retained input/contact state through freeze and respawn, using synthetic damage-boundary states and held/released/repeated flip input. Excludes post-respawn movement, rendering, other rooms, scripts, towers and special modes.')
     (BUILD/'death-lifecycle-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS:',json.dumps(report))
 

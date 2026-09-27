@@ -135,6 +135,8 @@ unsigned v6_player_input(V6Player *p, unsigned input, V6PlayerMotion *motion)
         if (p->tap_right > 0 && p->tap_right <= 4 && p->vx > 0) p->vx = 0;
         p->tap_right = 0;
     }
+    }
+    /* Input.cpp tracks flip edges even while player control is locked. */
     if (!(input & V6_FLIP)) { p->buffer = 0; p->held = 0; }
     if ((input & V6_FLIP) && !p->held) { p->buffer = 5; p->held = 1; }
     if (p->buffer > 0 && !(input & V6_NO_CONTROL)) {
@@ -148,7 +150,6 @@ unsigned v6_player_input(V6Player *p, unsigned input, V6PlayerMotion *motion)
             p->gravity = 0; p->vy = 4 * V6_ONE; p->ay = 3 * V6_ONE;
             p->buffer = 0; ++p->flips; event = V6_EVENT_FLIP;
         }
-    }
     }
     motion->ax=ax;
     return event;

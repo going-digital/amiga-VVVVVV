@@ -168,8 +168,11 @@ on same-room reset. Holding flip across death now requires release/repress for a
 new flip, checked through ten recovery ticks. The source comparison begins at the
 damage boundary and stops at respawn; subsequent movement, visibility, cross-room
 resets and special modes remain outside it. The surrounding desktop loop also
-updates flip latches without control and contact counters during death; combining
-those stages with this reference is the next fidelity check. The full desktop
+updates flip latches without control and contact counters during death. The
+locked-input branch is now extracted and implemented, including held/released/
+repeated input during the 576 death cases and 3,000 player control-lock ticks.
+A buffered press during death now survives recovery lock and executes when
+control returns. Contact updates during death remain the next fidelity check. The full desktop
 loop is unverified. The A500 compression and checkpoint-route captures pass after
 the reset fix; the route remains at 196 PAL lines with clean exit.
 

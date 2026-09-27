@@ -91,6 +91,22 @@ static void held_flip_respawn(void)
     v6_slice_step(&s,&room,0,0);
     assert(v6_slice_step(&s,&room,V6_FLIP,0)&V6_EVENT_FLIP);
     assert(s.player.gravity==1 && s.player.flips==4);
+
+    /* Release during death, then press on its last tick: buffer the edge
+     * through recovery lock and consume it when control returns. */
+    v6_slice_init(&s,80,144,21);
+    s.player.ground=2;s.player.held=1;
+    v6_slice_step(&s,&room,V6_FLIP,1);
+    for(i=0;i<28;++i) v6_slice_step(&s,&room,0,0);
+    assert(!s.player.held && !s.player.buffer);
+    v6_slice_step(&s,&room,V6_FLIP,0);
+    assert(s.respawns==1 && s.player.held && s.player.buffer==5);
+    for(i=0;i<5;++i) {
+        assert(!(v6_slice_step(&s,&room,V6_FLIP|V6_RIGHT,0)&V6_EVENT_FLIP));
+        assert(s.player.x==76 && s.player.buffer==5);
+    }
+    assert(v6_slice_step(&s,&room,V6_FLIP,0)&V6_EVENT_FLIP);
+    assert(s.player.gravity==1 && s.player.flips==1);
 }
 
 int main(void)
