@@ -13,7 +13,11 @@
 #define vlog_error(...) std::abort()
 enum { BLOCK, DAMAGE, DIRECTIONAL, SAFE };
 enum { Sound_FLIP, Sound_UNFLIP };
-struct blockclass { int type, trigger; SDL_Rect rect; };
+struct blockclass {
+    int type, trigger; SDL_Rect rect;
+    int xp, yp, wp, hp;
+    void rectset(int x,int y,int w,int h) { rect={x,y,w,h}; }
+};
 struct Game {
     float inertia;
     int deathseq, gravitycontrol, tapleft, tapright, jumppressed, totalflips;
@@ -32,6 +36,9 @@ struct mapclass {
 struct entityclass {
     std::vector<entclass> entities;
     std::vector<blockclass> blocks;
+    void disableblock(int);
+    void disableblockat(int,int);
+    void moveblockto(int,int,int,int,int,int);
     bool checkblocks(const SDL_Rect&, float, float, int, bool);
     bool checkwall(bool, const SDL_Rect&, float, float, int, bool, bool);
     bool checkwall(bool, const SDL_Rect&);

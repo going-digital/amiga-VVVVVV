@@ -112,7 +112,7 @@ cycle timing with 512K Chip + 512K slow RAM. At the 16.5-second memory snapshot:
 | Unique packed payloads | 406 |
 | Prototype explicit Chip RAM allocation | 81,934 bytes |
 | Free Chip RAM after startup allocation | 376,520 bytes |
-| Free non-Chip RAM after startup allocation | 417,264 bytes (interactive build) |
+| Free non-Chip RAM after startup allocation | 417,104 bytes (interactive build) |
 | Maximum measured update/draw work | 164 PAL lines / 10.496 ms (transition replay) |
 | Maximum room-change redraw | 164 PAL lines / 10.496 ms |
 | Missed VBL observations including transitions | 0 |
@@ -126,7 +126,7 @@ These are **emulator measurements of this harness**, not real-hardware or
 complete-game performance. The RAM totals do not include a resident full room
 pack: only two compressed rooms and their decoded tile/background caches are
 resident. A cache per room is temporary slice scaffolding, not the full-campaign
-storage design. The ordinary capture peaks at 86 lines / 5.504 ms. During a snapshot
+storage design. The ordinary capture peaks at 87 lines / 5.568 ms. During a snapshot
 the current tick can be one ahead of the completed-render counter.
 
 Reports and evidence:
@@ -258,10 +258,37 @@ highest-work update. Use a separate `BUILD` directory, then decode its `slow.bin
 with `python3 tools/amiga/read_profile.py /path/to/slow.bin`. Values are PAL lines;
 instrumentation adds overhead, so use ordinary builds for timing-gate results.
 
+## Dynamic block foundation
+
+`V6Room.blocks` and `block_count` supply caller-owned collision rectangles to
+player physics. Blocks can move or be disabled without rebuilding the static
+terrain cache. Players collide with solid and directional blocks; SAFE blocks
+remain enemy-only. A shared query also fixes enemy collisions with zero-sized,
+temporarily disabled blocks, which must be ignored.
+
+`blocks.c` preserves the original lifecycle rules: disabling an origin clears
+every matching block's dimensions; moving restores only the first match. These
+rules matter when multiple entities occupy the same position.
+
+The new reference suite extracts the original block and player methods and
+passes **21,600 collision queries**, **16,000 lifecycle operations**, and
+**43,200 player ticks** for each of the cached and uncached paths. It covers
+floor/ceiling contacts, gravity flips, directional barriers, changing rectangle
+positions, disabled blocks and duplicate origins. Results and the reference
+hash are in `build/amiga/blocks-test-report.json`; `make test` includes the suite.
+
+This is a collision prerequisite for platforms. The native scenes currently
+supply empty dynamic-block lists; no playable platform or performance result
+with active platform blocks is claimed yet. The original game separately moves
+platforms, carries the player and resolves crushing before normal player logic.
+Those interactions still need implementation and source-reference coverage.
+
 ## Next implementation step
 
-Add platforms, sprite multiplexing and a blitter fallback for rooms that exceed
-the eight-channel budget. Extend reference traces to cover these interactions. Expand the strict room-setup export and
+Integrate platform movement, carrying and crushing in the original update
+order, then export a platform room and validate it on the target. Sprite
+multiplexing and a blitter fallback remain necessary for rooms that exceed
+the eight-channel budget. Expand the strict room-setup export and
 add full desktop-loop traces covering entity/update ordering. The target replay
 currently asserts milestones rather than comparing every target state field.
 Tower row streaming and the music storage/playback experiment remain separate

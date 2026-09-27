@@ -7,7 +7,7 @@ int main(void)
 {
     unsigned id,checks=0;
     int set,extra,x,y;
-    V6Room room={tiles,0,0,0};
+    V6Room room={tiles,0,0,0,0,0};
     for(set=0;set<3;++set) for(extra=0;extra<2;++extra) {
         room.tileset=set; room.extra_row=extra;
         for(id=0;id<1024;++id) {

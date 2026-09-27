@@ -71,7 +71,7 @@ static UWORD room_tiles[SLICE_ROOM_COUNT][1200];
 static UWORD *room = room_tiles[0];
 static V6Slice slice;
 static V6Terrain terrain[SLICE_ROOM_COUNT];
-static V6Room current_room = {room_tiles[0], SLICE_TILESET, SLICE_EXTRA_ROW, 0};
+static V6Room current_room = {room_tiles[0], SLICE_TILESET, SLICE_EXTRA_ROW, 0, 0, 0};
 #ifdef V6_ENEMY_SCENE
 static V6Enemy drones[ENEMY_COUNT];
 static UWORD drone_frame = ENEMY_TILE, drone_walk, drone_delay;
@@ -452,7 +452,7 @@ static int run(void)
     number(8,16,0); number(20,16,0); number(32,16,0);
     shown_deaths=shown_flips=shown_work=0;
     for(i=0;i<SLICE_ROOM_COUNT;++i) {
-        V6Room source={room_tiles[i],SLICE_TILESET,SLICE_EXTRA_ROW,0};
+        V6Room source={room_tiles[i],SLICE_TILESET,SLICE_EXTRA_ROW,0,0,0};
         v6_terrain_build(&terrain[i],&source);
     }
     create_copper();

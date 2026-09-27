@@ -37,7 +37,7 @@ black, one room accent, green checkpoints and white text; the player has an
 independent cyan sprite colour. Low-intensity tile shading is omitted.
 
 On Copperline's stock PAL A500, 512K Chip + 512K slow RAM profile, the slice
-allocates **81,934 Chip bytes**. Ordinary work peaks at **86 lines / 5.504 ms**;
+allocates **81,934 Chip bytes**. Ordinary work peaks at **87 lines / 5.568 ms**;
 the transition replay peaks at **164 / 10.496 ms**, with room-change work at
 **164 / 10.496 ms**. Both pass the 20% video-headroom gate, zero missed VBL checks,
 visible-player checks and clean exit; the ordinary capture also verifies audio.
@@ -86,6 +86,15 @@ These replay measurements do not establish worst-case full-campaign performance.
 Sprite multiplexing, blitter fallback, fractional speeds,
 platforms and special behaviours remain outstanding. Full entity-loop fidelity
 is not claimed from isolated reference tests and target milestone assertions.
+
+A shared dynamic-block layer now supplies solid/directional rectangles to player
+physics while preserving SAFE blocks for enemies only. Disabling all blocks at
+an origin and moving only the first match follow the original lifecycle.
+**21,600 query cases**, **16,000 lifecycle operations** and **43,200 player ticks
+per cached/uncached path** match extracted desktop methods. Empty blocks are
+correctly ignored by both player and enemy collision. Native scenes still use
+empty dynamic-block lists: platform movement, carrying/crushing order and a
+playable platform room remain the next integration milestone.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

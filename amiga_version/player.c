@@ -64,6 +64,9 @@ static int wall(const V6Room *room, int x, int y, int32_t dx, int32_t dy)
 {
     int left = x + 6, top = y + 2, right = left + 11, bottom = top + 20;
     int tx, ty, gy;
+    unsigned i;
+    for(i=0;i<room->block_count;++i)
+        if(v6_block_hit(&room->blocks[i],left,top,12,21,dx,dy,0)) return 1;
     /* Deliberately /8, not >>3: original getgridpoint truncates toward zero. */
     int l = left / 8, r = right / 8, t = top / 8, b = bottom / 8;
     if (!room->terrain || room->terrain->directional)

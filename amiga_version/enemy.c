@@ -67,9 +67,7 @@ static int wall(const V6Enemy *e, const V6Room *r, const V6EnemyBlock *blocks,
         const V6EnemyBlock *p = &blocks[i];
         /* Rule 1 supplies dx=dy=0 even while moving. Thus only directional
          * triggers 1 and 3 block an enemy; this is intentional source behavior. */
-        if ((p->type == V6_ENEMY_BLOCK || p->type == V6_ENEMY_SAFE ||
-            (p->type == V6_ENEMY_DIRECTIONAL && (p->trigger == 1 || p->trigger == 3))) &&
-            left < p->x+p->w && right > p->x && top < p->y+p->h && bottom > p->y) return 1;
+        if (v6_block_hit(p,left,top,e->w,e->h,0,0,1)) return 1;
     }
     if (solid(r,l,t) || solid(r,rr,t) || solid(r,l,b) || solid(r,rr,b)) return 1;
     for (offset=6; offset<=18 && e->h>=offset+6; offset+=6) {

@@ -22,8 +22,11 @@ class Player(C.Structure):
 class Terrain(C.Structure):
     _fields_ = [('solid', (C.c_uint8*64)*32), ('directional', C.c_int)]
 
+class DynamicBlock(C.Structure):
+    _fields_ = [(name,C.c_int) for name in "x y w h type trigger".split()]
+
 class Room(C.Structure):
-    _fields_ = [('tiles', C.POINTER(C.c_uint16)), ('tileset', C.c_int), ('extra_row', C.c_int), ('terrain', C.POINTER(Terrain))]
+    _fields_ = [('tiles', C.POINTER(C.c_uint16)), ('tileset', C.c_int), ('extra_row', C.c_int), ('terrain', C.POINTER(Terrain)), ('blocks',C.POINTER(DynamicBlock)), ('block_count',C.c_uint)]
 
 
 def block(text, start):
