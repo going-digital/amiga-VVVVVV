@@ -788,26 +788,30 @@ with **45,384 allocated Chip bytes** and no missed VBLs. Output is in
 Neighbouring rooms are not included.
 
 `make -C amiga_version beneath-route-capture` adds a separate deterministic
-normal-input build: move right for twelve ticks and flip on tick five, then
-release the controls. The player reaches the underside of the first platform,
-waits for collapse, rises into ceiling spikes and respawns at the checkpoint.
-No forced player placement or restart is used. A 240-tick UBSan host trace visits
-all six lifecycle states and verifies one collapse, one death/respawn and one
-flip, while the other platforms remain idle. It is included in `make test`.
+normal-input build: move right for 35 ticks and flip on ticks 5, 13 and 27,
+then release the controls. The player reaches the first platform from below,
+flips down onto the lower platform, then up onto the right platform. Each
+collapses; ceiling spikes cause one death, followed by checkpoint respawn.
+No forced placement or restart is used. The 240-tick UBSan host trace visits all
+six states for each platform, verifies three collapses and three flips, and
+checks that recharge restores exactly one solid block at each original position.
+It is included in `make test`.
 
-Target snapshots match the host at ticks **17** (collapse), **34** (hidden),
-**59** (recharge) and **170** (respawned). Screenshots separately check the first
-platform disappearing and returning. Peak work is **213 PAL lines / 13.632 ms**,
-with no missed frames, seven sprite channels, 45,384 allocated Chip bytes and
-clean exit. Artifacts are in `build/amiga-beneath-route/`. This compares the native
-adapter across host and 68000, not an independent full desktop game loop;
-extended retrigger frames and traversal of the other platforms remain untested
-on target.
+Target snapshots match the host at ticks **17** (collapse), **61** (all hidden),
+**85** (all recharging) and **170** (respawned). In this replay only, diagnostic
+actor state/frame fields contain three four-bit slots, exposing all platforms
+rather than only the first. Phase reports decode these into arrays. Screenshots
+check that all pink platforms disappear and return. Peak work is **214 PAL
+lines / 13.696 ms**, with no missed frames, seven sprite channels, 45,384 allocated
+Chip bytes and clean exit. Artifacts are in `build/amiga-beneath-route/`.
+This compares the native adapter across host and 68000, not an independent full
+desktop game loop. Recharge retriggers and extended frames still need target
+traversal coverage.
 
 ## Next implementation step
 
-Extend the “What Lies Beneath?” route to cover its remaining platforms and
-recharge contacts, and compare ordered behaviour against the desktop game loop.
+Cover recharge contacts and extended frames on target, and compare ordered
+room behaviour against the desktop game loop.
 Then add conveyors. Sprite
 multiplexing and a blitter fallback remain necessary for rooms that exceed
 the eight-channel budget. Expand the strict room-setup export and

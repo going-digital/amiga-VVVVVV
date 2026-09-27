@@ -32,7 +32,7 @@ static V6Terrain terrain;
 static V6Room current_room={tiles,0,0,&terrain,0,0};
 '''+native[start:end]+r'''
 int main(void) {
-    unsigned tick,states=0;
+    unsigned tick,states[3]={0,0,0};
     assert(v6_unpack_room(packed_rooms[0],packed_sizes[0],tiles,1200));
     v6_terrain_build(&terrain,&current_room);
     v6_slice_init_world(&slice,room_setups,1,0);reset_platforms();
@@ -47,19 +47,31 @@ int main(void) {
             platform_motion=(V6PlayerMotion){0,slice.player.y};
             platform_push=(V6PlatformPush){slice.player.y,0,0};
         }
-        states|=1u<<disappearing[0].state;
+        for(unsigned i=0;i<3;++i) {
+            states[i]|=1u<<disappearing[i].state;
+            assert(disappearing[i].walking_frame>=0 && disappearing[i].walking_frame<=4);
+        }
         assert(!diagnostics.error && !slice.exits);
-        assert(disappearing[1].state==0 && disappearing[2].state==0);
         printf("%s{\"ticks\":%u,\"player_x\":%d,\"player_y\":%d,\"player_vx\":%d,\"player_vy\":%d,"
                "\"gravity\":%d,\"death_timer\":%d,\"deaths\":%d,\"respawns\":%d,\"checkpoint\":%d,"
                "\"enemy_x\":%d,\"enemy_y\":%d,\"enemy_ticks\":%lu,\"enemy_hits\":%lu,\"exits\":%d}",
                tick==1?"":",\n",tick,slice.player.x,slice.player.y,slice.player.vx,slice.player.vy,
                slice.player.gravity,slice.death_timer,slice.deaths,slice.respawns,slice.checkpoint_active,
-               disappearing[0].state,disappearing[0].walking_frame,platform_ticks,platform_pushes,slice.exits);
+               (disappearing[0].state | disappearing[1].state<<4 | disappearing[2].state<<8),
+               (disappearing[0].walking_frame | disappearing[1].walking_frame<<4 | disappearing[2].walking_frame<<8),platform_ticks,platform_pushes,slice.exits);
     }
     puts("\n]");
-    assert(states==63 && slice.deaths==1 && slice.respawns==1 && platform_pushes==1);
-    assert(slice.player.flips==1 && slice.player.x==60 && slice.player.y==145);
+    assert(slice.deaths==1 && slice.respawns==1 && platform_pushes==3);
+    assert(disappearing_count==3 && current_room.block_count==3);
+    for(unsigned i=0;i<3;++i) {
+        unsigned matches=0;
+        assert(states[i]==63 && disappearing[i].state==0 && disappearing[i].walking_frame==0);
+        for(unsigned j=0;j<3;++j)
+            if(platform_blocks[j].x==platform_setup[i][0] && platform_blocks[j].y==platform_setup[i][1]
+               && platform_blocks[j].w==32 && platform_blocks[j].h==8) ++matches;
+        assert(matches==1);
+    }
+    assert(slice.player.flips==3 && slice.player.x==60 && slice.player.y==145);
     return 0;
 }
 '''
@@ -70,6 +82,6 @@ int main(void) {
         '-o',str(out/'trace')],check=True)
     trace=json.loads(subprocess.check_output([str(out/'trace')]))
     (BUILD/'beneath-replay-trace.json').write_text(json.dumps(trace,indent=2)+'\n')
-    print('PASS: 240 original-room route ticks; one collapse, ceiling-spike death and respawn; all six lifecycle states (UBSan)')
+    print('PASS: 240 original-room route ticks; three collapses, ceiling-spike death and respawn; all six states per platform (UBSan)')
 
 if __name__=='__main__':main()

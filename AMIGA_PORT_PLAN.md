@@ -223,13 +223,15 @@ limit; host adapter checks reach frame 48 through repeated recharge contacts.
 its original tiles, checkpoint, three disappearing platforms and tile-707 masks.
 The `beneath-capture` idle smoke verifies all three visible platforms, seven
 sprite channels, checkpoint spawn and clean exit. Peak work is 206 PAL lines /
-13.184 ms, with 45,384 allocated Chip bytes and no missed VBLs. A separate `beneath-route-capture` now exercises the first platform using
-normal right/flip inputs, with no placement or restart injection. It matches
-the native host trace at collapse/hidden/recharge ticks 17/34/59 and final tick
-170, verifying one ceiling-spike death and checkpoint respawn. Peak work is
-213 lines / 13.632 ms with no missed frames and clean exit. The host trace runs
-240 ticks with UBSan and visits all six states. Remaining platforms, recharge
-retriggers and independent desktop-loop comparisons still need route coverage.
+13.184 ms, with 45,384 allocated Chip bytes and no missed VBLs. A separate `beneath-route-capture` now visits all three platforms using
+normal right/flip inputs, with no placement or restart injection. Three
+collapses lead to one ceiling-spike death and checkpoint respawn. It matches
+the native host trace at collapse/hidden/recharge ticks 17/61/85 and final tick
+170, exposing all three states and frames in packed diagnostic fields. Peak
+work is 214 lines / 13.696 ms with no missed frames and clean exit. The 240-tick
+UBSan host trace visits all six states per platform and verifies restoration
+of all three solid blocks. Recharge retriggers and independent desktop-loop
+comparisons still need route coverage.
 
 The detailed review below remains the roadmap; original static-review figures
 and provisional budgets are retained for context. Current commands, scope and

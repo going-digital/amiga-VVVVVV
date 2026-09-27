@@ -157,10 +157,10 @@ write_protected = true
             assert report['ticks']==report['renders'] and 0<report['ticks']<=len(trace),report
             for field,value in trace[report['ticks']-1].items():
                 assert report[field]==value,(field,report[field],value)
-            assert report['deaths']==1 and report['respawns']==1 and report['enemy_hits']==1,report
-            assert report['max_sprite_channels']==7 and report['exits']==0 and report['flips']==1,report
+            assert report['deaths']==1 and report['respawns']==1 and report['enemy_hits']==3,report
+            assert report['max_sprite_channels']==7 and report['exits']==0 and report['flips']==3,report
             report['native_host_trace_tick_verified']=report['ticks']
-            report['scope']='Normal-input route: first platform collapse, ceiling-spike death and checkpoint respawn; native host trace, not full desktop-loop equivalence'
+            report['scope']='Normal-input route: all three platform collapses, ceiling-spike death and checkpoint respawn; native host trace, not full desktop-loop equivalence'
         elif args.beneath:
             assert report['enemy_ticks']>100 and report['max_sprite_channels']==7,report
             assert report['checkpoint']==1 and report['exits']==0,report
@@ -282,7 +282,7 @@ write_protected = true
         if args.disappearing or args.beneath_route:
             start_time=16.5-report['ticks']*0.034
             phases=[]
-            targets=(('collapse',16,2),('hidden',32,4),('recharge',58,5)) if args.beneath_route else (('collapse',8,2),('hidden',28,4),('recharge',53,5))
+            targets=(('collapse',16,2),('hidden',60,0x444),('recharge',84,0x555)) if args.beneath_route else (('collapse',8,2),('hidden',28,4),('recharge',53,5))
             for name,target_tick,state in targets:
                 for attempt in range(3):
                     stamp=start_time+target_tick*0.034+0.012+attempt*0.006
@@ -298,11 +298,16 @@ write_protected = true
                 for field,value in trace[phase['ticks']-1].items():
                     assert phase[field]==value,(name,field,phase[field],value)
                 assert phase['enemy_x']==state,(name,phase)
-                header,rgba=subprocess.check_output([str(build/'png_rgba'),str(build/(name+'.png'))]).split(b'\n',1)
-                width=int(header.split()[0])
-                pink=sum((not args.beneath_route or (i//4)%width<width//2) and rgba[i]>245 and 80<rgba[i+1]<125 and 170<rgba[i+2]<200 for i in range(0,len(rgba),4))
+                _,rgba=subprocess.check_output([str(build/'png_rgba'),str(build/(name+'.png'))]).split(b'\n',1)
+                pink=sum(rgba[i]>245 and 80<rgba[i+1]<125 and 170<rgba[i+2]<200 for i in range(0,len(rgba),4))
                 assert (pink==0 if name=='hidden' else pink>20),(name,pink)
-                phases.append(dict(phase=name,tick=phase['ticks'],frame=phase['enemy_y'],pink_pixels=pink))
+                record=dict(phase=name,tick=phase['ticks'],pink_pixels=pink)
+                if args.beneath_route:
+                    record['states']=[(phase['enemy_x']>>(4*i))&15 for i in range(3)]
+                    record['frames']=[(phase['enemy_y']>>(4*i))&15 for i in range(3)]
+                else:
+                    record['frame']=phase['enemy_y']
+                phases.append(record)
             report['phase_captures']=phases
         if args.crush:
             env['COPPERLINE_DBG_AFTER']='10.91'

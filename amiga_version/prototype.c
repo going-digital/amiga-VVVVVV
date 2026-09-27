@@ -843,6 +843,11 @@ static int run(void)
         diagnostics.enemy_ticks=platform_ticks;diagnostics.enemy_hits=platform_pushes;
 #ifdef V6_DISAPPEAR_SCENE
         diagnostics.enemy_x=disappearing[0].state;diagnostics.enemy_y=disappearing[0].walking_frame;
+#ifdef V6_BENEATH_REPLAY
+        /* Three four-bit slots expose every platform to the target trace. */
+        diagnostics.enemy_x|=disappearing[1].state<<4 | disappearing[2].state<<8;
+        diagnostics.enemy_y|=disappearing[1].walking_frame<<4 | disappearing[2].walking_frame<<8;
+#endif
 #endif
 #endif
         PROFILE_MARK(5);
