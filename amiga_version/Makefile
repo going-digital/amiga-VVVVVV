@@ -272,3 +272,27 @@ $(BUILD)/tower_copper.o: tower_copper.c tower_copper.h tower_draw.h | $(BUILD)
 test-tower-copper: | $(BUILD)
 	cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I. $(ROOT)/tools/amiga/test_tower_copper.c tower_copper.c -o $(BUILD)/test_tower_copper
 	$(BUILD)/test_tower_copper
+
+# Isolated tower display; generated source assets stay in ignored build output.
+.PHONY: tower-probe
+tower-probe: tower-assets
+	python3 -c 'from pathlib import Path; p=Path("$(ROOT)/build/amiga-feasibility"); b=(p/"loadmap.v6tr").read_bytes(); (p/"tower_map.h").write_text("static const unsigned char tower_map[]={"+",".join(map(str,b))+"};\n")'
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower $(ROOT)/build/amiga-tower/tower.adf
+
+$(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h | $(BUILD)
+	$(CC) $(CFLAGS) -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
+
+$(BUILD)/tower.elf: $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+	$(CC) $(LDFLAGS) $^ -o $@
+
+$(BUILD)/tower.exe: $(BUILD)/tower.elf
+	$(ELF2HUNK) $< $@
+
+$(BUILD)/tower.adf: $(BUILD)/tower.exe
+	"$(CTL)" exe2adf $< --boot --out $@
+
+-include $(BUILD)/tower_probe.d
+
+.PHONY: tower-capture
+tower-capture: tower-probe
+	python3 $(ROOT)/tools/amiga/run_tower_probe.py

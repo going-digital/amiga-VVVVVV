@@ -278,9 +278,14 @@ and map-wrap positions. Alpha is baked onto black and colours are reduced to
 four; previews are host-generated. A pointer-segment builder now emits initial plane addresses and the ring-wrap
 reset, including the PAL line-255 barrier, in at most 48 bytes. Structural tests
 cover all 256 offsets and 245,760 modeled scanlines; the 68000 object has no
-runtime dependencies. It is not installed in the native display yet. Copper/DMA
-timing, safe list publication, visible seams, parallax and gameplay remain to
-be tested.
+runtime dependencies. A standalone native tower probe now installs alternating
+Copper lists and two rings, publishing completed lists at PAL blank. On
+Copperline A500/512K Chip + 512K slow, it reached camera 555 (crossing two
+256-line ring seams), with zero missed frames and peak incremental work of
+135 scanlines (8.64 ms), excluding initial ring fill. Its Chip allocation is
+41,216 bytes. The screenshot looks intact and mouse exit restores AmigaDOS.
+This is an emulator smoke test: pixel-exact seams, full-map wrap/refill spikes,
+reverse scrolling, parallax, gameplay and music running together remain open.
 
 Music now assumes Lightspeedplayer and a musician-produced tracker soundtrack,
 per the user's direction. PCM streaming is no longer the working path. Measure

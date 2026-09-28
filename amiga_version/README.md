@@ -1017,6 +1017,21 @@ The builder emits at most 24 words (48 bytes), including its end marker.
 245,760 modeled visible scanlines, the line-255 boundary, list capacity and
 rejected inputs. UBSan and the 68000 build pass with no runtime dependencies.
 This is a structural address/wait test, not a cycle-accurate Copper simulation.
-The segment is not yet installed by the running prototype. Safe inactive-list
-publication, actual DDF/pointer-reset timing under DMA and visible seam checks
-remain required in Copperline before tower-scrolling feasibility can pass.
+The standalone tower probe now installs this segment; room gameplay is unchanged.
+
+Run `make -C amiga_version tower-capture` from the repository root to build and
+capture the separate `build/amiga-tower/tower.adf`. `tower-probe` builds only.
+The probe scrolls downward one pixel per PAL frame, using two Chip RAM rings
+and two lists; it prepares the inactive pair and publishes the list pointer at
+line 311. Left mouse exits and restores the OS. Original map and converted tile
+bytes are generated into ignored build output from the user's assets.
+
+The initial Copperline A500/512K Chip + 512K slow capture reaches camera 555,
+crossing two ring seams, with zero missed frames. Peak incremental work is
+135 scanlines (8.64 ms), excluding initial ring preparation; allocated Chip RAM
+is 41,216 bytes. The screenshot was visually inspected and the saved-state
+exit check returns to AmigaDOS with diagnostics status 2. Reports, screenshots
+and logs are in `build/amiga-tower`. These are emulator results, not measurements
+on physical hardware. Pixel-exact seam checks, full-map wrap (which currently
+invalidates ring tags at camera reset), reverse motion, parallax, tower gameplay
+and concurrent tracker playback remain unverified.
