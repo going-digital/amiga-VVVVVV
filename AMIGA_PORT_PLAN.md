@@ -582,3 +582,12 @@ cases match extracted desktop blocks, including a subsequent death override;
 earlier camera/edge regressions still pass. This tests camera transitions with
 a stub lifecycle callback, not actual tower respawn. Native cadence, player
 integration and colour-state rendering remain to be connected.
+
+Native camera cadence now has a dedicated probe variant: the early desktop
+camera helper runs from a 34 ms accumulator, using the room prototype's 19,968 us
+PAL-frame accounting. Normal descending startup/movement is validated through
+893 ticks and camera 1784, including the exact tick/remainder identity. Peak
+work is 137 PAL lines (8.77 ms), with no missed frames and clean restoration.
+Positions are held between logic ticks. Actual player/recovery integration,
+late-edge processing, interpolation, colour cycling and music remain outstanding;
+this does not replace the synthetic full-map stress tests.

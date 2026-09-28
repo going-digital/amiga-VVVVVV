@@ -8,6 +8,7 @@
 #include <hardware/intbits.h>
 #include "tower_draw.h"
 #include "tower_copper.h"
+#include "tower_camera.h"
 #include "tower_assets.h"
 #include "tower_map.h"
 #include "tower_background_map.h"
@@ -45,8 +46,9 @@ static volatile struct {
     ULONG magic,version,status,frames,camera,max_work_lines,missed,error,chip_bytes;
     ULONG forward_wraps,reverse_wraps,max_rows,max_copied;
     ULONG step,route_min,route_max,visited_min,visited_max;
-} diag={0x56365450,4,0,0,0,0,0,0,CHIP_BYTES,0,0,0,0,
-    V6_TOWER_STEP,CAMERA_MIN,CAMERA_MAX,CAMERA_MAX,0};
+    ULONG logic_ticks,logic_frames,logic_remainder;
+} diag={0x56365450,5,0,0,0,0,0,0,CHIP_BYTES,0,0,0,0,
+    V6_TOWER_STEP,CAMERA_MIN,CAMERA_MAX,CAMERA_MAX,0,0,0,0};
 static UWORD beam(void) { return (*(volatile ULONG *)0xdff004>>8)&511; }
 static ULONG clock_lines(void) {
     ULONG a,b; UWORD y;
@@ -125,6 +127,12 @@ static int run(void) {
      * A bounded back-and-forth route exercises both directions indefinitely. */
     unsigned back=1,camera=V6_TOWER_HOLD>=0?V6_TOWER_HOLD:CAMERA_MIN,drawn;int direction=1;
     ULONG start,work,previous;
+#ifdef V6_TOWER_CONTROLLER
+    static V6TowerCamera controller;
+    ULONG logic_frame,elapsed=0;
+    camera=0;diag.step=0;diag.route_min=0;diag.route_max=5368;
+    (void)direction;
+#endif
     __asm volatile("move.l 4.w,%0":"=r"(SysBase));
     if(SysBase->AttnFlags&AFF_68010) return 20;
     GfxBase=(struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library",0);
@@ -151,8 +159,24 @@ static int run(void) {
     /* Warm the second ring before measuring incremental row work. */
     if(!prepare(rings[1],lists[1],1,camera,0)) diag.error=1;
     blank();previous=frames;
+#ifdef V6_TOWER_CONTROLLER
+    logic_frame=frames;
+#endif
     while((*(volatile UBYTE *)0xbfe001&0x40) && !diag.error) {
         start=clock_lines();
+#ifdef V6_TOWER_CONTROLLER
+        {
+            ULONG now=frames,delta=now-logic_frame;
+            logic_frame=now;elapsed+=delta*19968UL;diag.logic_frames+=delta;
+            while(elapsed>=34000) {
+                elapsed-=34000;
+                /* Normal descending camera only; no synthetic player physics. */
+                v6_tower_camera_tick(&controller,0,0,1,0,0);
+                ++diag.logic_ticks;
+            }
+            camera=controller.y;diag.logic_remainder=elapsed;
+        }
+#else
         if(V6_TOWER_HOLD<0) {
             if(camera==CAMERA_MAX) direction=-1;
             if(camera==CAMERA_MIN) direction=1;
@@ -165,6 +189,7 @@ static int run(void) {
                 camera=camera<CAMERA_MIN+V6_TOWER_STEP?CAMERA_MIN:camera-V6_TOWER_STEP;
             }
         }
+#endif
         if(!prepare(rings[back],lists[back],back,camera,&drawn)) { diag.error=2;break; }
         if(drawn>diag.max_rows) diag.max_rows=drawn;
         work=clock_lines()-start;if(work>diag.max_work_lines) diag.max_work_lines=work;

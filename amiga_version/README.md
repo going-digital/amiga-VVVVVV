@@ -1215,3 +1215,20 @@ delay gates, and ordering. Its lifecycle callback is a controlled stub: this
 does not yet test real respawn/player integration. The 72,000 early-camera and
 20,480 late-edge checks still pass, and the 68000 object has no runtime helpers.
 Native scheduling, player integration and colour rendering remain outstanding.
+
+`make -C amiga_version tower-controller-capture` now runs the actual early-camera
+helper in a separate native probe variant. It starts in mode 0, then descends
+normally by two pixels per 34 ms logic tick. The PAL accumulator uses the same
+19,968-us-per-frame convention as the room prototype; camera positions are held
+between ticks (no interpolation yet). The synthetic stress variants remain
+available separately.
+
+Diagnostic version 5 adds logic ticks, accounted video frames and remaining
+microseconds. The capture checks the exact accumulator identity and expected
+camera position. The first run accounts for 1,522 video frames, 893 logic ticks
+and 29,296 us remainder, reaching camera 1784. Peak work is 137 PAL lines
+(8.77 ms), no frames are missed, and exit restores AmigaDOS. Chip allocation is
+unchanged. The standard one-pixel stress capture is also rerun after integration.
+This native test does not yet exercise player physics, the late edge phase,
+recovery callbacks, interpolation, colour cycling or music, and the frame-time
+constant is an accounting convention rather than a wall-clock timer measurement.
