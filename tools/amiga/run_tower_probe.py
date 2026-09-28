@@ -14,13 +14,14 @@ EMU = '/Applications/Copperline.app/Contents/MacOS/copperline'
 
 def diagnostics(path):
     data = path.read_bytes()
-    for offset in range(0, len(data)-52+1, 2):
-        if data[offset:offset+8] == b'V6TP\0\0\0\3':
-            values = struct.unpack_from('>13I', data, offset)
+    for offset in range(0, len(data)-72+1, 2):
+        if data[offset:offset+8] == b'V6TP\0\0\0\4':
+            values = struct.unpack_from('>18I', data, offset)
             if values[2] in (1, 2):
                 return dict(zip(('magic', 'version', 'status', 'frames', 'camera',
                                  'max_work_lines', 'missed', 'error', 'chip_bytes', 'forward_wraps',
-                                 'reverse_wraps', 'max_rows', 'max_copied'), values))
+                                 'reverse_wraps', 'max_rows', 'max_copied', 'step', 'route_min', 'route_max',
+                                 'visited_min', 'visited_max'), values))
     raise RuntimeError('No live tower diagnostics')
 
 
@@ -28,7 +29,7 @@ def main():
     global BUILD
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build', type=Path, default=BUILD)
-    parser.add_argument('--step', type=int, choices=(1,4,8,16), default=1)
+    parser.add_argument('--step', type=int, choices=(1,4,8,12,16), default=1)
     parser.add_argument('--measure', action='store_true', help='Report frame overruns without treating them as test failures')
     args = parser.parse_args()
     BUILD = args.build.resolve()
@@ -59,6 +60,9 @@ write_protected = true
                         '--screenshot-after', '42', str(BUILD / 'tower.png')],
                        env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
     report = diagnostics(BUILD / 'slow.bin')
+    assert report['step'] == args.step, report
+    if report['route_min'] == 0:
+        assert report['visited_min'] == 0 and report['visited_max'] == report['route_max'], report
     assert report['status'] == 1 and report['error'] == 0, report
     assert report['frames'] > 256 and report['max_work_lines'] > 0, report
     if not args.measure:
@@ -79,7 +83,7 @@ write_protected = true
     report['restored'] = True
     report['synthetic_step'] = args.step
     report['within_frame_budget'] = report['missed'] == 0 and report['max_work_lines'] < 312
-    report['scope'] = 'Three-plane hardware parallax: forward/reverse source-map seam and exit smoke test; moving screenshot not pixel-compared; bounded 5344..5856 camera route'
+    report['scope'] = 'Three-plane hardware parallax: forward/reverse source-map seam and exit smoke test; moving screenshot not pixel-compared; synthetic route defined by route_min/route_max'
     (BUILD / 'capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
 

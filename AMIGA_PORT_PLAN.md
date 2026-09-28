@@ -546,3 +546,13 @@ The repeated 4/8/16-pixel captures peak at 135/166/236 PAL lines, respectively,
 all without missed frames and with clean OS restoration. The 16-pixel workload
 now takes 15.10 ms instead of 20.48 ms, with unchanged Chip allocation. It still
 excludes gameplay/music, arbitrary camera jumps and complete tower traversal.
+
+Full source-map timing coverage is now measured: synthetic 12- and 16-pixel
+per-video-frame routes reach both 0 and 5856 and return, traversing all 700 source
+rows, foreground map seams and background wraps. Peaks are 235 and 242 PAL lines
+(15.04 and 15.49 ms), respectively, without missed frames; both restore the OS.
+The diagnostics validate the compiled step and reached endpoints. This expands
+the earlier seam-region measurements but does not establish full-map pixel
+correctness or the combined game budget. The desktop camera controller and
+34 ms logic/interpolation cadence, colour cycling, recovery jumps and gameplay
+integration remain outstanding. Use `make -C amiga_version tower-full-measure`.

@@ -19,14 +19,19 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #ifndef V6_TOWER_HOLD
 #define V6_TOWER_HOLD -1
 #endif
-/* Synthetic stress step, not the desktop camera controller. Endpoints align
- * for these powers of two so every route remains bounded and reversible. */
+/* Synthetic stress step, not the desktop camera controller. */
 #ifndef V6_TOWER_STEP
 #define V6_TOWER_STEP 1
 #endif
-#if V6_TOWER_STEP != 1 && V6_TOWER_STEP != 4 && V6_TOWER_STEP != 8 && V6_TOWER_STEP != 16
+#if V6_TOWER_STEP != 1 && V6_TOWER_STEP != 4 && V6_TOWER_STEP != 8 && V6_TOWER_STEP != 12 && V6_TOWER_STEP != 16
 #error Unsupported tower stress step
 #endif
+#ifdef V6_TOWER_FULL_ROUTE
+#define CAMERA_MIN 0
+#else
+#define CAMERA_MIN 5344
+#endif
+#define CAMERA_MAX 5856
 #define LIST_WORDS 64
 #define LAYER_BYTES (V6_TOWER_RING_BYTES+V6_TOWER_PLANE_BYTES)
 #define CHIP_BYTES (2*LAYER_BYTES+2*LIST_WORDS*2)
@@ -39,7 +44,9 @@ static volatile ULONG frames;
 static volatile struct {
     ULONG magic,version,status,frames,camera,max_work_lines,missed,error,chip_bytes;
     ULONG forward_wraps,reverse_wraps,max_rows,max_copied;
-} diag={0x56365450,3,0,0,0,0,0,0,CHIP_BYTES,0,0,0,0};
+    ULONG step,route_min,route_max,visited_min,visited_max;
+} diag={0x56365450,4,0,0,0,0,0,0,CHIP_BYTES,0,0,0,0,
+    V6_TOWER_STEP,CAMERA_MIN,CAMERA_MAX,CAMERA_MAX,0};
 static UWORD beam(void) { return (*(volatile ULONG *)0xdff004>>8)&511; }
 static ULONG clock_lines(void) {
     ULONG a,b; UWORD y;
@@ -116,7 +123,7 @@ static int run(void) {
     /* Keep logical coordinates continuous across the 700-row source seam.
      * Only the stream wraps source rows; physical ring slots use logical rows.
      * A bounded back-and-forth route exercises both directions indefinitely. */
-    unsigned back=1,camera=V6_TOWER_HOLD>=0?V6_TOWER_HOLD:5344,drawn;int direction=1;
+    unsigned back=1,camera=V6_TOWER_HOLD>=0?V6_TOWER_HOLD:CAMERA_MIN,drawn;int direction=1;
     ULONG start,work,previous;
     __asm volatile("move.l 4.w,%0":"=r"(SysBase));
     if(SysBase->AttnFlags&AFF_68010) return 20;
@@ -147,14 +154,15 @@ static int run(void) {
     while((*(volatile UBYTE *)0xbfe001&0x40) && !diag.error) {
         start=clock_lines();
         if(V6_TOWER_HOLD<0) {
-            if(camera==5856) direction=-1;
-            if(camera==5344) direction=1;
+            if(camera==CAMERA_MAX) direction=-1;
+            if(camera==CAMERA_MIN) direction=1;
             if(direction>0) {
                 if(camera<5600 && camera+V6_TOWER_STEP>=5600) ++diag.forward_wraps;
                 camera+=V6_TOWER_STEP;
+                if(camera>CAMERA_MAX) camera=CAMERA_MAX;
             } else {
                 if(camera>=5600 && camera-V6_TOWER_STEP<5600) ++diag.reverse_wraps;
-                camera-=V6_TOWER_STEP;
+                camera=camera<CAMERA_MIN+V6_TOWER_STEP?CAMERA_MIN:camera-V6_TOWER_STEP;
             }
         }
         if(!prepare(rings[back],lists[back],back,camera,&drawn)) { diag.error=2;break; }
@@ -166,6 +174,8 @@ static int run(void) {
         /* Completed inactive list becomes next frame's list before vertical restart. */
         hw->cop1lc=(ULONG)lists[back];back^=1;
         diag.camera=camera;diag.frames=frames;
+        if(camera<diag.visited_min) diag.visited_min=camera;
+        if(camera>diag.visited_max) diag.visited_max=camera;
     }
     Disable();hw->intena=0x7fff;hw->intreq=0x7fff;hw->dmacon=0x7fff;hw->adkcon=0x7fff;
     __asm volatile("move.l %0,0x6c.w"::"r"(old_irq):"memory");

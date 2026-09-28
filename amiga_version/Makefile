@@ -320,3 +320,7 @@ test: test-tower-dual-copper
 .PHONY: tower-step-measure
 tower-step-measure: tower-probe
 	python3 $(ROOT)/tools/amiga/measure_tower_steps.py
+
+.PHONY: tower-full-measure
+tower-full-measure: tower-probe
+	python3 $(ROOT)/tools/amiga/measure_tower_steps.py --full

@@ -1154,3 +1154,20 @@ crossings; it draws at most three rows and copies at most three per update.
 Chip allocation stays 61,696 bytes. Diagnostic version 3 adds `max_copied`;
 `max_rows` counts atlas-drawn rows only. This resolves the measured 16-pixel
 route overrun, not arbitrary jumps or a combined gameplay/music workload.
+
+`make -C amiga_version tower-full-measure` now traverses logical cameras 0..5856
+and back at 12 and 16 pixels per video frame. This covers the complete 700-row
+source map, its seam, and repeated background wraps. Endpoints clamp safely
+when a step does not divide a route's length. Diagnostic version 4 records the
+compiled step, route bounds and reached bounds; the runner verifies the step
+and requires both endpoints on full-map runs.
+
+The full-map 12-pixel run peaks at 235 PAL lines (15.04 ms); the 16-pixel run
+peaks at 242 (15.49 ms). Both have zero missed frames, at most three atlas-drawn
+and three copied rows per update, unchanged 61,696-byte Chip allocation and
+successful OS restoration. Reports are in `build/amiga-tower-full12`,
+`build/amiga-tower-full16` and `build/amiga-tower/full-measurements.json`.
+These are timing/route checks, not full-map pixel comparisons. Although 12 pixels
+is a desktop camera-move magnitude, the actual camera state machine, 34 ms logic
+cadence and interpolation are not reproduced. Gameplay, sprites, colour cycling,
+negative positions, recovery jumps and tracker playback remain separate work.
