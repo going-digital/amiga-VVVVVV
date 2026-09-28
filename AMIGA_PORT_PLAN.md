@@ -556,3 +556,11 @@ the earlier seam-region measurements but does not establish full-map pixel
 correctness or the combined game budget. The desktop camera controller and
 34 ms logic/interpolation cadence, colour cycling, recovery jumps and gameplay
 integration remain outstanding. Use `make -C amiga_version tower-full-measure`.
+
+Camera-controller groundwork: `tower_camera.c` implements the early desktop
+camera update through bounds, including recovery seeking and old-value snapshots.
+72,000 multi-tick comparisons pass against an extracted, unmodified desktop
+source block under UBSan; the 68000 object has no runtime dependencies. This is
+not yet the whole controller: later death/respawn transitions, player-edge
+corrections, 34 ms tick scheduling, interpolation and native integration remain
+outstanding. Existing native performance reports still describe synthetic routes.

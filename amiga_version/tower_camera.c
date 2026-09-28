@@ -1,0 +1,30 @@
+#include "tower_camera.h"
+void v6_tower_camera_tick(V6TowerCamera *c,int player_y,int valid,
+    int direction,int stopped,int mini)
+{
+    int target=player_y-120;
+    c->old_y=c->y;c->old_spike_top=c->spike_top;c->old_spike_bottom=c->spike_bottom;
+    if(!stopped) {
+        if(c->mode==0) c->mode=1;
+        else if(c->mode==1) c->y+=direction==0?-2:2;
+        else if(c->mode==4) {
+            if(valid) c->seek=c->y-target;
+            c->seek=(int16_t)c->seek/10;
+            c->seek_frames=10;c->mode=5;
+        } else if(c->mode==5) {
+            if(c->spike_top>0) c->spike_top-=2;
+            if(c->spike_bottom>0) c->spike_bottom-=2;
+            if(c->seek_frames>0) {
+                c->y-=c->seek;
+                if(valid && ((c->seek>0 && c->y<target) ||
+                             (c->seek<=0 && c->y>target))) c->y=target;
+                --c->seek_frames;
+            } else {
+                if(valid) c->y=target;
+                c->mode=0;c->colour_superstate=0;
+            }
+        }
+    }
+    if(c->y<=0) c->y=0;
+    if(c->y>=(mini?568:5368)) c->y=mini?568:5368;
+}

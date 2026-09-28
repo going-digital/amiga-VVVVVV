@@ -324,3 +324,12 @@ tower-step-measure: tower-probe
 .PHONY: tower-full-measure
 tower-full-measure: tower-probe
 	python3 $(ROOT)/tools/amiga/measure_tower_steps.py --full
+
+$(BUILD)/tower_camera.o: tower_camera.c tower_camera.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+.PHONY: test-tower-camera
+test-tower-camera: $(BUILD)/tower_camera.o
+	python3 $(ROOT)/tools/amiga/test_tower_camera.py
+
+test: test-tower-camera

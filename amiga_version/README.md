@@ -1171,3 +1171,17 @@ These are timing/route checks, not full-map pixel comparisons. Although 12 pixel
 is a desktop camera-move magnitude, the actual camera state machine, 34 ms logic
 cadence and interpolation are not reproduced. Gameplay, sprites, colour cycling,
 negative positions, recovery jumps and tracker playback remain separate work.
+
+`tower_camera.c` now ports the early camera phase from desktop Logic.cpp:
+old-position/spike snapshots, mode-0 startup, two-pixel normal movement,
+stopped/damage holds, recovery seek setup and ten-step seek, then main/mini-tower
+bounds. It deliberately excludes subsequent death/respawn mode changes and
+player-edge corrections. Callers must supply bounded tower coordinates as
+specified in the header. It is not wired into the native probe yet.
+
+`make test-tower-camera` compares 72,000 ticks in multi-tick traces against the
+corresponding desktop source block compiled as a reference. It covers both
+scroll directions, moving targets, missing-player fallback, stop/resume and
+main/mini bounds under UBSan. The 68000 object builds without runtime helpers.
+Actual 34 ms scheduling, interpolation and integration with player/recovery
+remain to be implemented; the native timing tests still use synthetic routes.
