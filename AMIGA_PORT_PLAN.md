@@ -275,8 +275,12 @@ then at most two dirty rows per buffer for one-row camera steps. The 68000 objec
 adds no runtime helpers. The actual `tiles3.png` colour-bank converter now produces a 480-byte atlas;
 691,200 pixel comparisons pass through the C renderer at fine-scroll, ring-wrap
 and map-wrap positions. Alpha is baked onto black and colours are reduced to
-four; previews are host-generated. Copper wrap, DMA timing, parallax and gameplay
-remain to be tested.
+four; previews are host-generated. A pointer-segment builder now emits initial plane addresses and the ring-wrap
+reset, including the PAL line-255 barrier, in at most 48 bytes. Structural tests
+cover all 256 offsets and 245,760 modeled scanlines; the 68000 object has no
+runtime dependencies. It is not installed in the native display yet. Copper/DMA
+timing, safe list publication, visible seams, parallax and gameplay remain to
+be tested.
 
 Music now assumes Lightspeedplayer and a musician-produced tracker soundtrack,
 per the user's direction. PCM streaming is no longer the working path. Measure

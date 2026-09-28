@@ -1005,3 +1005,18 @@ Generated private output includes `tower_assets.h`, `tower_tiles.bin`,
 captures; no parallax, bank cycling or gameplay is included. The next step is
 Copper publication and vertical ring wrap on the A500, followed by timing with
 row refill and graphics DMA active.
+
+`tower_copper.c` builds a pointer-only Copper segment for the proposed ring:
+it waits at PAL line 44, sets both plane pointers at the selected pixel offset,
+and resets them after the last fetched ring scanline when the visible window
+crosses the ring end. Resets below line 255 include the Copper vertical-counter
+barrier. At offsets 0–16 no reset is needed within the 240-line viewport.
+The builder emits at most 24 words (48 bytes), including its end marker.
+
+`make test-tower-copper` checks all 256 offsets at four base addresses,
+245,760 modeled visible scanlines, the line-255 boundary, list capacity and
+rejected inputs. UBSan and the 68000 build pass with no runtime dependencies.
+This is a structural address/wait test, not a cycle-accurate Copper simulation.
+The segment is not yet installed by the running prototype. Safe inactive-list
+publication, actual DDF/pointer-reset timing under DMA and visible seam checks
+remain required in Copperline before tower-scrolling feasibility can pass.

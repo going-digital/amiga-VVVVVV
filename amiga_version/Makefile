@@ -13,7 +13,7 @@ PLANES ?= 2
 SCENE ?= world
 CFLAGS := -DV6_PLANES=$(PLANES) -std=c99 -m68000 -Os -g -nostdlib -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fomit-frame-pointer -Wall -Wextra -Werror -ffunction-sections -fdata-sections -MMD -MP -I$(BUILD)
 LDFLAGS := -nostdlib -m68000 -Wl,--emit-relocs,--gc-sections,-Ttext=0,-Map=$(BUILD)/prototype.map
-OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/platform.o $(BUILD)/checkpoints.o $(BUILD)/disappearing.o $(BUILD)/platform_gate.o $(BUILD)/tower_stream.o $(BUILD)/tower_draw.o
+OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/platform.o $(BUILD)/checkpoints.o $(BUILD)/disappearing.o $(BUILD)/platform_gate.o $(BUILD)/tower_stream.o $(BUILD)/tower_draw.o $(BUILD)/tower_copper.o
 
 .PHONY: all test capture run FORCE
 all: $(BUILD)/prototype.adf
@@ -86,7 +86,7 @@ test-terrain: | $(BUILD)
 	$(BUILD)/test_terrain
 
 .PHONY: test-terrain
-test: test-sprites test-terrain test-tile-edit $(BUILD)/prototype_room.h
+test: test-sprites test-terrain test-tile-edit test-tower-copper $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/pack_rooms.py --out $(BUILD) --scene $(SCENE)
 	python3 $(ROOT)/tools/amiga/test_rooms.py
 	python3 $(ROOT)/tools/amiga/test_tower_stream.py
@@ -264,3 +264,11 @@ $(BUILD)/tower_draw.o: tower_draw.c tower_draw.h tower_stream.h | $(BUILD)
 .PHONY: tower-assets
 tower-assets:
 	python3 $(ROOT)/tools/amiga/convert_tower_assets.py --data "$(DATA)"
+
+$(BUILD)/tower_copper.o: tower_copper.c tower_copper.h tower_draw.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+.PHONY: test-tower-copper
+test-tower-copper: | $(BUILD)
+	cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I. $(ROOT)/tools/amiga/test_tower_copper.c tower_copper.c -o $(BUILD)/test_tower_copper
+	$(BUILD)/test_tower_copper
