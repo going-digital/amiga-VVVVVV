@@ -350,3 +350,8 @@ test: test-tower-camera-recovery
 tower-controller-capture: tower-probe
 	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-controller CPPFLAGS=-DV6_TOWER_CONTROLLER $(ROOT)/build/amiga-tower-controller/tower.adf
 	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-controller --controller
+
+.PHONY: tower-recovery-capture
+tower-recovery-capture: tower-probe
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-recovery CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY" $(ROOT)/build/amiga-tower-recovery/tower.adf
+	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-recovery --recovery

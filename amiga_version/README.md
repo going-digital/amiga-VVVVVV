@@ -1232,3 +1232,18 @@ unchanged. The standard one-pixel stress capture is also rerun after integration
 This native test does not yet exercise player physics, the late edge phase,
 recovery callbacks, interpolation, colour cycling or music, and the frame-time
 constant is an accounting convention rather than a wall-clock timer measurement.
+
+`make -C amiga_version tower-recovery-capture` exercises camera death/recovery
+natively at the same 34 ms cadence. The scripted fixture requests death for ticks
+60..69, starts a five-update lifecycle at tick 70, and supplies a fixed player
+y=300 as the seek target. It invokes early camera update, recovery gating and
+then the death override in desktop order. The lifecycle callback only decrements
+a fixture counter; no player is respawned or drawn.
+
+Diagnostic version 6 adds camera mode and recovery state. The captured final
+state is checked against a replay of the extracted desktop early/recovery/death
+blocks. At 893 ticks it reaches camera 1798, mode 1, five lifecycle calls and
+zero remaining life/delay/seek frames. Peak work is 138 PAL lines (8.83 ms),
+with no missed frames, unchanged Chip allocation and successful exit restoration.
+This is final-state validation of one scripted recovery, not per-tick native
+trace equivalence or integration of player physics, collision, sprites or music.

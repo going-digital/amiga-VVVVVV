@@ -47,8 +47,19 @@ static volatile struct {
     ULONG forward_wraps,reverse_wraps,max_rows,max_copied;
     ULONG step,route_min,route_max,visited_min,visited_max;
     ULONG logic_ticks,logic_frames,logic_remainder;
-} diag={0x56365450,5,0,0,0,0,0,0,CHIP_BYTES,0,0,0,0,
-    V6_TOWER_STEP,CAMERA_MIN,CAMERA_MAX,CAMERA_MAX,0,0,0,0};
+    ULONG camera_mode,recovery_calls,recovery_life,recovery_delay,recovery_seek_frames;
+} diag={0x56365450,6,0,0,0,0,0,0,CHIP_BYTES,0,0,0,0,
+    V6_TOWER_STEP,CAMERA_MIN,CAMERA_MAX,CAMERA_MAX,0,0,0,0,0,0,0,0,0};
+#ifdef V6_TOWER_RECOVERY
+static int fixture_life;
+static int16_t fixture_delay;
+static int advance_fixture(void *context)
+{
+    (void)context;
+    ++diag.recovery_calls;
+    return --fixture_life;
+}
+#endif
 static UWORD beam(void) { return (*(volatile ULONG *)0xdff004>>8)&511; }
 static ULONG clock_lines(void) {
     ULONG a,b; UWORD y;
@@ -170,8 +181,19 @@ static int run(void) {
             logic_frame=now;elapsed+=delta*19968UL;diag.logic_frames+=delta;
             while(elapsed>=34000) {
                 elapsed-=34000;
-                /* Normal descending camera only; no synthetic player physics. */
+#ifdef V6_TOWER_RECOVERY
+                /* Scripted camera-only death/recovery fixture, no player physics. */
+                if(diag.logic_ticks==70) fixture_life=5;
+                v6_tower_camera_tick(&controller,300,1,1,0,0);
+                v6_tower_camera_recover(&controller,&fixture_delay,fixture_life,advance_fixture,0);
+                v6_tower_camera_death(&controller,
+                    diag.logic_ticks>=60 && diag.logic_ticks<70?30:-1);
+                diag.recovery_life=fixture_life;diag.recovery_delay=fixture_delay;
+                diag.recovery_seek_frames=controller.seek_frames;
+#else
                 v6_tower_camera_tick(&controller,0,0,1,0,0);
+#endif
+                diag.camera_mode=controller.mode;
                 ++diag.logic_ticks;
             }
             camera=controller.y;diag.logic_remainder=elapsed;

@@ -591,3 +591,12 @@ work is 137 PAL lines (8.77 ms), with no missed frames and clean restoration.
 Positions are held between logic ticks. Actual player/recovery integration,
 late-edge processing, interpolation, colour cycling and music remain outstanding;
 this does not replace the synthetic full-map stress tests.
+
+Native camera recovery fixture now passes: scripted death on ticks 60..69,
+life-sequence start on tick 70, fixed seek target and a five-call stub lifecycle.
+The final native state at tick 893 matches replayed desktop source blocks
+(camera 1798, normal mode, five callbacks, no pending recovery counters).
+Peak work is 138 PAL lines (8.83 ms), with zero missed frames and clean OS
+restoration. This validates camera-side native ordering and callback gating;
+actual player respawn, per-tick native trace validation, interpolation and full
+tower gameplay remain outstanding. Reproduce with `tower-recovery-capture`.
