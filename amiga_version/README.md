@@ -1247,3 +1247,18 @@ zero remaining life/delay/seek frames. Peak work is 138 PAL lines (8.83 ms),
 with no missed frames, unchanged Chip allocation and successful exit restoration.
 This is final-state validation of one scripted recovery, not per-tick native
 trace equivalence or integration of player physics, collision, sprites or music.
+
+The recovery-only build now records all ten camera fields plus lifecycle,
+resume delay and callback count for its first 128 logic ticks. Each complete
+record is published through a count field in a 3,344-byte test-only trace outside
+the Chip allocation. The capture compares every recorded field on every tick
+against replayed desktop source blocks, then checks the later aggregate state.
+All 128 records (1,664 field comparisons) pass, covering startup, death hold,
+seek setup/movement, resume delay and all five lifecycle callbacks.
+
+The instrumented run reaches tick 884/camera 1780, peaks at 139 PAL scanlines
+(8.90 ms), misses no frames and restores the OS. The controller diagnostic camera
+now reports logical position immediately after the tick phase, rather than
+waiting for display publication; this avoids comparing a new tick count with
+the previous displayed camera. Visited bounds still describe published frames.
+The trace is bounded and fixture-specific; player lifecycle remains a stub.

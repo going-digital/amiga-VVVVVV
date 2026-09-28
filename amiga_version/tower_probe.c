@@ -51,6 +51,24 @@ static volatile struct {
 } diag={0x56365450,6,0,0,0,0,0,0,CHIP_BYTES,0,0,0,0,
     V6_TOWER_STEP,CAMERA_MIN,CAMERA_MAX,CAMERA_MAX,0,0,0,0,0,0,0,0,0};
 #ifdef V6_TOWER_RECOVERY
+/* Test-only bounded trace: all camera fields plus callback state. Stored
+ * outside the Chip allocation; count is published after a complete record. */
+#define CAMERA_TRACE_TICKS 128
+static volatile struct {
+    ULONG magic,version,count,capacity;
+    int16_t records[CAMERA_TRACE_TICKS][13];
+} camera_trace={0x56364354,1,0,CAMERA_TRACE_TICKS,{{0}}};
+static void trace_camera(const V6TowerCamera *c,int life,int delay)
+{
+    volatile int16_t *r;
+    if(camera_trace.count>=CAMERA_TRACE_TICKS) return;
+    r=camera_trace.records[camera_trace.count];
+    r[0]=c->y;r[1]=c->old_y;r[2]=c->mode;r[3]=c->seek;
+    r[4]=c->seek_frames;r[5]=c->spike_top;r[6]=c->spike_bottom;
+    r[7]=c->old_spike_top;r[8]=c->old_spike_bottom;r[9]=c->colour_superstate;
+    r[10]=life;r[11]=delay;r[12]=(int16_t)diag.recovery_calls;
+    ++camera_trace.count;
+}
 static int fixture_life;
 static int16_t fixture_delay;
 static int advance_fixture(void *context)
@@ -190,13 +208,14 @@ static int run(void) {
                     diag.logic_ticks>=60 && diag.logic_ticks<70?30:-1);
                 diag.recovery_life=fixture_life;diag.recovery_delay=fixture_delay;
                 diag.recovery_seek_frames=controller.seek_frames;
+                trace_camera(&controller,fixture_life,fixture_delay);
 #else
                 v6_tower_camera_tick(&controller,0,0,1,0,0);
 #endif
                 diag.camera_mode=controller.mode;
                 ++diag.logic_ticks;
             }
-            camera=controller.y;diag.logic_remainder=elapsed;
+            camera=controller.y;diag.camera=camera;diag.logic_remainder=elapsed;
         }
 #else
         if(V6_TOWER_HOLD<0) {

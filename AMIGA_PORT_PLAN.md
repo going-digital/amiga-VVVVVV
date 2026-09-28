@@ -600,3 +600,12 @@ Peak work is 138 PAL lines (8.83 ms), with zero missed frames and clean OS
 restoration. This validates camera-side native ordering and callback gating;
 actual player respawn, per-tick native trace validation, interpolation and full
 tower gameplay remain outstanding. Reproduce with `tower-recovery-capture`.
+
+Recovery validation now includes a bounded native tick trace: 128 ticks x 13
+fields match desktop-source replay (all camera fields plus lifecycle/delay/call
+count), in addition to final-state checks. The trace covers the full scripted
+recovery and occupies 3,344 non-Chip bytes in that test variant only. Instrumented
+peak work is 139 PAL lines, with no misses and clean restoration. Controller
+camera diagnostics now track logical state at the tick phase, independently of
+later display publication. This strengthens camera verification without claiming
+actual player respawn or unbounded native trace coverage.
