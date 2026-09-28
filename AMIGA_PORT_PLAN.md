@@ -527,3 +527,13 @@ and clean restoration. Host checks pass for 2,600 frames / 80,600 tile rows;
 fixed-camera native pixel regressions are also rerun. Initial fill, larger camera
 steps, full tower traversal and combined gameplay/music still need separate
 measurement before closing tower feasibility.
+
+Synthetic larger-step native measurements now expose a scheduling limit:
+4 pixels/update peaks at 134 PAL lines, 8 at 184, and 16 at 320. The first two
+have no missed frames; the 16-pixel capture records 555 misses. Maximum row
+refills are respectively 2, 3 and 6; all restore AmigaDOS. The route still tests
+only the region around the map seam, without gameplay or music. Desktop tower
+logic includes 8- and 12-pixel camera moves, but its controller/cadence is not
+integrated here. Next scheduling work must handle larger changes or reproduce
+the actual camera cadence; do not treat the 16-pixel result as passing the PAL
+frame budget. Run `make -C amiga_version tower-step-measure` to reproduce.

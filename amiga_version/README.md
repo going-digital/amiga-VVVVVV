@@ -1117,3 +1117,24 @@ checks pass for 2,600 frames / 80,600 rows. The fixed-camera native pixel checks
 are repeated for this change. This improves this probe's measured headroom;
 it does not establish the combined gameplay/music budget or worst-case cost
 for larger camera steps across the entire tower.
+
+`make -C amiga_version tower-step-measure` builds synthetic 4-, 8- and 16-pixel
+per-frame routes, captures each, and records overruns rather than asserting
+that every stress load fits. Each route reverses between 5344 and 5856 and
+crosses the source seam in both directions. Results on the same A500 profile:
+
+| Camera step | Peak work (PAL lines) | Approx. ms | Max rows redrawn | Missed frames |
+| --- | ---: | ---: | ---: | ---: |
+| 4 | 134 | 8.58 | 2 | 0 |
+| 8 | 184 | 11.78 | 3 | 0 |
+| 16 | 320 | 20.48 | 6 | 555 |
+
+All three exit-restoration checks passed. Reports are under
+`build/amiga-tower-step{4,8,16}` and `build/amiga-tower/step-measurements.json`.
+The 16-pixel result is a measured failure of the one-frame budget, not a passing
+performance test. Counts apply to these captures, not a universal drop rate.
+The desktop Logic.cpp contains 8- and 12-pixel tower camera moves; this synthetic
+per-video-frame load is not yet the desktop camera controller or its logic
+cadence. Test the actual controller and larger camera changes before considering
+the renderer's scheduling complete. Moving-frame pixel integrity is still not
+checked by this measurement harness.

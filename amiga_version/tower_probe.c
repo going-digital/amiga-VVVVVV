@@ -19,6 +19,14 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #ifndef V6_TOWER_HOLD
 #define V6_TOWER_HOLD -1
 #endif
+/* Synthetic stress step, not the desktop camera controller. Endpoints align
+ * for these powers of two so every route remains bounded and reversible. */
+#ifndef V6_TOWER_STEP
+#define V6_TOWER_STEP 1
+#endif
+#if V6_TOWER_STEP != 1 && V6_TOWER_STEP != 4 && V6_TOWER_STEP != 8 && V6_TOWER_STEP != 16
+#error Unsupported tower stress step
+#endif
 #define LIST_WORDS 64
 #define LAYER_BYTES (V6_TOWER_RING_BYTES+V6_TOWER_PLANE_BYTES)
 #define CHIP_BYTES (2*LAYER_BYTES+2*LIST_WORDS*2)
@@ -100,8 +108,13 @@ static int run(void) {
         if(V6_TOWER_HOLD<0) {
             if(camera==5856) direction=-1;
             if(camera==5344) direction=1;
-            if(direction>0) { ++camera;if(camera==5600) ++diag.forward_wraps; }
-            else { --camera;if(camera==5599) ++diag.reverse_wraps; }
+            if(direction>0) {
+                if(camera<5600 && camera+V6_TOWER_STEP>=5600) ++diag.forward_wraps;
+                camera+=V6_TOWER_STEP;
+            } else {
+                if(camera>=5600 && camera-V6_TOWER_STEP<5600) ++diag.reverse_wraps;
+                camera-=V6_TOWER_STEP;
+            }
         }
         if(!prepare(rings[back],lists[back],back,camera,&drawn)) { diag.error=2;break; }
         if(drawn>diag.max_rows) diag.max_rows=drawn;

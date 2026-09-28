@@ -316,3 +316,7 @@ test-tower-dual-copper: $(BUILD)/tower_copper.o
 	$(BUILD)/test_tower_dual_copper
 
 test: test-tower-dual-copper
+
+.PHONY: tower-step-measure
+tower-step-measure: tower-probe
+	python3 $(ROOT)/tools/amiga/measure_tower_steps.py
