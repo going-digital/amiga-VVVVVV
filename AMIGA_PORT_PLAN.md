@@ -496,3 +496,25 @@ background. This supersedes the two-total-plane trial above. Preserve three
 opaque foreground colours, use foreground priority, and measure the additional
 DMA cost. Two buffered 320x256 layer sets require 61,440 bytes of Chip RAM before
 Copper lists and sprites. Native implementation and timing remain pending.
+
+Three-plane Copper groundwork is implemented: independent foreground/background
+initial pointers and sorted wrap resets, including coincident events and the
+PAL line-255 barrier. Exhaustive host checks pass for 65,536 offset pairs
+(47,185,920 modeled plane addresses), and the 68000 build passes. The segment
+needs at most 68 bytes. This is not yet connected to the native probe; background
+asset reduction, separate ring allocation, mode/palette setup and DMA validation
+remain necessary before claiming hardware parallax works.
+
+
+Native three-plane integration is now implemented in the standalone tower probe:
+two-plane foreground plus half-speed one-plane background, foreground priority,
+independent ring resets, double buffering and dark one-colour backdrop conversion.
+The moving A500/512K Chip + 512K slow test passes with zero missed frames,
+61,696 Chip bytes, at most two row refills per update, and peak work 273 PAL
+scanlines (17.47 ms), excluding initial fills. Two forward source-map seam
+crossings, one reverse and OS restoration pass. There is limited remaining frame
+headroom: gameplay, sprites and music are not present in this experiment.
+Foreground index zero is transparent, including any opaque source pixels reduced
+to that index. Background intensity is thresholded to one colour. Native
+fixed-camera RGB checks cover the composed display; moving-frame tearing,
+negative camera positions, colour cycling and full-game timing remain unverified.

@@ -10,6 +10,8 @@
 #include "tower_copper.h"
 #include "tower_assets.h"
 #include "tower_map.h"
+#include "tower_background_map.h"
+#include "tower_backdrop.h"
 struct ExecBase *SysBase;
 struct GfxBase *GfxBase;
 static volatile struct Custom * const hw=(void *)0xdff000;
@@ -18,9 +20,10 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #define V6_TOWER_HOLD -1
 #endif
 #define LIST_WORDS 64
-#define CHIP_BYTES (2*V6_TOWER_RING_BYTES+2*LIST_WORDS*2)
-static V6TowerStream stream;
-static V6TowerDraw draw[2];
+#define LAYER_BYTES (V6_TOWER_RING_BYTES+V6_TOWER_PLANE_BYTES)
+#define CHIP_BYTES (2*LAYER_BYTES+2*LIST_WORDS*2)
+static V6TowerStream stream,background_stream;
+static V6TowerDraw draw[2],background_draw[2];
 static volatile ULONG frames;
 /* Big-endian ULONG record, discoverable in emulator RAM dumps. */
 static volatile struct {
@@ -43,15 +46,20 @@ static UWORD *move(UWORD *p,UWORD reg,UWORD value) {
     *p++=reg;*p++=value;return p;
 }
 static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsigned *drawn) {
-    UWORD *p=list;unsigned i;
+    UWORD *p=list;unsigned i,background_rows;
     if(!v6_tower_draw_prepare(&draw[index],ring,&stream,camera>>3,
         tower_tiles,TOWER_TILE_COUNT,0,drawn)) return 0;
-    p=move(p,0x100,0x2200);p=move(p,0x102,0);p=move(p,0x104,0);
+    if(!v6_tower_draw_mono_prepare(&background_draw[index],ring+V6_TOWER_RING_BYTES,
+        &background_stream,camera>>4,tower_backdrop,TOWER_TILE_COUNT,&background_rows)) return 0;
+    if(drawn) *drawn+=background_rows;
+    p=move(p,0x100,0x3600);p=move(p,0x102,0);p=move(p,0x104,0);
     p=move(p,0x108,0);p=move(p,0x10a,0);
     p=move(p,0x08e,0x3481);p=move(p,0x090,0x24c1);
     p=move(p,0x092,0x0038);p=move(p,0x094,0x00d0);
     for(i=0;i<4;++i) p=move(p,0x180+i*2,tower_palette[i]);
-    return v6_tower_copper(p,(ULONG)ring,camera&255)!=0;
+    p=move(p,0x192,0x223);
+    return v6_tower_dual_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
+        camera&255,(camera>>1)&255)!=0;
 }
 static int run(void) {
     UBYTE *chip,*rings[2];UWORD *lists[2];
@@ -68,9 +76,10 @@ static int run(void) {
     if(!(GfxBase->DisplayFlags&PAL)) { CloseLibrary((struct Library *)GfxBase);return 20; }
     chip=AllocMem(CHIP_BYTES,MEMF_CHIP|MEMF_CLEAR);
     if(!chip) { CloseLibrary((struct Library *)GfxBase);return 20; }
-    rings[0]=chip;rings[1]=chip+V6_TOWER_RING_BYTES;
-    lists[0]=(UWORD *)(chip+2*V6_TOWER_RING_BYTES);lists[1]=lists[0]+LIST_WORDS;
+    rings[0]=chip;rings[1]=chip+LAYER_BYTES;
+    lists[0]=(UWORD *)(chip+2*LAYER_BYTES);lists[1]=lists[0]+LIST_WORDS;
     if(!v6_tower_open(&stream,tower_map,sizeof(tower_map)) ||
+       !v6_tower_open(&background_stream,tower_background_map,sizeof(tower_background_map)) ||
        !prepare(rings[0],lists[0],0,camera,0)) {
         FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
     }

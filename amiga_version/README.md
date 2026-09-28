@@ -1075,3 +1075,35 @@ not the planned native parallax path and has not been timed on the Amiga.
 Selected tower layout (superseding the two-plane trial): three total bitplanes,
 with planes 1/3 for foreground and plane 2 for parallax. Two buffered layer sets
 cost 61,440 bytes before lists/sprites. Native integration and timing are pending.
+
+`tower_copper.c::v6_tower_dual_copper` now builds the three-plane pointer segment:
+foreground BPL1/BPL3, background BPL2, independently ordered ring-wrap events,
+coincident resets, and a single PAL line-255 barrier. It emits at most 34 words
+(68 bytes). `make test-tower-dual-copper` checks every one of the 65,536 offset
+pairs and 47,185,920 modeled plane addresses under UBSan; the 68000 build passes.
+This is a structural test, not a DMA timing simulation. The existing native
+probe still uses its two-plane single-playfield renderer. Next is integrating
+the background ring, three-plane mode and palettes, then native captures/timing.
+
+
+The standalone tower probe now runs the selected three-plane dual playfield.
+The foreground uses BPL1/BPL3 and its existing three nonzero colours; BPL2
+uses a one-bit background ring at half the positive logical camera position.
+Foreground palette index zero is transparent, so any opaque source pixels
+previously quantized to zero also reveal the background. Background source OCS
+channel sums >=3 become its single dark colour (COLOR09=0x223); darker pixels
+become transparent. This is an explicit visual reduction, not full source-colour
+fidelity. Foreground priority is enabled. Both rings and lists are double buffered.
+
+The native moving test passes with 61,696 bytes allocated in Chip RAM, zero
+missed frames, at most two total rows redrawn per update, and a peak of 273 PAL
+scanlines (17.47 ms). It records two forward map-seam crossings and one reverse,
+and returns to AmigaDOS on mouse exit. Initial fills are excluded from the work
+peak. This leaves little room in a PAL frame for additional game work; no player,
+sprite DMA, SFX or tracker replay runs in this probe yet.
+
+The eight fixed-camera capture checks now compare the three-plane display,
+including foreground priority and visible background pixels, against independently
+indexed desktop maps and converted atlases. The moving capture still does not
+prove absence of tearing on every frame. Negative-camera semantics, colour
+cycling, full tower traversal and physical-hardware timing remain open.

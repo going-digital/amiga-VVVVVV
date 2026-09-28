@@ -17,4 +17,7 @@ int v6_tower_draw_row(uint8_t *ring,int row,const uint16_t *tiles,
  * No camera policy, Copper wrap or parallax is implied by this helper. */
 int v6_tower_draw_prepare(V6TowerDraw *,uint8_t *ring,V6TowerStream *,int top_row,
     const uint8_t *atlas,unsigned count,unsigned *decoded,unsigned *drawn);
+/* Same cache/window policy, for a one-plane ring and 8-byte-per-tile atlas. */
+int v6_tower_draw_mono_prepare(V6TowerDraw *,uint8_t *,V6TowerStream *,int,
+    const uint8_t *,unsigned,unsigned *);
 #endif

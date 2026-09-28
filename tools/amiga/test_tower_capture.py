@@ -38,7 +38,17 @@ def reference_rows():
                 index |= ((atlas[tile*16+8+y%8] >> (7-x)) & 1) << 1
                 row.extend(palette[index])
         rows.append(bytes(row))
-    return rows
+    body = source[source.index('void towerclass::loadbackground('):]
+    body = re.search(r'static const short tmap\[\]\s*=\s*\{(.*?)\};', body, re.S)[1]
+    body = re.sub(r'//[^\n]*|/\*.*?\*/', '', body, flags=re.S)
+    backtiles = [int(x) for x in body.split(',') if x.strip()]
+    assert len(backtiles) == 40*120
+    backdrop = (ASSETS / 'tower_backdrop.bin').read_bytes()
+    background = []
+    for y in range(960):
+        background.append(b''.join(bytes((34,34,51)) if (backdrop[t*8+y%8]>>(7-x))&1
+            else bytes(3) for t in backtiles[y//8*40:(y//8+1)*40] for x in range(8)))
+    return rows, background
 
 
 def compare(path, camera, rows):
@@ -46,12 +56,19 @@ def compare(path, camera, rows):
     width, height = map(int, header.split())
     assert (width, height) == (716, 540), 'Copperline presentation changed; review sampling geometry'
     assert len(rgba) == width*height*4
+    background_pixels = 0
     for y in range(240):
-        expected = rows[(camera+y) % 5600]
+        foreground = rows[0][(camera+y) % 5600]
+        background = rows[1][(camera//2+y) % 960]
+        expected = b''.join(foreground[x:x+3] if foreground[x:x+3]!=bytes(3)
+            else background[x:x+3] for x in range(0,960,3))
         for x in range(320):
+            if expected[x*3:x*3+3] == bytes((34,34,51)):
+                background_pixels += 1
             px = 15 + ((2*x+1)*686)//640
             at = ((30+2*y)*width+px)*4
             assert rgba[at:at+3] == expected[x*3:x*3+3], (camera, x, y, rgba[at:at+3], expected[x*3:x*3+3])
+    assert background_pixels > 0, (camera, "No visible parallax pixels")
     return 320*240
 
 
@@ -91,7 +108,7 @@ write_protected = true
         checks += compare(path, camera, rows)
         print(f'PASS: native camera {camera}, 76800 logical pixels', flush=True)
     report = dict(cameras=CAMERAS, logical_pixel_checks=checks,
-                  scope='Fixed-camera native Copper/DMA captures vs desktop map and converted atlas; exact RGB at logical pixel centres; not moving-frame tearing or physical hardware validation')
+                  scope='Three-plane dual-playfield fixed-camera native Copper/DMA captures vs desktop map and converted atlas; exact RGB at logical pixel centres; not moving-frame tearing or physical hardware validation')
     (BUILD / 'pixels.json').write_text(json.dumps(report, indent=2)+'\n')
 
 

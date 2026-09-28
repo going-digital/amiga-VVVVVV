@@ -37,3 +37,27 @@ int v6_tower_draw_prepare(V6TowerDraw *d,uint8_t *ring,V6TowerStream *stream,int
     }
     return 1;
 }
+
+int v6_tower_draw_mono_prepare(V6TowerDraw *d,uint8_t *ring,V6TowerStream *stream,
+    int top,const uint8_t *atlas,unsigned count,unsigned *drawn)
+{
+    int row;
+    if(drawn) *drawn=0;
+    if(top< -32768 || top>32737) return 0;
+    for(row=top;row<top+31;++row) {
+        unsigned slot=(unsigned)row&31,x,y;
+        uint32_t bit=(uint32_t)1<<slot;
+        const uint16_t *tiles;
+        uint8_t *dst;
+        if((d->valid&bit) && d->tags[slot]==row) continue;
+        tiles=v6_tower_row(stream,row,0);
+        if(!tiles) return 0;
+        for(x=0;x<40;++x) if(tiles[x]>=count) return 0;
+        dst=ring+slot*320;
+        for(x=0;x<40;++x) for(y=0;y<8;++y)
+            dst[y*40+x]=atlas[(uint32_t)tiles[x]*8+y];
+        d->tags[slot]=(int16_t)row;d->valid|=bit;
+        if(drawn) ++*drawn;
+    }
+    return 1;
+}

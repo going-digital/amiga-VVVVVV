@@ -55,7 +55,8 @@ write_protected = true
     assert report['frames'] > 256 and report['missed'] == 0, report
     assert 0 < report['max_work_lines'] < 312, report
     assert report['forward_wraps'] >= 1 and report['reverse_wraps'] >= 1, report
-    assert report['max_rows'] <= 1, report
+    assert report['max_rows'] <= 2, report
+    assert report['chip_bytes'] == 61696, report
     env.update(COPPERLINE_DBG_AFTER='43',
                COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{BUILD / "exit.bin"}')
     with (BUILD / 'exit.log').open('w') as log:
@@ -67,7 +68,7 @@ write_protected = true
     stopped = diagnostics(BUILD / 'exit.bin')
     assert stopped['status'] == 2 and stopped['error'] == 0, stopped
     report['restored'] = True
-    report['scope'] = 'Native forward/reverse source-map seam and exit smoke test; screenshot not pixel-compared; bounded 5344..5856 camera route'
+    report['scope'] = 'Three-plane hardware parallax: forward/reverse source-map seam and exit smoke test; moving screenshot not pixel-compared; bounded 5344..5856 camera route'
     (BUILD / 'capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
 

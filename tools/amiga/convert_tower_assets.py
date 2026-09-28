@@ -59,6 +59,16 @@ def main():
         '#define TOWER_TILE_COUNT 30\n#define TOWER_COLOUR_BANK '+str(args.bank)+'\n'
         'static const unsigned short tower_palette[4]={'+','.join(hex(c) for c in colors)+'};\n'
         'static const unsigned char tower_tiles[480]={'+','.join(map(str,atlas))+'};\n')
+    # One-plane backdrop: threshold source OCS intensity, independent of the
+    # foreground palette reduction (which otherwise loses these dark details).
+    backdrop=bytes(sum(int(sum(tile[y*8+x])>=3)<<(7-x) for x in range(8))
+                   for tile in pixels for y in range(8))
+    (out/'tower_backdrop.bin').write_bytes(backdrop)
+    (out/'tower_backdrop.h').write_text('static const unsigned char tower_backdrop[240]={'
+        +','.join(map(str,backdrop))+'};\n')
+    blob=(out/'loadbackground.v6tr').read_bytes()
+    (out/'tower_background_map.h').write_text('static const unsigned char tower_background_map[]={'
+        +','.join(map(str,blob))+'};\n')
     subprocess.run(['cc','-std=c99','-O2','-Wall','-Wextra','-Werror','-shared','-fPIC',
         '-fsanitize=undefined','-fno-sanitize-recover=all',
         *[str(ROOT/'amiga_version'/f) for f in ('tower_draw.c','tower_stream.c','room_codec.c')],

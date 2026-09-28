@@ -309,3 +309,10 @@ test-tower-compose: $(BUILD)/tower_compose.o
 	python3 $(ROOT)/tools/amiga/test_tower_compose.py
 
 test: test-tower-compose
+
+.PHONY: test-tower-dual-copper
+test-tower-dual-copper: $(BUILD)/tower_copper.o
+	cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I. $(ROOT)/tools/amiga/test_tower_dual_copper.c tower_copper.c -o $(BUILD)/test_tower_dual_copper
+	$(BUILD)/test_tower_dual_copper
+
+test: test-tower-dual-copper
