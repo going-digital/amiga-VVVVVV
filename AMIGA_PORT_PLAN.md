@@ -518,3 +518,12 @@ Foreground index zero is transparent, including any opaque source pixels reduced
 to that index. Background intensity is thresholded to one colour. Native
 fixed-camera RGB checks cover the composed display; moving-frame tearing,
 negative camera positions, colour cycling and full-game timing remain unverified.
+
+Tower rendering optimisation: fixed eight-scanline tile copies now use explicit
+constant-displacement byte stores instead of an inner row loop. Peak incremental
+work on the same three-plane Copperline route falls from 273 to 134 scanlines
+(17.47 to 8.58 ms), with no missed frames, unchanged 61,696-byte Chip allocation
+and clean restoration. Host checks pass for 2,600 frames / 80,600 tile rows;
+fixed-camera native pixel regressions are also rerun. Initial fill, larger camera
+steps, full tower traversal and combined gameplay/music still need separate
+measurement before closing tower feasibility.

@@ -1107,3 +1107,13 @@ including foreground priority and visible background pixels, against independent
 indexed desktop maps and converted atlases. The moving capture still does not
 prove absence of tearing on every frame. Negative-camera semantics, colour
 cycling, full tower traversal and physical-hardware timing remain open.
+
+The row-copy loop is now unrolled into eight constant-displacement byte stores
+per tile column, shared by the foreground and background renderers. On the same
+native moving route, peak work drops from 273 to 134 PAL scanlines (17.47 to
+8.58 ms, about 51% lower), with zero missed frames and clean OS restoration.
+Chip allocation remains 61,696 bytes; initial fills remain excluded. Host row
+checks pass for 2,600 frames / 80,600 rows. The fixed-camera native pixel checks
+are repeated for this change. This improves this probe's measured headroom;
+it does not establish the combined gameplay/music budget or worst-case cost
+for larger camera steps across the entire tower.
