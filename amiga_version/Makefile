@@ -333,3 +333,9 @@ test-tower-camera: $(BUILD)/tower_camera.o
 	python3 $(ROOT)/tools/amiga/test_tower_camera.py
 
 test: test-tower-camera
+
+.PHONY: test-tower-edges
+test-tower-edges: $(BUILD)/tower_camera.o
+	python3 $(ROOT)/tools/amiga/test_tower_edges.py
+
+test: test-tower-edges

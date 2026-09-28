@@ -28,3 +28,31 @@ void v6_tower_camera_tick(V6TowerCamera *c,int player_y,int valid,
     if(c->y<=0) c->y=0;
     if(c->y>=(mini?568:5368)) c->y=mini?568:5368;
 }
+
+unsigned v6_tower_camera_edges(V6TowerCamera *c,int player_y,int valid,
+    int direction,int invincible,int life_sequence)
+{
+    unsigned events=0;
+    int relative;
+    if(life_sequence!=0) return 0;
+    relative=player_y-c->y;
+    if(valid) {
+        if(!invincible) {
+            if(relative<=0 || relative>=208) events|=V6_TOWER_EDGE_DEATH;
+        } else if(relative<=8) {
+            c->y-=relative<=0?(direction==1?12:8):2;
+            events|=V6_TOWER_EDGE_REDRAW;
+        } else if(relative>=200) {
+            c->y+=relative>=208?(direction==0?12:8):2;
+            events|=V6_TOWER_EDGE_REDRAW;
+        }
+    }
+    relative=player_y-c->y;
+    if(valid && relative<=40) {
+        if(++c->spike_top>=8) c->spike_top=8;
+    } else if(c->spike_top>0) --c->spike_top;
+    if(valid && relative>=164) {
+        if(++c->spike_bottom>=8) c->spike_bottom=8;
+    } else if(c->spike_bottom>0) --c->spike_bottom;
+    return events;
+}

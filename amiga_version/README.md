@@ -1185,3 +1185,18 @@ scroll directions, moving targets, missing-player fallback, stop/resume and
 main/mini bounds under UBSan. The 68000 object builds without runtime helpers.
 Actual 34 ms scheduling, interpolation and integration with player/recovery
 remain to be implemented; the native timing tests still use synthetic routes.
+
+The separate `v6_tower_camera_edges` helper now ports the late player-edge and
+spike-height phase. In normal play, relative y <=0 or >=208 requests deathseq=30.
+Only invincibility enables the 2/8/12-pixel camera corrections and background
+redraw request. Spike heights then update from the corrected relative position;
+nonzero lifeseq suppresses this phase. This ordering is important: the helper
+must run in the desktop's late gameplay phase, not folded into the early camera
+tick. Bounds are not reapplied until the next early tick.
+
+`make test-tower-edges` passes 20,480 boundary cases against the extracted desktop
+block, including invincibility, missing players, both directions, life-sequence
+gating and spike limits. The existing 72,000 early-phase comparisons still pass;
+the 68000 object has no runtime dependencies. These helpers are not yet wired
+into the native probe. Death/respawn recovery transitions, tick scheduling and
+player collision integration remain open.

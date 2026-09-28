@@ -564,3 +564,12 @@ source block under UBSan; the 68000 object has no runtime dependencies. This is
 not yet the whole controller: later death/respawn transitions, player-edge
 corrections, 34 ms tick scheduling, interpolation and native integration remain
 outstanding. Existing native performance reports still describe synthetic routes.
+
+Late tower camera rules are now ported separately: ordinary play requests death
+at the screen edges, while invincibility alone permits 2/8/12-pixel corrections.
+Spike heights update after those corrections, and lifeseq gates the phase.
+20,480 source-reference boundary cases pass, alongside the existing 72,000 early
+camera ticks. This corrects the earlier implication that 12-pixel corrections
+represent normal tower play; those performance tests remain useful synthetic
+stress loads. Recovery/lifecycle transitions, native scheduling and integration
+with actual tower player physics are still outstanding.
