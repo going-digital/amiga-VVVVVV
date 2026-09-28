@@ -284,8 +284,14 @@ Copperline A500/512K Chip + 512K slow, it reached camera 555 (crossing two
 256-line ring seams), with zero missed frames and peak incremental work of
 135 scanlines (8.64 ms), excluding initial ring fill. Its Chip allocation is
 41,216 bytes. The screenshot looks intact and mouse exit restores AmigaDOS.
-This is an emulator smoke test: pixel-exact seams, full-map wrap/refill spikes,
-reverse scrolling, parallax, gameplay and music running together remain open.
+The subsequent bounded camera route (5344..5856 pixels, forward and reverse)
+keeps logical coordinates continuous across source row 700 instead of resetting
+the camera and invalidating ring tags. It passed two forward source-map seam
+crossings and one reverse crossing in 1,564 PAL frames, with no missed frames,
+at most one row drawn per update, and peak work of 136 scanlines (8.70 ms).
+Exit restoration also passed. This is an emulator smoke test: pixel-exact
+visible seams, traversal of the entire tower, negative camera coordinates,
+parallax, gameplay and music running together remain open.
 
 Music now assumes Lightspeedplayer and a musician-produced tracker soundtrack,
 per the user's direction. PCM streaming is no longer the working path. Measure

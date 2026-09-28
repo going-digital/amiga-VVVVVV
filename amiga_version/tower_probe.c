@@ -21,7 +21,8 @@ static volatile ULONG frames;
 /* Big-endian ULONG record, discoverable in emulator RAM dumps. */
 static volatile struct {
     ULONG magic,version,status,frames,camera,max_work_lines,missed,error,chip_bytes;
-} diag={0x56365450,1,0,0,0,0,0,0,CHIP_BYTES};
+    ULONG forward_wraps,reverse_wraps,max_rows;
+} diag={0x56365450,2,0,0,0,0,0,0,CHIP_BYTES,0,0,0};
 static UWORD beam(void) { return (*(volatile ULONG *)0xdff004>>8)&511; }
 static ULONG clock_lines(void) {
     ULONG a,b; UWORD y;
@@ -37,10 +38,10 @@ static void __attribute__((interrupt)) irq(void) {
 static UWORD *move(UWORD *p,UWORD reg,UWORD value) {
     *p++=reg;*p++=value;return p;
 }
-static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera) {
+static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsigned *drawn) {
     UWORD *p=list;unsigned i;
     if(!v6_tower_draw_prepare(&draw[index],ring,&stream,camera>>3,
-        tower_tiles,TOWER_TILE_COUNT,0,0)) return 0;
+        tower_tiles,TOWER_TILE_COUNT,0,drawn)) return 0;
     p=move(p,0x100,0x2200);p=move(p,0x102,0);p=move(p,0x104,0);
     p=move(p,0x108,0);p=move(p,0x10a,0);
     p=move(p,0x08e,0x3481);p=move(p,0x090,0x24c1);
@@ -51,7 +52,11 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera) {
 static int run(void) {
     UBYTE *chip,*rings[2];UWORD *lists[2];
     UWORD dma,ints,adk;APTR old_irq;struct View *view;
-    unsigned back=1,camera=0;ULONG start,work,previous;
+    /* Keep logical coordinates continuous across the 700-row source seam.
+     * Only the stream wraps source rows; physical ring slots use logical rows.
+     * A bounded back-and-forth route exercises both directions indefinitely. */
+    unsigned back=1,camera=5344,drawn;int direction=1;
+    ULONG start,work,previous;
     __asm volatile("move.l 4.w,%0":"=r"(SysBase));
     if(SysBase->AttnFlags&AFF_68010) return 20;
     GfxBase=(struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library",0);
@@ -62,7 +67,7 @@ static int run(void) {
     rings[0]=chip;rings[1]=chip+V6_TOWER_RING_BYTES;
     lists[0]=(UWORD *)(chip+2*V6_TOWER_RING_BYTES);lists[1]=lists[0]+LIST_WORDS;
     if(!v6_tower_open(&stream,tower_map,sizeof(tower_map)) ||
-       !prepare(rings[0],lists[0],0,0)) {
+       !prepare(rings[0],lists[0],0,camera,0)) {
         FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
     }
     view=GfxBase->ActiView;LoadView(0);WaitTOF();WaitTOF();
@@ -75,12 +80,16 @@ static int run(void) {
     hw->dmacon=DMAF_SETCLR|DMAF_MASTER|DMAF_RASTER|DMAF_COPPER;
     hw->intena=INTF_SETCLR|INTF_INTEN|INTF_VERTB;Enable();diag.status=1;
     /* Warm the second ring before measuring incremental row work. */
-    if(!prepare(rings[1],lists[1],1,0)) diag.error=1;
+    if(!prepare(rings[1],lists[1],1,camera,0)) diag.error=1;
     blank();previous=frames;
     while((*(volatile UBYTE *)0xbfe001&0x40) && !diag.error) {
         start=clock_lines();
-        ++camera;if(camera==5600) camera=0;
-        if(!prepare(rings[back],lists[back],back,camera)) { diag.error=2;break; }
+        if(camera==5856) direction=-1;
+        if(camera==5344) direction=1;
+        if(direction>0) { ++camera;if(camera==5600) ++diag.forward_wraps; }
+        else { --camera;if(camera==5599) ++diag.reverse_wraps; }
+        if(!prepare(rings[back],lists[back],back,camera,&drawn)) { diag.error=2;break; }
+        if(drawn>diag.max_rows) diag.max_rows=drawn;
         work=clock_lines()-start;if(work>diag.max_work_lines) diag.max_work_lines=work;
         blank();
         if(frames-previous>1) diag.missed+=frames-previous-1;

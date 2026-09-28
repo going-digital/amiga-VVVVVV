@@ -1021,17 +1021,21 @@ The standalone tower probe now installs this segment; room gameplay is unchanged
 
 Run `make -C amiga_version tower-capture` from the repository root to build and
 capture the separate `build/amiga-tower/tower.adf`. `tower-probe` builds only.
-The probe scrolls downward one pixel per PAL frame, using two Chip RAM rings
-and two lists; it prepares the inactive pair and publishes the list pointer at
+The probe moves one pixel per PAL frame between logical camera positions
+5344 and 5856, reversing at each endpoint, using two Chip RAM rings and two lists; it prepares the inactive pair and publishes the list pointer at
 line 311. Left mouse exits and restores the OS. Original map and converted tile
 bytes are generated into ignored build output from the user's assets.
 
-The initial Copperline A500/512K Chip + 512K slow capture reaches camera 555,
-crossing two ring seams, with zero missed frames. Peak incremental work is
-135 scanlines (8.64 ms), excluding initial ring preparation; allocated Chip RAM
+The Copperline A500/512K Chip + 512K slow capture now checks two forward
+source-map seam crossings and one reverse crossing in 1,564 PAL frames, with
+zero missed frames and at most one row redrawn per update. Peak incremental
+work is 136 scanlines (8.70 ms), excluding initial ring preparation; allocated Chip RAM
 is 41,216 bytes. The screenshot was visually inspected and the saved-state
 exit check returns to AmigaDOS with diagnostics status 2. Reports, screenshots
 and logs are in `build/amiga-tower`. These are emulator results, not measurements
-on physical hardware. Pixel-exact seam checks, full-map wrap (which currently
-invalidates ring tags at camera reset), reverse motion, parallax, tower gameplay
-and concurrent tracker playback remain unverified.
+on physical hardware. Logical camera coordinates remain continuous through source row 700: the
+stream wraps source rows independently of the physical ring slots, avoiding a
+full redraw at the map boundary. This bounded route tests the seam in both
+directions, not traversal of all 700 rows. Pixel-exact visible seam checks,
+negative camera positions, parallax, tower gameplay and concurrent tracker
+playback remain unverified.
