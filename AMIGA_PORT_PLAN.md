@@ -573,3 +573,12 @@ camera ticks. This corrects the earlier implication that 12-pixel corrections
 represent normal tower play; those performance tests remain useful synthetic
 stress loads. Recovery/lifecycle transitions, native scheduling and integration
 with actual tower player physics are still outstanding.
+
+Camera-side lifecycle transitions are now implemented as explicit ordered
+helpers: recovery gating after the early camera tick, and the death camera
+freeze at the later death-processing phase. The recovery callback invokes the
+caller's lifecycle logic only when seeking and resume delay allow it. 5,760
+cases match extracted desktop blocks, including a subsequent death override;
+earlier camera/edge regressions still pass. This tests camera transitions with
+a stub lifecycle callback, not actual tower respawn. Native cadence, player
+integration and colour-state rendering remain to be connected.

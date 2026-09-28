@@ -21,4 +21,14 @@ void v6_tower_camera_tick(V6TowerCamera *,int player_y,int player_valid,
  * desktop bounds apply on the next early camera tick. */
 unsigned v6_tower_camera_edges(V6TowerCamera *,int player_y,int player_valid,
     int direction,int invincible,int life_sequence);
+/* After the early camera tick, including when gameplay is stopped. The caller
+ * owns resume_delay and lifeseq. advance(context) must perform exactly one
+ * lifecycle update and return the resulting lifeseq; it is called only when
+ * recovery seeking and resume delay permit it. A non-null callback is required.
+ * This retains the desktop ordering without duplicating player life logic. */
+void v6_tower_camera_recover(V6TowerCamera *,int16_t *resume_delay,int life_sequence,
+    int (*advance)(void *),void *context);
+/* Run after recovery, at entry to the desktop death-processing phase.
+ * death_sequence == -1 is inactive; every other value freezes the camera. */
+void v6_tower_camera_death(V6TowerCamera *,int death_sequence);
 #endif

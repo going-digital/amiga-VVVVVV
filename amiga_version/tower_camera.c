@@ -56,3 +56,21 @@ unsigned v6_tower_camera_edges(V6TowerCamera *c,int player_y,int valid,
     } else if(c->spike_bottom>0) --c->spike_bottom;
     return events;
 }
+
+void v6_tower_camera_recover(V6TowerCamera *c,int16_t *delay,int life_sequence,
+    int (*advance)(void *),void *context)
+{
+    if(life_sequence<=0) return;
+    if(c->mode==2) {
+        c->seek_frames=20;c->mode=4;*delay=4;
+    }
+    if(c->seek_frames<=0) {
+        if(*delay<=0) {
+            if(advance(context)==0) c->mode=1;
+        } else --*delay;
+    }
+}
+void v6_tower_camera_death(V6TowerCamera *c,int death_sequence)
+{
+    if(death_sequence!=-1) { c->colour_superstate=1;c->mode=2; }
+}

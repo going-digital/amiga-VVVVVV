@@ -1200,3 +1200,18 @@ gating and spike limits. The existing 72,000 early-phase comparisons still pass;
 the 68000 object has no runtime dependencies. These helpers are not yet wired
 into the native probe. Death/respawn recovery transitions, tick scheduling and
 player collision integration remain open.
+
+Camera-side recovery gating is now available through `v6_tower_camera_recover`,
+called after the early camera tick. With positive lifeseq, damage mode enters
+seek setup and resets the resume delay. The lifecycle callback runs only when
+seek frames and the delay permit it; a callback result of zero resumes normal
+scrolling. The caller retains ownership of player lifecycle state. Separately,
+`v6_tower_camera_death` applies the later death-phase camera freeze and colour
+superstate, including overriding a recovery transition in the same tick.
+
+`make test-tower-camera-recovery` passes 5,760 cases against extracted desktop
+recovery/death camera blocks, checking callback count, return handling, seek and
+delay gates, and ordering. Its lifecycle callback is a controlled stub: this
+does not yet test real respawn/player integration. The 72,000 early-camera and
+20,480 late-edge checks still pass, and the 68000 object has no runtime helpers.
+Native scheduling, player integration and colour rendering remain outstanding.
