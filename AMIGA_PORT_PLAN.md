@@ -471,3 +471,28 @@ The checked-in `LICENSE.md` and `License exceptions.md` distinguish source permi
 Hardware design references: Commodore's [memory-system description](https://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0005.html), [bitplanes and colors](https://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0066.html), [color table](https://www.amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0067.html), and [blitter chapter](https://www.amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0118.html). These document why DMA allocation and bitplane count are architectural constraints.
 
 The initial review used static source inspection and a tile-initializer size scan. Subsequent implementation evidence is recorded in the progress section above and `amiga_version/README.md`. The full-game memory table and unimplemented architectural choices remain proposals to validate.
+
+## Tower parallax implementation decision
+
+Use OCS dual playfield for independent hardware scrolling, following the user's
+correction. Start with two total bitplanes (one per layer): one foreground
+colour, one background colour, and the shared backdrop. This reduces foreground
+shading compared with the current four-colour single playfield. If visual
+assessment warrants it, evaluate three planes (two foreground, one background)
+or four (two each) against the A500 budget. See the hardware manual's
+[dual-playfield layout](https://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0078.html)
+and [colour mapping](https://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node007A.html).
+
+Next native work: separate layer rings, independent pointer-wrap events in the
+Copper list, foreground priority, half-speed background, and native pixel and
+frame-budget checks. Desktop `Map.cpp::setbgobjlerp` sets background position to
+`ypos / 2` and scroll delta to `(ypos - oldypos) / 2`; interpolation and negative
+coordinates still need explicit treatment. The newly tested software compositor
+is a host reference only (1,228,800 pixel checks), not the selected runtime path.
+
+The user selected **three total bitplanes** for the tower: planes 1 and 3 form
+its two-plane foreground, plane 2 is the independently scrolling one-plane
+background. This supersedes the two-total-plane trial above. Preserve three
+opaque foreground colours, use foreground priority, and measure the additional
+DMA cost. Two buffered 320x256 layer sets require 61,440 bytes of Chip RAM before
+Copper lists and sprites. Native implementation and timing remain pending.

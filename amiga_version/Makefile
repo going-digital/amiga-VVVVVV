@@ -300,3 +300,12 @@ tower-capture: tower-probe
 .PHONY: tower-pixel-test
 tower-pixel-test: tower-probe
 	python3 $(ROOT)/tools/amiga/test_tower_capture.py
+
+$(BUILD)/tower_compose.o: tower_compose.c tower_compose.h tower_draw.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+.PHONY: test-tower-compose
+test-tower-compose: $(BUILD)/tower_compose.o
+	python3 $(ROOT)/tools/amiga/test_tower_compose.py
+
+test: test-tower-compose

@@ -34,21 +34,25 @@ def main():
     assert width%8==height%8==0
     assert 0<=args.bank and (args.bank+1)*30<=width*height//64
     assert all(m['max_tile']<30 for m in maps['maps'])
-    pixels=[]
+    pixels=[];opacity=[]
     for tile in range(args.bank*30,(args.bank+1)*30):
         ox=(tile%(width//8))*8;oy=(tile//(width//8))*8
-        row=[]
+        row=[];opaque=[]
         for y in range(8):
             for x in range(8):
                 r,g,b,a=rgba[((oy+y)*width+ox+x)*4:((oy+y)*width+ox+x)*4+4]
+                assert a in (0,255), 'Partial alpha needs an explicit compositing policy'
+                opaque.append(int(a==255 and tile%30!=0))
                 row.append(tuple(round(v*a/255/17) for v in (r,g,b)))
-        pixels.append(row)
+        pixels.append(row);opacity.append(opaque)
     counts=Counter(c for tile in pixels for c in tile if c!=(0,0,0))
     palette=[(0,0,0)]+[c for c,_ in counts.most_common(3)]
     palette+=[(0,0,0)]*(4-len(palette))
     indices=[[min(range(4),key=lambda i:sum((palette[i][j]-c[j])**2 for j in range(3))) for c in tile] for tile in pixels]
     atlas=bytes(sum(((tile[y*8+x]>>plane)&1)<<(7-x) for x in range(8))
                 for tile in indices for plane in range(2) for y in range(8))
+    masks=bytes(sum(tile[y*8+x]<<(7-x) for x in range(8)) for tile in opacity for y in range(8))
+    (out/'tower_masks.bin').write_bytes(masks)
     (out/'tower_tiles.bin').write_bytes(atlas)
     colors=[r<<8|g<<4|b for r,g,b in palette]
     (out/'tower_assets.h').write_text('/* Private converted graphics; do not redistribute. */\n'

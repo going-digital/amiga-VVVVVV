@@ -1050,3 +1050,28 @@ The sampler explicitly targets the installed emulator's 716x540 presentation,
 checking all 320x240 logical pixels while avoiding resampling blends between
 pixels. This verifies fixed-camera display output, not tearing during motion,
 all 256 native offsets, or physical Amiga timing.
+
+Tower parallax direction: use OCS dual playfield, following the user's correction.
+Two total bitplanes give one plane per layer: foreground COLOR01, background
+COLOR09, and COLOR00 where both are transparent. The foreground must use a
+one-colour silhouette; its current three-colour shading cannot be retained in
+that layout. Three total planes could give a two-plane foreground and one-plane
+background; four would give two planes to each. Test the two-plane arrangement
+first to preserve the current DMA budget. The Copper builder needs independent
+initial pointers and independently ordered wrap resets for the two layers.
+The foreground gets priority; the background camera follows the desktop
+`mapclass::setbgobjlerp` half-speed position. Native dual-playfield integration
+and visual assessment are still pending.
+
+The work started before that correction remains as a software reference:
+`tower_masks.bin` contains 240 bytes of foreground opacity (tile zero is skipped,
+matching the desktop renderer). Partial-alpha input is explicitly rejected.
+`tower_compose.c` combines independently offset two-plane rings using a mask
+ring, without changing the running display. `make test-tower-compose` passes
+1,228,800 pixel comparisons over 16 camera positions using the desktop maps,
+plus source-alpha and invalid-input checks. This full-viewport compositor is
+not the planned native parallax path and has not been timed on the Amiga.
+
+Selected tower layout (superseding the two-plane trial): three total bitplanes,
+with planes 1/3 for foreground and plane 2 for parallax. Two buffered layer sets
+cost 61,440 bytes before lists/sprites. Native integration and timing are pending.
