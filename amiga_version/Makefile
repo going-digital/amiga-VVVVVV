@@ -279,8 +279,8 @@ tower-probe: tower-assets
 	python3 -c 'from pathlib import Path; p=Path("$(ROOT)/build/amiga-feasibility"); b=(p/"loadmap.v6tr").read_bytes(); (p/"tower_map.h").write_text("static const unsigned char tower_map[]={"+",".join(map(str,b))+"};\n")'
 	$(MAKE) BUILD=$(ROOT)/build/amiga-tower $(ROOT)/build/amiga-tower/tower.adf
 
-$(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h | $(BUILD)
-	$(CC) $(CFLAGS) -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
+$(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
 $(BUILD)/tower.elf: $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
@@ -296,3 +296,7 @@ $(BUILD)/tower.adf: $(BUILD)/tower.exe
 .PHONY: tower-capture
 tower-capture: tower-probe
 	python3 $(ROOT)/tools/amiga/run_tower_probe.py
+
+.PHONY: tower-pixel-test
+tower-pixel-test: tower-probe
+	python3 $(ROOT)/tools/amiga/test_tower_capture.py

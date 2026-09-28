@@ -13,6 +13,10 @@
 struct ExecBase *SysBase;
 struct GfxBase *GfxBase;
 static volatile struct Custom * const hw=(void *)0xdff000;
+/* Test-only fixed camera; negative selects the moving seam route. */
+#ifndef V6_TOWER_HOLD
+#define V6_TOWER_HOLD -1
+#endif
 #define LIST_WORDS 64
 #define CHIP_BYTES (2*V6_TOWER_RING_BYTES+2*LIST_WORDS*2)
 static V6TowerStream stream;
@@ -55,7 +59,7 @@ static int run(void) {
     /* Keep logical coordinates continuous across the 700-row source seam.
      * Only the stream wraps source rows; physical ring slots use logical rows.
      * A bounded back-and-forth route exercises both directions indefinitely. */
-    unsigned back=1,camera=5344,drawn;int direction=1;
+    unsigned back=1,camera=V6_TOWER_HOLD>=0?V6_TOWER_HOLD:5344,drawn;int direction=1;
     ULONG start,work,previous;
     __asm volatile("move.l 4.w,%0":"=r"(SysBase));
     if(SysBase->AttnFlags&AFF_68010) return 20;
@@ -84,10 +88,12 @@ static int run(void) {
     blank();previous=frames;
     while((*(volatile UBYTE *)0xbfe001&0x40) && !diag.error) {
         start=clock_lines();
-        if(camera==5856) direction=-1;
-        if(camera==5344) direction=1;
-        if(direction>0) { ++camera;if(camera==5600) ++diag.forward_wraps; }
-        else { --camera;if(camera==5599) ++diag.reverse_wraps; }
+        if(V6_TOWER_HOLD<0) {
+            if(camera==5856) direction=-1;
+            if(camera==5344) direction=1;
+            if(direction>0) { ++camera;if(camera==5600) ++diag.forward_wraps; }
+            else { --camera;if(camera==5599) ++diag.reverse_wraps; }
+        }
         if(!prepare(rings[back],lists[back],back,camera,&drawn)) { diag.error=2;break; }
         if(drawn>diag.max_rows) diag.max_rows=drawn;
         work=clock_lines()-start;if(work>diag.max_work_lines) diag.max_work_lines=work;

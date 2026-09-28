@@ -289,9 +289,13 @@ keeps logical coordinates continuous across source row 700 instead of resetting
 the camera and invalidating ring tags. It passed two forward source-map seam
 crossings and one reverse crossing in 1,564 PAL frames, with no missed frames,
 at most one row drawn per update, and peak work of 136 scanlines (8.70 ms).
-Exit restoration also passed. This is an emulator smoke test: pixel-exact
-visible seams, traversal of the entire tower, negative camera coordinates,
-parallax, gameplay and music running together remain open.
+Exit restoration also passed. Fixed-camera native capture comparisons now pass
+at cameras 0, 16, 17, 52, 53, 255, 5599 and 5600: 614,400 exact RGB comparisons
+at logical pixel centres against the desktop map and converted atlas, independent
+of the native decoder/renderer. These include the ring-reset and PAL line-255
+boundaries and source-map seam. Moving-frame tearing, traversal of the entire
+tower, negative camera coordinates, parallax, gameplay and music running
+together remain open; physical Amiga timing is not established by these tests.
 
 Music now assumes Lightspeedplayer and a musician-produced tracker soundtrack,
 per the user's direction. PCM streaming is no longer the working path. Measure

@@ -1036,6 +1036,17 @@ and logs are in `build/amiga-tower`. These are emulator results, not measurement
 on physical hardware. Logical camera coordinates remain continuous through source row 700: the
 stream wraps source rows independently of the physical ring slots, avoiding a
 full redraw at the map boundary. This bounded route tests the seam in both
-directions, not traversal of all 700 rows. Pixel-exact visible seam checks,
-negative camera positions, parallax, tower gameplay and concurrent tracker
-playback remain unverified.
+directions, not traversal of all 700 rows. Negative camera positions, parallax,
+tower gameplay and concurrent tracker playback remain unverified.
+
+`make -C amiga_version tower-pixel-test` additionally builds fixed-camera probes
+at 0, 16, 17, 52, 53, 255, 5599 and 5600. All eight native Copperline captures
+pass exact RGB comparisons at every logical pixel centre: 614,400 pixels total.
+This covers the no-reset/reset boundary, the PAL line-255 wait boundary, the
+last ring scanline, and the source-map seam. The reference reads the desktop
+map directly and uses the converted atlas; it does not call the C decoder,
+cache, renderer or Copper builder. Results are in `build/amiga-tower-pixels`.
+The sampler explicitly targets the installed emulator's 716x540 presentation,
+checking all 320x240 logical pixels while avoiding resampling blends between
+pixels. This verifies fixed-camera display output, not tearing during motion,
+all 256 native offsets, or physical Amiga timing.
