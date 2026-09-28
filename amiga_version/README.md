@@ -1138,3 +1138,19 @@ per-video-frame load is not yet the desktop camera controller or its logic
 cadence. Test the actual controller and larger camera changes before considering
 the renderer's scheduling complete. Moving-frame pixel integrity is still not
 checked by this measurement harness.
+
+Large-step row reuse now copies already-rendered rows from the other buffer
+with the blitter, instead of drawing those rows from the atlas a second time.
+Source cache tags must match the requested logical row; only the inactive ring
+is written. Each blit finishes before the destination tag is set and before CPU
+rendering or list publication. Reuse is attempted only when that buffer's camera
+has moved more than eight pixels; smaller changes retain direct rendering.
+The shared tile atlas and map must remain unchanged for these tags to be valid.
+
+On the same 4/8/16-pixel stress routes, peak work is now 135/166/236 PAL lines
+(8.64/10.62/15.10 ms), with zero missed frames and successful restoration in
+all three runs. The 16-pixel run reaches 24 forward and 24 reverse map-seam
+crossings; it draws at most three rows and copies at most three per update.
+Chip allocation stays 61,696 bytes. Diagnostic version 3 adds `max_copied`;
+`max_rows` counts atlas-drawn rows only. This resolves the measured 16-pixel
+route overrun, not arbitrary jumps or a combined gameplay/music workload.

@@ -32,12 +32,14 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #define CHIP_BYTES (2*LAYER_BYTES+2*LIST_WORDS*2)
 static V6TowerStream stream,background_stream;
 static V6TowerDraw draw[2],background_draw[2];
+static UBYTE *rings[2];
+static unsigned prepared_camera[2];
 static volatile ULONG frames;
 /* Big-endian ULONG record, discoverable in emulator RAM dumps. */
 static volatile struct {
     ULONG magic,version,status,frames,camera,max_work_lines,missed,error,chip_bytes;
-    ULONG forward_wraps,reverse_wraps,max_rows;
-} diag={0x56365450,2,0,0,0,0,0,0,CHIP_BYTES,0,0,0};
+    ULONG forward_wraps,reverse_wraps,max_rows,max_copied;
+} diag={0x56365450,3,0,0,0,0,0,0,CHIP_BYTES,0,0,0,0};
 static UWORD beam(void) { return (*(volatile ULONG *)0xdff004>>8)&511; }
 static ULONG clock_lines(void) {
     ULONG a,b; UWORD y;
@@ -53,8 +55,47 @@ static void __attribute__((interrupt)) irq(void) {
 static UWORD *move(UWORD *p,UWORD reg,UWORD value) {
     *p++=reg;*p++=value;return p;
 }
+/* Copy matching cached rows from the read-only front ring. Each blit is
+ * complete before its cache tag is published or CPU rendering begins. */
+static void wait_blit(void)
+{
+    (void)hw->dmaconr;
+    while(hw->dmaconr&DMAF_BLTDONE) {}
+}
+static unsigned reuse_rows(V6TowerDraw *dst_cache,const V6TowerDraw *src_cache,
+    UBYTE *dst,const UBYTE *src,int top,unsigned planes)
+{
+    int row;unsigned copied=0;
+    for(row=top;row<top+31;++row) {
+        unsigned slot=(unsigned)row&31,plane;
+        ULONG bit=1UL<<slot;
+        if((dst_cache->valid&bit) && dst_cache->tags[slot]==row) continue;
+        if(!(src_cache->valid&bit) || src_cache->tags[slot]!=row) continue;
+        for(plane=0;plane<planes;++plane) {
+            unsigned offset=slot*320+plane*V6_TOWER_PLANE_BYTES;
+            wait_blit();
+            hw->bltcon0=0x09f0;hw->bltcon1=0;
+            hw->bltafwm=hw->bltalwm=0xffff;
+            hw->bltamod=hw->bltdmod=0;
+            hw->bltapt=(APTR)(src+offset);hw->bltdpt=dst+offset;
+            hw->bltsize=(8<<6)|20;
+        }
+        wait_blit();
+        dst_cache->tags[slot]=(int16_t)row;dst_cache->valid|=bit;++copied;
+    }
+    return copied;
+}
 static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsigned *drawn) {
-    UWORD *p=list;unsigned i,background_rows;
+    UWORD *p=list;unsigned i,background_rows,copied;
+    copied=0;
+    /* Small advances cost less to redraw than to scan and copy from peer. */
+    if(camera>prepared_camera[index]+8 || prepared_camera[index]>camera+8) {
+        copied=reuse_rows(&draw[index],&draw[index^1],ring,rings[index^1],camera>>3,2);
+        copied+=reuse_rows(&background_draw[index],&background_draw[index^1],
+            ring+V6_TOWER_RING_BYTES,rings[index^1]+V6_TOWER_RING_BYTES,camera>>4,1);
+    }
+    prepared_camera[index]=camera;
+    if(drawn && copied>diag.max_copied) diag.max_copied=copied;
     if(!v6_tower_draw_prepare(&draw[index],ring,&stream,camera>>3,
         tower_tiles,TOWER_TILE_COUNT,0,drawn)) return 0;
     if(!v6_tower_draw_mono_prepare(&background_draw[index],ring+V6_TOWER_RING_BYTES,
@@ -70,7 +111,7 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         camera&255,(camera>>1)&255)!=0;
 }
 static int run(void) {
-    UBYTE *chip,*rings[2];UWORD *lists[2];
+    UBYTE *chip;UWORD *lists[2];
     UWORD dma,ints,adk;APTR old_irq;struct View *view;
     /* Keep logical coordinates continuous across the 700-row source seam.
      * Only the stream wraps source rows; physical ring slots use logical rows.
@@ -98,7 +139,7 @@ static int run(void) {
     __asm volatile("move.l 0x6c.w,%0":"=r"(old_irq));
     __asm volatile("move.l %0,0x6c.w"::"r"((APTR)irq):"memory");
     blank();hw->cop1lc=(ULONG)lists[0];hw->copjmp1=0;
-    hw->dmacon=DMAF_SETCLR|DMAF_MASTER|DMAF_RASTER|DMAF_COPPER;
+    hw->dmacon=DMAF_SETCLR|DMAF_MASTER|DMAF_RASTER|DMAF_COPPER|DMAF_BLITTER;
     hw->intena=INTF_SETCLR|INTF_INTEN|INTF_VERTB;Enable();diag.status=1;
     /* Warm the second ring before measuring incremental row work. */
     if(!prepare(rings[1],lists[1],1,camera,0)) diag.error=1;

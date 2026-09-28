@@ -14,13 +14,13 @@ EMU = '/Applications/Copperline.app/Contents/MacOS/copperline'
 
 def diagnostics(path):
     data = path.read_bytes()
-    for offset in range(0, len(data)-48+1, 2):
-        if data[offset:offset+8] == b'V6TP\0\0\0\2':
-            values = struct.unpack_from('>12I', data, offset)
+    for offset in range(0, len(data)-52+1, 2):
+        if data[offset:offset+8] == b'V6TP\0\0\0\3':
+            values = struct.unpack_from('>13I', data, offset)
             if values[2] in (1, 2):
                 return dict(zip(('magic', 'version', 'status', 'frames', 'camera',
                                  'max_work_lines', 'missed', 'error', 'chip_bytes', 'forward_wraps',
-                                 'reverse_wraps', 'max_rows'), values))
+                                 'reverse_wraps', 'max_rows', 'max_copied'), values))
     raise RuntimeError('No live tower diagnostics')
 
 

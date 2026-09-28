@@ -537,3 +537,12 @@ logic includes 8- and 12-pixel camera moves, but its controller/cadence is not
 integrated here. Next scheduling work must handle larger changes or reproduce
 the actual camera cadence; do not treat the 16-pixel result as passing the PAL
 frame budget. Run `make -C amiga_version tower-step-measure` to reproduce.
+
+The measured large-step overrun is now addressed by blitter reuse of matching
+rows from the other display buffer. The active ring is read-only, the inactive
+ring receives copies, and each transfer completes before its tag is published.
+Small buffer advances (<=8 pixels) bypass reuse to avoid extra scan overhead.
+The repeated 4/8/16-pixel captures peak at 135/166/236 PAL lines, respectively,
+all without missed frames and with clean OS restoration. The 16-pixel workload
+now takes 15.10 ms instead of 20.48 ms, with unchanged Chip allocation. It still
+excludes gameplay/music, arbitrary camera jumps and complete tower traversal.
