@@ -282,7 +282,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -355,3 +355,6 @@ tower-controller-capture: tower-probe
 tower-recovery-capture: tower-probe
 	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-recovery CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY" $(ROOT)/build/amiga-tower-recovery/tower.adf
 	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-recovery --recovery
+
+$(BUILD)/tower_session.o: tower_session.c tower_session.h tower_camera.h player.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@

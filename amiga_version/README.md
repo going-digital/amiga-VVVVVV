@@ -1262,3 +1262,29 @@ now reports logical position immediately after the tick phase, rather than
 waiting for display publication; this avoids comparing a new tick count with
 the previous displayed camera. Visited bounds still describe published frames.
 The trace is bounded and fixture-specific; player lifecycle remains a stub.
+
+The recovery probe now uses `V6TowerSession`, which owns a real `V6Player`,
+checkpoint values, movement state, death/life timers, visibility and camera.
+The old decrement-only lifecycle stub is removed. A requested death runs for
+30 ticks, then restores the same-tower checkpoint position, saved gravity and
+facing, clears velocities/acceleration and pending movement, and starts the
+10-step life sequence. Old positions and input/contact state are retained.
+Camera seeking/resume delay gates the real lifecycle callback; its visibility
+and gravity rules follow `Game::lifesequence` (including no-flashing handling).
+The session returns whether the death branch consumed the tick so a caller can
+avoid running live movement on the respawn tick.
+
+The native test displaces the player from saved (144,300), requests death at
+tick 60, and verifies the actual checkpoint reset and all ten lifecycle calls.
+Trace version 2 records 128 ticks of camera/lifecycle and player state (25 fields
+per tick; 9,488 bytes outside Chip RAM). Camera and visibility updates are checked
+against compiled desktop source blocks; reset position/velocity/facing/gravity,
+old-position retention and death/respawn counts are checked against the expected
+same-tower checkpoint contract. All 3,200 field comparisons pass. The run records
+one respawn, peaks at 140 PAL scanlines (8.96 ms), misses no frames and restores
+the OS. Chip allocation remains 61,696 bytes.
+
+This integrates actual player respawn state, but the death request is scripted:
+this probe still does not run live player physics, collision or player sprite
+rendering. Cross-room checkpoint loads, scripts, statistics, death animation
+and full entity-list rebuilding remain outside this same-tower lifecycle.

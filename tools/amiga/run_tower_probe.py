@@ -103,7 +103,7 @@ write_protected = true
     if args.controller:
         report['scope'] = 'Native normal descending camera at 34 ms logic cadence using 19968 us PAL accounting; held positions between ticks, no interpolation, player or recovery integration'
     if args.recovery:
-        report['scope'] = 'Native scripted camera death/recovery with stub lifecycle; first 128 ticks and final state vs extracted desktop camera blocks; no player respawn integration'
+        report['scope'] = 'Native same-tower player checkpoint respawn; first 128 camera/player ticks and final camera state checked; no live player physics or sprite display'
     (BUILD / 'capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
 

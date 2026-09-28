@@ -9,6 +9,7 @@
 #include "tower_draw.h"
 #include "tower_copper.h"
 #include "tower_camera.h"
+#include "tower_session.h"
 #include "tower_assets.h"
 #include "tower_map.h"
 #include "tower_background_map.h"
@@ -57,7 +58,8 @@ static volatile struct {
 static volatile struct {
     ULONG magic,version,count,capacity;
     int16_t records[CAMERA_TRACE_TICKS][13];
-} camera_trace={0x56364354,1,0,CAMERA_TRACE_TICKS,{{0}}};
+    int32_t players[CAMERA_TRACE_TICKS][12];
+} camera_trace={0x56364354,2,0,CAMERA_TRACE_TICKS,{{0}},{{0}}};
 static void trace_camera(const V6TowerCamera *c,int life,int delay)
 {
     volatile int16_t *r;
@@ -69,14 +71,7 @@ static void trace_camera(const V6TowerCamera *c,int life,int delay)
     r[10]=life;r[11]=delay;r[12]=(int16_t)diag.recovery_calls;
     ++camera_trace.count;
 }
-static int fixture_life;
-static int16_t fixture_delay;
-static int advance_fixture(void *context)
-{
-    (void)context;
-    ++diag.recovery_calls;
-    return --fixture_life;
-}
+static V6TowerSession session;
 #endif
 static UWORD beam(void) { return (*(volatile ULONG *)0xdff004>>8)&511; }
 static ULONG clock_lines(void) {
@@ -159,6 +154,12 @@ static int run(void) {
 #ifdef V6_TOWER_CONTROLLER
     static V6TowerCamera controller;
     ULONG logic_frame,elapsed=0;
+#ifdef V6_TOWER_RECOVERY
+    v6_tower_session_init(&session,144,300,1,0);
+    session.player.x=80;session.player.y=450;session.player.gravity=0;
+    session.player.vx=V6_ONE;session.player.vy=-V6_ONE;
+    session.player.old_x=79;session.player.old_y=451;
+#endif
     camera=0;diag.step=0;diag.route_min=0;diag.route_max=5368;
     (void)direction;
 #endif
@@ -200,15 +201,21 @@ static int run(void) {
             while(elapsed>=34000) {
                 elapsed-=34000;
 #ifdef V6_TOWER_RECOVERY
-                /* Scripted camera-only death/recovery fixture, no player physics. */
-                if(diag.logic_ticks==70) fixture_life=5;
-                v6_tower_camera_tick(&controller,300,1,1,0,0);
-                v6_tower_camera_recover(&controller,&fixture_delay,fixture_life,advance_fixture,0);
-                v6_tower_camera_death(&controller,
-                    diag.logic_ticks>=60 && diag.logic_ticks<70?30:-1);
-                diag.recovery_life=fixture_life;diag.recovery_delay=fixture_delay;
-                diag.recovery_seek_frames=controller.seek_frames;
-                trace_camera(&controller,fixture_life,fixture_delay);
+                if(diag.logic_ticks==60) v6_tower_session_die(&session);
+                v6_tower_session_tick(&session,1,0,0);
+                diag.recovery_calls=session.life_calls;
+                diag.recovery_life=session.life_timer;diag.recovery_delay=session.resume_delay;
+                diag.recovery_seek_frames=session.camera.seek_frames;
+                if(camera_trace.count<CAMERA_TRACE_TICKS) {
+                    volatile int32_t *r=camera_trace.players[camera_trace.count];
+                    r[0]=session.player.x;r[1]=session.player.y;r[2]=session.player.vx;r[3]=session.player.vy;
+                    r[4]=session.player.gravity;r[5]=session.player.dir;r[6]=session.death_timer;
+                    r[7]=session.invisible;r[8]=session.deaths;r[9]=session.respawns;
+                    r[10]=session.player.old_x;r[11]=session.player.old_y;
+                }
+                trace_camera(&session.camera,session.life_timer,session.resume_delay);
+                /* Trace owns real player state; no externally supplied life count. */
+                controller.y=session.camera.y;controller.mode=session.camera.mode;
 #else
                 v6_tower_camera_tick(&controller,0,0,1,0,0);
 #endif

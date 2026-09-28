@@ -609,3 +609,14 @@ peak work is 139 PAL lines, with no misses and clean restoration. Controller
 camera diagnostics now track logical state at the tick phase, independently of
 later display publication. This strengthens camera verification without claiming
 actual player respawn or unbounded native trace coverage.
+
+Actual same-tower player respawn state is now integrated through `V6TowerSession`:
+real player and saved checkpoint, 30-tick death countdown, checkpoint reset,
+10-step lifecycle/visibility, and camera-gated recovery. The former stub is gone.
+The native fixture verifies one respawn and ten lifecycle callbacks, with 128
+traced ticks x 25 camera/player fields passing. Peak instrumented work is 140
+PAL lines (8.96 ms), no missed frames, unchanged Chip allocation and clean exit.
+Camera/life-sequence rules use extracted desktop references; checkpoint reset
+fields are checked against the same-tower contract. The trigger remains scripted;
+live physics/collision, sprite display, cross-room respawn and campaign scripts
+are not yet integrated into this tower probe.
