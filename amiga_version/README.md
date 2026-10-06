@@ -1288,3 +1288,79 @@ This integrates actual player respawn state, but the death request is scripted:
 this probe still does not run live player physics, collision or player sprite
 rendering. Cross-room checkpoint loads, scripts, statistics, death animation
 and full entity-list rebuilding remain outside this same-tower lifecycle.
+
+## Live tower player slice
+
+`make -C amiga_version tower-play-run` builds and runs a separate PAL A500 tower
+slice. Use joystick left/right and fire to flip; left mouse exits. It starts
+at the main tower's original checkpoint (144,1824), with an ascending camera.
+The player uses streamed world-coordinate collision, full-tile tower spike
+checks, a hardware sprite and the existing death/checkpoint recovery session.
+The standalone synthetic scrolling and scripted recovery probes remain separate.
+
+- `make -C amiga_version test-tower-player`: 25,728 extracted-desktop movement
+  ticks and 10,800 spike comparisons over the main and both mini-tower maps.
+- `make -C amiga_version tower-play-capture`: normal-input native damage/recovery
+  replay; 128 ticks × 25 camera/player fields checked against host integration,
+  visible player capture and clean OS restoration.
+
+The replay measures 272 PAL lines (17.408 ms), zero missed frames and 64,128
+explicit Chip bytes, including sprites and lists. Initial ring fills are
+excluded. It fits the video frame but misses the 20% headroom target. Results
+are under `build/amiga-tower-play-replay/capture.json`. The first 128 ticks are
+instrumented in both player builds. The replay uses ten deaths/nine respawns;
+this is checkpoint-area coverage, not a full tower route or full desktop-loop
+comparison. Active checkpoint entities, horizontal gameplay wrapping/exits,
+trinkets, scripts, exact animation ordering, interpolation, cycling colours and
+audio remain pending. Music/SFX must still be measured with gameplay.
+
+The latest renderer update supersedes the 272-line figure above. The same
+player replay now peaks at **242 PAL lines / 15.488 ms**, meeting the unchanged
+250-line headroom gate with zero misses and the same Chip allocation. The
+capture command now enforces that gate. `capture.json` also splits logic and
+rendering work. Completed 31-row cache windows let the renderer and peer-row
+copy path inspect only newly exposed rows; a failed prepare clears that window
+promise. Reset caches after stream/atlas changes or external ring/tag writes.
+Host checks include large/signed-limit jumps and partial failure/retry on both
+layer formats; the eight native fixed-camera pixel captures still pass.
+
+The full-map synthetic 12/16-pixel stress routes also pass after this update:
+196/204 PAL lines, zero misses, both endpoints and clean exit. They continue
+to measure scrolling without player gameplay or audio.
+
+## Tower checkpoints and horizontal boundaries
+
+`make -C amiga_version tower-world-run` builds the checkpoint-enabled main-tower
+slice. Joystick left/right moves, fire flips, and left mouse exits. All 18
+original checkpoints are present; touching one saves it on the next logic
+tick and changes its sprite to green. Death restores the current checkpoint.
+The starting ceiling checkpoint at (144,1824) saves (140,1822), gravity 1.
+
+- `test-tower-world`: extracted desktop boundaries, normal-input second
+  checkpoint route, recovery and cached masks through 32 checkpoints.
+- `tower-world-capture`: native second-checkpoint route and natural recovery;
+  first 128 ticks × 37 fields match host integration, and eight later respawns
+  use the new save at (220,1641). No forced deaths or route placements.
+- `tower-wrap-capture`: ordinary input crosses both horizontal wrap boundaries.
+- `test-tower-pairs` and `tower-paired-pixel-test`: paired tile rendering versus
+  source maps and native fixed-camera pixel captures.
+
+The checkpoint replay passes the 250-line gate at **244 PAL lines / 15.616 ms**,
+zero misses, 64,128 explicit Chip bytes, and clean OS restoration. Its report
+is `build/amiga-tower-world-replay/capture.json`. The paired renderer uses
+6,304 additional ordinary-memory bytes for offline tile-pair tables/atlases.
+It validates the whole immutable map before the measured loop; revalidate
+after reopening/changing the map or tables and reset rendering caches.
+Optional batched wall probes preserve the desktop's sampled points while
+sharing decoded rows. Both batched and fallback paths pass the source tests.
+
+Horizontal wrapping works in the scrolling region.
+The wrap replay crosses right/left at ticks 30/36 and passes at 238 PAL lines,
+zero misses, nine natural respawns and clean exit.
+Outside the scrolling region, boundary
+handling transforms coordinates and requests the original adjacent room;
+the standalone harness exits on that request. Loading those rooms and
+returning from them remains the next integration step. This is still a short
+tower slice without other tower entities, scripts, interpolation, palette
+cycling or music/SFX. The headroom figure applies to the measured replay,
+excluding audio and initial full-map validation/ring fills.

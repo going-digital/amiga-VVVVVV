@@ -10,6 +10,32 @@
 #include "tower_copper.h"
 #include "tower_camera.h"
 #include "tower_session.h"
+#ifdef V6_TOWER_WORLD
+#define V6_TOWER_PAIRS
+#endif
+#ifdef V6_TOWER_PAIRS
+#include "tower_pairs.h"
+#include "tower_background_pairs.h"
+#endif
+#ifdef V6_TOWER_PLAY
+#include "sprites.h"
+#include "animation.h"
+#include "tower_player_assets.h"
+#ifdef V6_TOWER_WORLD
+#include "tower_checkpoints.h"
+#ifdef V6_TOWER_WRAP_REPLAY
+#include "../tools/amiga/tower_wrap_replay.h"
+#else
+#include "../tools/amiga/tower_world_replay.h"
+#endif
+static V6TowerGameplay world;
+#endif
+static V6Sprites player_sprites[2];
+static V6CollisionAnimation player_animation;
+static V6Room player_room;
+static V6TowerTiles player_tiles;
+static int player_frame;
+#endif
 #include "tower_assets.h"
 #include "tower_map.h"
 #include "tower_background_map.h"
@@ -34,9 +60,15 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #define CAMERA_MIN 5344
 #endif
 #define CAMERA_MAX 5856
+#ifdef V6_TOWER_PLAY
+#define LIST_WORDS 128
+#define PLAYER_DMA_BYTES (2*V6_SPRITE_CHANNELS*V6_SPRITE_WORDS*2)
+#else
 #define LIST_WORDS 64
+#define PLAYER_DMA_BYTES 0
+#endif
 #define LAYER_BYTES (V6_TOWER_RING_BYTES+V6_TOWER_PLANE_BYTES)
-#define CHIP_BYTES (2*LAYER_BYTES+2*LIST_WORDS*2)
+#define CHIP_BYTES (2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES)
 static V6TowerStream stream,background_stream;
 static V6TowerDraw draw[2],background_draw[2];
 static UBYTE *rings[2];
@@ -51,6 +83,33 @@ static volatile struct {
     ULONG camera_mode,recovery_calls,recovery_life,recovery_delay,recovery_seek_frames;
 } diag={0x56365450,6,0,0,0,0,0,0,CHIP_BYTES,0,0,0,0,
     V6_TOWER_STEP,CAMERA_MIN,CAMERA_MAX,CAMERA_MAX,0,0,0,0,0,0,0,0,0};
+#ifdef V6_TOWER_PLAY
+static volatile struct {
+    ULONG magic,version,max_logic,max_render,peak_logic,peak_render,peak_tick,peak_rows;
+} profile={0x56365046,1,0,0,0,0,0,0};
+#endif
+#ifdef V6_TOWER_WORLD
+static volatile struct { ULONG magic,version,values[13]; }
+    world_diag={0x56365747,1,{0}};
+static volatile struct {
+    ULONG magic,version,count,capacity;
+    ULONG records[128][12];
+} world_trace={0x56365754,1,0,128,{{0}}};
+static void record_world(void)
+{
+    unsigned i;
+    world_diag.values[0]=world.save.id;world_diag.values[1]=world.save.x;
+    world_diag.values[2]=world.save.y;world_diag.values[3]=world.save.gravity;
+    world_diag.values[4]=world.save.dir;world_diag.values[5]=world.activations;
+    world_diag.values[6]=world.active_mask;world_diag.values[7]=world.pending_mask;
+    world_diag.values[8]=world.wrap_left;world_diag.values[9]=world.wrap_right;
+    world_diag.values[10]=world.exit.room_x;world_diag.values[11]=world.exit.room_y;
+    if(world_trace.count<128) {
+        for(i=0;i<12;++i) world_trace.records[world_trace.count][i]=world_diag.values[i];
+        ++world_trace.count;
+    }
+}
+#endif
 #ifdef V6_TOWER_RECOVERY
 /* Test-only bounded trace: all camera fields plus callback state. Stored
  * outside the Chip allocation; count is published after a complete record. */
@@ -98,10 +157,11 @@ static void wait_blit(void)
 static unsigned reuse_rows(V6TowerDraw *dst_cache,const V6TowerDraw *src_cache,
     UBYTE *dst,const UBYTE *src,int top,unsigned planes)
 {
-    int row;unsigned copied=0;
-    for(row=top;row<top+31;++row) {
+    int row,first,end;unsigned copied=0;ULONG bit;
+    v6_tower_draw_span(dst_cache,top,&first,&end);
+    for(row=first,bit=1UL<<((unsigned)first&31);row<end;
+        ++row,bit=(bit<<1)|(bit>>31)) {
         unsigned slot=(unsigned)row&31,plane;
-        ULONG bit=1UL<<slot;
         if((dst_cache->valid&bit) && dst_cache->tags[slot]==row) continue;
         if(!(src_cache->valid&bit) || src_cache->tags[slot]!=row) continue;
         for(plane=0;plane<planes;++plane) {
@@ -129,10 +189,18 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     }
     prepared_camera[index]=camera;
     if(drawn && copied>diag.max_copied) diag.max_copied=copied;
+#ifdef V6_TOWER_PAIRS
+    if(!v6_tower_draw_pair_prepare_verified(&draw[index],ring,&stream,camera>>3,
+        tower_pair_offsets,tower_pairs,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2,drawn)) return 0;
+    if(!v6_tower_draw_pair_prepare_verified(&background_draw[index],ring+V6_TOWER_RING_BYTES,
+        &background_stream,camera>>4,tower_background_pair_offsets,tower_background_pairs,
+        TOWER_BACKGROUND_PAIR_WORDS,TOWER_TILE_COUNT,1,&background_rows)) return 0;
+#else
     if(!v6_tower_draw_prepare(&draw[index],ring,&stream,camera>>3,
         tower_tiles,TOWER_TILE_COUNT,0,drawn)) return 0;
     if(!v6_tower_draw_mono_prepare(&background_draw[index],ring+V6_TOWER_RING_BYTES,
         &background_stream,camera>>4,tower_backdrop,TOWER_TILE_COUNT,&background_rows)) return 0;
+#endif
     if(drawn) *drawn+=background_rows;
     p=move(p,0x100,0x3600);p=move(p,0x102,0);p=move(p,0x104,0);
     p=move(p,0x108,0);p=move(p,0x10a,0);
@@ -140,6 +208,31 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     p=move(p,0x092,0x0038);p=move(p,0x094,0x00d0);
     for(i=0;i<4;++i) p=move(p,0x180+i*2,tower_palette[i]);
     p=move(p,0x192,0x223);
+#ifdef V6_TOWER_PLAY
+    v6_sprites_begin(&player_sprites[index],player_sprites[index].dma);
+    if(!session.invisible)
+        v6_sprites_add(&player_sprites[index],tower_player_rows[player_frame],
+                      session.player.x,session.player.y-(int)camera,6,0x6ff);
+#ifdef V6_TOWER_WORLD
+    for(i=0;i<world.count;++i) {
+        V6Checkpoint *c=&world.checkpoints[i];
+        int y=c->y-(int)camera;
+        if(y>=216 || y+16<=16) continue;
+        if(v6_sprites_add_rect(&player_sprites[index],tower_player_rows[c->tile],
+            c->x,y,0,16,16,c->active?0x6f6:0x888)<0) return 0;
+    }
+    if(player_sprites[index].count>world_diag.values[12]) world_diag.values[12]=player_sprites[index].count;
+#endif
+    for(i=0;i<8;++i) {
+        ULONG address=(ULONG)(player_sprites[index].dma+i*V6_SPRITE_WORDS);
+        p=move(p,0x120+i*4,address>>16);p=move(p,0x122+i*4,address);
+    }
+#ifdef V6_TOWER_WORLD
+    for(i=0;i<8;++i) p=move(p,v6_sprite_colour_register(i),player_sprites[index].colours[i]);
+#else
+    p=move(p,0x1a2,0x6ff);
+#endif
+#endif
     return v6_tower_dual_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
         camera&255,(camera>>1)&255)!=0;
 }
@@ -151,16 +244,46 @@ static int run(void) {
      * A bounded back-and-forth route exercises both directions indefinitely. */
     unsigned back=1,camera=V6_TOWER_HOLD>=0?V6_TOWER_HOLD:CAMERA_MIN,drawn;int direction=1;
     ULONG start,work,previous;
+#ifdef V6_TOWER_PLAY
+    ULONG logic_work,render_work;
+#endif
 #ifdef V6_TOWER_CONTROLLER
     static V6TowerCamera controller;
     ULONG logic_frame,elapsed=0;
 #ifdef V6_TOWER_RECOVERY
+#ifdef V6_TOWER_PLAY
+#ifdef V6_TOWER_WORLD
+    /* Original ceiling checkpoint. The replay starts with it inactive, so
+     * ordinary contact must arm it before its next entity update can save. */
+    v6_tower_session_init(&session,140,1822,1,1);
+    session.camera.y=session.camera.old_y=1702;
+    world.checkpoints=tower_checkpoints;world.count=TOWER_CHECKPOINT_COUNT;
+    world.save.x=140;world.save.y=1822;world.save.gravity=1;world.save.dir=1;
+    world.save.room_x=109;world.save.room_y=109;world.save.id=-1;
+    if(!v6_tower_gameplay_init(&world,tower_checkpoints,TOWER_CHECKPOINT_COUNT,&world.save)) return 20;
+#else
+    /* Player-only regression fixture, not a literal checkpoint reset. */
+    v6_tower_session_init(&session,140,1817,0,1);
+    session.camera.y=session.camera.old_y=1697;
+#endif
+    player_tiles.read=v6_tower_tile;player_tiles.context=&stream;
+#ifdef V6_TOWER_WORLD
+    player_tiles.walls=v6_tower_walls;
+#endif
+    v6_player_tower_room(&player_room,&player_tiles);
+#else
     v6_tower_session_init(&session,144,300,1,0);
     session.player.x=80;session.player.y=450;session.player.gravity=0;
     session.player.vx=V6_ONE;session.player.vy=-V6_ONE;
     session.player.old_x=79;session.player.old_y=451;
 #endif
-    camera=0;diag.step=0;diag.route_min=0;diag.route_max=5368;
+#endif
+    camera=0;
+#ifdef V6_TOWER_PLAY
+    camera=session.camera.y;
+    controller.y=session.camera.y;controller.old_y=session.camera.old_y;
+#endif
+    diag.step=0;diag.route_min=0;diag.route_max=5368;
     (void)direction;
 #endif
     __asm volatile("move.l 4.w,%0":"=r"(SysBase));
@@ -172,8 +295,16 @@ static int run(void) {
     if(!chip) { CloseLibrary((struct Library *)GfxBase);return 20; }
     rings[0]=chip;rings[1]=chip+LAYER_BYTES;
     lists[0]=(UWORD *)(chip+2*LAYER_BYTES);lists[1]=lists[0]+LIST_WORDS;
+#ifdef V6_TOWER_PLAY
+    player_sprites[0].dma=(UWORD *)(lists[1]+LIST_WORDS);
+    player_sprites[1].dma=player_sprites[0].dma+8*V6_SPRITE_WORDS;
+#endif
     if(!v6_tower_open(&stream,tower_map,sizeof(tower_map)) ||
        !v6_tower_open(&background_stream,tower_background_map,sizeof(tower_background_map)) ||
+#ifdef V6_TOWER_PAIRS
+       !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
+       !v6_tower_pairs_validate(&background_stream,tower_background_pair_offsets,TOWER_BACKGROUND_PAIR_WORDS,TOWER_TILE_COUNT,1) ||
+#endif
        !prepare(rings[0],lists[0],0,camera,0)) {
         FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
     }
@@ -184,7 +315,11 @@ static int run(void) {
     __asm volatile("move.l 0x6c.w,%0":"=r"(old_irq));
     __asm volatile("move.l %0,0x6c.w"::"r"((APTR)irq):"memory");
     blank();hw->cop1lc=(ULONG)lists[0];hw->copjmp1=0;
-    hw->dmacon=DMAF_SETCLR|DMAF_MASTER|DMAF_RASTER|DMAF_COPPER|DMAF_BLITTER;
+    hw->dmacon=DMAF_SETCLR|DMAF_MASTER|DMAF_RASTER|DMAF_COPPER|DMAF_BLITTER
+#ifdef V6_TOWER_PLAY
+        |DMAF_SPRITE
+#endif
+        ;
     hw->intena=INTF_SETCLR|INTF_INTEN|INTF_VERTB;Enable();diag.status=1;
     /* Warm the second ring before measuring incremental row work. */
     if(!prepare(rings[1],lists[1],1,camera,0)) diag.error=1;
@@ -192,7 +327,11 @@ static int run(void) {
 #ifdef V6_TOWER_CONTROLLER
     logic_frame=frames;
 #endif
-    while((*(volatile UBYTE *)0xbfe001&0x40) && !diag.error) {
+    while((*(volatile UBYTE *)0xbfe001&0x40) && !diag.error
+#ifdef V6_TOWER_WORLD
+          && !world.exit.room_x
+#endif
+          ) {
         start=clock_lines();
 #ifdef V6_TOWER_CONTROLLER
         {
@@ -201,8 +340,33 @@ static int run(void) {
             while(elapsed>=34000) {
                 elapsed-=34000;
 #ifdef V6_TOWER_RECOVERY
+#ifdef V6_TOWER_PLAY
+                unsigned input=0;
+#ifdef V6_TOWER_PLAY_REPLAY
+#ifdef V6_TOWER_WORLD
+                input=diag.logic_ticks<sizeof(tower_world_replay)?tower_world_replay[diag.logic_ticks]:0;
+#else
+                input=diag.logic_ticks<16?V6_RIGHT:0;
+                if(diag.logic_ticks>=16 && diag.logic_ticks<20) input|=V6_FLIP;
+#endif
+#else
+                UWORD joy=hw->joy1dat;
+                if(joy&0x0200) input|=V6_LEFT;
+                if(joy&0x0002) input|=V6_RIGHT;
+                if(!(*(volatile UBYTE *)0xbfe001&0x80)) input|=V6_FLIP;
+#endif
+#ifdef V6_TOWER_WORLD
+                v6_tower_session_play_world(&session,&player_room,input,&world);
+                record_world();
+#else
+                v6_tower_session_play(&session,&player_room,input,0,0);
+#endif
+                player_frame=v6_collision_frame(&player_animation,&session.player,
+                    session.player.ground,session.player.roof,session.death_timer);
+#else
                 if(diag.logic_ticks==60) v6_tower_session_die(&session);
                 v6_tower_session_tick(&session,1,0,0);
+#endif
                 diag.recovery_calls=session.life_calls;
                 diag.recovery_life=session.life_timer;diag.recovery_delay=session.resume_delay;
                 diag.recovery_seek_frames=session.camera.seek_frames;
@@ -238,9 +402,22 @@ static int run(void) {
             }
         }
 #endif
+#ifdef V6_TOWER_PLAY
+        logic_work=clock_lines()-start;
+#endif
         if(!prepare(rings[back],lists[back],back,camera,&drawn)) { diag.error=2;break; }
         if(drawn>diag.max_rows) diag.max_rows=drawn;
-        work=clock_lines()-start;if(work>diag.max_work_lines) diag.max_work_lines=work;
+        work=clock_lines()-start;
+#ifdef V6_TOWER_PLAY
+        render_work=work-logic_work;
+        if(logic_work>profile.max_logic) profile.max_logic=logic_work;
+        if(render_work>profile.max_render) profile.max_render=render_work;
+        if(work>diag.max_work_lines) {
+            profile.peak_logic=logic_work;profile.peak_render=render_work;
+            profile.peak_tick=diag.logic_ticks;profile.peak_rows=drawn;
+        }
+#endif
+        if(work>diag.max_work_lines) diag.max_work_lines=work;
         blank();
         if(frames-previous>1) diag.missed+=frames-previous-1;
         previous=frames;

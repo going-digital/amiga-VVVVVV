@@ -5,6 +5,7 @@ from collections import Counter
 import ctypes as C
 import hashlib
 import json
+import re
 from pathlib import Path
 import struct
 import subprocess
@@ -14,6 +15,31 @@ from pack_rooms import ROOT
 from probe_feasibility import tower_probe
 from test_tower_stream import Stream
 from test_tower_draw import Draw
+from tower_gameplay_data import export
+
+
+def paired_atlas(out,atlas,planes,names,prefix):
+    source=(ROOT/'desktop_version/src/Tower.cpp').read_text();allowed=set()
+    for name in names:
+        body=source[source.index('void towerclass::'+name+'('):]
+        raw=re.search(r'static const short tmap\[\]\s*=\s*\{(.*?)\};',body,re.S)[1]
+        raw=re.sub(r'//[^\n]*|/\*.*?\*/','',raw,flags=re.S)
+        tiles=[int(v) for v in raw.split(',') if v.strip()]
+        allowed.update(zip(tiles[::2],tiles[1::2]))
+    offsets=[65535]*1024;patterns={};words=[]
+    for a,b in sorted(allowed):
+        assert a<30 and b<30
+        pattern=tuple(atlas[a*planes*8+p*8+y]*256+atlas[b*planes*8+p*8+y]
+            for p in range(planes) for y in range(8))
+        if pattern not in patterns:
+            patterns[pattern]=len(words);words.extend(pattern)
+        offsets[a*32+b]=patterns[pattern]
+    assert len(words)<65535
+    (out/(prefix+'_pairs.h')).write_text(
+        'static const uint16_t '+prefix+'_pair_offsets[1024]={'+','.join(map(str,offsets))+'};\n'+
+        'static const uint16_t '+prefix+'_pairs['+str(len(words))+']={'+','.join(map(str,words))+'};\n'+
+        '#define '+prefix.upper()+'_PAIR_WORDS '+str(len(words))+'\n')
+    return dict(pairs=len(allowed),patterns=len(patterns),bytes=2*(1024+len(words)))
 
 
 def main():
@@ -23,11 +49,24 @@ def main():
     parser.add_argument('--bank',type=int,default=0)
     args=parser.parse_args();out=args.out;out.mkdir(parents=True,exist_ok=True)
     maps=tower_probe(out)
+    export(out)
     decoder=out/'png_rgba'
     subprocess.run(['c++','-O2','-I'+str(ROOT/'third_party/lodepng'),str(ROOT/'tools/amiga/png_rgba.cpp'),
                     str(ROOT/'third_party/lodepng/lodepng.cpp'),'-o',str(decoder)],check=True)
     with zipfile.ZipFile(args.data) as archive:
         original=archive.read('graphics/tiles3.png')
+        sprite_png=archive.read('graphics/sprites.png')
+    sprite_path=out/'tower_sprites.png';sprite_path.write_bytes(sprite_png)
+    sprite_header,sprite_rgba=subprocess.check_output([str(decoder),str(sprite_path)]).split(b'\n',1)
+    sw,sh=map(int,sprite_header.split());frames=[]
+    for tile in range(22):
+        ox=(tile%(sw//32))*32;oy=(tile//(sw//32))*32
+        assert oy+32<=sh
+        frames.append([sum((sprite_rgba[((oy+y)*sw+ox+x)*4+3]>127 and
+            max(sprite_rgba[((oy+y)*sw+ox+x)*4:((oy+y)*sw+ox+x)*4+3])>0)<<(31-x)
+            for x in range(32)) for y in range(32)])
+    (out/'tower_player_assets.h').write_text('static const uint32_t tower_player_rows[22][32]={\n'+
+        ',\n'.join('{'+','.join(hex(v)+'UL' for v in frame)+'}' for frame in frames)+'};\n')
     path=out/'tiles3.png';path.write_bytes(original)
     header,rgba=subprocess.check_output([str(decoder),str(path)]).split(b'\n',1)
     width,height=map(int,header.split());assert len(rgba)==width*height*4
@@ -63,6 +102,9 @@ def main():
     # foreground palette reduction (which otherwise loses these dark details).
     backdrop=bytes(sum(int(sum(tile[y*8+x])>=3)<<(7-x) for x in range(8))
                    for tile in pixels for y in range(8))
+    pair_report={'foreground':paired_atlas(out,atlas,2,('loadmap','loadminitower1','loadminitower2'),'tower'),
+                 'background':paired_atlas(out,backdrop,1,('loadbackground',),'tower_background')}
+    (out/'tower-pairs.json').write_text(json.dumps(pair_report,indent=2)+'\n')
     (out/'tower_backdrop.bin').write_bytes(backdrop)
     (out/'tower_backdrop.h').write_text('static const unsigned char tower_backdrop[240]={'
         +','.join(map(str,backdrop))+'};\n')

@@ -6,6 +6,7 @@ playfield at (15,30). Sampling pixel centres avoids its border/filter blends.
 This checks all 320x240 logical pixels, not every resampled PNG pixel.
 """
 import json
+import argparse
 from pathlib import Path
 import re
 import subprocess
@@ -73,6 +74,11 @@ def compare(path, camera, rows):
 
 
 def main():
+    global BUILD
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--paired',action='store_true')
+    args=parser.parse_args()
+    if args.paired: BUILD=ROOT/'build/amiga-tower-paired-pixels'
     BUILD.mkdir(parents=True, exist_ok=True)
     config = f'''rom = {json.dumps(str(Path.home() / 'amiga/KICK13.ROM'))}
 [machine]
@@ -98,9 +104,10 @@ write_protected = true
     for camera in CAMERAS:
         with (BUILD / f'build-{camera}.log').open('w') as log:
             subprocess.run(['make', '-C', str(ROOT / 'amiga_version'), f'BUILD={BUILD}',
-                            f'CPPFLAGS=-DV6_TOWER_HOLD={camera}', str(BUILD / 'tower.adf')],
+                            f'CPPFLAGS=-DV6_TOWER_HOLD={camera}'+(' -DV6_TOWER_PAIRS' if args.paired else ''), str(BUILD / 'tower.adf')],
                            stdout=log, stderr=subprocess.STDOUT, check=True)
         path = BUILD / f'camera-{camera}.png'
+        path.unlink(missing_ok=True)
         with (BUILD / f'capture-{camera}.log').open('w') as log:
             subprocess.run([EMU, '--config', str(BUILD / 'tower.toml'), '--noaudio',
                             '--screenshot-after', '22', str(path)],

@@ -4,6 +4,18 @@
  */
 #include "player.h"
 
+void v6_player_tower_room(V6Room *room,const V6TowerTiles *source)
+{
+    room->tiles=(const uint16_t *)(const void *)source;
+    room->tileset=V6_TILE_SOURCE_TOWER;room->extra_row=0;room->terrain=0;
+    room->blocks=0;room->block_count=0;
+}
+static int tower_tile(const V6Room *room,int x,int y)
+{
+    const V6TowerTiles *source=(const void *)room->tiles;
+    return source->read(source->context,x,y);
+}
+
 /* Keep the original binary32 rounding without a floating-point runtime.
  * All supported player velocities/accelerations fit in signed 8.24. The
  * compiler expands constant power-of-two scaling to shifts on the 68000. */
@@ -20,9 +32,9 @@ static int32_t velocity_round(int32_t value)
 
 static int position(int x, int32_t velocity)
 {
-    /* In room coordinates an integer plus a quarter-pixel velocity is exactly
+    /* In bounded tower coordinates an integer plus a quarter-pixel velocity is exactly
      * representable in binary32. Avoid 64-bit rounding for these common cases. */
-    if (x >= -1024 && x <= 1024 && (velocity & (V6_ONE/4-1)) == 0)
+    if (x >= -16384 && x <= 16384 && (velocity & (V6_ONE/4-1)) == 0)
         return (x*4 + velocity/(V6_ONE/4))/4;
     int64_t value = (int64_t)x * V6_ONE + velocity;
     uint64_t magnitude = value < 0 ? -value : value;
@@ -46,6 +58,11 @@ int v6_player_overlaps(const V6Player *p, int x, int y, int w, int h)
 
 static int solid(const V6Room *room, int x, int y)
 {
+    if(room->tileset==V6_TILE_SOURCE_TOWER) {
+        const V6TowerTiles *source=(const void *)room->tiles;
+        int tile=tower_tile(room,x,y);
+        return (tile>=12 && tile<=27) || (source->invincible && tile>=6 && tile<=11);
+    }
     if (room->terrain) return v6_terrain_solid(room->terrain,x,y);
     int tile, height = 29 + room->extra_row;
     /* Map::collide duplicates the edge tile for exactly one tile outside. */
@@ -63,13 +80,17 @@ static int solid(const V6Room *room, int x, int y)
 static inline __attribute__((always_inline)) int wall_mode(const V6Room *room, int x, int y, int32_t dx, int32_t dy, int skip_directional)
 {
     int left = x + 6, top = y + 2, right = left + 11, bottom = top + 20;
-    int tx, ty, gy;
+    int tx, ty, gy, previous_row;
     unsigned i;
     for(i=0;i<room->block_count;++i)
         if((!skip_directional || room->blocks[i].type!=V6_DIRECTIONAL) && v6_block_hit(&room->blocks[i],left,top,12,21,dx,dy,0)) return 1;
+    if(room->tileset==V6_TILE_SOURCE_TOWER) {
+        const V6TowerTiles *source=(const void *)room->tiles;
+        if(source->walls) return source->walls(source->context,x,y,source->invincible);
+    }
     /* Deliberately /8, not >>3: original getgridpoint truncates toward zero. */
     int l = left / 8, r = right / 8, t = top / 8, b = bottom / 8;
-    if (!skip_directional && (!room->terrain || room->terrain->directional))
+    if (room->tileset!=V6_TILE_SOURCE_TOWER && !skip_directional && (!room->terrain || room->terrain->directional))
     for (ty = t < 0 ? 0 : t; ty <= b && ty < 29 + room->extra_row; ++ty)
         for (tx = l < 0 ? 0 : l; tx <= r && tx < 40; ++tx) {
             int tile = room->tiles[ty * 40 + tx];
@@ -79,9 +100,12 @@ static inline __attribute__((always_inline)) int wall_mode(const V6Room *room, i
         }
     if (solid(room, l, t) || solid(room, r, t) ||
         solid(room, l, b) || solid(room, r, b)) return 1;
+    previous_row=t;
     for (gy = 6; gy <= 12; gy += 6) {
         int row=(top+gy)/8;
-        if (row != t && row != b && (solid(room,l,row) || solid(room,r,row))) return 1;
+        if (row != t && row != b && row != previous_row &&
+            (solid(room,l,row) || solid(room,r,row))) return 1;
+        previous_row=row;
     }
     tx=(left+6)/8;
     return tx != l && tx != r && (solid(room,tx,t) || solid(room,tx,b));
@@ -183,6 +207,16 @@ int v6_player_hurt(const V6Player *p, const V6Room *room)
     int tx, ty;
     int left = (p->x + 6) / 8, right = (p->x + 17) / 8;
     int top = (p->y + 2) / 8, bottom = (p->y + 22) / 8;
+    if(room->tileset==V6_TILE_SOURCE_TOWER) {
+        const V6TowerTiles *source=(const void *)room->tiles;
+        int rows[4] = {top,bottom,(p->y+8)/8,(p->y+14)/8},i;
+        if(source->invincible) return 0;
+        for(i=0;i<4;++i) {
+            int a=tower_tile(room,left,rows[i]),b=tower_tile(room,right,rows[i]);
+            if((a>=6 && a<=11) || (b>=6 && b<=11)) return 1;
+        }
+        return 0;
+    }
     for (ty = top < 0 ? 0 : top; ty <= bottom && ty < 29 + room->extra_row; ++ty)
         for (tx = left < 0 ? 0 : left; tx <= right && tx < 40; ++tx) {
             int tile = room->tiles[ty * 40 + tx], dy = -1, height = 4;

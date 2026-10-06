@@ -28,6 +28,19 @@ typedef struct V6Room {
     unsigned block_count;
 } V6Room;
 
+/* Streamed tower rooms use a tile reader instead of a 40x30 array. The
+ * descriptor and its context must outlive the room; terrain must be NULL.
+ * Keep this tagged representation behind v6_player_tower_room. */
+enum { V6_TILE_SOURCE_TOWER = 3 };
+typedef struct {
+    int (*read)(void *,int,int);
+    void *context;
+    int invincible;
+    /* Optional equivalent whole-player wall query; NULL uses tile reads. */
+    int (*walls)(void *,int,int,int);
+} V6TowerTiles;
+void v6_player_tower_room(V6Room *,const V6TowerTiles *);
+
 /* Vertical collision retry only: updates velocity/pending Y without moving Y. */
 int v6_player_test_y(V6Player *, const V6Room *, int *target_y);
 /* Entity::entitymapcollision stage with explicit pending positions. On a

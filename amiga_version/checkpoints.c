@@ -27,13 +27,15 @@ unsigned v6_checkpoints_update(V6Checkpoint *c,unsigned count,const V6Player *p,
                                int room_x,int room_y,V6CheckpointSave *save)
 {
     unsigned i,events=0;
-    for(i=count;i>0;--i) events+=v6_checkpoint_update(c,count,i-1,p,room_x,room_y,save);
+    for(i=count;i>0;--i)
+        if(c[i-1].pending) events+=v6_checkpoint_update(c,count,i-1,p,room_x,room_y,save);
     return events;
 }
 void v6_checkpoints_collide(V6Checkpoint *c,unsigned count,const V6Player *p)
 {
     unsigned i;
     for(i=0;i<count;++i)
-        if(!c[i].active && v6_player_overlaps(p,c[i].x,c[i].y,16,16))
+        if(!c[i].active && c[i].y>p->y-14 && c[i].y<p->y+23 &&
+           v6_player_overlaps(p,c[i].x,c[i].y,16,16))
             c[i].pending=1;
 }

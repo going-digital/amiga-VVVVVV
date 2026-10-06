@@ -2,6 +2,11 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
+Latest milestone (6 October 2026): main-tower checkpoint activation and recovery
+pass the 250-line headroom gate at 244 PAL lines, with zero missed frames.
+See the "Tower checkpoints and boundaries" update at the end for scope and
+remaining work.
+
 ## Implementation progress — 27 September 2026
 
 The first native hardware harness is now in [`amiga_version/`](amiga_version/README.md), with a
@@ -620,3 +625,132 @@ Camera/life-sequence rules use extracted desktop references; checkpoint reset
 fields are checked against the same-tower contract. The trigger remains scripted;
 live physics/collision, sprite display, cross-room respawn and campaign scripts
 are not yet integrated into this tower probe.
+
+## Playable tower slice — 6 October 2026
+
+The tower probe now has a separate live-input build (`make -C amiga_version
+ tower-play-run`): joystick left/right and fire to flip, left mouse to exit.
+It starts at the original main-tower checkpoint (144,1824), using saved player
+position (140,1817), upward camera motion and the existing 34 ms cadence.
+Streamed tile reads preserve Tower::at vertical wrapping and horizontal edge
+replication. Tower solids are IDs 12..27; invincibility also makes IDs 6..11
+solid. Damage follows the desktop's full-tile tower-spike probes rather than
+ordinary-room spike rectangles. The player is drawn with a double-buffered
+hardware sprite, including lifecycle visibility and death frames.
+
+`test-tower-player` compares 25,728 movement ticks and 10,800 spike cases with
+extracted desktop methods across the main and both mini maps, including signed
+positions and invincibility. Existing ordinary-room player and camera suites
+still pass. A native normal-input replay (`tower-play-capture`) triggers damage
+without death/placement injection, records ten deaths and nine respawns over
+856 logic ticks, and matches all 3,200 fields of its first 128 ticks against the
+host integration. Its screenshot verifies 516 visible cyan player pixels;
+exit restores AmigaDOS. This host integration comparison is supported by the
+isolated source tests, not independent full desktop-loop replay equivalence.
+
+Peak work is 272 PAL lines / 17.408 ms, with zero missed frames and 64,128 bytes
+of explicit Chip allocation. Initial ring fills are excluded. Extending the
+exact quarter-pixel arithmetic fast path to bounded tower coordinates and
+avoiding the general row-decoder call on collision cache hits reduced workload.
+The measured route fits a frame but **does not meet the 20% headroom target**.
+This is a short checkpoint-area slice, not a playable full-tower traversal:
+checkpoint activation, horizontal gameplay wrapping/exits, other entities,
+scripts, interpolation, palette cycling and audio are still absent. Sprite
+animation selection is simplified and is not a full entity-animation replay.
+
+Next: profile and reduce combined recovery/rendering work to meet the headroom
+gate, then add tower checkpoint activation and boundary transitions with a
+longer normal-input traversal. Measure Lightspeedplayer/SFX alongside that
+workload before declaring A500 feasibility complete.
+
+## Tower renderer headroom — 6 October 2026
+
+The live-player replay now **passes the unchanged 250-line headroom gate**:
+peak 242 PAL lines / 15.488 ms, zero missed frames, unchanged 64,128 explicit
+Chip bytes and clean OS restoration. Native camera/player state still matches
+all 3,200 fields of the first 128 ticks. `tower-play-capture` now enforces the
+headroom gate; `--measure` remains available for explicitly measured overruns.
+
+A separate non-Chip profile splits logic and rendering. Before optimization,
+the worst frame was 48 lines of logic plus 225 rendering (273 with profiling).
+The renderer now remembers each buffer's last fully populated 31-row window
+and scans only newly exposed rows. A failed prepare invalidates the window
+promise; retries fall back to tag checks. Peer blitter copies inspect the same
+new-row span and preserve the overlap. Remaining scans rotate a bit mask rather
+than rebuilding a variable-shift mask for every row. Stream/atlas changes or
+external ring/tag edits still require a reset. The additional cache metadata
+costs 16 ordinary-memory bytes across the four foreground/background buffers.
+
+Host drawing checks cover 2,636 alternating-buffer frames and 81,716 rows,
+including nonoverlapping jumps, both signed row limits, and partial-failure
+recovery/reset on one- and two-plane rings. Eight native fixed-camera captures
+still match all 614,400 logical pixels. These are fixed-camera pixel checks,
+not proof of tear-free moving output or arbitrary recovery-jump timing.
+
+The repeated full-map synthetic 12- and 16-pixel routes now peak at 196 and
+204 PAL lines (12.544 / 13.056 ms), down from 235 / 242, with zero missed
+frames, both route endpoints reached and clean OS restoration. These routes
+exclude player gameplay and audio.
+
+Next gameplay work remains tower checkpoint activation and horizontal boundary
+handling, followed by a longer normal-input traversal. The measured headroom
+applies to this existing checkpoint-area replay without music/SFX; combined
+Lightspeedplayer audio and broader tower routes still need their own gates.
+
+## Tower checkpoints and boundaries — 6 October 2026
+
+The new `tower-world-run` slice exports all 18 main-tower checkpoints in their
+original entity order. Contact arms a checkpoint; the next entity update saves
+it, deactivates the previous checkpoint, and updates the session's respawn
+position, gravity and facing. Visible checkpoint sprites change from grey to
+green. The original checkpoint at (144,1824) is a **ceiling** checkpoint (tile
+20); this build starts at its literal save position (140,1822), gravity 1.
+The earlier player-only fixture (140,1817), gravity 0, remains a separate test.
+
+A 72-tick normal-input route activates checkpoint 505147 at tick 2 and
+checkpoint 505167 at tick 72, saving (220,1641), gravity 0, facing right.
+Native replay checks all 4,736 fields of its first 128 camera/player/checkpoint
+ticks against host integration and verifies eight subsequent respawns at the
+new checkpoint. The captured display contains both the cyan player and green
+active checkpoint. Exit restores AmigaDOS.
+
+This combined workload peaks at **244 PAL lines / 15.616 ms**, with zero missed
+frames and unchanged 64,128 explicit Chip bytes. The worst measured frame is
+81 logic lines plus 163 rendering lines. Initial ring fills and full-map
+validation occur before the measured loop. The gate still requires at most
+250 lines. Results are in `build/amiga-tower-world-replay/capture.json`.
+
+Adding checkpoint entities initially exceeded a frame. The converter now
+prepares deduplicated pairs of adjacent tile columns; the renderer writes
+aligned words and validates every immutable source row before hardware
+takeover. Pair tables/atlases add 6,304 ordinary-memory bytes, not Chip RAM.
+Changing streams, tables or atlas limits requires validation again and cache
+reset. Collision shares decoded rows across the exact desktop wall samples;
+the tile-reader fallback remains available. Cached checkpoint masks avoid
+rebuilding sprite/trace state on every tick and support at most 32 entities.
+
+Verification covers 51,456 extracted-desktop movement ticks and 21,600 tower
+spike cases with both collision paths, all main/mini maps and invincibility;
+600 extracted main-tower boundary cases; 8,448 session checkpoint-mask ticks
+against extracted desktop checkpoint code, including bit 31 and duplicate
+IDs; and the existing 32,768 checkpoint update/collision cases. Ordinary-room
+player regressions still pass. Paired rendering matches 66,092 source-map rows
+over 2,132 alternating-buffer frames, including signed limits and failures.
+Eight native fixed-camera captures match all 614,400 logical pixels.
+
+Main-tower horizontal boundaries now wrap the player in the scrolling region
+and report the desktop coordinate transforms/destination rooms outside it.
+The normal-input native `tower-wrap-capture` crosses right at tick 30 and left
+at tick 36, checks another 4,736 trace fields, and records nine natural
+respawns. It peaks at 238 lines / 15.232 ms with zero misses and clean exit.
+Adjacent room loading remains caller-owned: the standalone slice exits cleanly
+on a room-load request rather than continuing with tower terrain. This is
+checkpoint-area coverage, not a complete tower traversal or full desktop-loop
+replay. The earlier player-only replay also passes at 236 lines; the scripted
+recovery regression passes at 122 lines, both with zero misses and clean exit.
+
+Next: load the adjacent rooms for tower exits and checkpoint returns, extend
+normal-input traversal beyond this area, then measure Lightspeedplayer music
+and SFX with gameplay. Other tower entities, scripts, interpolation and palette
+cycling remain pending. These emulator timing results exclude audio and do
+not establish physical A500 validation.

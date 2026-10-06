@@ -35,8 +35,15 @@ def main():
     parser.add_argument('--measure', action='store_true', help='Report frame overruns without treating them as test failures')
     parser.add_argument('--controller', action='store_true', help='Validate the normal descending camera at the 34 ms logic cadence')
     parser.add_argument('--recovery', action='store_true', help='Validate scripted native camera recovery against extracted desktop blocks')
+    parser.add_argument("--play", action="store_true", help="Validate live physics and natural death/respawn replay")
+    parser.add_argument("--interactive", action="store_true", help="Run the built disk with joystick controls until mouse exit")
+    parser.add_argument("--world", action="store_true", help="Validate tower checkpoints and horizontal boundaries")
+    parser.add_argument('--wrap',action='store_true',help='Validate normal-input horizontal wrap replay')
     args = parser.parse_args()
-    if args.recovery:
+    if args.wrap: args.world=True
+    if args.world:
+        args.play=True
+    if args.recovery or args.play:
         args.controller = True
     BUILD = args.build.resolve()
     config = BUILD / 'tower.toml'
@@ -58,20 +65,39 @@ pacing_budget = "cycles"
 path = {json.dumps(str(BUILD / 'tower.adf'))}
 write_protected = true
 ''')
+    if args.interactive:
+        subprocess.run([EMU,"--config",str(config),"--noaudio"],check=True)
+        return
     env = dict(os.environ, COPPERLINE_DBG_AFTER='41',
                COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{BUILD / "slow.bin"}')
+    for name in ('slow.bin','tower.clstate','tower.png','capture.json'):
+        (BUILD/name).unlink(missing_ok=True)
     with (BUILD / 'capture.log').open('w') as log:
         subprocess.run([EMU, '--config', str(config), '--noaudio',
                         '--save-state-after', '40', str(BUILD / 'tower.clstate'),
                         '--screenshot-after', '42', str(BUILD / 'tower.png')],
                        env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
     report = diagnostics(BUILD / 'slow.bin')
+    if args.play:
+        data=(BUILD/'slow.bin').read_bytes()
+        offset=data.index(b'V6PF\0\0\0\1')
+        values=struct.unpack_from('>8I',data,offset)
+        report['profile']=dict(zip(('max_logic','max_render','peak_logic','peak_render','peak_tick','peak_rows'),values[2:]))
+        timing=report['profile']
+        assert timing['peak_logic']+timing['peak_render']==report['max_work_lines'],report
+        assert timing['peak_logic']<=timing['max_logic'] and timing['peak_render']<=timing['max_render'],report
     assert report['step'] == (0 if args.controller else args.step), report
     if args.controller:
         assert report['logic_ticks'] > 100, report
         assert report['logic_ticks']*34000+report['logic_remainder'] == report['logic_frames']*19968, report
         assert 0 <= report['logic_remainder'] < 34000, report
-        if args.recovery:
+        if args.world:
+            from tower_world_trace import verify
+            verify(report, BUILD / "slow.bin",args.wrap)
+        elif args.play:
+            from tower_play_trace import verify
+            verify(report, BUILD / "slow.bin")
+        elif args.recovery:
             from tower_recovery_trace import verify
             verify(report, BUILD / 'slow.bin')
         else:
@@ -82,12 +108,37 @@ write_protected = true
     assert report['frames'] > 256 and report['max_work_lines'] > 0, report
     if not args.measure:
         assert report['missed'] == 0 and report['max_work_lines'] < 312, report
+        if args.play:
+            assert report['max_work_lines'] <= 250, report
+    if args.play:
+        visible_capture=BUILD/'tower.png'
+        if args.world:
+            visible_capture=BUILD/'tower-live.png'
+            visible_capture.unlink(missing_ok=True)
+            with (BUILD/'live-capture.log').open('w') as log:
+                subprocess.run([EMU,'--config',str(config),'--noaudio','--screenshot-after','15',str(visible_capture)],
+                    env=dict(os.environ),stdout=log,stderr=subprocess.STDOUT,check=True)
+        decoder=ROOT/'build/amiga-feasibility/png_rgba'
+        header,pixels=subprocess.check_output([str(decoder),str(visible_capture)]).split(b'\n',1)
+        width,height=map(int,header.split())
+        assert len(pixels)==width*height*4
+        report['visible_player_pixels']=sum(1 for i in range(0,len(pixels),4)
+            if pixels[i+1]>150 and pixels[i+2]>150 and pixels[i]<pixels[i+1]*0.8)
+        assert report['visible_player_pixels']>20,report
+        if args.world:
+            report['visible_active_checkpoint_pixels']=sum(1 for i in range(0,len(pixels),4)
+                if pixels[i+1]>150 and pixels[i+1]>pixels[i]*1.5 and pixels[i+1]>pixels[i+2]*1.5)
+            assert report['visible_active_checkpoint_pixels']>20,report
+        report['headroom_20_percent']=report['max_work_lines']<=250
     if not args.controller:
         assert report['forward_wraps'] >= 1 and report['reverse_wraps'] >= 1, report
-    assert report['max_rows'] <= (2*args.step+7)//8 + (args.step+7)//8, report
-    assert report['chip_bytes'] == 61696, report
+    if not args.play:
+        assert report['max_rows'] <= (2*args.step+7)//8 + (args.step+7)//8, report
+    assert report['chip_bytes'] == (64128 if args.play else 61696), report
     env.update(COPPERLINE_DBG_AFTER='43',
                COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{BUILD / "exit.bin"}')
+    for name in ('exit.bin','exit.png'):
+        (BUILD/name).unlink(missing_ok=True)
     with (BUILD / 'exit.log').open('w') as log:
         subprocess.run([EMU, '--config', str(config), '--noaudio',
                         '--load-state', str(BUILD / 'tower.clstate'),
@@ -104,6 +155,12 @@ write_protected = true
         report['scope'] = 'Native normal descending camera at 34 ms logic cadence using 19968 us PAL accounting; held positions between ticks, no interpolation, player or recovery integration'
     if args.recovery:
         report['scope'] = 'Native same-tower player checkpoint respawn; first 128 camera/player ticks and final camera state checked; no live player physics or sprite display'
+    if args.play:
+        report['scope'] = 'Native tower input/physics, sprite and natural damage/recovery; 128 ticks match host integration; isolated source differential tests verify physics; no full desktop entity loop'
+    if args.world:
+        report['scope'] = 'Main-tower checkpoint-area normal-input route to a second checkpoint and natural recovery; 128 camera/player/checkpoint ticks match host integration; room exits request a load but are not yet loaded'
+        if args.wrap:
+            report['scope']='Main-tower normal-input horizontal wraps in both directions and natural recovery; 128 camera/player/checkpoint ticks match host integration; adjacent room loads remain pending'
     (BUILD / 'capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
 

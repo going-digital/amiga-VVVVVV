@@ -25,4 +25,8 @@ int v6_tower_open(V6TowerStream *,const uint8_t *,size_t);
  * Returned view lasts until another logical row uses that slot or reopen.
  * This is a tile-row cache, not a display ring or camera implementation. */
 const uint16_t *v6_tower_row(V6TowerStream *,int row,unsigned *decoded);
+/* Tower::at edge duplication and vertical wrapping; -1 means decode failure. */
+int v6_tower_tile(void *stream,int x,int y);
+/* Same sampled walls as the player's tile queries, sharing decoded rows. */
+int v6_tower_walls(void *stream,int player_x,int player_y,int invincible);
 #endif
