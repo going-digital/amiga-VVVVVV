@@ -10,6 +10,9 @@
 #include "tower_copper.h"
 #include "tower_camera.h"
 #include "tower_session.h"
+#ifdef V6_TOWER_ROUTE
+#include "tower_route.h"
+#endif
 #ifdef V6_TOWER_WORLD
 #define V6_TOWER_PAIRS
 #endif
@@ -23,12 +26,21 @@
 #include "tower_player_assets.h"
 #ifdef V6_TOWER_WORLD
 #include "tower_checkpoints.h"
-#ifdef V6_TOWER_WRAP_REPLAY
+#ifdef V6_TOWER_ROUTE_REPLAY
+#include "../tools/amiga/tower_route_replay.h"
+#elif defined(V6_TOWER_WRAP_REPLAY)
 #include "../tools/amiga/tower_wrap_replay.h"
 #else
 #include "../tools/amiga/tower_world_replay.h"
 #endif
 static V6TowerGameplay world;
+#ifdef V6_TOWER_ROUTE
+#include "tower_route_data.h"
+static V6TowerRoute route;
+static unsigned route_loading;
+static volatile struct { ULONG magic,version,index,transitions,returns,loading_frames,error; }
+    route_diag={0x56365254,1,0,0,0,0,0};
+#endif
 #endif
 static V6Sprites player_sprites[2];
 static V6CollisionAnimation player_animation;
@@ -73,6 +85,25 @@ static V6TowerStream stream,background_stream;
 static V6TowerDraw draw[2],background_draw[2];
 static UBYTE *rings[2];
 static unsigned prepared_camera[2];
+#ifdef V6_TOWER_ROUTE
+static int route_source(void)
+{
+    const UBYTE *data=tower_map;unsigned bytes=sizeof(tower_map),i;
+    if(route.index==2) { data=hallway0_display;bytes=sizeof(hallway0_display); }
+    if(route.index==3) { data=hallway1_display;bytes=sizeof(hallway1_display); }
+    /* All three resident maps were opened and fully pair-validated before
+     * takeover. Rebind only these identical immutable bytes; a repeated
+     * 700-entry directory scan would consume the transition frame. */
+    stream.data=data;stream.size=bytes;stream.height=route.index<2?700:30;stream.valid=0;
+    for(i=0;i<2;++i) {
+        v6_tower_draw_reset(&draw[i]);v6_tower_draw_reset(&background_draw[i]);
+        prepared_camera[i]=(unsigned)route.session->camera.y;
+    }
+    route_loading=2;return 1;
+}
+static volatile struct { ULONG magic,version,count,records[128][3]; }
+    route_trace={0x56365252,1,0,{{0}}};
+#endif
 static volatile ULONG frames;
 /* Big-endian ULONG record, discoverable in emulator RAM dumps. */
 static volatile struct {
@@ -104,6 +135,16 @@ static void record_world(void)
     world_diag.values[6]=world.active_mask;world_diag.values[7]=world.pending_mask;
     world_diag.values[8]=world.wrap_left;world_diag.values[9]=world.wrap_right;
     world_diag.values[10]=world.exit.room_x;world_diag.values[11]=world.exit.room_y;
+#ifdef V6_TOWER_ROUTE
+    route_diag.index=route.index;route_diag.transitions=route.transitions;
+    route_diag.returns=route.returns;route_diag.error=route.error;
+    if(route_trace.count<128) {
+        route_trace.records[route_trace.count][0]=route.index;
+        route_trace.records[route_trace.count][1]=route.transitions;
+        route_trace.records[route_trace.count][2]=route.returns;
+        ++route_trace.count;
+    }
+#endif
     if(world_trace.count<128) {
         for(i=0;i<12;++i) world_trace.records[world_trace.count][i]=world_diag.values[i];
         ++world_trace.count;
@@ -192,6 +233,10 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #ifdef V6_TOWER_PAIRS
     if(!v6_tower_draw_pair_prepare_verified(&draw[index],ring,&stream,camera>>3,
         tower_pair_offsets,tower_pairs,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2,drawn)) return 0;
+#ifdef V6_TOWER_ROUTE
+    if(route.rooms[route.index].packed) background_rows=0;
+    else
+#endif
     if(!v6_tower_draw_pair_prepare_verified(&background_draw[index],ring+V6_TOWER_RING_BYTES,
         &background_stream,camera>>4,tower_background_pair_offsets,tower_background_pairs,
         TOWER_BACKGROUND_PAIR_WORDS,TOWER_TILE_COUNT,1,&background_rows)) return 0;
@@ -208,6 +253,9 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     p=move(p,0x092,0x0038);p=move(p,0x094,0x00d0);
     for(i=0;i<4;++i) p=move(p,0x180+i*2,tower_palette[i]);
     p=move(p,0x192,0x223);
+#ifdef V6_TOWER_ROUTE
+    if(route.rooms[route.index].packed) p=move(p,0x192,0);
+#endif
 #ifdef V6_TOWER_PLAY
     v6_sprites_begin(&player_sprites[index],player_sprites[index].dma);
     if(!session.invisible)
@@ -243,6 +291,9 @@ static int run(void) {
      * Only the stream wraps source rows; physical ring slots use logical rows.
      * A bounded back-and-forth route exercises both directions indefinitely. */
     unsigned back=1,camera=V6_TOWER_HOLD>=0?V6_TOWER_HOLD:CAMERA_MIN,drawn;int direction=1;
+#ifdef V6_TOWER_ROUTE
+    int publish;
+#endif
     ULONG start,work,previous;
 #ifdef V6_TOWER_PLAY
     ULONG logic_work,render_work;
@@ -261,6 +312,13 @@ static int run(void) {
     world.save.x=140;world.save.y=1822;world.save.gravity=1;world.save.dir=1;
     world.save.room_x=109;world.save.room_y=109;world.save.id=-1;
     if(!v6_tower_gameplay_init(&world,tower_checkpoints,TOWER_CHECKPOINT_COUNT,&world.save)) return 20;
+#ifdef V6_TOWER_ROUTE_REPLAY
+    v6_tower_session_init(&session,44,5449,0,1);
+    session.camera.y=session.camera.old_y=5329;
+    world.save.x=44;world.save.y=5449;world.save.gravity=0;world.save.dir=1;
+    world.save.id=505007;
+    if(!v6_tower_gameplay_init(&world,tower_checkpoints,TOWER_CHECKPOINT_COUNT,&world.save)) return 20;
+#endif
 #else
     /* Player-only regression fixture, not a literal checkpoint reset. */
     v6_tower_session_init(&session,140,1817,0,1);
@@ -271,6 +329,13 @@ static int run(void) {
     player_tiles.walls=v6_tower_walls;
 #endif
     v6_player_tower_room(&player_room,&player_tiles);
+#ifdef V6_TOWER_ROUTE
+    if(!v6_tower_route_init(&route,&session,&world,tower_route_rooms,4,109,109,&player_tiles)) return 20;
+#ifdef V6_TOWER_HALLWAY_HOLD
+    if(!v6_tower_route_load(&route,V6_TOWER_HALLWAY_HOLD?110:108,V6_TOWER_HALLWAY_HOLD?104:109,0)) return 20;
+    session.player.x=0;session.player.y=-2000;session.invisible=1;world.count=0;
+#endif
+#endif
 #else
     v6_tower_session_init(&session,144,300,1,0);
     session.player.x=80;session.player.y=450;session.player.gravity=0;
@@ -299,11 +364,23 @@ static int run(void) {
     player_sprites[0].dma=(UWORD *)(lists[1]+LIST_WORDS);
     player_sprites[1].dma=player_sprites[0].dma+8*V6_SPRITE_WORDS;
 #endif
-    if(!v6_tower_open(&stream,tower_map,sizeof(tower_map)) ||
+    if(
+#ifdef V6_TOWER_ROUTE
+       !v6_tower_open(&stream,hallway0_display,sizeof(hallway0_display)) ||
+       !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
+       !v6_tower_open(&stream,hallway1_display,sizeof(hallway1_display)) ||
+       !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
+#endif
+       !v6_tower_open(&stream,tower_map,sizeof(tower_map)) ||
        !v6_tower_open(&background_stream,tower_background_map,sizeof(tower_background_map)) ||
 #ifdef V6_TOWER_PAIRS
        !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
        !v6_tower_pairs_validate(&background_stream,tower_background_pair_offsets,TOWER_BACKGROUND_PAIR_WORDS,TOWER_TILE_COUNT,1) ||
+#endif
+#ifdef V6_TOWER_HALLWAY_HOLD
+       !v6_tower_open(&stream,V6_TOWER_HALLWAY_HOLD?hallway1_display:hallway0_display,
+           V6_TOWER_HALLWAY_HOLD?sizeof(hallway1_display):sizeof(hallway0_display)) ||
+       !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
 #endif
        !prepare(rings[0],lists[0],0,camera,0)) {
         FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
@@ -336,7 +413,11 @@ static int run(void) {
 #ifdef V6_TOWER_CONTROLLER
         {
             ULONG now=frames,delta=now-logic_frame;
-            logic_frame=now;elapsed+=delta*19968UL;diag.logic_frames+=delta;
+            logic_frame=now;
+#ifdef V6_TOWER_ROUTE
+            if(route_loading) delta=0;
+#endif
+            elapsed+=delta*19968UL;diag.logic_frames+=delta;
             while(elapsed>=34000) {
                 elapsed-=34000;
 #ifdef V6_TOWER_RECOVERY
@@ -356,7 +437,17 @@ static int run(void) {
                 if(!(*(volatile UBYTE *)0xbfe001&0x80)) input|=V6_FLIP;
 #endif
 #ifdef V6_TOWER_WORLD
+#ifdef V6_TOWER_ROUTE
+                unsigned index=route.index;
+#ifndef V6_TOWER_HALLWAY_HOLD
+                if(!v6_tower_route_step(&route,input)) diag.error=6;
+#else
+                (void)input;
+#endif
+                if(route.index!=index && !route_source()) diag.error=7;
+#else
                 v6_tower_session_play_world(&session,&player_room,input,&world);
+#endif
                 record_world();
 #else
                 v6_tower_session_play(&session,&player_room,input,0,0);
@@ -385,6 +476,9 @@ static int run(void) {
 #endif
                 diag.camera_mode=controller.mode;
                 ++diag.logic_ticks;
+#ifdef V6_TOWER_ROUTE
+                if(route_loading || diag.error) break;
+#endif
             }
             camera=controller.y;diag.camera=camera;diag.logic_remainder=elapsed;
         }
@@ -405,6 +499,27 @@ static int run(void) {
 #ifdef V6_TOWER_PLAY
         logic_work=clock_lines()-start;
 #endif
+#ifdef V6_TOWER_ROUTE
+        publish=1;drawn=0;
+        if(route_loading) {
+            unsigned fg_rows,bg_rows=0;
+            int fg=v6_tower_draw_pair_prepare_budget(&draw[back],rings[back],&stream,camera>>3,
+                tower_pair_offsets,tower_pairs,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2,&fg_rows,1);
+            int bg=1;
+            if(!route.rooms[route.index].packed)
+                bg=v6_tower_draw_pair_prepare_budget(&background_draw[back],rings[back]+V6_TOWER_RING_BYTES,
+                    &background_stream,camera>>4,tower_background_pair_offsets,tower_background_pairs,
+                    TOWER_BACKGROUND_PAIR_WORDS,TOWER_TILE_COUNT,1,&bg_rows,1);
+            drawn=fg_rows+bg_rows;++route_diag.loading_frames;
+            if(!fg || !bg) { diag.error=8;break; }
+            publish=fg==1 && bg==1;
+            if(publish) {
+                unsigned final_rows;
+                if(!prepare(rings[back],lists[back],back,camera,&final_rows)) { diag.error=2;break; }
+                drawn+=final_rows;--route_loading;
+            }
+        } else
+#endif
         if(!prepare(rings[back],lists[back],back,camera,&drawn)) { diag.error=2;break; }
         if(drawn>diag.max_rows) diag.max_rows=drawn;
         work=clock_lines()-start;
@@ -422,7 +537,10 @@ static int run(void) {
         if(frames-previous>1) diag.missed+=frames-previous-1;
         previous=frames;
         /* Completed inactive list becomes next frame's list before vertical restart. */
-        hw->cop1lc=(ULONG)lists[back];back^=1;
+#ifdef V6_TOWER_ROUTE
+        if(publish)
+#endif
+        { hw->cop1lc=(ULONG)lists[back];back^=1; }
         diag.camera=camera;diag.frames=frames;
         if(camera<diag.visited_min) diag.visited_min=camera;
         if(camera>diag.visited_max) diag.visited_max=camera;

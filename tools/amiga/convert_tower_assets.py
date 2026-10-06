@@ -15,7 +15,7 @@ from pack_rooms import ROOT
 from probe_feasibility import tower_probe
 from test_tower_stream import Stream
 from test_tower_draw import Draw
-from tower_gameplay_data import export
+from tower_gameplay_data import export,hallway_rooms
 
 
 def paired_atlas(out,atlas,planes,names,prefix):
@@ -26,6 +26,9 @@ def paired_atlas(out,atlas,planes,names,prefix):
         raw=re.sub(r'//[^\n]*|/\*.*?\*/','',raw,flags=re.S)
         tiles=[int(v) for v in raw.split(',') if v.strip()]
         allowed.update(zip(tiles[::2],tiles[1::2]))
+    if prefix=='tower':
+        for room in hallway_rooms():
+            allowed.update(zip(room['tiles'][::2],room['tiles'][1::2]))
     offsets=[65535]*1024;patterns={};words=[]
     for a,b in sorted(allowed):
         assert a<30 and b<30

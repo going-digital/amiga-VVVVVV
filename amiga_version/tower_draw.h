@@ -50,4 +50,10 @@ int v6_tower_pairs_validate(V6TowerStream *,const uint16_t offsets[1024],
 int v6_tower_draw_pair_prepare_verified(V6TowerDraw *,uint8_t *,V6TowerStream *,int,
     const uint16_t offsets[1024],const uint16_t *,unsigned atlas_words,
     unsigned count,unsigned planes,unsigned *drawn);
+/* Checked, resumable cold fills. At most budget missing rows are written;
+ * returns 2 while incomplete, 1 when publishable, 0 on failure. Keep top/map/
+ * atlas fixed while resuming. Incomplete buffers must never be published. */
+int v6_tower_draw_pair_prepare_budget(V6TowerDraw *,uint8_t *,V6TowerStream *,int,
+    const uint16_t offsets[1024],const uint16_t *,unsigned atlas_words,
+    unsigned count,unsigned planes,unsigned *drawn,unsigned budget);
 #endif

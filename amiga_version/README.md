@@ -1364,3 +1364,35 @@ returning from them remains the next integration step. This is still a short
 tower slice without other tower entities, scripts, interpolation, palette
 cycling or music/SFX. The headroom figure applies to the measured replay,
 excluding audio and initial full-map validation/ring fills.
+
+## Connected tower hallways
+
+`make -C amiga_version tower-route-run` builds the tower plus Teleporter Divot
+(108,109) and Seeing Red (110,104). Controls remain joystick left/right and
+fire; left mouse exits. Hallways load their original terrain/checkpoints and
+use ordinary-room collision. Checkpoint saves retain their room, so death can
+return from a hallway to the tower or from the tower to a saved hallway.
+
+- `tower-route-capture`: normal-input lower exit/re-entry, 128 × 40 native state
+  fields checked, seven natural deaths/respawns, and clean OS restoration.
+- `test-tower-route`: source entry/history and hallway movement comparisons,
+  checkpoint returns in both directions, same-room bank retention and invalid
+  load checks.
+- `tower-hallway-pixel-test`: both native hallway terrain views, 153,600 exact
+  logical-pixel comparisons. Entities are hidden for these fixed captures.
+
+The route replay peaks at **249 PAL lines / 15.936 ms**, zero misses, and the
+same 64,128 explicit Chip bytes. The report is in
+`build/amiga-tower-route-replay/capture.json`. Collision tiles are prepared in
+resident views before the frame loop (4,800 additional ordinary-memory bytes).
+Checked cold display fills publish complete banks and pause logic until both
+are ready. Each replay crossing takes 62 PAL fields, about 1.24 seconds; the
+old completed image stays visible during loading. This loading work is timed,
+and paused fields are excluded from logic-clock accounting.
+
+Both hallway backgrounds are black; Seeing Red's crew/dialogue and exits beyond
+these rooms remain pending. Upper entry and remote checkpoint restore have
+source/host coverage; the native route currently covers the lower crossing.
+This build still excludes audio, other tower entities and full story logic.
+The earlier checkpoint/wrapping work is committed as `88a5293f`; hallway work
+is the subsequent increment.

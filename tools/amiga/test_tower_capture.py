@@ -52,7 +52,7 @@ def reference_rows():
     return rows, background
 
 
-def compare(path, camera, rows):
+def compare(path, camera, rows, parallax=True):
     header, rgba = subprocess.check_output([str(ASSETS / 'png_rgba'), str(path)]).split(b'\n', 1)
     width, height = map(int, header.split())
     assert (width, height) == (716, 540), 'Copperline presentation changed; review sampling geometry'
@@ -69,16 +69,18 @@ def compare(path, camera, rows):
             px = 15 + ((2*x+1)*686)//640
             at = ((30+2*y)*width+px)*4
             assert rgba[at:at+3] == expected[x*3:x*3+3], (camera, x, y, rgba[at:at+3], expected[x*3:x*3+3])
-    assert background_pixels > 0, (camera, "No visible parallax pixels")
+    if parallax: assert background_pixels > 0, (camera, "No visible parallax pixels")
     return 320*240
 
 
 def main():
-    global BUILD
+    global BUILD,CAMERAS
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--paired',action='store_true')
+    parser.add_argument('--hallways',action='store_true')
     args=parser.parse_args()
     if args.paired: BUILD=ROOT/'build/amiga-tower-paired-pixels'
+    if args.hallways: BUILD=ROOT/'build/amiga-hallway-pixels';CAMERAS=(0,1)
     BUILD.mkdir(parents=True, exist_ok=True)
     config = f'''rom = {json.dumps(str(Path.home() / 'amiga/KICK13.ROM'))}
 [machine]
@@ -102,9 +104,12 @@ write_protected = true
     rows = reference_rows()
     checks = 0
     for camera in CAMERAS:
+        flags=f'-DV6_TOWER_HOLD={camera}'+(' -DV6_TOWER_PAIRS' if args.paired else '')
+        if args.hallways:
+            flags=f'-DV6_TOWER_HALLWAY_HOLD={camera} -DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE'
         with (BUILD / f'build-{camera}.log').open('w') as log:
             subprocess.run(['make', '-C', str(ROOT / 'amiga_version'), f'BUILD={BUILD}',
-                            f'CPPFLAGS=-DV6_TOWER_HOLD={camera}'+(' -DV6_TOWER_PAIRS' if args.paired else ''), str(BUILD / 'tower.adf')],
+                            f'CPPFLAGS={flags}', str(BUILD / 'tower.adf')],
                            stdout=log, stderr=subprocess.STDOUT, check=True)
         path = BUILD / f'camera-{camera}.png'
         path.unlink(missing_ok=True)
@@ -112,10 +117,24 @@ write_protected = true
             subprocess.run([EMU, '--config', str(BUILD / 'tower.toml'), '--noaudio',
                             '--screenshot-after', '22', str(path)],
                            stdout=log, stderr=subprocess.STDOUT, check=True)
-        checks += compare(path, camera, rows)
+        if args.hallways:
+            from tower_gameplay_data import hallway_rooms
+            atlas=(ASSETS/'tower_tiles.bin').read_bytes()
+            palette=json.loads((ASSETS/'tower-assets.json').read_text())['palette']
+            colours=[bytes(((c>>shift)&15)*17 for shift in (8,4,0)) for c in palette]
+            tiles=hallway_rooms()[camera]['tiles'];foreground=[]
+            for y in range(240):
+                foreground.append(b''.join(colours[((atlas[t*16+y%8]>>(7-x))&1)|
+                    (((atlas[t*16+8+y%8]>>(7-x))&1)<<1)]
+                    for t in tiles[y//8*40:(y//8+1)*40] for x in range(8)))
+            # compare() indexes modulo the tower height; these views are at 0.
+            checks+=compare(path,0,(foreground,[bytes(960)]*960),parallax=False)
+        else: checks += compare(path, camera, rows)
         print(f'PASS: native camera {camera}, 76800 logical pixels', flush=True)
     report = dict(cameras=CAMERAS, logical_pixel_checks=checks,
                   scope='Three-plane dual-playfield fixed-camera native Copper/DMA captures vs desktop map and converted atlas; exact RGB at logical pixel centres; not moving-frame tearing or physical hardware validation')
+    if args.hallways:
+        report.update(hallways=((108,109),(110,104)),scope='Fixed native hallway terrain captures vs literal Finalclass maps and converted tower atlas; black backgrounds and hidden entities; no moving-frame or story-script validation')
     (BUILD / 'pixels.json').write_text(json.dumps(report, indent=2)+'\n')
 
 

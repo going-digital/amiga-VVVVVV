@@ -212,6 +212,8 @@ int v6_player_hurt(const V6Player *p, const V6Room *room)
         int rows[4] = {top,bottom,(p->y+8)/8,(p->y+14)/8},i;
         if(source->invincible) return 0;
         for(i=0;i<4;++i) {
+            if(i>=2 && (rows[i]==top || rows[i]==bottom ||
+                (i==3 && rows[3]==rows[2]))) continue;
             int a=tower_tile(room,left,rows[i]),b=tower_tile(room,right,rows[i]);
             if((a>=6 && a<=11) || (b>=6 && b<=11)) return 1;
         }

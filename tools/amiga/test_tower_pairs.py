@@ -7,6 +7,7 @@ import subprocess
 from test_player import ROOT
 from test_tower_stream import Stream
 from test_tower_draw import Draw
+from tower_gameplay_data import hallway_rooms
 OUT=ROOT/'build/amiga-feasibility'
 def values(path,name):
     text=path.read_text()
@@ -20,16 +21,20 @@ def main():
     core.v6_tower_pairs_validate.argtypes=[C.POINTER(Stream),wp,C.c_uint,C.c_uint,C.c_uint]
     for name in ('v6_tower_draw_pair_prepare','v6_tower_draw_pair_prepare_verified'):
         getattr(core,name).argtypes=[C.POINTER(Draw),bp,C.POINTER(Stream),C.c_int,wp,wp,C.c_uint,C.c_uint,C.c_uint,C.POINTER(C.c_uint)]
+    core.v6_tower_draw_pair_prepare_budget.argtypes=core.v6_tower_draw_pair_prepare.argtypes+[C.c_uint]
     source=(ROOT/'desktop_version/src/Tower.cpp').read_text();frames=rows=0
-    for name in ('loadmap','loadminitower1','loadminitower2','loadbackground'):
+    for name in ('loadmap','loadminitower1','loadminitower2','loadbackground','hallway0','hallway1'):
         planes=1 if name=='loadbackground' else 2;prefix='tower_background' if planes==1 else 'tower'
         offsets=values(OUT/(prefix+'_pairs.h'),prefix+'_pair_offsets')
         words=values(OUT/(prefix+'_pairs.h'),prefix+'_pairs')
         native_offsets=(C.c_uint16*1024)(*offsets);native_words=(C.c_uint16*len(words))(*words)
-        raw=source[source.index('void towerclass::'+name+'('):]
-        raw=re.search(r'static const short tmap\[\]\s*=\s*\{(.*?)\};',raw,re.S)[1]
-        raw=re.sub(r'//[^\n]*|/\*.*?\*/','',raw,flags=re.S)
-        tiles=[int(v) for v in raw.split(',') if v.strip()];height=len(tiles)//40
+        if name.startswith('hallway'):tiles=hallway_rooms()[int(name[-1])]['tiles']
+        else:
+            raw=source[source.index('void towerclass::'+name+'('):]
+            raw=re.search(r'static const short tmap\[\]\s*=\s*\{(.*?)\};',raw,re.S)[1]
+            raw=re.sub(r'//[^\n]*|/\*.*?\*/','',raw,flags=re.S)
+            tiles=[int(v) for v in raw.split(',') if v.strip()]
+        height=len(tiles)//40
         atlas=(OUT/('tower_backdrop.bin' if planes==1 else 'tower_tiles.bin')).read_bytes()
         blob=(OUT/(name+'.v6tr')).read_bytes();stream=Stream()
         assert core.v6_tower_open(C.byref(stream),blob,len(blob))
@@ -51,6 +56,25 @@ def main():
                         assert output[offset:offset+40]==expected,(name,frame,row,plane,y)
                 rows+=1
             frames+=1
+        # A cold bank can be filled one row per frame without certifying or
+        # publishing a partial window. Zero budget changes no pixel or tag.
+        cold=Draw();buf=(C.c_uint16*(planes*5120+2))(*([0xa5a5]*(planes*5120+2)))
+        dst=C.cast(C.byref(buf,2),bp);before=bytes(buf)
+        assert core.v6_tower_draw_pair_prepare_budget(C.byref(cold),dst,C.byref(stream),0,
+            native_offsets,native_words,len(words),30,planes,C.byref(drawn),0)==2
+        assert bytes(buf)==before and cold.valid==0 and not cold.complete and drawn.value==0
+        for tick in range(31):
+            result=core.v6_tower_draw_pair_prepare_budget(C.byref(cold),dst,C.byref(stream),0,
+                native_offsets,native_words,len(words),30,planes,C.byref(drawn),1)
+            assert drawn.value==1 and result==(1 if tick==30 else 2)
+            assert bool(cold.complete)==(tick==30)
+        output=bytes(buf);assert output[:2]==output[-2:]==b'\xa5\xa5'
+        for row in range(31):
+            ids=tiles[(row%height)*40:(row%height+1)*40]
+            for plane in range(planes):
+                for y in range(8):
+                    at=2+plane*10240+row*320+y*40
+                    assert output[at:at+40]==bytes(atlas[t*planes*8+plane*8+y] for t in ids)
         # Reject unsupported pairs and short/unaligned destinations before
         # writing their row; repairs must validate again before verified use.
         bad=(C.c_uint16*1024)(*offsets);key=tiles[0]*32+tiles[1];bad[key]=65535
@@ -62,6 +86,6 @@ def main():
         assert not core.v6_tower_draw_pair_prepare(C.byref(empty),C.cast(C.byref(buf,1),bp),C.byref(stream),0,native_offsets,native_words,len(words),30,planes,C.byref(drawn))
         assert bytes(buf)==before
         assert not core.v6_tower_pairs_validate(C.byref(stream),native_offsets,planes*8-1,30,planes)
-    report=dict(frames=frames,rows=rows,scope='Checked and prevalidated paired-word rendering vs source maps/byte atlases; all four maps, alternating buffers, signed limits, unknown pairs and alignment failures')
+    report=dict(frames=frames,rows=rows,cold_budget_frames=6*31,scope='Checked/prevalidated/budgeted paired-word rendering vs source maps/byte atlases; main, mini and hallway maps, alternating buffers, signed limits, unknown pairs and alignment failures')
     (OUT/'tower-pair-tests.json').write_text(json.dumps(report,indent=2)+'\n');print('PASS',report)
 if __name__=='__main__':main()

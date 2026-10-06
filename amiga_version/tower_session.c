@@ -1,6 +1,6 @@
 #include "tower_session.h"
 static unsigned play(V6TowerSession *s,const V6Room *room,unsigned input,
-                      int direction,int mini,V6TowerGameplay *world)
+                      int direction,int mini,V6TowerGameplay *world,int room_x,int room_y)
 {
     unsigned events;
     int contacts;
@@ -16,7 +16,7 @@ static unsigned play(V6TowerSession *s,const V6Room *room,unsigned input,
     if(v6_tower_session_tick(s,direction,0,mini)) return events;
     if(world) {
         unsigned saves=v6_checkpoints_update(world->checkpoints,world->count,
-            &s->player,world->save.room_x,world->save.room_y,&world->save);
+            &s->player,room_x,room_y,&world->save);
         world->activations+=saves;
         if(saves) {
             unsigned i;uint32_t bit=1;
@@ -44,10 +44,13 @@ static unsigned play(V6TowerSession *s,const V6Room *room,unsigned input,
 }
 unsigned v6_tower_session_play(V6TowerSession *s,const V6Room *room,unsigned input,
                                int direction,int mini)
-{ return play(s,room,input,direction,mini,0); }
+{ return play(s,room,input,direction,mini,0,0,0); }
 unsigned v6_tower_session_play_world(V6TowerSession *s,const V6Room *room,
                                     unsigned input,V6TowerGameplay *world)
-{ return play(s,room,input,0,0,world); }
+{ return play(s,room,input,0,0,world,world->save.room_x,world->save.room_y); }
+unsigned v6_tower_session_play_room(V6TowerSession *s,const V6Room *room,
+                                    unsigned input,V6TowerGameplay *world,int x,int y)
+{ return play(s,room,input,0,0,world,x,y); }
 void v6_tower_session_init(V6TowerSession *s,int x,int y,int gravity,int direction)
 {
     v6_player_init(&s->player,x,y,gravity);
@@ -66,7 +69,7 @@ void v6_tower_session_die(V6TowerSession *s)
 {
     if(s->death_timer==-1) s->death_timer=30;
 }
-static int advance_life(void *context)
+int v6_tower_session_life(void *context)
 {
     V6TowerSession *s=context;
     ++s->life_calls;
@@ -81,7 +84,7 @@ static int advance_life(void *context)
 int v6_tower_session_tick(V6TowerSession *s,int direction,int stopped,int mini)
 {
     v6_tower_camera_tick(&s->camera,s->player.y,1,direction,stopped,mini);
-    v6_tower_camera_recover(&s->camera,&s->resume_delay,s->life_timer,advance_life,s);
+    v6_tower_camera_recover(&s->camera,&s->resume_delay,s->life_timer,v6_tower_session_life,s);
     v6_tower_camera_death(&s->camera,s->death_timer);
     if(s->death_timer==-1) return 0;
     if(s->death_timer==30) ++s->deaths;

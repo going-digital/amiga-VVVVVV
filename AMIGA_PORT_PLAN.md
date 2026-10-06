@@ -2,10 +2,10 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
-Latest milestone (6 October 2026): main-tower checkpoint activation and recovery
-pass the 250-line headroom gate at 244 PAL lines, with zero missed frames.
-See the "Tower checkpoints and boundaries" update at the end for scope and
-remaining work.
+Latest milestone (6 October 2026): the bounded tower/hallway route loads its
+adjacent rooms and passes the 250-line headroom gate at 249 PAL lines, with
+zero missed frames. See the "Tower hallway loading" update at the end for
+scope and remaining work.
 
 ## Implementation progress — 27 September 2026
 
@@ -754,3 +754,66 @@ normal-input traversal beyond this area, then measure Lightspeedplayer music
 and SFX with gameplay. Other tower entities, scripts, interpolation and palette
 cycling remain pending. These emulator timing results exclude audio and do
 not establish physical A500 validation.
+
+## Tower hallway loading — 6 October 2026
+
+The previous milestone is committed as `88a5293f`. The new `tower-route-run`
+build connects the main tower to Teleporter Divot (108,109) and Seeing Red
+(110,104). It loads their literal 40x30 terrain and checkpoint banks, uses
+ordinary-room tileset-2 collision/spike geometry there, and preserves the
+global save's room identity while traversing. Returning through the lower
+entrance adds 5368 to player Y and starts the camera at 5368; the upper entrance
+keeps local Y and starts the camera at zero. Physics history is reset after
+that entrance transform, while velocity is retained.
+
+Hallway death can load the saved tower checkpoint and snap its camera to the
+saved player; a hallway checkpoint can also be restored after death in the
+tower. A same-hallway respawn retains the checkpoint bank instead of rebuilding
+it. The current room and saved room are now separate inputs to checkpoint
+updates. Unknown exits and malformed room loads are explicit failures, with
+the live collision/checkpoint state retained on failed load.
+
+Native `tower-route-capture` starts at the original lower tower checkpoint
+(44,5449), exits left into Teleporter Divot at tick 11, and returns right at
+tick 18 using ordinary inputs. It checks 5,120 fields of the first 128 ticks
+against host integration, records seven natural deaths/respawns over 669 logic
+ticks, and restores AmigaDOS. Peak work is **249 PAL lines / 15.936 ms**, zero
+missed frames, and unchanged 64,128 explicit Chip bytes. The worst frame is
+88 logic lines plus 161 rendering lines. Results are under
+`build/amiga-tower-route-replay/capture.json`.
+
+Room display changes use checked, resumable cold fills: at most one foreground
+and one background row per frame, and a bank is published only once its full
+window is ready. The previous completed image stays visible until then. Both
+banks are prepared before logic resumes; this pauses gameplay for 62 PAL
+fields (about 1.24 seconds) per crossing in this replay, 124 fields total.
+Paused fields do not advance the 34 ms logic clock. Transition work is included
+in the timing gate. This is a bounded loading policy, not seamless desktop
+transition timing.
+
+Whole-room collision decoding initially exceeded the frame budget. Resident
+immutable hallway tile views now add 4,800 ordinary-memory bytes and remove
+that decode from the frame loop; the packed fallback remains validated and
+tested. All resident display sources are fully validated before takeover,
+then rebound only to those identical immutable bytes. Pair tables remain
+6,304 bytes: the two extra hallway pairs reuse existing pixel patterns. The
+interactive build's Hunk footprint is 86,684 bytes, excluding explicit Chip
+allocation, stack and OS memory. The fallback loader uses a 2,400-byte temporary
+buffer so malformed packets cannot corrupt the live room.
+
+Host checks include 60 entry/history cases compiled from desktop Map.cpp,
+3,840 extracted desktop movement/spike ticks on the actual hallway maps,
+both directions of remote checkpoint restore, same-room bank retention,
+resident/packed views, and failed-load state retention. Paired drawing checks
+now cover six maps, 71,238 rows, 2,298 alternating-buffer frames and 186 cold
+fill steps. Two native hallway captures match all 153,600 terrain pixels;
+the eight fixed tower views also remain a separate regression gate. The earlier
+second-checkpoint native replay still passes, now at 243 lines with zero misses.
+
+The hallway backgrounds are currently black. Seeing Red's crew entity and
+dialogue trigger, other story scripts, exits beyond these hallways, other tower
+entities, interpolation, palette cycling and music/SFX remain outside this
+slice. Native coverage proves the lower crossing route; upper entrance and
+remote checkpoint behavior currently have source/host coverage. Next: expand
+normal-input traversal and native remote-return coverage, improve loading
+latency, and measure Lightspeedplayer audio with the combined workload.

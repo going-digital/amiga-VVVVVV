@@ -26,4 +26,10 @@ unsigned v6_tower_session_play(V6TowerSession *,const V6Room *,unsigned input,
  * Do not call again after a room exit until its destination has been loaded. */
 unsigned v6_tower_session_play_world(V6TowerSession *,const V6Room *,unsigned,
                                     V6TowerGameplay *);
+/* Same phase ordering with the current room coordinates distinct from the
+ * saved room, for the two main-tower entrances. */
+unsigned v6_tower_session_play_room(V6TowerSession *,const V6Room *,unsigned,
+                                   V6TowerGameplay *,int room_x,int room_y);
+/* Advance one visibility/gravity lifecycle phase; context is a session. */
+int v6_tower_session_life(void *);
 #endif

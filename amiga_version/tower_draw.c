@@ -92,7 +92,7 @@ int v6_tower_draw_mono_prepare(V6TowerDraw *d,uint8_t *ring,V6TowerStream *strea
 }
 static inline __attribute__((always_inline)) int pair_prepare(V6TowerDraw *d,uint8_t *ring,V6TowerStream *stream,
     int top,const uint16_t offsets[1024],const uint16_t *atlas,unsigned words,
-    unsigned count,unsigned planes,unsigned *drawn,int verified)
+    unsigned count,unsigned planes,unsigned *drawn,int verified,unsigned budget)
 {
     int row,first,end;uint32_t bit;
     if(drawn) *drawn=0;
@@ -105,6 +105,8 @@ static inline __attribute__((always_inline)) int pair_prepare(V6TowerDraw *d,uin
         const uint16_t *tiles;
         const uint16_t *columns[20];
         if((d->valid&bit) && d->tags[slot]==row) continue;
+        if(!budget) return 2;
+        --budget;
         tiles=v6_tower_row(stream,row,0);
         if(!tiles) return 0;
         /* Validate the whole row before writing either plane. */
@@ -129,11 +131,15 @@ static inline __attribute__((always_inline)) int pair_prepare(V6TowerDraw *d,uin
 int v6_tower_draw_pair_prepare(V6TowerDraw *d,uint8_t *ring,V6TowerStream *s,int top,
     const uint16_t offsets[1024],const uint16_t *atlas,unsigned words,unsigned count,
     unsigned planes,unsigned *drawn)
-{ return pair_prepare(d,ring,s,top,offsets,atlas,words,count,planes,drawn,0); }
+{ return pair_prepare(d,ring,s,top,offsets,atlas,words,count,planes,drawn,0,31); }
 int v6_tower_draw_pair_prepare_verified(V6TowerDraw *d,uint8_t *ring,V6TowerStream *s,int top,
     const uint16_t offsets[1024],const uint16_t *atlas,unsigned words,unsigned count,
     unsigned planes,unsigned *drawn)
-{ return pair_prepare(d,ring,s,top,offsets,atlas,words,count,planes,drawn,1); }
+{ return pair_prepare(d,ring,s,top,offsets,atlas,words,count,planes,drawn,1,31); }
+int v6_tower_draw_pair_prepare_budget(V6TowerDraw *d,uint8_t *ring,V6TowerStream *s,int top,
+    const uint16_t offsets[1024],const uint16_t *atlas,unsigned words,unsigned count,
+    unsigned planes,unsigned *drawn,unsigned budget)
+{ return pair_prepare(d,ring,s,top,offsets,atlas,words,count,planes,drawn,0,budget); }
 int v6_tower_pairs_validate(V6TowerStream *s,const uint16_t offsets[1024],
     unsigned words,unsigned count,unsigned planes)
 {

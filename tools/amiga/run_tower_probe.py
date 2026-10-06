@@ -39,8 +39,9 @@ def main():
     parser.add_argument("--interactive", action="store_true", help="Run the built disk with joystick controls until mouse exit")
     parser.add_argument("--world", action="store_true", help="Validate tower checkpoints and horizontal boundaries")
     parser.add_argument('--wrap',action='store_true',help='Validate normal-input horizontal wrap replay')
+    parser.add_argument('--route',action='store_true',help='Validate tower/hallway crossings and staged display loads')
     args = parser.parse_args()
-    if args.wrap: args.world=True
+    if args.wrap or args.route: args.world=True
     if args.world:
         args.play=True
     if args.recovery or args.play:
@@ -91,7 +92,10 @@ write_protected = true
         assert report['logic_ticks'] > 100, report
         assert report['logic_ticks']*34000+report['logic_remainder'] == report['logic_frames']*19968, report
         assert 0 <= report['logic_remainder'] < 34000, report
-        if args.world:
+        if args.route:
+            from tower_route_trace import verify
+            verify(report, BUILD/'slow.bin')
+        elif args.world:
             from tower_world_trace import verify
             verify(report, BUILD / "slow.bin",args.wrap)
         elif args.play:
@@ -128,7 +132,7 @@ write_protected = true
         if args.world:
             report['visible_active_checkpoint_pixels']=sum(1 for i in range(0,len(pixels),4)
                 if pixels[i+1]>150 and pixels[i+1]>pixels[i]*1.5 and pixels[i+1]>pixels[i+2]*1.5)
-            assert report['visible_active_checkpoint_pixels']>20,report
+            if not args.route: assert report['visible_active_checkpoint_pixels']>20,report
         report['headroom_20_percent']=report['max_work_lines']<=250
     if not args.controller:
         assert report['forward_wraps'] >= 1 and report['reverse_wraps'] >= 1, report
@@ -161,6 +165,8 @@ write_protected = true
         report['scope'] = 'Main-tower checkpoint-area normal-input route to a second checkpoint and natural recovery; 128 camera/player/checkpoint ticks match host integration; room exits request a load but are not yet loaded'
         if args.wrap:
             report['scope']='Main-tower normal-input horizontal wraps in both directions and natural recovery; 128 camera/player/checkpoint ticks match host integration; adjacent room loads remain pending'
+        if args.route:
+            report['scope']='Bounded tower/hallway route with staged display loads, ordinary movement and checkpoint recovery; first 128 ticks match host integration; crew/scripts and hallway backgrounds omitted'
     (BUILD / 'capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
 

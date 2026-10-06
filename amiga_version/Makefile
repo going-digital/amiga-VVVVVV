@@ -282,7 +282,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -379,6 +379,9 @@ test: test-tower-player
 $(BUILD)/tower_gameplay.o: tower_gameplay.c tower_gameplay.h checkpoints.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD)/tower_route.o: tower_route.c tower_route.h tower_session.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+
 -include $(BUILD)/tower_session.d $(BUILD)/tower_gameplay.d
 
 .PHONY: test-tower-world test-tower-pairs tower-paired-pixel-test
@@ -406,3 +409,19 @@ tower-world-capture: tower-probe
 tower-wrap-capture: tower-probe
 	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-wrap-replay CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_WRAP_REPLAY" $(ROOT)/build/amiga-tower-wrap-replay/tower.adf
 	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-wrap-replay --wrap
+
+.PHONY: tower-route tower-route-run tower-route-capture test-tower-route
+tower-route: tower-probe
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-route CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE" $(ROOT)/build/amiga-tower-route/tower.adf
+tower-route-run: tower-route
+	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-route --interactive
+tower-route-capture: tower-probe
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-route-replay CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_ROUTE_REPLAY" $(ROOT)/build/amiga-tower-route-replay/tower.adf
+	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-route-replay --route
+test-tower-route:
+	python3 $(ROOT)/tools/amiga/test_tower_route.py
+.PHONY: tower-hallway-pixel-test
+tower-hallway-pixel-test: tower-probe
+	python3 $(ROOT)/tools/amiga/test_tower_capture.py --hallways
+test: test-tower-route
+-include $(BUILD)/tower_route.d
