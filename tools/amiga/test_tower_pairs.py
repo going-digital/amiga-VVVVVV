@@ -56,25 +56,29 @@ def main():
                         assert output[offset:offset+40]==expected,(name,frame,row,plane,y)
                 rows+=1
             frames+=1
-        # A cold bank can be filled one row per frame without certifying or
-        # publishing a partial window. Zero budget changes no pixel or tag.
-        cold=Draw();buf=(C.c_uint16*(planes*5120+2))(*([0xa5a5]*(planes*5120+2)))
-        dst=C.cast(C.byref(buf,2),bp);before=bytes(buf)
-        assert core.v6_tower_draw_pair_prepare_budget(C.byref(cold),dst,C.byref(stream),0,
-            native_offsets,native_words,len(words),30,planes,C.byref(drawn),0)==2
-        assert bytes(buf)==before and cold.valid==0 and not cold.complete and drawn.value==0
-        for tick in range(31):
-            result=core.v6_tower_draw_pair_prepare_budget(C.byref(cold),dst,C.byref(stream),0,
-                native_offsets,native_words,len(words),30,planes,C.byref(drawn),1)
-            assert drawn.value==1 and result==(1 if tick==30 else 2)
-            assert bool(cold.complete)==(tick==30)
-        output=bytes(buf);assert output[:2]==output[-2:]==b'\xa5\xa5'
-        for row in range(31):
-            ids=tiles[(row%height)*40:(row%height+1)*40]
-            for plane in range(planes):
-                for y in range(8):
-                    at=2+plane*10240+row*320+y*40
-                    assert output[at:at+40]==bytes(atlas[t*planes*8+plane*8+y] for t in ids)
+        # Cover one-row, two-row, and transition-frame adaptive fills. No
+        # partial window can be certified; zero budget leaves pixels untouched.
+        for budgets in ([1]*31,[2]*16,[1]+[2]*15):
+            cold=Draw();buf=(C.c_uint16*(planes*5120+2))(*([0xa5a5]*(planes*5120+2)))
+            dst=C.cast(C.byref(buf,2),bp);before=bytes(buf)
+            assert core.v6_tower_draw_pair_prepare_budget(C.byref(cold),dst,C.byref(stream),0,
+                native_offsets,native_words,len(words),30,planes,C.byref(drawn),0)==2
+            assert bytes(buf)==before and cold.valid==0 and not cold.complete and drawn.value==0
+            total=0
+            for budget in budgets:
+                result=core.v6_tower_draw_pair_prepare_budget(C.byref(cold),dst,C.byref(stream),0,
+                    native_offsets,native_words,len(words),30,planes,C.byref(drawn),budget)
+                assert drawn.value==min(budget,31-total)
+                total+=drawn.value
+                assert result==(1 if total==31 else 2) and bool(cold.complete)==(total==31)
+            assert total==31
+            output=bytes(buf);assert output[:2]==output[-2:]==b'\xa5\xa5'
+            for row in range(31):
+                ids=tiles[(row%height)*40:(row%height+1)*40]
+                for plane in range(planes):
+                    for y in range(8):
+                        at=2+plane*10240+row*320+y*40
+                        assert output[at:at+40]==bytes(atlas[t*planes*8+plane*8+y] for t in ids)
         # Reject unsupported pairs and short/unaligned destinations before
         # writing their row; repairs must validate again before verified use.
         bad=(C.c_uint16*1024)(*offsets);key=tiles[0]*32+tiles[1];bad[key]=65535
@@ -86,6 +90,6 @@ def main():
         assert not core.v6_tower_draw_pair_prepare(C.byref(empty),C.cast(C.byref(buf,1),bp),C.byref(stream),0,native_offsets,native_words,len(words),30,planes,C.byref(drawn))
         assert bytes(buf)==before
         assert not core.v6_tower_pairs_validate(C.byref(stream),native_offsets,planes*8-1,30,planes)
-    report=dict(frames=frames,rows=rows,cold_budget_frames=6*31,scope='Checked/prevalidated/budgeted paired-word rendering vs source maps/byte atlases; main, mini and hallway maps, alternating buffers, signed limits, unknown pairs and alignment failures')
+    report=dict(frames=frames,rows=rows,cold_budget_frames=6*63,scope='Checked/prevalidated/budgeted paired-word rendering vs source maps/byte atlases; main, mini and hallway maps, alternating buffers, signed limits, unknown pairs and alignment failures')
     (OUT/'tower-pair-tests.json').write_text(json.dumps(report,indent=2)+'\n');print('PASS',report)
 if __name__=='__main__':main()

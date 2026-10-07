@@ -39,7 +39,7 @@ static V6TowerGameplay world;
 #ifdef V6_TOWER_ROUTE
 #include "tower_route_data.h"
 static V6TowerRoute route;
-static unsigned route_loading;
+static unsigned route_loading,route_budget;
 static volatile struct { ULONG magic,version,index,transitions,returns,loading_frames,error; }
     route_diag={0x56365254,1,0,0,0,0,0};
 #endif
@@ -101,7 +101,7 @@ static int route_source(void)
         v6_tower_draw_reset(&draw[i]);v6_tower_draw_reset(&background_draw[i]);
         prepared_camera[i]=(unsigned)route.session->camera.y;
     }
-    route_loading=2;return 1;
+    route_loading=2;route_budget=1;return 1;
 }
 static volatile struct { ULONG magic,version,count,records[128][3]; }
     route_trace={0x56365252,1,0,{{0}}};
@@ -515,14 +515,17 @@ static int run(void) {
         publish=1;drawn=0;
         if(route_loading) {
             unsigned fg_rows,bg_rows=0;
+            /* A crossing also pays for physics and bank rebinding. Keep its
+             * fill small; paused frames have room for twice the row work. */
+            unsigned budget=route_budget;
             int fg=v6_tower_draw_pair_prepare_budget(&draw[back],rings[back],&stream,camera>>3,
-                tower_pair_offsets,tower_pairs,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2,&fg_rows,1);
+                tower_pair_offsets,tower_pairs,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2,&fg_rows,budget);
             int bg=1;
             if(!route.rooms[route.index].packed)
                 bg=v6_tower_draw_pair_prepare_budget(&background_draw[back],rings[back]+V6_TOWER_RING_BYTES,
                     &background_stream,camera>>4,tower_background_pair_offsets,tower_background_pairs,
-                    TOWER_BACKGROUND_PAIR_WORDS,TOWER_TILE_COUNT,1,&bg_rows,1);
-            drawn=fg_rows+bg_rows;++route_diag.loading_frames;
+                    TOWER_BACKGROUND_PAIR_WORDS,TOWER_TILE_COUNT,1,&bg_rows,budget);
+            drawn=fg_rows+bg_rows;++route_diag.loading_frames;route_budget=2;
             if(!fg || !bg) { diag.error=8;break; }
             publish=fg==1 && bg==1;
             if(publish) {

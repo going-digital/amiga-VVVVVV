@@ -41,7 +41,7 @@ def verify(report,path,upper=False):
     if upper:assert r.returns==1 and w.save.id==50520
     assert final[:3]==(r.index,r.transitions,r.returns) and not final[4]
     assert world_final[:12]==tuple(value&0xffffffff for value in state(w,w.checkpoints[:w.count]))
-    assert final[3]==(186 if upper else 124) and s.respawns>0 and report['camera']==s.camera.y
+    assert final[3]==(96 if upper else 64) and s.respawns>0 and report['camera']==s.camera.y
     report.update(trace_fields=128*40,crossings=crossings,room_transitions=r.transitions,
         remote_returns=r.returns,loading_frames=final[3],deaths=s.deaths,respawns=s.respawns,
         saved_id=w.save.id)

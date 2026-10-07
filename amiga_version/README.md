@@ -1401,3 +1401,16 @@ this upper route remains pending.
 This build still excludes audio, other tower entities and full story logic.
 The earlier checkpoint/wrapping work is committed as `88a5293f`; hallway work
 is committed as `1db8ce47`.
+
+## Faster staged hallway loading
+
+Cold loads now take 32 PAL fields per transition, about 0.639 seconds instead
+of 62 fields / 1.238 seconds. The crossing frame retains a one-row fill per
+layer, while subsequent paused frames fill two rows. Both banks are still
+completed before gameplay resumes; partial banks are never published. This
+uses the same 64,128 explicit Chip bytes. The lower replay expects 64 total
+loading fields and the upper recovery replay 96. Both retain the 250-line
+A500 gate and full host trace comparisons. Paired-render tests now cover 378
+cold-fill frames, including mixed one/two-row schedules. Fresh lower/upper
+captures peak at 249/213 PAL lines with zero misses and clean OS restoration;
+each matches all 5,120 traced state fields.

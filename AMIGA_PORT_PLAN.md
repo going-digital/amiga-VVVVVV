@@ -821,5 +821,16 @@ peaks at 191 PAL lines with zero misses and unchanged 64,128 Chip bytes. Three
 loads pause logic for 186 fields in total. This fixture tests recovery wiring;
 it does not claim a natural hazard traversal. Run `tower-upper-route-capture`.
 
-Next: improve loading latency, expand natural traversal and story coverage,
-and measure Lightspeedplayer audio with the combined workload.
+The next increment reduces cold loading to 32 PAL fields per transition,
+about 0.639 seconds (48.4% shorter). The crossing frame fills one row per
+layer; later paused frames fill two, while continuing to publish only complete
+banks and warm both banks before resuming logic. An unconditional two-row fill
+reached 284 lines on a crossing and was rejected by the unchanged 250-line
+gate. No extra Chip allocation is needed. Host paired-render coverage now
+includes 378 cold-fill frames across one-row, two-row and mixed schedules.
+Fresh native lower/upper captures pass at 249/213 PAL lines, zero misses,
+64/96 total loading fields and 5,120 matching traced fields each. Both restore
+the OS cleanly.
+
+Next: expand natural traversal and story coverage, and measure
+Lightspeedplayer audio with the combined workload.
