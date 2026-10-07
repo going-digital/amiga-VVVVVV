@@ -1826,3 +1826,45 @@ bitmap/animation rendering and room integration, then interaction/travel UI,
 arrival flow and disk-save support. The current campaign codec and checkpoint
 consumer continue to accept only the existing tower/hallway banks; Building
 Apport is not yet admitted as playable terrain without its complete setup.
+
+## Teleporter graphics and native composition
+
+The private asset converter now exports all ten 96-by-96 teleporter alpha
+masks. Desktop `GraphicsResources.cpp` loads this image as `TEX_WHITE`, so RGB
+is discarded while alpha is preserved. The supplied source alpha is binary.
+Frame zero supplies the dark base; the selected frame supplies the tint,
+overriding base pixels where both are opaque. The static fixture applies the
+desktop frame clamp (below 1 becomes 1; above 9 becomes 8).
+
+`teleporter_draw.c` builds six 16-by-96 unattached hardware sprites. Palette
+index 1 is the dark base, index 2 the tint, and zero remains transparent. The
+caller owns six consecutive channels and their shared pair palettes; the core
+does not touch registers. It clips against x=0..319 and the gameplay strip
+y=16..215, emits terminating DMA words, and rejects invalid coordinates before
+writing. Native Chip storage holds one immutable DMA bank in the fixed fixture.
+Dynamic gameplay will need inactive banks and a channel budget shared with the
+player and companion.
+
+`make -C amiga_version test-teleporter-draw` checks every generated mask against
+source PNG alpha, reconstructs all emitted DMA pixels in 1,080 frame/position
+cases, and checks guard words, clipping, termination and invalid-input
+preservation under host undefined-behavior checking.
+
+`make -C amiga_version tower-teleporter-capture` renders Building Apport's
+literal terrain and its teleporter at (112,48), with the static hallway
+background at offset 200. It compares every 320-by-240 logical pixel for frame
+1, frame 6 and out-of-range frame 10 (clamped to 8): 230,400 checks. Frozen OCS
+tints are 0x444 and 0xaaf; these fixtures do not reproduce random tint cycling.
+All three captures pass, with zero missed frames, a 15-line steady-state peak
+and 64,564 bytes of Chip RAM. The native sprite image was visually inspected.
+The static harness reserves 192 Copper words per list for the extra sprite
+pointers and pair palettes; its former 64-word allocation was insufficient.
+
+Building Apport is exported as a visual fixture, not added to the live route.
+Its terrain pairs are included in the verified paired atlas. Activation and
+ordinary-room boundary host regressions also pass. The existing lower native
+route still matches 5,120 trace fields, peaks at 245 lines and misses zero
+frames. Next: source animation,
+live activation and renderer integration, then interaction/travel UI and
+teleporter checkpoint disk-save support. Static timing is not a moving-gameplay
+performance result.

@@ -15,7 +15,7 @@ from pack_rooms import ROOT
 from probe_feasibility import tower_probe
 from test_tower_stream import Stream
 from test_tower_draw import Draw
-from tower_gameplay_data import export,hallway_rooms
+from tower_gameplay_data import export,hallway_rooms,building_room
 
 
 def paired_atlas(out,atlas,planes,names,prefix):
@@ -29,6 +29,8 @@ def paired_atlas(out,atlas,planes,names,prefix):
     if prefix=='tower':
         for room in hallway_rooms():
             allowed.update(zip(room['tiles'][::2],room['tiles'][1::2]))
+    if prefix=='tower':
+        tiles=building_room();allowed.update(zip(tiles[::2],tiles[1::2]))
     offsets=[65535]*1024;patterns={};words=[]
     for a,b in sorted(allowed):
         assert a<30 and b<30
@@ -62,6 +64,18 @@ def main():
         original=archive.read('graphics/tiles3.png')
         sprite_png=archive.read('graphics/sprites.png')
         font_png=archive.read('graphics/font.png')
+        teleporter_png=archive.read('graphics/teleporter.png')
+    tele_path=out/'teleporter.png';tele_path.write_bytes(teleporter_png)
+    dimensions,tele_rgba=subprocess.check_output([str(decoder),str(tele_path)]).split(b'\n',1)
+    tw,th=map(int,dimensions.split());assert (tw,th)==(960,96)
+    # GraphicsResources loads TEX_WHITE: preserve alpha, discard source RGB.
+    assert set(tele_rgba[3::4])=={0,255}
+    tele_masks=[]
+    for frame in range(10):
+        tele_masks.append([[sum((tele_rgba[(y*tw+frame*96+c*16+x)*4+3]!=0)<<(15-x)
+            for x in range(16)) for c in range(6)] for y in range(96)])
+    (out/'teleporter_assets.h').write_text('static const uint16_t teleporter_masks[10][96][6]={'+
+        ','.join('{'+','.join('{'+','.join(map(str,row))+'}' for row in frame)+'}' for frame in tele_masks)+'};\n')
     font_path=out/'dialogue_font.png';font_path.write_bytes(font_png)
     header,font=subprocess.check_output([str(decoder),str(font_path)]).split(b'\n',1)
     fw,fh=map(int,header.split());glyphs=[]

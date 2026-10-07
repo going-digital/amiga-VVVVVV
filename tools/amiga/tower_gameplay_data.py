@@ -21,6 +21,7 @@ def export(out):
         ',\n'.join('{'+','.join(map(str,(*r,0,0)))+'}' for r in rows)+'};\n')
     (out/'tower-checkpoints.json').write_text(json.dumps(rows,indent=2)+'\n')
     export_route(out)
+    export_building(out)
     from hallway_scripts import export as export_scripts
     export_scripts(out)
     return rows
@@ -63,3 +64,23 @@ def export_route(out):
         header+='{'+f'{r["x"]},{r["y"]},hallway{i}_packed,sizeof(hallway{i}_packed),hallway{i}_checkpoint,1,hallway{i}_tiles'+'},\n'
     header+='};\n'
     (out/'tower_route_data.h').write_text(header)
+
+
+def building_room():
+    source=(ROOT/'desktop_version/src/Finalclass.cpp').read_text()
+    start=source.index('case rn(111,104):');body=source[start:source.index('case rn(',start+5)]
+    raw=re.search(r'static const short contents\[\]\s*=\s*\{(.*?)\};',body,re.S)[1]
+    raw=re.sub(r'//[^\n]*|/\*.*?\*/','',raw,flags=re.S)
+    tiles=[int(v) for v in raw.split(',') if v.strip()]
+    assert len(tiles)==1200 and max(tiles)<30
+    calls=re.findall(r'obj.createentity\(([^;]+)\);',body)
+    assert len(calls)==1 and re.sub(r'\s+','',calls[0])=='128-16,80-32,14'
+    return tiles
+
+def export_building(out):
+    tiles=building_room();directory=b'';payload=b''
+    for row in range(30):
+        packet=encode(tiles[row*40:(row+1)*40])
+        directory+=struct.pack('>IH',len(payload),len(packet));payload+=packet
+    display=struct.pack('>4sHHH',b'V6TR',1,40,30)+directory+payload
+    (out/'building_display.h').write_text('static const uint8_t building_display[]={'+','.join(map(str,display))+'};\n')

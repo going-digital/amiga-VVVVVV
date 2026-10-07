@@ -223,6 +223,21 @@ static int player_frame;
 #include "tower_map.h"
 #include "tower_background_map.h"
 #include "tower_backdrop.h"
+#ifdef V6_TOWER_TELEPORTER_HOLD
+#include "teleporter_draw.h"
+#include "teleporter_assets.h"
+#include "building_display.h"
+#ifdef V6_TOWER_PLAY
+#error Teleporter hold is a static visual fixture, not a gameplay route
+#endif
+#ifndef V6_TELEPORTER_TINT
+#define V6_TELEPORTER_TINT 0x444
+#endif
+#define TELE_DMA_BYTES (V6_TELEPORTER_CHANNELS*V6_TELEPORTER_DMA_WORDS*2+4)
+static UWORD *tele_dma;
+#else
+#define TELE_DMA_BYTES 0
+#endif
 struct ExecBase *SysBase;
 struct GfxBase *GfxBase;
 static volatile struct Custom * const hw=(void *)0xdff000;
@@ -251,7 +266,11 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #endif
 #define PLAYER_DMA_BYTES (2*V6_SPRITE_CHANNELS*V6_SPRITE_WORDS*2)
 #else
+#ifdef V6_TOWER_TELEPORTER_HOLD
+#define LIST_WORDS 192
+#else
 #define LIST_WORDS 64
+#endif
 #define PLAYER_DMA_BYTES 0
 #endif
 #define LAYER_BYTES (V6_TOWER_RING_BYTES+V6_TOWER_PLANE_BYTES)
@@ -270,7 +289,7 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #else
 #define UI_DMA_BYTES 0
 #endif
-#define CHIP_BYTES (UI_DMA_BYTES+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES+AUDIO_DMA_BYTES)
+#define CHIP_BYTES (TELE_DMA_BYTES+UI_DMA_BYTES+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES+AUDIO_DMA_BYTES)
 static V6TowerStream stream,background_stream;
 static V6TowerDraw draw[2],background_draw[2];
 static UBYTE *rings[2];
@@ -426,6 +445,9 @@ static unsigned reuse_rows(V6TowerDraw *dst_cache,const V6TowerDraw *src_cache,
 }
 static unsigned background_camera(unsigned camera)
 {
+#ifdef V6_TOWER_TELEPORTER_HOLD
+    (void)camera;return 200;
+#endif
 #ifdef V6_TOWER_ROUTE
     /* Desktop background modes 7/8 both use backat(...,200). */
     if(route.rooms[route.index].packed) return 200;
@@ -468,6 +490,18 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
          * OCS colours in the background tiles: tinted base and grey detail. */
         p=move(p,0x180,DISPLAY_COLOUR(route.index==2?0x011:0x010));
         p=move(p,0x192,DISPLAY_COLOUR(0x111));
+    }
+#endif
+#ifdef V6_TOWER_TELEPORTER_HOLD
+    p=move(p,0x180,0x010);p=move(p,0x192,0x111);
+    for(i=0;i<8;++i) {
+        ULONG address=(ULONG)(tele_dma+(i<6?i*V6_TELEPORTER_DMA_WORDS:6*V6_TELEPORTER_DMA_WORDS));
+        p=move(p,0x120+i*4,address>>16);p=move(p,0x122+i*4,address);
+    }
+    for(i=0;i<3;++i) {
+        p=move(p,0x1a2+i*8,0x111);
+        p=move(p,0x1a4+i*8,V6_TELEPORTER_TINT);
+        p=move(p,0x1a6+i*8,V6_TELEPORTER_TINT);
     }
 #endif
 #ifdef V6_TOWER_PLAY
@@ -761,6 +795,18 @@ static int run(void) {
             }
     }
 #endif
+#ifdef V6_TOWER_TELEPORTER_HOLD
+    tele_dma=(UWORD *)(chip+CHIP_BYTES-TELE_DMA_BYTES);
+    {
+        int frame=V6_TOWER_TELEPORTER_HOLD;
+        if(frame>9)frame=8;
+        if(frame<1)frame=1;
+        if(!v6_teleporter_draw(tele_dma,teleporter_masks[0],teleporter_masks[frame],112,48)) {
+            FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+        }
+        tele_dma[6*V6_TELEPORTER_DMA_WORDS]=tele_dma[6*V6_TELEPORTER_DMA_WORDS+1]=0;
+    }
+#endif
     if(
 #ifdef V6_TOWER_ROUTE
        !v6_tower_open(&stream,hallway0_display,sizeof(hallway0_display)) ||
@@ -782,6 +828,12 @@ static int run(void) {
 #if defined(V6_TOWER_TRIGGER_REPLAY) && !defined(V6_TOWER_COMPANION_ROUTE)
        !v6_tower_open(&stream,hallway1_display,sizeof(hallway1_display)) ||
        !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
+#endif
+#ifdef V6_TOWER_TELEPORTER_HOLD
+       !v6_tower_open(&stream,building_display,sizeof(building_display)) ||
+#ifdef V6_TOWER_PAIRS
+       !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
+#endif
 #endif
        !prepare(rings[0],lists[0],0,camera,0)) {
         FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
@@ -822,7 +874,7 @@ static int run(void) {
     __asm volatile("move.l %0,0x6c.w"::"r"((APTR)irq):"memory");
     blank();hw->cop1lc=(ULONG)lists[0];hw->copjmp1=0;
     hw->dmacon=DMAF_SETCLR|DMAF_MASTER|DMAF_RASTER|DMAF_COPPER|DMAF_BLITTER
-#ifdef V6_TOWER_PLAY
+#if defined(V6_TOWER_PLAY) || defined(V6_TOWER_TELEPORTER_HOLD)
         |DMAF_SPRITE
 #endif
         ;
