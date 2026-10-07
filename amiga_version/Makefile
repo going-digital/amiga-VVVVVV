@@ -560,3 +560,11 @@ test: test-interactive-save
 test-room-boundaries:
 	python3 $(ROOT)/tools/amiga/test_room_boundaries.py
 test: test-room-boundaries
+
+$(BUILD)/teleporter.o: teleporter.c teleporter.h checkpoints.h player.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+.PHONY: test-teleporter
+test-teleporter: $(BUILD)/teleporter.o
+	python3 $(ROOT)/tools/amiga/test_teleporter.py
+test: test-teleporter
+-include $(BUILD)/teleporter.d

@@ -1793,3 +1793,36 @@ Next: implement the teleporter needed by Building Apport (111,104), then admit
 its complete room setup into the resident route. Its literal terrain alone is
 insufficient: the desktop creates a teleporter entity there. General campaign
 coverage and additional saved progression fields remain pending.
+
+## Teleporter activation core
+
+`teleporter.c` ports desktop type-14 creation, rule-3 collision and entity update.
+Building Apport (111,104) creates this entity at (112,48), with default identity
+0. Its 96-by-96 collision rectangle arms state 1; activation occurs at the next
+entity update, even if the player has moved away. Activation changes tile 1 to
+2, disables further contact activation, enables the 160-by-160 interaction
+region at (x-32,y-32), and writes the centre checkpoint at (x+44,y+44), normal
+gravity and the player's facing. Ordinary checkpoints become inactive without
+clearing their pending updates, matching desktop ordering.
+
+The caller receives saved-sound and message requests. Time-trial and no-death
+modes suppress the message request, while the sound and checkpoint still occur.
+State 2 silently initializes an arriving teleporter with flashing tile 6 and an
+active interaction region; it leaves the checkpoint and ordinary checkpoint
+bank unchanged. Repeated active contact produces no further save request.
+Canonical checkpoint validation checks the teleporter identity, centre,
+gravity and facing after the caller selects the bank by room identity.
+
+`make -C amiga_version test-teleporter` compiles the core with the 68000 toolchain
+and compares its behavior with extracted desktop creation/update/collision
+branches under host undefined-behavior checking. It passes 288 activation cases,
+1,375 collision edge cases, a full deferred-contact sequence, 120 subsequent
+idle updates, repeat suppression and invalid checkpoint guards. The fixture
+also checks Building Apport's literal entity call and the source default-ID
+overload. Room-boundary and campaign-codec regressions pass unchanged.
+
+This core is not yet connected to the native frame loop. Next: add teleporter
+bitmap/animation rendering and room integration, then interaction/travel UI,
+arrival flow and disk-save support. The current campaign codec and checkpoint
+consumer continue to accept only the existing tower/hallway banks; Building
+Apport is not yet admitted as playable terrain without its complete setup.
