@@ -2,7 +2,7 @@
 #define V6_TOWER_ROUTE_H
 #include "tower_session.h"
 #include <stddef.h>
-/* Bounded main-tower route: tower entrances plus their two hallways.
+/* Resident route: tower entrances and supported ordinary rooms.
  * Room data/checkpoint banks must outlive the route. A NULL packed room is
  * the streamed main tower; other rooms decode exactly 40x30 tiles. */
 typedef struct {
@@ -37,4 +37,9 @@ int v6_tower_route_load(V6TowerRoute *,int x,int y,int respawn);
  * and may pause logic while doing that. Unsupported exits leave an explicit
  * error; they are never treated as empty rooms or silently respawned. */
 int v6_tower_route_step(V6TowerRoute *,unsigned input);
+/* Ordinary non-wrapping room edges, in desktop vertical/horizontal order.
+ * Each successful crossing resets physics history through route_load.
+ * Missing/malformed destinations retain coordinates at the failed edge and
+ * latch error. A prior successful vertical crossing remains committed. */
+int v6_tower_route_boundary(V6TowerRoute *);
 #endif

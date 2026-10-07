@@ -555,3 +555,8 @@ tower-interactive-save-capture: tower-interactive-save
 test-interactive-save: test-save-controls test-campaign-replace
 	python3 $(ROOT)/tools/amiga/test_interactive_save.py
 test: test-interactive-save
+
+.PHONY: test-room-boundaries
+test-room-boundaries:
+	python3 $(ROOT)/tools/amiga/test_room_boundaries.py
+test: test-room-boundaries

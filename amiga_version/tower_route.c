@@ -81,6 +81,32 @@ static int restore(V6TowerRoute *r)
     s->death_timer=-1;s->life_timer=10;s->invisible=1;++s->respawns;
     return 1;
 }
+static int cross(V6TowerRoute *r,int dx,int dy)
+{
+    V6Player *p=&r->session->player;
+    const V6TowerRouteRoom *here=&r->rooms[r->index];
+    int old_x=p->x,old_y=p->y;
+    p->x-=dx*320;p->y-=dy*240;
+    if(v6_tower_route_load(r,here->x+dx,here->y+dy,0)) return 1;
+    p->x=old_x;p->y=old_y;
+    return 0;
+}
+int v6_tower_route_boundary(V6TowerRoute *r)
+{
+    V6Player *p=&r->session->player;
+    if(r->error) return 0;
+    if(!r->rooms[r->index].packed) return 1;
+    /* Logic.cpp evaluates vertical edges first. Horizontal destination
+     * coordinates then come from the newly loaded room, not the old one. */
+    if(p->y>=238 && !cross(r,0,1)) goto failed;
+    if(p->y< -2 && !cross(r,0,-1)) goto failed;
+    if(!r->rooms[r->index].packed) return 1;
+    if(p->x< -14 && !cross(r,-1,0)) goto failed;
+    if(p->x>=308 && !cross(r,1,0)) goto failed;
+    return 1;
+failed:
+    r->error=1;return 0;
+}
 int v6_tower_route_step(V6TowerRoute *r,unsigned input)
 {
     V6TowerSession *s=r->session;V6TowerGameplay *w=r->world;
@@ -128,14 +154,7 @@ int v6_tower_route_step(V6TowerRoute *r,unsigned input)
     v6_player_physics(&s->player,&r->room,&s->motion,0,0);
     v6_tower_checkpoints_collide(w,&s->player);
     if(v6_player_hurt(&s->player,&r->room)) v6_tower_session_die(s);
-    /* Ordinary rooms transition vertically first, then horizontally. */
-    if(s->player.y>=238 || s->player.y< -2) goto failed;
-    if(s->player.x< -14 || s->player.x>=308) {
-        int dx=s->player.x< -14?-1:1;
-        s->player.x-=dx*320;
-        if(!v6_tower_route_load(r,x+dx,y,0)) goto failed;
-    }
-    return 1;
+    return v6_tower_route_boundary(r);
 failed:
     r->error=1;return 0;
 }

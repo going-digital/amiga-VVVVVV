@@ -1756,3 +1756,40 @@ within the 250-line budget. The status caption was also visually checked.
 
 Next: broader resident room coverage and campaign state. Source-exact textbox
 and fade geometry, crew tint cycling and general audio ownership remain pending.
+
+## Ordinary resident-room boundaries
+
+The route's ordinary-room branch now loads vertical destinations instead of
+rejecting every top/bottom exit. It follows the desktop `Logic.cpp` thresholds:
+y >= 238 subtracts 240 and enters the room below; y < -2 adds 240 and enters the
+room above. Horizontal checks then use the newly loaded room coordinates. A
+corner crossing therefore loads vertical first, then horizontal, resetting
+physics history through each normal room load. Entering a tower suppresses the
+ordinary horizontal phase. Velocity, facing, gravity and the saved checkpoint
+survive these transitions.
+
+Missing or malformed destinations latch the route error while retaining the
+coordinates and state at the failed edge. If a diagonal crossing has already
+loaded its vertical destination, that successful load remains committed when
+the horizontal destination fails. Existing unsupported exits remain explicit
+failures.
+
+`make -C amiga_version test-room-boundaries` compiles the actual desktop vertical,
+horizontal and room-entry history blocks. It compares 480 edge/threshold/corner
+cases on a synthetic nine-room resident grid, checks eight missing/malformed
+edges plus a partial diagonal failure, and exercises five crossings through the
+production gameplay loop. These tests establish transition behavior; they do
+not claim nine newly playable campaign rooms. Existing route tests also pass
+3,840 source hallway movement ticks, 60 entrance transformations, natural spike
+death and remote checkpoint returns.
+
+`make -C amiga_version tower-route-capture tower-upper-route-capture` passes both
+native regressions, comparing 5,120 trace fields each. The lower/upper variants
+peak at 245/244 PAL lines, miss zero frames and retain their 64,128-byte Chip
+allocation. Vertical crossings themselves currently have host verification;
+the existing native fixtures exercise horizontal tower/hallway routes.
+
+Next: implement the teleporter needed by Building Apport (111,104), then admit
+its complete room setup into the resident route. Its literal terrain alone is
+insufficient: the desktop creates a teleporter entity there. General campaign
+coverage and additional saved progression fields remain pending.
