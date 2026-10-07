@@ -17,6 +17,14 @@ static V6HallwayStory persisted_story;
 static unsigned persist_stage;
 static volatile struct { ULONG magic,version,values[18]; } persist_diag={0x56365356,1,{0}};
 #endif
+#if defined(V6_TOWER_BUILDING) && defined(V6_TOWER_UI_SAVE)
+#define V6_TOWER_TELE_MENU
+#include "teleporter_menu.h"
+static V6TeleporterMenu tele_menu;
+static unsigned tele_menu_fire;
+static const V6TeleporterDestination tele_destinations[1]={{111,104}};
+static volatile struct {ULONG magic,version,values[10];} tele_menu_diag={0x5636544d,1,{0}};
+#endif
 #ifdef V6_TOWER_UI_SAVE
 static const char save_name[]="DF1:campaign.v6cs";
 static const char save_temp[]="DF1:campaign.tmp";
@@ -31,12 +39,28 @@ static V6SaveControls save_controls;
 static unsigned ui_status,ui_fields;
 static UBYTE *ui_captions;
 static volatile struct { ULONG magic,version,values[18]; } ui_diag={0x56365549,1,{0}};
-static const V6RescueSpeech ui_messages[5]={
+#ifdef V6_TOWER_TELE_MENU
+#define UI_MESSAGE_COUNT 6
+#else
+#define UI_MESSAGE_COUNT 5
+#endif
+static const V6RescueSpeech ui_messages[UI_MESSAGE_COUNT]={
+#ifdef V6_TOWER_TELE_MENU
+    {0,1,3,{"Down + fire: teleporter menu","Right: save; fire + right: load","Left mouse: exit"}},
+#else
     {0,1,3,{"Right mouse: save","Hold fire + right mouse: load","Left mouse: exit"}},
+#endif
     {1,1,2,{"Checkpoint saved","Continue playing"}},
     {2,1,2,{"Checkpoint loaded","Continue playing"}},
     {3,1,3,{"Save/load failed","Current game retained","Check the save disk"}},
+#ifdef V6_TOWER_TELE_MENU
+    {4,1,2,{"Finish loading or close the menu","Then try save/load again"}}
+#else
     {4,1,2,{"Finish dialogue or loading first","Then try save/load again"}}
+#endif
+#ifdef V6_TOWER_TELE_MENU
+    ,{5,1,3,{"Building Apport","Left/right: select; fire: confirm","Down + fire: cancel"}}
+#endif
 };
 static volatile struct { ULONG magic,version,count,capacity,records[8][10]; } ui_trace={0x56364954,1,0,8,{{0}}};
 #ifdef V6_TOWER_UI_REPLAY
@@ -352,7 +376,7 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #define AUDIO_DMA_BYTES 0
 #endif
 #ifdef V6_TOWER_UI_SAVE
-#define UI_DMA_BYTES (5*V6_DIALOGUE_BYTES)
+#define UI_DMA_BYTES (UI_MESSAGE_COUNT*V6_DIALOGUE_BYTES)
 #else
 #define UI_DMA_BYTES 0
 #endif
@@ -700,8 +724,18 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     }
 #endif
 #ifdef V6_TOWER_UI_SAVE
-    if(ui_fields)return v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
-        camera&255,bg_camera&255,(ULONG)(ui_captions+ui_status*V6_DIALOGUE_BYTES),
+    if(ui_fields
+#ifdef V6_TOWER_TELE_MENU
+       || tele_menu.open
+#endif
+      )return v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
+        camera&255,bg_camera&255,(ULONG)(ui_captions+
+#ifdef V6_TOWER_TELE_MENU
+        (tele_menu.open?5:ui_status)*V6_DIALOGUE_BYTES
+#else
+        ui_status*V6_DIALOGUE_BYTES
+#endif
+        ),
         0x6ff,DISPLAY_COLOUR(tower_palette[1]),DISPLAY_COLOUR(tower_palette[3]))!=0;
 #endif
     return v6_tower_dual_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
@@ -787,6 +821,9 @@ static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
     v6_companion_init(&companion);
 #endif
     player_animation.delay=player_animation.walk=0;player_frame=c->dir?0:3;
+#ifdef V6_TOWER_TELE_MENU
+    v6_teleporter_menu_init(&tele_menu);tele_menu_fire=0;
+#endif
     return route_source();
 }
 #endif
@@ -1063,7 +1100,7 @@ static int run(void) {
 #ifdef V6_TOWER_UI_SAVE
     {
         unsigned i;ui_captions=chip+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES;
-        for(i=0;i<5;++i)if(!v6_dialogue_draw(ui_captions+i*V6_DIALOGUE_BYTES,dialogue_font,&ui_messages[i])) {
+        for(i=0;i<UI_MESSAGE_COUNT;++i)if(!v6_dialogue_draw(ui_captions+i*V6_DIALOGUE_BYTES,dialogue_font,&ui_messages[i])) {
             FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
         }
         ui_fields=250;ui_status=0;
@@ -1134,6 +1171,9 @@ static int run(void) {
                 int result=5;
                 ++ui_diag.values[0];ui_diag.values[7]=action;
                 if(route_loading || session.death_timer!=-1
+#ifdef V6_TOWER_TELE_MENU
+                   || tele_menu.open
+#endif
 #ifdef V6_TOWER_RESCUE
                    || rescue_vm.active
 #endif
@@ -1272,6 +1312,9 @@ static int run(void) {
 #ifdef V6_TOWER_BUILDING_REPLAY
                 input=(diag.logic_ticks<40?V6_RIGHT:diag.logic_ticks<80?V6_LEFT:0);
                 if(diag.logic_ticks==30)input|=V6_FLIP;
+#ifdef V6_TELE_MENU_CAPTURE
+                if(diag.logic_ticks>=42)input=0;
+#endif
 #ifdef V6_BUILDING_SAVE
                 if(building_stage==2)input=0;
 #endif
@@ -1284,6 +1327,45 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_UI_SAVE
                 input=v6_save_controls_filter(&save_controls,input);
+#endif
+#ifdef V6_TOWER_TELE_MENU
+                {
+                    UWORD joy=hw->joy1dat;
+                    int fire=(*(volatile UBYTE *)0xbfe001&0x80)==0;
+                    int down=((joy&0x0100)!=0)!=((joy&1)!=0);
+                    unsigned buttons=0,was_open=tele_menu.open,event;
+                    ULONG before=ui_game_hash();V6TeleporterDestination target;
+                    if(!fire)tele_menu_fire=0;
+                    else if(was_open)tele_menu_fire=1;
+                    if(tele_menu.open) {
+                        if(joy&0x0200)buttons|=V6_TELE_MENU_LEFT;
+                        if(joy&0x0002)buttons|=V6_TELE_MENU_RIGHT;
+                        if(fire)buttons|=down?V6_TELE_MENU_CANCEL:V6_TELE_MENU_CONFIRM;
+                    } else if(fire && !save_controls.suppress_fire && (down || tele_menu_fire)) {
+                        buttons=V6_TELE_MENU_CONFIRM;tele_menu_fire=1;
+                    }
+                    v6_teleporter_menu_ready(&tele_menu,&route.tele_region,&session.player,
+                        route.index==4 && session.death_timer==-1 && !route_loading);
+                    event=v6_teleporter_menu_tick(&tele_menu,tele_destinations,1,
+                        route.rooms[route.index].x,route.rooms[route.index].y,&session.player,buttons,&target);
+                    if(event==V6_TELE_MENU_OPENED){
+                        if(!tele_menu_diag.values[0])tele_menu_diag.values[8]=session.player.flips;
+                        ++tele_menu_diag.values[0];tele_menu_fire=1;tele_menu_diag.values[6]=before;
+                    }
+                    tele_menu_diag.values[9]=session.player.flips;
+                    if(event==V6_TELE_MENU_CHANGED)++tele_menu_diag.values[1];
+                    if(event==V6_TELE_MENU_CLOSED){++tele_menu_diag.values[2];ui_fields=0;}
+                    /* Only the current resident teleporter is offered. A future
+                     * destination must add a validated arrival path first. */
+                    if(event==V6_TELE_MENU_TRAVEL){++tele_menu_diag.values[3];diag.error=13;}
+                    tele_menu_diag.values[4]=tele_menu.selected;
+                    if(tele_menu_fire || was_open || tele_menu.open)input&=~V6_FLIP;
+                    if(was_open || tele_menu.open) {
+                        ++tele_menu_diag.values[5];tele_menu_diag.values[7]=ui_game_hash();
+                        if(tele_menu_diag.values[6]!=tele_menu_diag.values[7])diag.error=13;
+                        goto tele_menu_paused;
+                    }
+                }
 #endif
 #ifdef V6_TOWER_RESCUE
                 V6RescueSignals rescue_signals;
@@ -1386,6 +1468,9 @@ static int run(void) {
 #else
                 v6_tower_camera_tick(&controller,0,0,1,0,0);
 #endif
+#endif
+#ifdef V6_TOWER_TELE_MENU
+tele_menu_paused:
 #endif
                 diag.camera_mode=controller.mode;
                 ++diag.logic_ticks;

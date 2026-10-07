@@ -8,7 +8,8 @@ validation and a native DF1 save/fresh-boot fixture, including malformed-centre
 rejection before takeover. See "Teleporter checkpoint disk persistence" below.
 Interactive Building save/load controls now pass real mouse and fresh-boot
 checks, committed as `c6800d55`; see "Building Apport interactive saving" below.
-The normal-mode selector core is now tested; native menu integration remains next.
+The selector core is committed as `34eed379`. Native menu controls and captions
+now pass hardware-input checks; a second resident destination and arrival are next.
 
 ## Implementation progress — 27 September 2026
 
@@ -1490,3 +1491,36 @@ player logic while selecting, and verify opening/current-room cancellation in
 a native capture before adding another resident destination and arrival effects.
 The destination list must remain stable for an open menu. Explored-destination
 persistence and cross-room travel remain pending; the save format is unchanged.
+
+## Native Building teleporter menu — 7 October 2026
+
+The Building interactive save build now connects the selector core to joystick
+controls and a resident caption. Down + fire opens the menu after activation,
+region readiness and stationary checks; left/right selects, fire confirms, and
+down + fire cancels. Building Apport is the sole resident destination, so
+confirmation returns to play. The normal playable launcher remains
+`make -C amiga_version tower-building-interactive-save-run`.
+
+An open menu pauses player/session, checkpoint, route, and teleporter animation
+updates while retaining the PAL accumulator and rendering. Save/load reports
+busy without pausing for DOS or touching disk contents. Caption priority keeps
+the menu visible through that refusal. Fire is consumed until release on opening,
+confirmation and cancellation; holding confirmation and subsequently pressing
+down cannot reopen the menu or introduce an unintended gravity flip. Loading a
+checkpoint resets selector state. The extra immutable caption costs 3,840 bytes
+of Chip RAM; this build now uses 92,128 bytes.
+
+`make -C amiga_version tower-building-menu-capture` uses fixture movement with
+real emulated joystick/mouse input. It verifies three opens, left/right selection,
+current-room confirmation, explicit cancellation, held-confirmation suppression,
+118 paused logical ticks, matching gameplay hashes throughout selection, one
+busy save, unchanged disks, and unchanged player flip count. The final native
+capture has zero errors/missed fields and peaks at 204 PAL lines. The on-screen
+menu capture was visually checked. Existing physical disk save/load and separate
+fresh-boot load captures also pass with the extra caption (209/210 peak lines,
+zero errors/missed fields); the rescue/audio interactive build still compiles.
+
+Next: add a second source-backed resident teleporter destination and a validated
+arrival path. Only then offer cross-room travel and its source arrival effects.
+The menu currently offers no remote destination and no new exploration or
+travel progress is serialized; the 44-byte checkpoint format is unchanged.

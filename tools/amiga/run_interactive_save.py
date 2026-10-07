@@ -62,7 +62,7 @@ def main():
     events=list(struct.iter_unpack('>10I',data[offset+16:offset+16+count*40]))
     assert ui['last_result']==0 and ui['loaded_x']==expected_x and ui['loaded_y']==expected_y,ui
     assert ui['saves']==ui['loads']==1 and ui['pauses']==ui['resumes'],ui
-    assert display['missed']==0 and display['max_work_lines']<=250 and display['chip_bytes']==(88288 if args.building else 111510),display
+    assert display['missed']==0 and display['max_work_lines']<=250 and display['chip_bytes']==(92128 if args.building else 111510),display
     assert display['logic_ticks']*34000+display['logic_remainder']==display['logic_frames']*19968,display
     assert (build/'tower.adf').read_bytes()==before  # boot disk remains read-only
     for action,result,before_hash,after_hash,fb,fa,tb,ta,x,y in events:

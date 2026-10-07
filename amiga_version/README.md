@@ -2028,3 +2028,23 @@ The caller supplies explored resident destinations in source order. The core
 passes 5,260 readiness/velocity cases and additional menu scenarios; it is not
 yet connected to the native screen or controls. Building Apport is still the
 only resident teleporter. Native menu integration is the next increment.
+
+## Native Building teleporter menu
+
+The Building interactive launcher now supports down + fire to open the teleporter
+menu while ready and stationary in its active region. Left/right selects;
+fire confirms; down + fire cancels. Building Apport is the only offered room,
+so confirming it returns to play. Gameplay pauses during selection; save/load
+reports busy. Menu fire is consumed until release, and loaded checkpoints reset
+the selector.
+
+`make -C amiga_version tower-building-menu-capture` verifies real joystick inputs,
+current-room confirmation, cancellation, held-fire suppression, gameplay-state
+preservation, and a busy save that leaves both disks intact. The menu capture
+passes with zero missed fields/errors, 204 peak PAL work lines, and 92,128 bytes
+of Chip RAM. The physical save/load and fresh-boot regression also passes with
+this memory layout (209/210 peak lines). The movement fixture is confined to the
+capture target; the playable launcher uses keyboard joystick input.
+
+Next is a second resident teleporter and validated arrival; remote travel and
+exploration persistence remain unimplemented.
