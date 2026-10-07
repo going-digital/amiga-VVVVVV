@@ -211,7 +211,7 @@ write_protected = true
         if args.route:
             report['scope']=('Upper entrance and Seeing Red checkpoint contact through ordinary input; natural spike death after tower re-entry restores saved hallway; ' if args.upper_route else 'Lower tower/hallway crossings and natural checkpoint recovery; ')+ 'staged display loads and first 128 ticks match host integration; crew dialogue/following scripts omitted'
             if args.companion_route:report['scope']='Preset rescued companion 9: hallway spawn and follow, tower exclusion, natural spike death and remote return; first 128 player/route/companion ticks plus final state match host'
-            elif args.rescue_route:report['scope']='Bounded source rescue/skip execution and full-width captions; first 128 script/platform/gameplay ticks match host; bounded Vermilion follow physics integrated; native cue playback verified when audio enabled; source textbox/fade geometry and campaign persistence pending'
+            elif args.rescue_route:report['scope']='Bounded source rescue/skip execution and full-width captions; first 128 script/platform/gameplay ticks match host; bounded Vermilion follow physics integrated; native cue playback verified when audio enabled; source textbox/fade geometry pending; persistence tested separately'
             elif args.trigger_route:report['scope']='Seeing Red one-shot trigger 36 dispatch and retained rescuered request; first 128 camera/player/checkpoint/route/trigger ticks match host; dialogue/script consumption not integrated'
     (BUILD / 'capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))

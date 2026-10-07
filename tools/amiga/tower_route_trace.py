@@ -9,7 +9,7 @@ from tower_world_trace import state
 def inputs(upper=False,trigger=False):
     text=(ROOT/('tools/amiga/tower_trigger_replay.h' if trigger else 'tools/amiga/tower_upper_replay.h' if upper else 'tools/amiga/tower_route_replay.h')).read_text()
     return [int(v) for v in re.search(r'\{(.*?)\}',text,re.S)[1].split(',') if v.strip()]
-def verify(report,path,upper=False,trigger=False,rescue=False,skip=False):
+def verify(report,path,upper=False,trigger=False,rescue=False,skip=False,prefix_only=False):
     core,_=libraries();r,s,w,keep=route_setup(core,index=14 if upper or trigger else 0)
     if upper:
         core.v6_tower_session_init(C.byref(s),280,80,0,1)
@@ -48,7 +48,7 @@ def verify(report,path,upper=False,trigger=False,rescue=False,skip=False):
     offset=data.index(b'V6RT\0\0\0\1');final=struct.unpack_from('>5I',data,offset+8)
     offset=data.index(b'V6WG\0\0\0\1');world_final=struct.unpack_from('>13I',data,offset+8)
     route=inputs(upper,trigger);crossings=[];death_ticks=[]
-    for tick in range(report['logic_ticks']):
+    for tick in range(128 if prefix_only else report['logic_ticks']):
         previous=r.index
         deaths=s.deaths
         buttons=route[tick] if tick<len(route) else 0
@@ -74,6 +74,9 @@ def verify(report,path,upper=False,trigger=False,rescue=False,skip=False):
             bank=w.checkpoints[:w.count]
             assert records[tick]==tuple(value&0xffffffff for value in state(w,bank)),('world',tick)
             assert routes[tick]==(r.index,r.transitions,r.returns),('route',tick)
+    if prefix_only:
+        report['prefix_trace_fields']=128*(79 if rescue else 47 if trigger else 40)
+        return
     assert crossings==([] if trigger else [(7,3),(14,1),(85,3)] if upper else [(11,2),(18,0)])
     assert r.transitions==(1 if trigger else 3 if upper else 2) and not r.error
     if upper:assert r.returns==1 and w.save.id==50520 and death_ticks==[56]

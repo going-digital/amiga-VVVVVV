@@ -2,11 +2,11 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
-Latest milestone (7 October 2026): new-file save/load is committed as
-`b8cc0303`. Existing-save replacement and recovery now pass three A500 floppy
-variants and fresh-boot checks, at 234/236 PAL lines with zero missed frames.
-See "Save replacement and interrupted-operation recovery" below. Interactive
-save/load actions are next.
+Latest milestone (7 October 2026): save replacement and recovery are committed
+as `2baf3f14`. Interactive checkpoint save/load now passes scripted and real
+mouse/fire tests, including a fresh boot from the retained save disk. Peaks are
+236/232/243 PAL lines with zero missed frames. See "Interactive checkpoint
+save/load" below. Broader room coverage and full campaign fields are next.
 
 ## Implementation progress — 27 September 2026
 
@@ -1141,3 +1141,53 @@ save rejection gates before takeover.
 
 Next: connect explicit save/load actions to the interactive slice, with OS-safe
 pause and resume. Full campaign fields and unsupported rooms remain pending.
+
+## Interactive checkpoint save/load
+
+Run `make -C amiga_version tower-interactive-save-run`. Right mouse saves;
+holding fire while pressing right mouse loads; left mouse exits. The launcher
+uses keyboard joystick mode. Load consumes fire until release so the gesture
+cannot also flip gravity. There is no automatic startup load.
+
+The boot disk in DF0 is write protected. DF1 uses
+`build/amiga-tower-interactive-save/save-disk.adf`, labelled `V6 Saves`, which
+ordinary rebuilds retain. Capture tests use a separate disposable image. Saves
+retain the source checkpoint and supported rescue/following flags, rather than
+live actor positions. Actions are blocked during dialogue, active audio, death
+or room loading. Five immutable caption buffers provide help and saved, loaded,
+failed and busy messages; they add 19,200 bytes, bringing Chip allocation to
+111,510 bytes.
+
+Eligible actions restore the OS before AmigaDOS access, validate checkpoint-bank
+semantics before backup cleanup, and flush DF1 before taking the display back.
+The Kickstart 1.3 implementation sends an
+[AmigaDOS ACTION_FLUSH packet](https://wiki.amigaos.net/wiki/AmigaDOS_Packets)
+through a private reply port. Native OFS acknowledges completion with both result
+and error fields zero. The flush matters: closing and renaming alone left writes
+buffered while the game disabled OS interrupts. Failed flush or lost audio
+ownership leaves the OS running and exits safely. Audio ownership is checked
+again atomically at takeover and resume.
+
+Successful loads rebuild both resident display banks and reset actors, camera
+history and supported story state to the saved checkpoint. Saves and failed
+loads preserve gameplay. File access advances no gameplay ticks; the private
+clock retains its phase and excludes time spent in the OS. Each tested action
+uses two private warm-up fields on resume.
+
+`make -C amiga_version test-interactive-save` checks the actual production
+consumer with CRC-valid but source-invalid final and backup records, preserving
+file bytes and output state on rejection. It also covers replacement, backup
+recovery, invalid live checkpoints and retained temp-only files. Control tests
+cover 600 held-button fields and all 16 gameplay input masks; the existing
+replacement/recovery fault tests remain dependencies.
+
+`make -C amiga_version tower-interactive-save-capture` passes the scripted
+missing-save, busy, save and load sequence, matching 10,112 desktop-source trace
+fields before loading. It peaks at 236 PAL lines. Real mouse/fire actions peak
+at 232 lines; the actual DF1 record is verified while the first game session is
+still running. A fresh boot loads that record, exits normally and peaks at 243
+lines. All three have zero missed frames, preserve the boot disk bytes and stay
+within the 250-line budget. The status caption was also visually checked.
+
+Next: broader resident room coverage and campaign state. Source-exact textbox
+and fade geometry, crew tint cycling and general audio ownership remain pending.

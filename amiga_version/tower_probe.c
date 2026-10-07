@@ -1,16 +1,42 @@
 /* Standalone PAL tower display experiment; left mouse exits. */
 #include <proto/exec.h>
-#ifdef V6_TOWER_PERSIST
+#if defined(V6_TOWER_PERSIST) || defined(V6_TOWER_UI_SAVE)
 #include <proto/dos.h>
 #include "campaign_dos.h"
 struct DosLibrary *DOSBase;
+#ifdef V6_TOWER_PERSIST
 static V6CheckpointSave persisted_checkpoint;
 static V6HallwayStory persisted_story;
 static unsigned persist_stage;
 static volatile struct { ULONG magic,version,values[18]; } persist_diag={0x56365356,1,{0}};
+#endif
+#ifdef V6_TOWER_UI_SAVE
+static const char save_name[]="DF1:campaign.v6cs";
+static const char save_temp[]="DF1:campaign.tmp";
+static const char save_backup[]="DF1:campaign.bak";
+#include "save_controls.h"
+#include "rescue_script.h"
+static V6SaveControls save_controls;
+static unsigned ui_status,ui_fields;
+static UBYTE *ui_captions;
+static volatile struct { ULONG magic,version,values[18]; } ui_diag={0x56365549,1,{0}};
+static const V6RescueSpeech ui_messages[5]={
+    {0,1,3,{"Right mouse: save","Hold fire + right mouse: load","Left mouse: exit"}},
+    {1,1,2,{"Checkpoint saved","Continue playing"}},
+    {2,1,2,{"Checkpoint loaded","Continue playing"}},
+    {3,1,3,{"Save/load failed","Current game retained","Check the save disk"}},
+    {4,1,2,{"Finish dialogue or loading first","Then try save/load again"}}
+};
+static volatile struct { ULONG magic,version,count,capacity,records[8][10]; } ui_trace={0x56364954,1,0,8,{{0}}};
+#ifdef V6_TOWER_UI_REPLAY
+static unsigned ui_test_phase,ui_test_tick;
+#endif
+static int checkpoint_bank_valid(const V6CheckpointSave *);
+#else
 static const char save_name[]="DF0:campaign.v6cs";
 static const char save_temp[]="DF0:campaign.tmp";
 static const char save_backup[]="DF0:campaign.bak";
+#endif
 #endif
 #include <proto/graphics.h>
 #include <graphics/gfxbase.h>
@@ -239,7 +265,12 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #else
 #define AUDIO_DMA_BYTES 0
 #endif
-#define CHIP_BYTES (2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES+AUDIO_DMA_BYTES)
+#ifdef V6_TOWER_UI_SAVE
+#define UI_DMA_BYTES (5*V6_DIALOGUE_BYTES)
+#else
+#define UI_DMA_BYTES 0
+#endif
+#define CHIP_BYTES (UI_DMA_BYTES+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES+AUDIO_DMA_BYTES)
 static V6TowerStream stream,background_stream;
 static V6TowerDraw draw[2],background_draw[2];
 static UBYTE *rings[2];
@@ -500,9 +531,77 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
             DISPLAY_COLOUR(tint),DISPLAY_COLOUR(tower_palette[1]),DISPLAY_COLOUR(tower_palette[3]))!=0;
     }
 #endif
+#ifdef V6_TOWER_UI_SAVE
+    if(ui_fields)return v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
+        camera&255,bg_camera&255,(ULONG)(ui_captions+ui_status*V6_DIALOGUE_BYTES),
+        0x6ff,DISPLAY_COLOUR(tower_palette[1]),DISPLAY_COLOUR(tower_palette[3]))!=0;
+#endif
     return v6_tower_dual_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
         camera&255,bg_camera&255)!=0;
 }
+#ifdef V6_TOWER_UI_SAVE
+static void ui_copy(void *out,const void *in,unsigned n)
+{
+    volatile UBYTE *d=out;const volatile UBYTE *p=in;
+    while(n--)*d++=*p++;
+}
+static ULONG ui_game_hash(void)
+{
+    ULONG hash=0;
+#define HASH(v) hash=(hash<<5)-hash+(ULONG)(v)
+    HASH(session.player.x);HASH(session.player.y);HASH(session.player.old_x);HASH(session.player.old_y);
+    HASH(session.player.vx);HASH(session.player.vy);HASH(session.player.gravity);HASH(session.player.dir);HASH(session.player.flips);
+    HASH(session.deaths);HASH(session.respawns);HASH(session.death_timer);HASH(session.life_timer);HASH(session.camera.y);
+    HASH(world.save.x);HASH(world.save.y);HASH(world.save.gravity);HASH(world.save.dir);
+    HASH(world.save.room_x);HASH(world.save.room_y);HASH(world.save.id);
+    HASH(hallway_story.companion);HASH(hallway_story.rescue_triggered);HASH(hallway_story.red_rescued);
+    HASH(companion.body.x);HASH(companion.body.y);HASH(companion.body.vx);HASH(companion.body.vy);
+    HASH(companion.follow_steps);HASH(rescue_vm.pc);HASH(rescue_vm.active);
+#undef HASH
+    return hash;
+}
+static int ui_load_checked(V6CheckpointSave *out,V6HallwayStory *story)
+{
+    int a=v6_campaign_dos.exists(save_name),k=v6_campaign_dos.exists(save_backup),result;
+    V6CheckpointSave c,b;V6HallwayStory s,bs;
+    if(a<0 || k<0)return V6_SAVE_IO;
+    result=v6_campaign_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s);
+    if(result)return result;
+    if(!checkpoint_bank_valid(&c))return V6_SAVE_CORRUPT;
+    if(a && k) {
+        result=v6_campaign_read(&v6_campaign_dos,save_backup,&b,&bs);
+        if(result)return result;
+        if(!checkpoint_bank_valid(&b))return V6_SAVE_CORRUPT;
+    }
+    return v6_campaign_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story);
+}
+static int ui_save_checked(void)
+{
+    V6CheckpointSave c;V6HallwayStory story;int result;
+    int a,k;
+    if(!checkpoint_bank_valid(&world.save))return V6_SAVE_INVALID;
+    a=v6_campaign_dos.exists(save_name);k=v6_campaign_dos.exists(save_backup);
+    if(a<0 || k<0)return V6_SAVE_IO;
+    /* Existing records need source-bank validation before replacement recovery
+     * can discard a backup, just as an explicit load does. */
+    if(a || k) {result=ui_load_checked(&c,&story);if(result)return result;}
+    return v6_campaign_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story);
+}
+static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
+{
+    unsigned i;
+    ui_copy(&world.save,c,sizeof(*c));ui_copy(&hallway_story,story,sizeof(*story));
+    v6_tower_session_init(&session,c->x,c->y,c->gravity,c->dir);
+    if(!v6_tower_route_load(&route,c->room_x,c->room_y,1))return 0;
+    session.player.old_x=session.player.x;session.player.old_y=session.player.y;
+    for(i=0;i<sizeof(rescue_vm);++i)((volatile UBYTE *)&rescue_vm)[i]=0;
+    rescue_vm.control=1;rescue_vm.following=story->companion==9;rescue_vm.mood=story->companion==9?0:1;
+    rescue_bars=rescue_fade=rescue_fade_mode=rescue_fire=0;rescue_flips_applied=cue_consumed=0;
+    player_animation.delay=player_animation.walk=0;player_frame=c->dir?0:3;
+    v6_companion_init(&companion);
+    return route_source();
+}
+#endif
 static int run(void) {
     UBYTE *chip;UWORD *lists[2];
     UWORD dma,ints,adk;APTR old_irq;struct View *view;
@@ -514,6 +613,9 @@ static int run(void) {
     int publish;
 #endif
     ULONG start,work,previous;
+#ifdef V6_TOWER_UI_SAVE
+    int ui_os_paused=0;
+#endif
 #ifdef V6_TOWER_PLAY
     ULONG logic_work,render_work;
 #endif
@@ -695,8 +797,25 @@ static int run(void) {
         }
     }
 #endif
+#ifdef V6_TOWER_UI_SAVE
+    {
+        unsigned i;ui_captions=chip+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES;
+        for(i=0;i<5;++i)if(!v6_dialogue_draw(ui_captions+i*V6_DIALOGUE_BYTES,dialogue_font,&ui_messages[i])) {
+            FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+        }
+        ui_fields=250;ui_status=0;
+    }
+#endif
     view=GfxBase->ActiView;LoadView(0);WaitTOF();WaitTOF();
     OwnBlitter();WaitBlit();Forbid();Disable();
+#ifdef V6_TOWER_AUDIO
+    /* Recheck while scheduling and interrupts are stopped: allocation and
+     * display preparation ran with the OS enabled after the early check. */
+    if((hw->dmaconr&15) || (hw->intenar&(INTF_AUD0|INTF_AUD1))) {
+        Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();
+        FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+    }
+#endif
     dma=hw->dmaconr;ints=hw->intenar;adk=hw->adkconr;
     hw->intena=0x7fff;hw->intreq=0x7fff;hw->dmacon=0x7fff;hw->adkcon=0x7fff;
     __asm volatile("move.l 0x6c.w,%0":"=r"(old_irq));
@@ -722,8 +841,94 @@ static int run(void) {
           && (persist_stage==2?diag.logic_ticks<64:
               !(hallway_story.red_rescued && !rescue_vm.active && companion.follow_steps>=64 && cue_audio.state==0))
 #endif
+#ifdef V6_TOWER_UI_REPLAY
+          && (ui_test_phase<4 || diag.logic_ticks<ui_test_tick+32)
+#endif
           ) {
         start=clock_lines();
+#ifdef V6_TOWER_UI_SAVE
+        {
+            int right=(hw->potinp&0x0400)==0,fire=(*(volatile UBYTE *)0xbfe001&0x80)==0;
+            unsigned action;
+#ifdef V6_TOWER_UI_REPLAY
+            right=fire=0;
+            if(ui_test_phase==0) {right=fire=1;ui_test_phase=1;}
+            else if(ui_test_phase==1 && diag.logic_ticks>=20 && rescue_vm.active) {right=1;ui_test_phase=2;}
+            else if(ui_test_phase==2 && !rescue_vm.active && companion.follow_steps>=64 && !cue_audio.state) {
+                right=1;ui_test_phase=3;ui_test_tick=diag.logic_ticks;
+            } else if(ui_test_phase==3 && diag.logic_ticks>=ui_test_tick+16) {
+                right=fire=1;ui_test_phase=4;ui_test_tick=diag.logic_ticks;
+            }
+            ui_diag.values[17]=ui_test_phase;
+#endif
+            action=v6_save_controls_tick(&save_controls,right,fire);
+            if(ui_fields)--ui_fields;
+            if(action) {
+                ULONG before_hash=ui_game_hash(),before_frames=frames,before_ticks=diag.logic_ticks;
+                int result=5;
+                ++ui_diag.values[0];ui_diag.values[7]=action;
+                if(rescue_vm.active || route_loading || session.death_timer!=-1 || cue_audio.state) {
+                    ++ui_diag.values[4];ui_status=4;ui_fields=200;
+                } else {
+                    V6AudioPlan plan;V6CheckpointSave c;V6HallwayStory story;
+                    v6_audio_stop(&cue_audio,&plan);audio_apply(&plan);audio_record();
+                    Disable();hw->intena=0x7fff;hw->intreq=0x7fff;hw->dmacon=0x7fff;hw->adkcon=0x7fff;
+                    __asm volatile("move.l %0,0x6c.w"::"r"(old_irq):"memory");
+                    hw->cop1lc=(ULONG)GfxBase->copinit;hw->cop2lc=(ULONG)GfxBase->LOFlist;hw->copjmp1=0;
+                    hw->adkcon=adk|0x8000;hw->dmacon=dma|0x8000;hw->intena=ints|0x8000;
+                    Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();diag.status=3;ui_os_paused=1;
+                    ++ui_diag.values[5];
+                    if(action==V6_SAVE_ACTION_SAVE)
+                        result=ui_save_checked();
+                    else {
+                        result=ui_load_checked(&c,&story);
+                        if(!result && !ui_apply_load(&c,&story)){result=V6_SAVE_INVALID;diag.error=12;}
+                        if(!result){ui_diag.values[15]=session.player.x;ui_diag.values[16]=session.player.y;}
+                    }
+                    /* DOS may acknowledge cached changes before physical
+                     * disk writes finish. Complete them before Forbid/IRQ
+                     * takeover can suspend the filesystem's background work. */
+                    if(!v6_campaign_dos_flush("DF1:")) {
+                        ui_diag.values[8]=V6_SAVE_IO;diag.error=12;diag.status=2;break;
+                    }
+                    if(result){++ui_diag.values[3];ui_status=3;}else{++ui_diag.values[action];ui_status=action;}
+                    ui_fields=200;camera=session.camera.y;ui_copy(&controller,&session.camera,sizeof(controller));
+                    /* Refill both banks while the OS owns the display. No DOS
+                     * time is added to the private VBlank clock or accumulator. */
+                    { unsigned i;for(i=0;i<2;++i) {
+                        v6_tower_draw_reset(&draw[i]);v6_tower_draw_reset(&background_draw[i]);
+                        prepared_camera[i]=camera;
+                        if(!prepare(rings[i],lists[i],i,camera,0))diag.error=12;
+                    } }
+                    route_loading=0;back=1;
+                    view=GfxBase->ActiView;LoadView(0);WaitTOF();WaitTOF();
+                    OwnBlitter();WaitBlit();Forbid();Disable();
+                    if((hw->dmaconr&15) || (hw->intenar&(INTF_AUD0|INTF_AUD1))) {
+                        Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();
+                        diag.error=12;diag.status=2;break;
+                    }
+                    ui_os_paused=0;
+                    dma=hw->dmaconr;ints=hw->intenar;adk=hw->adkconr;
+                    hw->intena=0x7fff;hw->intreq=0x7fff;hw->dmacon=0x7fff;hw->adkcon=0x7fff;
+                    __asm volatile("move.l 0x6c.w,%0":"=r"(old_irq));
+                    __asm volatile("move.l %0,0x6c.w"::"r"((APTR)irq):"memory");
+                    blank();hw->cop1lc=(ULONG)lists[0];hw->copjmp1=0;
+                    hw->dmacon=DMAF_SETCLR|DMAF_MASTER|DMAF_RASTER|DMAF_COPPER|DMAF_BLITTER|DMAF_SPRITE;
+                    hw->intena=INTF_SETCLR|INTF_INTEN|INTF_VERTB;Enable();diag.status=1;
+                    blank();previous=frames;logic_frame=frames;++ui_diag.values[6];
+                }
+                ui_diag.values[8]=result;ui_diag.values[9]=before_hash;ui_diag.values[10]=ui_game_hash();
+                ui_diag.values[11]=before_frames;ui_diag.values[12]=frames;
+                ui_diag.values[13]=before_ticks;ui_diag.values[14]=diag.logic_ticks;
+                if(ui_trace.count<8) {
+                    volatile ULONG *r=ui_trace.records[ui_trace.count++];
+                    r[0]=action;r[1]=result;r[2]=before_hash;r[3]=ui_game_hash();r[4]=before_frames;r[5]=frames;
+                    r[6]=before_ticks;r[7]=diag.logic_ticks;r[8]=session.player.x;r[9]=session.player.y;
+                }
+                if(result!=5)continue;
+            }
+        }
+#endif
 #ifdef V6_TOWER_AUDIO
         {
             V6AudioPlan plan;
@@ -771,8 +976,14 @@ static int run(void) {
 #ifdef V6_TOWER_PERSIST
                 if(persist_stage==2) input=0;
 #endif
+#ifdef V6_TOWER_UI_REPLAY
+                if(ui_test_phase==4)input=0;
+#endif
 #ifdef V6_TOWER_RESCUE
                 V6RescueSignals rescue_signals;
+#ifdef V6_TOWER_UI_SAVE
+                input=v6_save_controls_filter(&save_controls,input);
+#endif
                 v6_companion_step(&companion,&session.player,&route.room,session.death_timer);
                 rescue_animate();
                 rescue_signals.bars_ready=rescue_vm.bars?rescue_bars>=360:rescue_bars==0;
@@ -932,6 +1143,9 @@ static int run(void) {
         if(camera<diag.visited_min) diag.visited_min=camera;
         if(camera>diag.visited_max) diag.visited_max=camera;
     }
+#ifdef V6_TOWER_UI_SAVE
+    if(!ui_os_paused) {
+#endif
 #ifdef V6_TOWER_AUDIO
     { V6AudioPlan plan;v6_audio_stop(&cue_audio,&plan);audio_apply(&plan);audio_record(); }
 #endif
@@ -940,9 +1154,12 @@ static int run(void) {
     hw->cop1lc=(ULONG)GfxBase->copinit;hw->cop2lc=(ULONG)GfxBase->LOFlist;hw->copjmp1=0;
     hw->adkcon=adk|0x8000;hw->dmacon=dma|0x8000;hw->intena=ints|0x8000;
     Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();diag.status=2;
+#ifdef V6_TOWER_UI_SAVE
+    }
+#endif
     FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return diag.error?20:0;
 }
-#ifdef V6_TOWER_PERSIST
+#if defined(V6_TOWER_PERSIST) || defined(V6_TOWER_UI_SAVE)
 static int checkpoint_bank_valid(const V6CheckpointSave *c)
 {
     unsigned i;
@@ -1012,6 +1229,12 @@ int __attribute__((used,section(".text.unlikely"))) _start(void) {
     persist_diag.values[14]=hallway_trigger.requests;persist_diag.values[15]=cue_audio.starts;
     persist_diag.values[16]=companion.visible;persist_diag.values[17]=rescue_vm.following;
     CloseLibrary((struct Library *)DOSBase);return result?20:0;
+#elif defined(V6_TOWER_UI_SAVE)
+    int result;
+    __asm volatile("move.l 4.w,%0":"=r"(SysBase));
+    DOSBase=(struct DosLibrary *)OpenLibrary((CONST_STRPTR)"dos.library",0);
+    if(!DOSBase)return 20;
+    result=run();CloseLibrary((struct Library *)DOSBase);return result;
 #else
     return run();
 #endif

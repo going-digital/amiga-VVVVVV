@@ -282,7 +282,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -O2 -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -534,3 +534,24 @@ tower-save-replacement-capture: tower-probe test-campaign-replace
 	python3 $(ROOT)/tools/amiga/run_campaign_persistence.py --build $(ROOT)/build/amiga-tower-replace-2 --replace-mode 2
 	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-replace-3 CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_AUDIO -DV6_TOWER_PERSIST -DV6_TOWER_REPLACE_TEST=3" $(ROOT)/build/amiga-tower-replace-3/tower.adf
 	python3 $(ROOT)/tools/amiga/run_campaign_persistence.py --build $(ROOT)/build/amiga-tower-replace-3 --replace-mode 3
+
+$(BUILD)/save_controls.o: save_controls.c save_controls.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+
+.PHONY: test-save-controls tower-interactive-save tower-interactive-save-run tower-interactive-save-capture
+test-save-controls: $(BUILD)/save_controls.o
+	python3 $(ROOT)/tools/amiga/test_save_controls.py
+test: test-save-controls
+tower-interactive-save: tower-probe test-interactive-save
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-interactive-save CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_AUDIO -DV6_TOWER_UI_SAVE" $(ROOT)/build/amiga-tower-interactive-save/tower.adf
+tower-interactive-save-run: tower-interactive-save
+	python3 $(ROOT)/tools/amiga/run_interactive_save.py
+tower-interactive-save-capture: tower-interactive-save
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-ui-save CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_AUDIO -DV6_TOWER_UI_SAVE -DV6_TOWER_UI_REPLAY" $(ROOT)/build/amiga-tower-ui-save/tower.adf
+	python3 $(ROOT)/tools/amiga/run_interactive_save.py --build $(ROOT)/build/amiga-tower-ui-save --capture
+	python3 $(ROOT)/tools/amiga/run_interactive_save.py --capture --physical
+
+.PHONY: test-interactive-save
+test-interactive-save: test-save-controls test-campaign-replace
+	python3 $(ROOT)/tools/amiga/test_interactive_save.py
+test: test-interactive-save
