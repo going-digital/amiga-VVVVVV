@@ -24,6 +24,11 @@ int v6_tower_route_load(V6TowerRoute *r,int x,int y,int respawn)
     if(!v6_tower_gameplay_init(w,next->checkpoints,next->count,&w->save)) return 0;
     w->activations=activations;w->wrap_left=left;w->wrap_right=right;
     r->index=(unsigned)index;++r->transitions;
+    r->tele_region.active=r->tele_region.x=r->tele_region.y=r->tele_region.w=r->tele_region.h=0;
+    if(next->teleporter) {
+        V6Teleporter *t=next->teleporter;
+        v6_teleporter_init(t,t->x,t->y,t->id);
+    }
     if(next->packed) {
         r->room.tiles=next->decoded?next->decoded:r->tiles;r->room.tileset=2;r->room.extra_row=0;
         r->room.terrain=0;r->room.blocks=0;r->room.block_count=0;
@@ -63,7 +68,9 @@ int v6_tower_route_init(V6TowerRoute *r,V6TowerSession *s,V6TowerGameplay *w,
     for(i=0;i<count;++i) if(rooms[i].x==x && rooms[i].y==y) break;
     if(i==count || rooms[i].packed) return 0;
     r->session=s;r->world=w;r->rooms=rooms;r->count=count;r->index=i;r->tower=tower;
-    r->transitions=r->returns=r->error=0;v6_player_tower_room(&r->room,tower);
+    r->transitions=r->returns=r->error=0;
+    r->tele_region.active=r->tele_region.x=r->tele_region.y=r->tele_region.w=r->tele_region.h=0;
+    r->tele_events=0;v6_player_tower_room(&r->room,tower);
     return 1;
 }
 static int restore(V6TowerRoute *r)
@@ -113,6 +120,7 @@ int v6_tower_route_step(V6TowerRoute *r,unsigned input)
     const V6TowerRouteRoom *here=&r->rooms[r->index];
     int x=here->x,y=here->y;
     if(r->error) return 0;
+    r->tele_events=0;
     if(!here->packed) {
         /* Camera/death phases run in the old tower before a remote save
          * changes its collision and checkpoint bank. */
@@ -151,8 +159,18 @@ int v6_tower_route_step(V6TowerRoute *r,unsigned input)
             s->save_gravity=w->save.gravity;s->save_dir=w->save.dir;
         }
     }
+    if(here->teleporter) {
+        r->tele_events=v6_teleporter_update(here->teleporter,&r->tele_region,
+            w->checkpoints,w->count,&s->player,x,y,0,0,&w->save);
+        if(r->tele_events&V6_TELEPORTER_SAVED) {
+            ++w->activations;w->active_mask=0;
+            s->save_x=w->save.x;s->save_y=w->save.y;
+            s->save_gravity=w->save.gravity;s->save_dir=w->save.dir;
+        }
+    }
     v6_player_physics(&s->player,&r->room,&s->motion,0,0);
     v6_tower_checkpoints_collide(w,&s->player);
+    if(here->teleporter)v6_teleporter_collide(here->teleporter,&s->player);
     if(v6_player_hurt(&s->player,&r->room)) v6_tower_session_die(s);
     return v6_tower_route_boundary(r);
 failed:

@@ -19,7 +19,7 @@ static const char *save_name="save",*save_temp="temp",*save_backup="backup";
 static V6TowerGameplay world;
 static V6HallwayStory hallway_story;
 static V6Checkpoint bank={144,1824,20,505147,0,0};
-static const V6TowerRouteRoom tower_route_rooms[4]={{109,109,0,0,&bank,1,0},{0},{0},{0}};
+static const V6TowerRouteRoom tower_route_rooms[4]={{109,109,0,0,&bank,1,0,0},{0},{0},{0}};
 '''+ '\n'.join(parts)+'''
 void setup(const V6CampaignIO *io,const V6CheckpointSave *c,const V6HallwayStory *s) {v6_campaign_dos=*io;world.save=*c;hallway_story=*s;}
 int save(void){return ui_save_checked();}

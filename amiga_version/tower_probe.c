@@ -223,6 +223,26 @@ static int player_frame;
 #include "tower_map.h"
 #include "tower_background_map.h"
 #include "tower_backdrop.h"
+#ifdef V6_TOWER_BUILDING
+#include "terrain.h"
+#include "teleporter_animation.h"
+#include "teleporter_draw.h"
+#include "teleporter_assets.h"
+#ifdef V6_TOWER_RESCUE
+#error Building route renderer currently reserves six channels plus player; crew sharing is pending
+#endif
+static UWORD *building_dma;
+static UWORD building_prepared[10][6*V6_TELEPORTER_DMA_WORDS];
+static int building_frames[2]={-1,-1};
+static V6TeleporterAnimation building_animation;
+static V6Terrain building_terrain;
+static ULONG building_random=1;
+#define BUILDING_DMA_BYTES (2*6*V6_TELEPORTER_DMA_WORDS*2)
+static volatile struct {ULONG magic,version,count,records[128][12];}
+    building_trace={0x56364252,1,0,{{0}}};
+#else
+#define BUILDING_DMA_BYTES 0
+#endif
 #ifdef V6_TELEPORTER_LIVE
 #if !defined(V6_TOWER_TELEPORTER_HOLD) || !defined(V6_TOWER_CONTROLLER)
 #error Live teleporter fixture requires a teleporter hold and the gameplay clock
@@ -289,7 +309,7 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #endif
 #define CAMERA_MAX 5856
 #ifdef V6_TOWER_PLAY
-#ifdef V6_TOWER_RESCUE
+#if defined(V6_TOWER_RESCUE) || defined(V6_TOWER_BUILDING)
 #define LIST_WORDS 192
 #else
 #define LIST_WORDS 128
@@ -319,7 +339,7 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #else
 #define UI_DMA_BYTES 0
 #endif
-#define CHIP_BYTES (TELE_DMA_BYTES+UI_DMA_BYTES+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES+AUDIO_DMA_BYTES)
+#define CHIP_BYTES (BUILDING_DMA_BYTES+TELE_DMA_BYTES+UI_DMA_BYTES+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES+AUDIO_DMA_BYTES)
 static V6TowerStream stream,background_stream;
 static V6TowerDraw draw[2],background_draw[2];
 static UBYTE *rings[2];
@@ -330,6 +350,14 @@ static int route_source(void)
     const UBYTE *data=tower_map;unsigned bytes=sizeof(tower_map),i;
     if(route.index==2) { data=hallway0_display;bytes=sizeof(hallway0_display); }
     if(route.index==3) { data=hallway1_display;bytes=sizeof(hallway1_display); }
+#ifdef V6_TOWER_BUILDING
+    if(route.index==4) {
+        data=building_display;bytes=sizeof(building_display);
+        building_animation.frame=1;building_animation.delay=building_animation.walking=0;
+        building_frames[0]=building_frames[1]=-1;
+        route.room.terrain=&building_terrain;
+    }
+#endif
     /* All three resident maps were opened and fully pair-validated before
      * takeover. Rebind only these identical immutable bytes; a repeated
      * 700-entry directory scan would consume the transition frame. */
@@ -566,6 +594,28 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #endif
 #ifdef V6_TOWER_PLAY
     v6_sprites_begin(&player_sprites[index],player_sprites[index].dma);
+#ifdef V6_TOWER_BUILDING
+    if(route.index==4) {
+        UWORD *bank=building_dma+index*(6*V6_TELEPORTER_DMA_WORDS);
+        unsigned word;int frame=building_animation.frame;
+        if(frame<1)frame=1;
+        if(frame>9)frame=8;
+        if(building_frames[index]!=frame) {
+            for(word=0;word<6*V6_TELEPORTER_DMA_WORDS;word+=8) {
+                bank[word]=building_prepared[frame][word];bank[word+1]=building_prepared[frame][word+1];
+                bank[word+2]=building_prepared[frame][word+2];bank[word+3]=building_prepared[frame][word+3];
+                bank[word+4]=building_prepared[frame][word+4];bank[word+5]=building_prepared[frame][word+5];
+                bank[word+6]=building_prepared[frame][word+6];bank[word+7]=building_prepared[frame][word+7];
+            }
+            building_frames[index]=frame;
+        }
+        player_sprites[index].count=6;
+        for(i=0;i<3;++i) {
+            unsigned tint=building_teleporter.tile==1?0x444:0xaaf;
+            p=move(p,0x1a2+i*8,0x111);p=move(p,0x1a4+i*8,tint);p=move(p,0x1a6+i*8,tint);
+        }
+    }
+#endif
     if(!session.invisible)
         v6_sprites_add(&player_sprites[index],tower_player_rows[player_frame],
                       session.player.x,session.player.y-(int)camera,6,0x6ff);
@@ -608,10 +658,17 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #endif
     for(i=0;i<8;++i) {
         ULONG address=(ULONG)(player_sprites[index].dma+i*V6_SPRITE_WORDS);
+#ifdef V6_TOWER_BUILDING
+        if(route.index==4 && i<6)address=(ULONG)(building_dma+(index*6+i)*V6_TELEPORTER_DMA_WORDS);
+#endif
         p=move(p,0x120+i*4,address>>16);p=move(p,0x122+i*4,address);
     }
 #ifdef V6_TOWER_WORLD
-    for(i=0;i<player_sprites[index].count;++i) p=move(p,v6_sprite_colour_register(i),DISPLAY_COLOUR(player_sprites[index].colours[i]));
+    for(i=
+#ifdef V6_TOWER_BUILDING
+        route.index==4?6:
+#endif
+        0;i<player_sprites[index].count;++i) p=move(p,v6_sprite_colour_register(i),DISPLAY_COLOUR(player_sprites[index].colours[i]));
 #else
     p=move(p,0x1a2,0x6ff);
 #endif
@@ -756,7 +813,11 @@ static int run(void) {
 #endif
     v6_player_tower_room(&player_room,&player_tiles);
 #ifdef V6_TOWER_ROUTE
-    if(!v6_tower_route_init(&route,&session,&world,tower_route_rooms,4,109,109,&player_tiles)) return 20;
+    if(!v6_tower_route_init(&route,&session,&world,tower_route_rooms,TOWER_ROUTE_COUNT,109,109,&player_tiles)) return 20;
+#ifdef V6_TOWER_BUILDING
+    v6_tower_session_init(&session,280,185,0,1);
+    if(!v6_tower_route_load(&route,110,104,0))return 20;
+#endif
 #ifdef V6_TOWER_TRIGGER_REPLAY
 #ifdef V6_TOWER_COMPANION_ROUTE
     hallway_story.companion=9;hallway_story.rescue_triggered=hallway_story.red_rescued=1;
@@ -855,6 +916,19 @@ static int run(void) {
             }
     }
 #endif
+#ifdef V6_TOWER_BUILDING
+    {
+        unsigned frame;V6Room collision;
+        building_dma=(UWORD *)(chip+CHIP_BYTES-BUILDING_DMA_BYTES);
+        collision.tiles=building_tiles;collision.tileset=2;collision.extra_row=0;
+        collision.terrain=0;collision.blocks=0;collision.block_count=0;
+        v6_terrain_build(&building_terrain,&collision);
+        for(frame=1;frame<10;++frame)
+            if(!v6_teleporter_draw(building_prepared[frame],teleporter_masks[0],teleporter_masks[frame],112,48)) {
+                FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+            }
+    }
+#endif
 #ifdef V6_TOWER_TELEPORTER_HOLD
     tele_dma=(UWORD *)(chip+CHIP_BYTES-TELE_DMA_BYTES);
 #ifdef V6_TELEPORTER_LIVE
@@ -883,6 +957,10 @@ static int run(void) {
 #endif
     if(
 #ifdef V6_TOWER_ROUTE
+       #ifdef V6_TOWER_BUILDING
+       !v6_tower_open(&stream,building_display,sizeof(building_display)) ||
+       !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
+#endif
        !v6_tower_open(&stream,hallway0_display,sizeof(hallway0_display)) ||
        !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
        !v6_tower_open(&stream,hallway1_display,sizeof(hallway1_display)) ||
@@ -908,6 +986,9 @@ static int run(void) {
 #ifdef V6_TOWER_PAIRS
        !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
 #endif
+#endif
+#ifdef V6_TOWER_BUILDING
+       !v6_tower_open(&stream,hallway1_display,sizeof(hallway1_display)) ||
 #endif
        !prepare(rings[0],lists[0],0,camera,0)) {
         FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
@@ -1120,6 +1201,10 @@ static int run(void) {
                 if(joy&0x0002) input|=V6_RIGHT;
                 if(!(*(volatile UBYTE *)0xbfe001&0x80)) input|=V6_FLIP;
 #endif
+#ifdef V6_TOWER_BUILDING_REPLAY
+                input=(diag.logic_ticks<40?V6_RIGHT:diag.logic_ticks<80?V6_LEFT:0);
+                if(diag.logic_ticks==30)input|=V6_FLIP;
+#endif
 #ifdef V6_TOWER_PERSIST
                 if(persist_stage==2) input=0;
 #endif
@@ -1155,6 +1240,19 @@ static int run(void) {
                 (void)input;
 #endif
                 if(route.index!=index && !route_source()) diag.error=7;
+#ifdef V6_TOWER_BUILDING
+                if(route.index==4) {
+                    building_random^=building_random<<13;building_random^=building_random>>17;building_random^=building_random<<5;
+                    v6_teleporter_animate(&building_animation,building_teleporter.tile,0,(UWORD)(building_random>>16)%6);
+                }
+                if(building_trace.count<128) {
+                    volatile ULONG *r=building_trace.records[building_trace.count++];
+                    r[0]=route.index;r[1]=session.player.x;r[2]=session.player.y;
+                    r[3]=building_teleporter.tile;r[4]=building_teleporter.state;r[5]=route.tele_events;
+                    r[6]=building_animation.frame;r[7]=world.save.x;r[8]=world.save.y;
+                    r[9]=world.save.room_x;r[10]=world.save.room_y;r[11]=route.tele_region.active;
+                }
+#endif
 #ifdef V6_TOWER_TRIGGER_REPLAY
                 /* Trigger-only fixture retains the handoff; rescue builds consume it. */
                 v6_hallway_trigger_step(&hallway_trigger,&hallway_story,&session.player);
@@ -1256,7 +1354,13 @@ static int run(void) {
             bg=v6_tower_draw_pair_prepare_budget(&background_draw[back],rings[back]+V6_TOWER_RING_BYTES,
                     &background_stream,background_camera(camera)>>3,tower_background_pair_offsets,tower_background_pairs,
                     TOWER_BACKGROUND_PAIR_WORDS,TOWER_TILE_COUNT,1,&bg_rows,budget);
-            drawn=fg_rows+bg_rows;++route_diag.loading_frames;route_budget=2;
+            drawn=fg_rows+bg_rows;++route_diag.loading_frames;
+#ifdef V6_TOWER_BUILDING
+            /* Leave room for the six-channel DMA copy on final cold fields. */
+            route_budget=route.index==4?1:2;
+#else
+            route_budget=2;
+#endif
             if(!fg || !bg) { diag.error=8;break; }
             publish=fg==1 && bg==1;
             if(publish) {

@@ -1,6 +1,7 @@
 #ifndef V6_TOWER_ROUTE_H
 #define V6_TOWER_ROUTE_H
 #include "tower_session.h"
+#include "teleporter.h"
 #include <stddef.h>
 /* Resident route: tower entrances and supported ordinary rooms.
  * Room data/checkpoint banks must outlive the route. A NULL packed room is
@@ -13,6 +14,7 @@ typedef struct {
     unsigned count;
     /* Optional immutable 1200-tile view prepared before the frame loop. */
     const uint16_t *decoded;
+    V6Teleporter *teleporter; /* Optional source type-14 entity, caller-owned. */
 } V6TowerRouteRoom;
 typedef struct {
     V6TowerSession *session;
@@ -22,6 +24,8 @@ typedef struct {
     const V6TowerTiles *tower;
     V6Room room;
     uint16_t tiles[1200];
+    V6TeleporterRegion tele_region;
+    unsigned tele_events; /* Saved/message requests from the latest step. */
 } V6TowerRoute;
 /* Existing session/save are retained. Init requires a tower entrance and a
  * player already in world coordinates; use load to start in a hallway. */

@@ -591,3 +591,17 @@ test: test-teleporter-animation
 tower-teleporter-live-capture: tower-probe test-teleporter-animation test-teleporter
 	$(MAKE) BUILD=$(ROOT)/build/amiga-teleporter-live CPPFLAGS="-DV6_TOWER_PAIRS -DV6_TOWER_HOLD=0 -DV6_TOWER_TELEPORTER_HOLD=1 -DV6_TELEPORTER_LIVE -DV6_TOWER_CONTROLLER" $(ROOT)/build/amiga-teleporter-live/tower.adf
 	python3 $(ROOT)/tools/amiga/run_teleporter_live.py
+
+.PHONY: test-building-route tower-building-route-capture
+test-building-route:
+	python3 $(ROOT)/tools/amiga/test_building_route.py
+test: test-building-route
+tower-building-route-capture: tower-probe test-building-route
+	$(MAKE) BUILD=$(ROOT)/build/amiga-building-route CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_BUILDING_REPLAY" $(ROOT)/build/amiga-building-route/tower.adf
+	python3 $(ROOT)/tools/amiga/run_building_route.py
+
+.PHONY: tower-building-route tower-building-route-run
+tower-building-route: tower-probe test-building-route
+	$(MAKE) BUILD=$(ROOT)/build/amiga-building-play CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING" $(ROOT)/build/amiga-building-play/tower.adf
+tower-building-route-run: tower-building-route
+	python3 $(ROOT)/tools/amiga/run_building_route.py --build $(ROOT)/build/amiga-building-play --interactive

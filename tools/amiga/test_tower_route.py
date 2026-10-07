@@ -7,14 +7,15 @@ from test_player import FIELDS
 from test_tower_world import *
 from tower_gameplay_data import hallway_rooms
 from pack_rooms import encode
+from test_teleporter import Teleporter,Region
 class RouteRoom(C.Structure):
     _fields_=[('x',C.c_int),('y',C.c_int),('packed',C.POINTER(C.c_uint8)),
-              ('bytes',C.c_size_t),('checkpoints',C.POINTER(Checkpoint)),('count',C.c_uint),('decoded',C.POINTER(C.c_uint16))]
+              ('bytes',C.c_size_t),('checkpoints',C.POINTER(Checkpoint)),('count',C.c_uint),('decoded',C.POINTER(C.c_uint16)),('teleporter',C.POINTER(Teleporter))]
 class Route(C.Structure):
     _fields_=[('session',C.POINTER(Session)),('world',C.POINTER(World)),
               ('rooms',C.POINTER(RouteRoom)),('count',C.c_uint),('index',C.c_uint),
               ('transitions',C.c_uint),('returns',C.c_uint),('error',C.c_uint),
-              ('tower',C.POINTER(Tiles)),('room',Room),('tiles',C.c_uint16*1200)]
+              ('tower',C.POINTER(Tiles)),('room',Room),('tiles',C.c_uint16*1200),('tele_region',Region),('tele_events',C.c_uint)]
 def route_setup(core,index=0):
     room,keep=room_for(core);s,w,bank=setup(core,index=index)
     s.camera.y=s.camera.old_y=max(0,min(5368,s.player.y-120))

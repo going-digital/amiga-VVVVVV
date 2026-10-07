@@ -2,11 +2,11 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
-Latest milestone (7 October 2026): teleporter rendering is committed as
-`ab59d4d5`. The moving Building Apport activation/animation fixture now matches
-3,072 trace fields at a 239-line peak with zero missed frames. See "Moving
-teleporter activation and animation" below. Next: resident campaign-route
-integration, followed by interaction/travel UI and teleporter disk saves.
+Latest milestone (7 October 2026): moving teleporter animation/activation is
+committed as `5aaf1112`. Building Apport is now a fifth resident room in a
+dedicated playable route build. Its native entrance and teleporter checkpoint
+trace passes at 195 PAL lines with zero missed frames. See "Building Apport
+resident route" below. Interaction/travel UI and teleporter disk saves are next.
 
 ## Implementation progress — 27 September 2026
 
@@ -1347,3 +1347,52 @@ This is a moving room fixture, not campaign travel. Next: integrate Building
 Apport into the resident route with a complete teleporter/checkpoint bank,
 then interaction/travel UI, saved-message/audio handling and teleporter disk
 save validation. Crew coexistence and source random tint cycling remain open.
+
+## Building Apport resident route
+
+Run `make -C amiga_version tower-building-route-run` for the dedicated playable
+five-room build. It starts beside the right-hand Seeing Red exit. Use the
+keyboard joystick to enter Building Apport (111,104), move and flip; left mouse
+exits. Existing campaign builds retain their four-room set. The new build
+supports normal-mode movement and in-memory checkpoint respawn; travel
+selection, saved-message/audio handling and teleporter disk saves are pending.
+
+Resident route descriptors can now own a source type-14 teleporter alongside
+ordinary checkpoint banks. Room entry recreates its inactive entity and clears
+the active interaction region. The ordinary-room step updates the teleporter
+before physics, arms it through collision afterward, and copies successful
+centre saves into session respawn state. Same-room death retains the entity;
+a remote return recreates it before restoring the saved centre. Teleporter
+sound/message requests are exposed to the caller as per-step events.
+
+Building Apport's packed and predecoded terrain, display stream and teleporter
+setup are emitted from the literal desktop room. Its display pairs are
+validated before takeover. The renderer uses a cached ordinary collision map,
+prepared teleporter DMA templates, six teleporter channels and two player
+channels. Inactive banks are updated independently. Frozen inactive/active
+tints are 0x444/0xaaf. The dedicated build excludes rescue/following rendering
+because shared channels with a companion have not been implemented.
+
+Building Apport uses one foreground and one background tile row per paused
+loading field, leaving room for the final teleporter DMA copy. Logic remains
+paused until both resident display banks are publishable. Copper lists reserve
+192 words each; total Chip allocation is 69,088 bytes. Other room transitions
+retain their existing fill budgets.
+
+`make -C amiga_version test-building-route` verifies natural Seeing Red entry,
+a single centre-checkpoint activation, same-room death, remote tower death
+return and malformed room rejection without changing actors or save state.
+`make -C amiga_version tower-building-route-capture` matches 1,536 native fields
+against host route integration: entrance on tick 7, deferred activation on tick
+41, checkpoint (156,92), normal gravity, room (111,104), ID 0. It peaks at 195
+PAL lines, misses zero frames and preserves the private gameplay clock identity.
+The active teleporter and player capture was visually checked; the interactive
+build compiles with replay input removed.
+
+Existing route and ordinary-boundary host tests still pass, as do actual
+interactive file-consumer and replacement/recovery fault tests. The original
+lower native route also passes its 5,120-field comparison within budget.
+
+Next: teleporter interaction/travel UI and destination admission, then source
+bank validation and disk codec support for teleporter checkpoints. General
+campaign traversal, companion sharing and random tint cycling remain pending.
