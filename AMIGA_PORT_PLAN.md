@@ -2,11 +2,10 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
-Latest milestone (7 October 2026): the bounded Seeing Red rescue script and
-captions now include Vermilion's follow movement and room-entry rules. The
-companion hallway/tower/remote-return replay passes at 249 PAL lines with zero
-missed frames. See "Vermilion follow movement and room entry" below for scope
-and remaining work.
+Latest milestone (7 October 2026): the bounded Seeing Red rescue now plays
+native stereo speech cues. Normal/skip captures verify six/one completed cues,
+source speaker order and recorded waveforms, at 233/229 PAL lines with zero
+missed frames. See "Native rescue speech cues" below for scope and limits.
 
 ## Implementation progress — 27 September 2026
 
@@ -991,3 +990,39 @@ special restraint in room (110,105), other companion types, gravity lines and
 unsupported campaign rooms are excluded. Next: connect the recorded sound cues
 to native playback, then campaign-state persistence. Desktop textbox placement,
 fade/bar geometry and crew tint cycling remain pending.
+
+## Native rescue speech cues
+
+The follower implementation is committed as `35774efa`. The rescue and skip
+fixtures now play the source `crew6.wav` (Vermilion) and `crew1.wav` (Viridian)
+cues through Paula channels 0 and 1. Offline conversion uses a 63-tap low-pass
+filter and signed eight-bit samples at PAL period 161 (about 22.03 kHz), with
+no normalization. Private source audio, converted samples and capture WAVs
+remain ignored build assets. The two samples and dedicated silent word add
+4,886 Chip bytes, bringing these rescue fixtures to 92,310 bytes.
+
+The portable audio module emits ordered register writes. Requests mute and
+stop DMA, wait a complete PAL field before restarting, then queue a silent
+word after the first block interrupt. The next interrupt stops DMA and mutes
+both channels. Interrupt status is polled each display field; no audio CPU
+interrupt handler is added. A new request replaces any pending or active cue.
+Exit stops audio before freeing Chip memory or restoring the OS. The fixture
+requires idle audio DMA and disabled channel 0/1 interrupts before takeover,
+because another client's write-only audio pointers cannot be restored.
+
+`make -C amiga_version test-audio` checks invalid sample guards, ordered start/
+drain/stop plans, replacement in all active states, conversion and the actual
+Script.cpp speaker-to-sound mapping. `tower-rescue-capture` and
+`tower-rescue-skip-capture` now record isolated Paula output, excluding emulator
+floppy-drive sounds. Their six/one cues complete without replacement or error;
+waveform correlations are 0.95–0.98, stereo channels match, unused channels
+remain silent and the recording ends in silence. Both captures retain their
+10,112-field source comparison and clean OS restoration. They peak at 233/229
+PAL lines, with zero missed frames. The interactive `tower-rescue-run` disk
+includes the same playback. The companion route keeps its existing audio-free
+249-line gate.
+
+This is bounded rescue speech playback with exclusive hardware ownership.
+Music, general gameplay effects and audio.device integration remain pending.
+Next: campaign-state persistence, followed by broader room coverage. Desktop
+textbox placement, fade/bar geometry and crew tint cycling are still open.

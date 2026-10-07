@@ -54,6 +54,26 @@ static int trigger_crew_visible;
 #include "dialogue.h"
 #include "dialogue_font.h"
 #include "companion.h"
+#ifdef V6_TOWER_AUDIO
+#include "audio.h"
+#include "cue_samples.h"
+static V6Audio cue_audio;
+static unsigned cue_consumed;
+static UBYTE *cue_chip;
+static volatile struct { ULONG magic,version,values[7]; } cue_diag={0x56364155,1,{0}};
+static void audio_apply(const V6AudioPlan *p)
+{
+    unsigned i;
+    for(i=0;i<p->count;++i) *(volatile UWORD *)(0xdff000UL+p->writes[i].reg)=(UWORD)p->writes[i].value;
+}
+static void audio_record(void)
+{
+    cue_diag.values[0]=cue_audio.state;cue_diag.values[1]=cue_audio.starts;
+    cue_diag.values[2]=cue_audio.completed;cue_diag.values[3]=cue_audio.replaced;
+    cue_diag.values[4]=cue_audio.error;cue_diag.values[5]=cue_audio.interrupts;
+    cue_diag.values[6]=cue_consumed;
+}
+#endif
 static V6Companion companion;
 static V6Terrain hallway_terrain[2];
 static V6RescueScript rescue_vm={.control=1,.mood=1};
@@ -202,7 +222,12 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #else
 #define CAPTION_DMA_BYTES 0
 #endif
-#define CHIP_BYTES (2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES)
+#ifdef V6_TOWER_AUDIO
+#define AUDIO_DMA_BYTES CUE_DMA_BYTES
+#else
+#define AUDIO_DMA_BYTES 0
+#endif
+#define CHIP_BYTES (2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES+AUDIO_DMA_BYTES)
 static V6TowerStream stream,background_stream;
 static V6TowerDraw draw[2],background_draw[2];
 static UBYTE *rings[2];
@@ -582,6 +607,13 @@ static int run(void) {
     GfxBase=(struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library",0);
     if(!GfxBase) return 20;
     if(!(GfxBase->DisplayFlags&PAL)) { CloseLibrary((struct Library *)GfxBase);return 20; }
+#ifdef V6_TOWER_AUDIO
+    /* This takeover fixture cannot resume another client's write-only audio
+     * pointers. Start only with all audio DMA and our audio IRQs idle. */
+    if((hw->dmaconr&15) || (hw->intenar&(INTF_AUD0|INTF_AUD1))) {
+        CloseLibrary((struct Library *)GfxBase);return 20;
+    }
+#endif
     chip=AllocMem(CHIP_BYTES,MEMF_CHIP|MEMF_CLEAR);
     if(!chip) { CloseLibrary((struct Library *)GfxBase);return 20; }
     rings[0]=chip;rings[1]=chip+LAYER_BYTES;
@@ -625,6 +657,17 @@ static int run(void) {
        !prepare(rings[0],lists[0],0,camera,0)) {
         FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
     }
+#ifdef V6_TOWER_AUDIO
+    {
+        unsigned i;
+        cue_chip=chip+CHIP_BYTES-CUE_DMA_BYTES;
+        for(i=0;i<CUE_CREW6_BYTES;++i)cue_chip[i]=cue_crew6[i];
+        for(i=0;i<CUE_CREW1_BYTES;++i)cue_chip[CUE_CREW6_BYTES+i]=cue_crew1[i];
+        if(!v6_audio_init(&cue_audio,(ULONG)(cue_chip+CUE_DMA_BYTES-2))) {
+            FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+        }
+    }
+#endif
     view=GfxBase->ActiView;LoadView(0);WaitTOF();WaitTOF();
     OwnBlitter();WaitBlit();Forbid();Disable();
     dma=hw->dmaconr;ints=hw->intenar;adk=hw->adkconr;
@@ -650,6 +693,13 @@ static int run(void) {
 #endif
           ) {
         start=clock_lines();
+#ifdef V6_TOWER_AUDIO
+        {
+            V6AudioPlan plan;
+            v6_audio_tick(&cue_audio,(hw->intreqr&INTF_AUD0)!=0,&plan);
+            audio_apply(&plan);audio_record();
+        }
+#endif
 #ifdef V6_TOWER_CONTROLLER
         {
             ULONG now=frames,delta=now-logic_frame;
@@ -729,6 +779,17 @@ static int run(void) {
                 }
                 v6_rescue_tick(&rescue_vm,&hallway_story,&rescue_signals);
                 if(rescue_vm.error) diag.error=10;
+#ifdef V6_TOWER_AUDIO
+                if(rescue_vm.cues!=cue_consumed) {
+                    V6AudioPlan plan;V6AudioSample sample;
+                    sample.address=(ULONG)(cue_chip+(rescue_vm.cue_speaker?CUE_CREW6_BYTES:0));
+                    sample.bytes=rescue_vm.cue_speaker?CUE_CREW1_BYTES:CUE_CREW6_BYTES;
+                    sample.period=CUE_PERIOD;sample.volume=64;
+                    if(!v6_audio_request(&cue_audio,&sample,&plan)) { cue_audio.error=1;diag.error=11; }
+                    else audio_apply(&plan);
+                    cue_consumed=rescue_vm.cues;audio_record();
+                }
+#endif
                 companion.mood=rescue_vm.mood;companion.following=rescue_vm.following;
                 companion_record();
                 rescue_record();
@@ -837,6 +898,9 @@ static int run(void) {
         if(camera<diag.visited_min) diag.visited_min=camera;
         if(camera>diag.visited_max) diag.visited_max=camera;
     }
+#ifdef V6_TOWER_AUDIO
+    { V6AudioPlan plan;v6_audio_stop(&cue_audio,&plan);audio_apply(&plan);audio_record(); }
+#endif
     Disable();hw->intena=0x7fff;hw->intreq=0x7fff;hw->dmacon=0x7fff;hw->adkcon=0x7fff;
     __asm volatile("move.l %0,0x6c.w"::"r"(old_irq):"memory");
     hw->cop1lc=(ULONG)GfxBase->copinit;hw->cop2lc=(ULONG)GfxBase->LOFlist;hw->copjmp1=0;

@@ -45,6 +45,7 @@ def main():
     parser.add_argument('--rescue-route',action='store_true',help='Validate the rescue script and caption advancement')
     parser.add_argument('--skip-rescue',action='store_true',help='Validate the source skip-cutscene branch')
     parser.add_argument("--companion-route",action="store_true",help="Validate pre-rescued companion hallway entry, tower exclusion and remote return")
+    parser.add_argument("--audio",action="store_true",help="Validate cue DMA state and record native stereo WAV output")
     args = parser.parse_args()
     if args.companion_route:args.upper_route=True
     if args.skip_rescue:args.rescue_route=True
@@ -83,8 +84,12 @@ write_protected = true
                COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{BUILD / "slow.bin"}')
     for name in ('slow.bin','tower.clstate','tower.png','capture.json'):
         (BUILD/name).unlink(missing_ok=True)
+    if args.audio:
+        for name in ('paula','paula-0','paula-1','paula-2','paula-3','drivesounds'):
+            (BUILD/'audio-stems'/(name+'.wav')).unlink(missing_ok=True)
     with (BUILD / 'capture.log').open('w') as log:
         subprocess.run([EMU, '--config', str(config), '--noaudio',
+                        *(['--audio-stems',str(BUILD/'audio-stems'),'--audio-stems-mode','source,channel'] if args.audio else []),
                         '--save-state-after', '40', str(BUILD / 'tower.clstate'),
                         '--screenshot-after', '42', str(BUILD / 'tower.png')],
                        env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -172,7 +177,11 @@ write_protected = true
         assert report['forward_wraps'] >= 1 and report['reverse_wraps'] >= 1, report
     if not args.play:
         assert report['max_rows'] <= (2*args.step+7)//8 + (args.step+7)//8, report
-    assert report['chip_bytes'] == (87424 if args.rescue_route or args.companion_route else 64128 if args.play else 61696), report
+    audio_bytes=json.loads((ROOT/'build/amiga-feasibility/cue-samples.json').read_text())['chip_bytes'] if args.audio else 0
+    if args.audio:
+        from audio_capture import verify
+        verify(report,BUILD/'slow.bin',BUILD/'audio-stems',args.skip_rescue)
+    assert report['chip_bytes'] == audio_bytes+(87424 if args.rescue_route or args.companion_route else 64128 if args.play else 61696), report
     env.update(COPPERLINE_DBG_AFTER='43',
                COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{BUILD / "exit.bin"}')
     for name in ('exit.bin','exit.png'):
@@ -202,7 +211,7 @@ write_protected = true
         if args.route:
             report['scope']=('Upper entrance and Seeing Red checkpoint contact through ordinary input; natural spike death after tower re-entry restores saved hallway; ' if args.upper_route else 'Lower tower/hallway crossings and natural checkpoint recovery; ')+ 'staged display loads and first 128 ticks match host integration; crew dialogue/following scripts omitted'
             if args.companion_route:report['scope']='Preset rescued companion 9: hallway spawn and follow, tower exclusion, natural spike death and remote return; first 128 player/route/companion ticks plus final state match host'
-            elif args.rescue_route:report['scope']='Bounded source rescue/skip execution and full-width captions; first 128 script/platform/gameplay ticks match host; bounded Vermilion follow physics integrated; source textbox/fade geometry and campaign persistence pending'
+            elif args.rescue_route:report['scope']='Bounded source rescue/skip execution and full-width captions; first 128 script/platform/gameplay ticks match host; bounded Vermilion follow physics integrated; native cue playback verified when audio enabled; source textbox/fade geometry and campaign persistence pending'
             elif args.trigger_route:report['scope']='Seeing Red one-shot trigger 36 dispatch and retained rescuered request; first 128 camera/player/checkpoint/route/trigger ticks match host; dialogue/script consumption not integrated'
     (BUILD / 'capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))

@@ -57,6 +57,8 @@ def main():
     subprocess.run(['c++','-O2','-I'+str(ROOT/'third_party/lodepng'),str(ROOT/'tools/amiga/png_rgba.cpp'),
                     str(ROOT/'third_party/lodepng/lodepng.cpp'),'-o',str(decoder)],check=True)
     with zipfile.ZipFile(args.data) as archive:
+        from convert_audio import export as export_audio
+        export_audio(archive,out)
         original=archive.read('graphics/tiles3.png')
         sprite_png=archive.read('graphics/sprites.png')
         font_png=archive.read('graphics/font.png')
