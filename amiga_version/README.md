@@ -2018,3 +2018,13 @@ controls with fixture movement, physical disk contents, and a separate fresh boo
 The captures restore (156,92), show zero missed fields/errors, and use 88,288 bytes
 of Chip RAM (201/197 peak PAL work lines). Host consumer tests cover unsupported
 progress in both final and backup files. Teleporter travel selection is still pending.
+
+## Teleporter selector core
+
+`make -C amiga_version test-teleporter-menu` builds the normal-mode selection
+state for 68000 and checks readiness, stationary opening, left/right wrapping,
+release between inputs, current-room cancellation and isolated travel requests.
+The caller supplies explored resident destinations in source order. The core
+passes 5,260 readiness/velocity cases and additional menu scenarios; it is not
+yet connected to the native screen or controls. Building Apport is still the
+only resident teleporter. Native menu integration is the next increment.

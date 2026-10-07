@@ -7,7 +7,8 @@ committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
 validation and a native DF1 save/fresh-boot fixture, including malformed-centre
 rejection before takeover. See "Teleporter checkpoint disk persistence" below.
 Interactive Building save/load controls now pass real mouse and fresh-boot
-checks; see "Building Apport interactive saving" below. Travel UI remains next.
+checks, committed as `c6800d55`; see "Building Apport interactive saving" below.
+The normal-mode selector core is now tested; native menu integration remains next.
 
 ## Implementation progress — 27 September 2026
 
@@ -1463,3 +1464,29 @@ input fixture; the playable launcher uses the keyboard joystick.
 Next: implement the bounded normal-mode teleporter travel UI and destination
 selection. Rescue sprite sharing and wider campaign progression remain separate
 work; disk records still use the existing 44-byte format.
+
+## Teleporter selector core — 7 October 2026
+
+Added `teleporter_menu.c/.h`, a platform-independent normal-mode selector based
+on desktop `Logic.cpp` readiness and `Input.cpp` TELEPORTERMODE controls. Readiness
+rises by 25 inside the active teleporter region, decays by 50 outside or without
+control, and saturates at 255. Opening requires readiness above 20 and source
+integer velocity limits. The menu starts on the current room, wraps left/right
+through the caller's explored resident destinations, and requires release of all
+buttons between actions. Confirming the current room or cancelling closes it;
+confirming another destination emits a request without mutating player, region,
+checkpoint or route data. Invalid/duplicate destination lists retain menu state.
+
+`make -C amiga_version test-teleporter-menu` compiles the core for the 68000 and
+runs 5,260 host readiness/velocity cases plus selection, input-latch, single-room,
+cancel, output-isolation and malformed-list checks under undefined-behaviour
+sanitization. Existing teleporter activation/collision and Building route tests
+also pass. Multiple destinations in the selector test are synthetic; Building
+Apport remains the only resident teleporter. No new destination is unlocked by
+this increment, and no on-screen menu or travel sequence is wired yet.
+
+Next: connect this state to the native Building controls/caption renderer, pause
+player logic while selecting, and verify opening/current-room cancellation in
+a native capture before adding another resident destination and arrival effects.
+The destination list must remain stable for an open menu. Explored-destination
+persistence and cross-room travel remain pending; the save format is unchanged.

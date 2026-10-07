@@ -588,6 +588,14 @@ $(BUILD)/teleporter_animation.o: teleporter_animation.c teleporter_animation.h |
 test-teleporter-animation: $(BUILD)/teleporter_animation.o
 	python3 $(ROOT)/tools/amiga/test_teleporter_animation.py
 test: test-teleporter-animation
+
+$(BUILD)/teleporter_menu.o: teleporter_menu.c teleporter_menu.h teleporter.h player.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+-include $(BUILD)/teleporter_menu.d
+.PHONY: test-teleporter-menu
+test-teleporter-menu: $(BUILD)/teleporter_menu.o
+	python3 $(ROOT)/tools/amiga/test_teleporter_menu.py
+test: test-teleporter-menu
 tower-teleporter-live-capture: tower-probe test-teleporter-animation test-teleporter
 	$(MAKE) BUILD=$(ROOT)/build/amiga-teleporter-live CPPFLAGS="-DV6_TOWER_PAIRS -DV6_TOWER_HOLD=0 -DV6_TOWER_TELEPORTER_HOLD=1 -DV6_TELEPORTER_LIVE -DV6_TOWER_CONTROLLER" $(ROOT)/build/amiga-teleporter-live/tower.adf
 	python3 $(ROOT)/tools/amiga/run_teleporter_live.py
