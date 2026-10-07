@@ -2,11 +2,11 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
-Latest milestone (7 October 2026): moving teleporter animation/activation is
-committed as `5aaf1112`. Building Apport is now a fifth resident room in a
-dedicated playable route build. Its native entrance and teleporter checkpoint
-trace passes at 195 PAL lines with zero missed frames. See "Building Apport
-resident route" below. Interaction/travel UI and teleporter disk saves are next.
+Latest milestone (7 October 2026): Building Apport's resident route is
+committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
+validation and a native DF1 save/fresh-boot fixture, including malformed-centre
+rejection before takeover. See "Teleporter checkpoint disk persistence" below.
+Travel UI and integration into interactive saving remain next.
 
 ## Implementation progress — 27 September 2026
 
@@ -1396,3 +1396,45 @@ lower native route also passes its 5,120-field comparison within budget.
 Next: teleporter interaction/travel UI and destination admission, then source
 bank validation and disk codec support for teleporter checkpoints. General
 campaign traversal, companion sharing and random tint cycling remain pending.
+
+## Teleporter checkpoint disk persistence
+
+The existing 44-byte version-1 codec now accepts Building Apport's room bounds.
+The format and checksum remain unchanged. `campaign_route.c` selects the saved
+room's actual resident descriptor, then validates either a source ordinary
+checkpoint or a teleporter centre. Building Apport's canonical record is
+(156,92), normal gravity, facing 0 or 1, room (111,104), ID 0. A CRC-valid record
+with another centre, gravity or ID is rejected. Consumers built with the
+original four-room table still reject this unsupported room.
+
+The production file consumers now use this shared route validator before
+replacement/recovery can remove final or backup records. Host tests cover
+teleporter creation and reading, malformed final/backup combinations, preserved
+file bytes and transactional output rejection. The codec now passes 1,440 round
+trips; its 352 bit-corruption, 45 length and 16 semantic guards still pass, along
+with the existing file/replacement/recovery fault tests.
+
+`make -C amiga_version tower-building-save-capture` runs a private native DF1
+fixture. Its first boot reaches the room and activates the teleporter normally,
+returns to the OS after 128 gameplay ticks, writes and flushes the checkpoint.
+The second boot validates and recovers the source record before takeover and
+restores the centre position. This fixture accepts Building Apport with zero
+story flags; it refuses progression that its dedicated renderer cannot retain.
+The capture data disk is disposable and separate from interactive user saves;
+DF0 stays write protected.
+
+Actual OFS file bytes verify checkpoint (156,92), normal gravity, facing left,
+room (111,104), ID 0 and zero flags. A fresh boot starts at (156,92), retains the
+record unchanged and exits normally. The first/cold boots peak at 196/205 PAL
+lines, miss zero frames and retain the 69,088-byte Chip allocation. The harness
+then changes the centre to x=157 while recomputing both record CRC and OFS block
+checksum. The native consumer rejects it before display takeover and leaves
+the entire data disk unchanged. This verifies source validation beyond CRC.
+The original tower persistence regression still passes its fresh-boot and
+malformed-record checks at 234/236 lines with zero misses; the first boot
+retains its 10,112-field source comparison.
+
+This completes backend teleporter checkpoint persistence and a native startup
+fixture. The playable Building Apport launcher still uses in-memory checkpoints.
+Next: travel/interaction UI and connect teleporter saving to the interactive
+save controls, with progression and companion rendering supported consistently.

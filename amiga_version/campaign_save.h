@@ -8,6 +8,8 @@
  * 44 bytes: V6CS, BE16 version/length, seven BE32 checkpoint fields,
  * BE32 story flags, BE32 IEEE CRC32 of the preceding 40 bytes.
  * Flags: triggered=1, rescued=2, companion9=4. Runtime modes excluded.
+ * Codec bounds include Building Apport; callers must additionally select
+ * and validate their supported source bank (see campaign_route.h).
  * Caller must save only after scripts finish and use OS-safe disk I/O.
  * Rejected input leaves the output unchanged; buffers may not overlap. */
 #define V6_CAMPAIGN_SAVE_BYTES 44

@@ -1,9 +1,16 @@
 /* Standalone PAL tower display experiment; left mouse exits. */
 #include <proto/exec.h>
-#if defined(V6_TOWER_PERSIST) || defined(V6_TOWER_UI_SAVE)
+#if defined(V6_TOWER_PERSIST) || defined(V6_TOWER_UI_SAVE) || defined(V6_BUILDING_SAVE)
 #include <proto/dos.h>
 #include "campaign_dos.h"
+#include "campaign_route.h"
 struct DosLibrary *DOSBase;
+#ifdef V6_BUILDING_SAVE
+static V6CheckpointSave building_saved;
+static unsigned building_stage;
+static volatile struct {ULONG magic,version,values[12];} building_save_diag={0x56364253,1,{0}};
+static int checkpoint_bank_valid(const V6CheckpointSave *);
+#endif
 #ifdef V6_TOWER_PERSIST
 static V6CheckpointSave persisted_checkpoint;
 static V6HallwayStory persisted_story;
@@ -33,9 +40,15 @@ static unsigned ui_test_phase,ui_test_tick;
 #endif
 static int checkpoint_bank_valid(const V6CheckpointSave *);
 #else
+#ifdef V6_BUILDING_SAVE
+static const char save_name[]="DF1:campaign.v6cs";
+static const char save_temp[]="DF1:campaign.tmp";
+static const char save_backup[]="DF1:campaign.bak";
+#else
 static const char save_name[]="DF0:campaign.v6cs";
 static const char save_temp[]="DF0:campaign.tmp";
 static const char save_backup[]="DF0:campaign.bak";
+#endif
 #endif
 #endif
 #include <proto/graphics.h>
@@ -817,6 +830,16 @@ static int run(void) {
 #ifdef V6_TOWER_BUILDING
     v6_tower_session_init(&session,280,185,0,1);
     if(!v6_tower_route_load(&route,110,104,0))return 20;
+#ifdef V6_BUILDING_SAVE
+    if(building_stage==2) {
+        world.save.x=building_saved.x;world.save.y=building_saved.y;
+        world.save.gravity=building_saved.gravity;world.save.dir=building_saved.dir;
+        world.save.room_x=building_saved.room_x;world.save.room_y=building_saved.room_y;world.save.id=building_saved.id;
+        if(!v6_tower_route_load(&route,building_saved.room_x,building_saved.room_y,1))return 20;
+        building_save_diag.values[9]=session.player.x;building_save_diag.values[10]=session.player.y;
+        building_animation.frame=1;
+    }
+#endif
 #endif
 #ifdef V6_TOWER_TRIGGER_REPLAY
 #ifdef V6_TOWER_COMPANION_ROUTE
@@ -923,6 +946,7 @@ static int run(void) {
         collision.tiles=building_tiles;collision.tileset=2;collision.extra_row=0;
         collision.terrain=0;collision.blocks=0;collision.block_count=0;
         v6_terrain_build(&building_terrain,&collision);
+        if(route.index==4)route.room.terrain=&building_terrain;
         for(frame=1;frame<10;++frame)
             if(!v6_teleporter_draw(building_prepared[frame],teleporter_masks[0],teleporter_masks[frame],112,48)) {
                 FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
@@ -988,7 +1012,15 @@ static int run(void) {
 #endif
 #endif
 #ifdef V6_TOWER_BUILDING
-       !v6_tower_open(&stream,hallway1_display,sizeof(hallway1_display)) ||
+       !v6_tower_open(&stream,
+#ifdef V6_BUILDING_SAVE
+           building_stage==2?building_display:
+#endif
+           hallway1_display,
+#ifdef V6_BUILDING_SAVE
+           building_stage==2?sizeof(building_display):
+#endif
+           sizeof(hallway1_display)) ||
 #endif
        !prepare(rings[0],lists[0],0,camera,0)) {
         FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
@@ -1050,6 +1082,9 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_UI_REPLAY
           && (ui_test_phase<4 || diag.logic_ticks<ui_test_tick+32)
+#endif
+#ifdef V6_BUILDING_SAVE
+          && diag.logic_ticks<128
 #endif
           ) {
         start=clock_lines();
@@ -1204,6 +1239,9 @@ static int run(void) {
 #ifdef V6_TOWER_BUILDING_REPLAY
                 input=(diag.logic_ticks<40?V6_RIGHT:diag.logic_ticks<80?V6_LEFT:0);
                 if(diag.logic_ticks==30)input|=V6_FLIP;
+#ifdef V6_BUILDING_SAVE
+                if(building_stage==2)input=0;
+#endif
 #endif
 #ifdef V6_TOWER_PERSIST
                 if(persist_stage==2) input=0;
@@ -1411,17 +1449,46 @@ static int run(void) {
 #endif
     FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return diag.error?20:0;
 }
-#if defined(V6_TOWER_PERSIST) || defined(V6_TOWER_UI_SAVE)
+#if defined(V6_TOWER_PERSIST) || defined(V6_TOWER_UI_SAVE) || defined(V6_BUILDING_SAVE)
 static int checkpoint_bank_valid(const V6CheckpointSave *c)
 {
-    unsigned i;
-    for(i=0;i<4;++i)if(tower_route_rooms[i].x==c->room_x && tower_route_rooms[i].y==c->room_y)
-        return v6_campaign_checkpoint_valid(c,tower_route_rooms[i].checkpoints,tower_route_rooms[i].count);
-    return 0;
+    return v6_campaign_route_checkpoint_valid(c,tower_route_rooms,
+        sizeof(tower_route_rooms)/sizeof(tower_route_rooms[0]));
 }
 #endif
 int __attribute__((used,section(".text.unlikely"))) _start(void) {
-#ifdef V6_TOWER_PERSIST
+#ifdef V6_BUILDING_SAVE
+    int result,a,k;V6HallwayStory story;
+    __asm volatile("move.l 4.w,%0":"=r"(SysBase));
+    DOSBase=(struct DosLibrary *)OpenLibrary((CONST_STRPTR)"dos.library",0);
+    if(!DOSBase)return 20;
+    a=v6_campaign_dos.exists(save_name);k=v6_campaign_dos.exists(save_backup);
+    result=V6_SAVE_OK;building_stage=(a || k)?2:1;building_save_diag.values[0]=building_stage;
+    if(a<0 || k<0)result=V6_SAVE_IO;
+    if(!result && building_stage==2) {
+        result=v6_campaign_read(&v6_campaign_dos,a?save_name:save_backup,&building_saved,&story);
+        if(!result && (!checkpoint_bank_valid(&building_saved) || building_saved.room_x!=111 || building_saved.room_y!=104 || story.companion || story.rescue_triggered || story.red_rescued))result=V6_SAVE_CORRUPT;
+        if(!result && a && k) {
+            V6CheckpointSave backup;V6HallwayStory bs;
+            result=v6_campaign_read(&v6_campaign_dos,save_backup,&backup,&bs);
+            if(!result && (!checkpoint_bank_valid(&backup) || backup.room_x!=111 || backup.room_y!=104 || bs.companion || bs.rescue_triggered || bs.red_rescued))result=V6_SAVE_CORRUPT;
+        }
+        if(!result)result=v6_campaign_recover(&v6_campaign_dos,save_name,save_temp,save_backup,&building_saved,&story);
+        if(!result && !v6_campaign_dos_flush("DF1:"))result=V6_SAVE_IO;
+    }
+    if(result) {building_save_diag.values[1]=result;building_save_diag.values[2]=1;CloseLibrary((struct Library *)DOSBase);return 20;}
+    result=run();
+    if(!result && building_stage==1) {
+        if(!checkpoint_bank_valid(&world.save))result=V6_SAVE_INVALID;
+        else result=v6_campaign_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story);
+        if(!v6_campaign_dos_flush("DF1:"))result=V6_SAVE_IO;
+    }
+    building_save_diag.values[1]=result;building_save_diag.values[3]=world.save.x;
+    building_save_diag.values[4]=world.save.y;building_save_diag.values[5]=world.save.dir;
+    building_save_diag.values[6]=world.save.room_x;building_save_diag.values[7]=world.save.room_y;
+    building_save_diag.values[8]=world.save.id;building_save_diag.values[11]=building_stage==2;
+    CloseLibrary((struct Library *)DOSBase);return result?20:0;
+#elif defined(V6_TOWER_PERSIST)
     int result,exists,temp_exists,backup_exists;
     __asm volatile("move.l 4.w,%0":"=r"(SysBase));
     DOSBase=(struct DosLibrary *)OpenLibrary((CONST_STRPTR)"dos.library",0);
