@@ -1390,8 +1390,7 @@ are ready. Each replay crossing takes 62 PAL fields, about 1.24 seconds; the
 old completed image stays visible during loading. This loading work is timed,
 and paused fields are excluded from logic-clock accounting.
 
-Both hallway backgrounds are black; Seeing Red's crew/dialogue and exits beyond
-these rooms remain pending. `tower-upper-route-capture` adds native upper entry,
+Seeing Red's crew/dialogue and exits beyond these rooms remain pending. `tower-upper-route-capture` adds native upper entry,
 Seeing Red checkpoint activation and tower re-entry through ordinary input,
 then a natural spike death at tick 56 tests remote hallway restore. The replay
 uses eight right ticks and fifty left ticks, then no input. Crossings are at
@@ -1416,3 +1415,14 @@ A500 gate and full host trace comparisons. Paired-render tests now cover 378
 cold-fill frames, including mixed one/two-row schedules. Fresh lower/upper
 captures peak at 249/213 PAL lines with zero misses and clean OS restoration;
 each matches all 5,120 traced state fields.
+
+## Static hallway tower backdrops
+
+Teleporter Divot and Seeing Red now use the desktop static tower background at
+offset 200, with their cyan/green dark base and grey details. The source colour
+banks share the existing mono tile pattern; conversion validates all 768 tile
+pixels. The existing background plane is filled during staged loading and
+stays fixed while the player moves. Chip memory and load duration are unchanged.
+Native lower/upper routes pass at 249/232 PAL lines with zero misses and all
+5,120 state fields matching. `tower-hallway-pixel-test` checks both complete
+hallway compositions, including their static backgrounds and hidden entities.

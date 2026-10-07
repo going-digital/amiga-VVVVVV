@@ -810,8 +810,8 @@ fill steps. Two native hallway captures match all 153,600 terrain pixels;
 the eight fixed tower views also remain a separate regression gate. The earlier
 second-checkpoint native replay still passes, now at 243 lines with zero misses.
 
-The hallway backgrounds are currently black. Seeing Red's crew entity and
-dialogue trigger, other story scripts, exits beyond these hallways, other tower
+Seeing Red's crew entity and dialogue trigger, other story scripts, exits
+beyond these hallways, other tower
 entities, interpolation, palette cycling and music/SFX remain outside this
 slice. Native upper coverage proves ordinary Seeing Red checkpoint activation,
 tower re-entry, a natural spike death at logic tick 56, and restore to the saved
@@ -838,3 +838,14 @@ the OS cleanly.
 
 Next: expand natural traversal and story coverage, and measure
 Lightspeedplayer audio with the combined workload.
+
+The following increment restores the static hallway tower backgrounds. Desktop
+background modes 7/8 sample the tower backdrop at offset 200 with colour banks
+15/10. Both banks share the existing mono pattern: a cyan/green dark base and
+grey detail. Offline conversion checks all 768 source tile pixels before using
+those Copper colours, so no new atlas or Chip memory is needed. Static views
+fill during the same staged load and remain fixed during ordinary movement.
+The lower/upper native routes still pass at 249/232 PAL lines, zero misses,
+64/96 loading fields and 5,120 matching state fields each. Seeing Red's story
+entity and trigger remain the next bounded room-content gap. Both fixed
+hallway captures match all 153,600 terrain/background pixels.

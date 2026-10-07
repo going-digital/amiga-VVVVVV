@@ -105,6 +105,20 @@ def main():
     # foreground palette reduction (which otherwise loses these dark details).
     backdrop=bytes(sum(int(sum(tile[y*8+x])>=3)<<(7-x) for x in range(8))
                    for tile in pixels for y in range(8))
+    # Static hallway banks share the existing one-plane background pattern.
+    # Prove every source pixel of its six tile IDs has the expected dark tint
+    # or grey detail before the native renderer uses those Copper colours.
+    hallway_background_checks=0
+    for bank,base in ((15,(0,1,1)),(10,(0,1,0))):
+        for tile in range(6):
+            index=bank*30+tile;ox=(index%(width//8))*8;oy=(index//(width//8))*8
+            for y in range(8):
+                for x in range(8):
+                    r,g,b,a=rgba[((oy+y)*width+ox+x)*4:((oy+y)*width+ox+x)*4+4]
+                    colour=tuple(round(v*a/255/17) for v in (r,g,b))
+                    expected=(1,1,1) if (backdrop[tile*8+y]>>(7-x))&1 else base
+                    assert colour==expected,(bank,tile,x,y,colour,expected)
+                    hallway_background_checks+=1
     pair_report={'foreground':paired_atlas(out,atlas,2,('loadmap','loadminitower1','loadminitower2'),'tower'),
                  'background':paired_atlas(out,backdrop,1,('loadbackground',),'tower_background')}
     (out/'tower-pairs.json').write_text(json.dumps(pair_report,indent=2)+'\n')
@@ -152,6 +166,7 @@ def main():
             ppm=out/f'tower-camera-{camera}.ppm';ppm.write_bytes(b'P6\n320 240\n255\n'+rgb)
             subprocess.run(['ffmpeg','-v','error','-nostdin','-y','-i',str(ppm),'-frames:v','1',str(out/f'tower-camera-{camera}.png')],check=True)
     report=dict(bank=args.bank,source_sha256=hashlib.sha256(original).hexdigest(),atlas_bytes=len(atlas),
+        hallway_background_pixel_checks=hallway_background_checks,
         palette=colors,source_ocs_colours=len(set(c for tile in pixels for c in tile)),pixel_checks=checks,cameras=cameras,
         scope='Actual tiles3 colour bank, alpha baked onto black and four-colour quantization; C planar ring vs converted pixels. Host only, no Copper/DMA, parallax, colour cycling or gameplay.')
     (out/'tower-assets.json').write_text(json.dumps(report,indent=2)+'\n')

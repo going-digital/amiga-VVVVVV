@@ -128,13 +128,19 @@ write_protected = true
                     (((atlas[t*16+8+y%8]>>(7-x))&1)<<1)]
                     for t in tiles[y//8*40:(y//8+1)*40] for x in range(8)))
             # compare() indexes modulo the tower height; these views are at 0.
-            checks+=compare(path,0,(foreground,[bytes(960)]*960),parallax=False)
+            # Desktop modes 7/8 call backat(i,j,200), colour banks 15/10.
+            # Their backdrop tiles contain grey details over a dark tint.
+            base=bytes((0,17,17) if camera==0 else (0,17,0))
+            background=[b''.join(bytes((17,17,17)) if row[x:x+3]!=bytes(3) else base
+                for x in range(0,960,3)) for row in rows[1]]
+            background=background[200:]+background[:200]
+            checks+=compare(path,0,(foreground,background),parallax=False)
         else: checks += compare(path, camera, rows)
         print(f'PASS: native camera {camera}, 76800 logical pixels', flush=True)
     report = dict(cameras=CAMERAS, logical_pixel_checks=checks,
                   scope='Three-plane dual-playfield fixed-camera native Copper/DMA captures vs desktop map and converted atlas; exact RGB at logical pixel centres; not moving-frame tearing or physical hardware validation')
     if args.hallways:
-        report.update(hallways=((108,109),(110,104)),scope='Fixed native hallway terrain captures vs literal Finalclass maps and converted tower atlas; black backgrounds and hidden entities; no moving-frame or story-script validation')
+        report.update(hallways=((108,109),(110,104)),scope='Fixed native hallway terrain captures vs literal Finalclass maps and converted tower atlas; static tower backgrounds and hidden entities; no moving-frame or story-script validation')
     (BUILD / 'pixels.json').write_text(json.dumps(report, indent=2)+'\n')
 
 

@@ -221,32 +221,36 @@ static unsigned reuse_rows(V6TowerDraw *dst_cache,const V6TowerDraw *src_cache,
     }
     return copied;
 }
+static unsigned background_camera(unsigned camera)
+{
+#ifdef V6_TOWER_ROUTE
+    /* Desktop background modes 7/8 both use backat(...,200). */
+    if(route.rooms[route.index].packed) return 200;
+#endif
+    return camera>>1;
+}
 static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsigned *drawn) {
-    UWORD *p=list;unsigned i,background_rows,copied;
+    UWORD *p=list;unsigned i,background_rows,copied,bg_camera=background_camera(camera);
     copied=0;
     /* Small advances cost less to redraw than to scan and copy from peer. */
     if(camera>prepared_camera[index]+8 || prepared_camera[index]>camera+8) {
         copied=reuse_rows(&draw[index],&draw[index^1],ring,rings[index^1],camera>>3,2);
         copied+=reuse_rows(&background_draw[index],&background_draw[index^1],
-            ring+V6_TOWER_RING_BYTES,rings[index^1]+V6_TOWER_RING_BYTES,camera>>4,1);
+            ring+V6_TOWER_RING_BYTES,rings[index^1]+V6_TOWER_RING_BYTES,bg_camera>>3,1);
     }
     prepared_camera[index]=camera;
     if(drawn && copied>diag.max_copied) diag.max_copied=copied;
 #ifdef V6_TOWER_PAIRS
     if(!v6_tower_draw_pair_prepare_verified(&draw[index],ring,&stream,camera>>3,
         tower_pair_offsets,tower_pairs,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2,drawn)) return 0;
-#ifdef V6_TOWER_ROUTE
-    if(route.rooms[route.index].packed) background_rows=0;
-    else
-#endif
     if(!v6_tower_draw_pair_prepare_verified(&background_draw[index],ring+V6_TOWER_RING_BYTES,
-        &background_stream,camera>>4,tower_background_pair_offsets,tower_background_pairs,
+        &background_stream,bg_camera>>3,tower_background_pair_offsets,tower_background_pairs,
         TOWER_BACKGROUND_PAIR_WORDS,TOWER_TILE_COUNT,1,&background_rows)) return 0;
 #else
     if(!v6_tower_draw_prepare(&draw[index],ring,&stream,camera>>3,
         tower_tiles,TOWER_TILE_COUNT,0,drawn)) return 0;
     if(!v6_tower_draw_mono_prepare(&background_draw[index],ring+V6_TOWER_RING_BYTES,
-        &background_stream,camera>>4,tower_backdrop,TOWER_TILE_COUNT,&background_rows)) return 0;
+        &background_stream,bg_camera>>3,tower_backdrop,TOWER_TILE_COUNT,&background_rows)) return 0;
 #endif
     if(drawn) *drawn+=background_rows;
     p=move(p,0x100,0x3600);p=move(p,0x102,0);p=move(p,0x104,0);
@@ -256,7 +260,12 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     for(i=0;i<4;++i) p=move(p,0x180+i*2,tower_palette[i]);
     p=move(p,0x192,0x223);
 #ifdef V6_TOWER_ROUTE
-    if(route.rooms[route.index].packed) p=move(p,0x192,0);
+    if(route.rooms[route.index].packed) {
+        /* Source banks 15 (Divot) and 10 (Seeing Red) use two dark
+         * OCS colours in the background tiles: tinted base and grey detail. */
+        p=move(p,0x180,route.index==2?0x011:0x010);
+        p=move(p,0x192,0x111);
+    }
 #endif
 #ifdef V6_TOWER_PLAY
     v6_sprites_begin(&player_sprites[index],player_sprites[index].dma);
@@ -284,7 +293,7 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #endif
 #endif
     return v6_tower_dual_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
-        camera&255,(camera>>1)&255)!=0;
+        camera&255,bg_camera&255)!=0;
 }
 static int run(void) {
     UBYTE *chip;UWORD *lists[2];
@@ -517,9 +526,8 @@ static int run(void) {
             int fg=v6_tower_draw_pair_prepare_budget(&draw[back],rings[back],&stream,camera>>3,
                 tower_pair_offsets,tower_pairs,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2,&fg_rows,budget);
             int bg=1;
-            if(!route.rooms[route.index].packed)
-                bg=v6_tower_draw_pair_prepare_budget(&background_draw[back],rings[back]+V6_TOWER_RING_BYTES,
-                    &background_stream,camera>>4,tower_background_pair_offsets,tower_background_pairs,
+            bg=v6_tower_draw_pair_prepare_budget(&background_draw[back],rings[back]+V6_TOWER_RING_BYTES,
+                    &background_stream,background_camera(camera)>>3,tower_background_pair_offsets,tower_background_pairs,
                     TOWER_BACKGROUND_PAIR_WORDS,TOWER_TILE_COUNT,1,&bg_rows,budget);
             drawn=fg_rows+bg_rows;++route_diag.loading_frames;route_budget=2;
             if(!fg || !bg) { diag.error=8;break; }
