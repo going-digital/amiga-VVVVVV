@@ -282,7 +282,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -O2 -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -506,3 +506,17 @@ $(BUILD)/campaign_save.o: campaign_save.c campaign_save.h | $(BUILD)
 test-campaign-save: $(BUILD)/campaign_save.o
 	python3 $(ROOT)/tools/amiga/test_campaign_save.py
 test: test-campaign-save
+
+$(BUILD)/campaign_file.o: campaign_file.c campaign_file.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+$(BUILD)/campaign_dos.o: campaign_dos.c campaign_dos.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -Wno-volatile-register-var -c $< -o $@
+.PHONY: test-campaign-file
+test-campaign-file: $(BUILD)/campaign_dos.o $(BUILD)/campaign_file.o
+	python3 $(ROOT)/tools/amiga/test_campaign_file.py
+test: test-campaign-file
+
+.PHONY: tower-persistence-capture
+tower-persistence-capture: tower-probe test-campaign-file
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-persistence CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_AUDIO -DV6_TOWER_PERSIST" $(ROOT)/build/amiga-tower-persistence/tower.adf
+	python3 $(ROOT)/tools/amiga/run_campaign_persistence.py

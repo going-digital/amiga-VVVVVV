@@ -49,3 +49,15 @@ int v6_campaign_decode(V6CheckpointSave *out,V6HallwayStory *story,const uint8_t
     if(!valid(&c,&s))return 0;
     *out=c;*story=s;return 1;
 }
+
+int v6_campaign_checkpoint_valid(const V6CheckpointSave *s,const V6Checkpoint *bank,unsigned count)
+{
+    unsigned i;
+    if(!s || !bank || count>32 || (s->dir!=0 && s->dir!=1))return 0;
+    for(i=0;i<count;++i) {
+        const V6Checkpoint *c=&bank[i];
+        if(c->id==s->id && (c->tile==20 || c->tile==21))
+            return s->x==c->x-4 && s->y==c->y-(c->tile==20?2:7) && s->gravity==(c->tile==20);
+    }
+    return 0;
+}

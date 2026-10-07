@@ -1620,3 +1620,46 @@ symbols. This is the persistence format foundation, not disk saving or a native
 load/restart gate. Next: OS-safe AmigaDOS file loading/writing, checkpoint-bank
 validation and a native rescue/save/restart replay. Full campaign saves still
 require additional crew, flags, trinkets and room coverage.
+
+## AmigaDOS new-file save and cold-boot restart
+
+The save codec is committed as `c00a46ce`. `campaign_file` now stages a new
+record in a distinct temporary file, checks the write and close results,
+rereads and compares the complete record, then renames it to the final path.
+Existing final or temporary files are refused. Failed writes/readback/renames
+clean up the owned temporary file; failed cleanup retains it and a retry refuses
+to overwrite it. The caller must exclusively own both paths. `campaign_dos`
+implements the operations using Kickstart 1.3 AmigaDOS services. All file calls
+run with the OS enabled, outside the display/audio takeover.
+
+Loading checks exact file length, read/close results and the version/CRC/field
+rules before committing decoded output. The fixture stages decoded fields and
+then selects the saved room's resident checkpoint bank. A restart additionally
+requires a matching checkpoint ID and the source checkpoint-derived position,
+gravity and facing. Invalid saves fail before opening graphics or taking over
+hardware. Initial ID -1 saves are not accepted as checkpoint restarts.
+
+Run `make -C amiga_version tower-persistence-capture`. It creates a private
+writable ADF copy in `build/amiga-tower-persistence`, boots to complete the normal
+Seeing Red rescue and 64 follow steps, restores the OS and writes
+`DF0:campaign.v6cs`. A second, fresh emulator boot reads the floppy record and
+restarts the renderer at checkpoint 505147: (140,1822), gravity 1, facing 1.
+Companion 9 and both rescue flags survive; the companion is absent in tower
+mode, its following state is retained, the saved checkpoint is active, and no
+rescue request or speech is repeated. The first boot's 10,112 initial trace
+fields and final state still match the source-derived host replay. Both runs
+restore the OS, use 92,310 Chip bytes, and miss no frames, peaking at 234/236 PAL
+lines. The harness independently checks the actual 44-byte record in the OFS
+image. Two more fresh boots reject bad CRC and checksum-valid bad checkpoint
+position records before takeover, without rewriting either image.
+
+`test-campaign-file` exercises existing-file preservation, 11 injected I/O
+faults, failed-cleanup/retry handling, seven transactional read failures, all
+40 source checkpoint/facing combinations and 200 invalid spawn variants. The
+68000 file/DOS objects compile; all save codec tests pass. Normal/skip rescue
+and recorded audio captures still pass at 233/229 PAL lines with zero misses.
+
+This is a bounded new-save/cold-boot fixture, not a general in-game save menu.
+Existing-file replacement, recovery from interrupted replacement, full campaign
+fields and unsupported rooms remain open. Next: safe replacement of an existing
+save with recovery, then connect save/load actions to the interactive slice.

@@ -13,4 +13,7 @@
 #define V6_CAMPAIGN_SAVE_BYTES 44
 int v6_campaign_encode(uint8_t *,size_t,const V6CheckpointSave *,const V6HallwayStory *);
 int v6_campaign_decode(V6CheckpointSave *,V6HallwayStory *,const uint8_t *,size_t);
+/* Bank must belong to the saved room. Only source checkpoint-derived spawns
+ * are accepted; an initial save with id -1 is not a checkpoint restart. */
+int v6_campaign_checkpoint_valid(const V6CheckpointSave *,const V6Checkpoint *,unsigned);
 #endif

@@ -1,5 +1,16 @@
 /* Standalone PAL tower display experiment; left mouse exits. */
 #include <proto/exec.h>
+#ifdef V6_TOWER_PERSIST
+#include <proto/dos.h>
+#include "campaign_dos.h"
+struct DosLibrary *DOSBase;
+static V6CheckpointSave persisted_checkpoint;
+static V6HallwayStory persisted_story;
+static unsigned persist_stage;
+static volatile struct { ULONG magic,version,values[18]; } persist_diag={0x56365356,1,{0}};
+static const char save_name[]="DF0:campaign.v6cs";
+static const char save_temp[]="DF0:campaign.tmp";
+#endif
 #include <proto/graphics.h>
 #include <graphics/gfxbase.h>
 #include <exec/execbase.h>
@@ -556,6 +567,16 @@ static int run(void) {
 #else
     if(!v6_tower_route_load(&route,110,104,0)) return 20;
 #endif
+#ifdef V6_TOWER_PERSIST
+    if(persist_stage==2) {
+        world.save=persisted_checkpoint;hallway_story=persisted_story;
+        if(!v6_tower_route_load(&route,world.save.room_x,world.save.room_y,1))return 20;
+        rescue_vm.following=hallway_story.companion==9;rescue_vm.mood=hallway_story.companion==9?0:1;
+        persist_diag.values[4]=1;
+        persist_diag.values[6]=session.player.x;persist_diag.values[7]=session.player.y;
+        persist_diag.values[8]=session.player.gravity;persist_diag.values[9]=session.player.dir;
+    }
+#endif
     v6_hallway_trigger_init(&hallway_trigger);
     v6_hallway_trigger_enter(&hallway_trigger,route.rooms[route.index].x,route.rooms[route.index].y,&hallway_story);
     trigger_crew_visible=v6_hallway_crew_visible(route.rooms[route.index].x,route.rooms[route.index].y,&hallway_story);
@@ -564,6 +585,11 @@ static int run(void) {
 #ifdef V6_TOWER_COMPANION_ROUTE
     v6_companion_enter(&companion,9,1,109,&session.player);
 #else
+#ifdef V6_TOWER_PERSIST
+    if(persist_stage==2 && hallway_story.companion==9)
+        v6_companion_enter(&companion,9,route.index<2,route.rooms[route.index].x,&session.player);
+    else
+#endif
     v6_companion_idle(&companion,trigger_crew_visible);
 #endif
     {
@@ -691,6 +717,10 @@ static int run(void) {
 #ifdef V6_TOWER_WORLD
           && !world.exit.room_x
 #endif
+#ifdef V6_TOWER_PERSIST
+          && (persist_stage==2?diag.logic_ticks<64:
+              !(hallway_story.red_rescued && !rescue_vm.active && companion.follow_steps>=64 && cue_audio.state==0))
+#endif
           ) {
         start=clock_lines();
 #ifdef V6_TOWER_AUDIO
@@ -736,6 +766,9 @@ static int run(void) {
                 if(joy&0x0200) input|=V6_LEFT;
                 if(joy&0x0002) input|=V6_RIGHT;
                 if(!(*(volatile UBYTE *)0xbfe001&0x80)) input|=V6_FLIP;
+#endif
+#ifdef V6_TOWER_PERSIST
+                if(persist_stage==2) input=0;
 #endif
 #ifdef V6_TOWER_RESCUE
                 V6RescueSignals rescue_signals;
@@ -908,4 +941,45 @@ static int run(void) {
     Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();diag.status=2;
     FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return diag.error?20:0;
 }
-int __attribute__((used,section(".text.unlikely"))) _start(void) { return run(); }
+#ifdef V6_TOWER_PERSIST
+static int checkpoint_bank_valid(const V6CheckpointSave *c)
+{
+    unsigned i;
+    for(i=0;i<4;++i)if(tower_route_rooms[i].x==c->room_x && tower_route_rooms[i].y==c->room_y)
+        return v6_campaign_checkpoint_valid(c,tower_route_rooms[i].checkpoints,tower_route_rooms[i].count);
+    return 0;
+}
+#endif
+int __attribute__((used,section(".text.unlikely"))) _start(void) {
+#ifdef V6_TOWER_PERSIST
+    int result,exists;
+    __asm volatile("move.l 4.w,%0":"=r"(SysBase));
+    DOSBase=(struct DosLibrary *)OpenLibrary((CONST_STRPTR)"dos.library",0);
+    if(!DOSBase)return 20;
+    exists=v6_campaign_dos.exists(save_name);
+    if(exists<0){persist_diag.values[1]=V6_SAVE_IO;CloseLibrary((struct Library *)DOSBase);return 20;}
+    persist_stage=exists?2:1;persist_diag.values[0]=persist_stage;
+    if(exists) {
+        result=v6_campaign_read(&v6_campaign_dos,save_name,&persisted_checkpoint,&persisted_story);
+        persist_diag.values[1]=result;
+        if(result!=V6_SAVE_OK || !checkpoint_bank_valid(&persisted_checkpoint)) {
+            persist_diag.values[3]=1;CloseLibrary((struct Library *)DOSBase);return 20;
+        }
+    }
+    result=run();
+    if(!result && !rescue_vm.active && checkpoint_bank_valid(&world.save)) {
+        if(persist_stage==1) {
+            result=v6_campaign_write_new(&v6_campaign_dos,save_name,save_temp,&world.save,&hallway_story);
+            persist_diag.values[2]=result;
+        }
+        if(!result)persist_diag.values[5]=1;
+    } else {persist_diag.values[3]=1;result=20;}
+    persist_diag.values[10]=world.save.id;persist_diag.values[11]=hallway_story.companion;
+    persist_diag.values[12]=hallway_story.rescue_triggered;persist_diag.values[13]=hallway_story.red_rescued;
+    persist_diag.values[14]=hallway_trigger.requests;persist_diag.values[15]=cue_audio.starts;
+    persist_diag.values[16]=companion.visible;persist_diag.values[17]=rescue_vm.following;
+    CloseLibrary((struct Library *)DOSBase);return result?20:0;
+#else
+    return run();
+#endif
+}
