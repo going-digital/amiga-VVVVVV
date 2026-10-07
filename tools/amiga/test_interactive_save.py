@@ -21,9 +21,14 @@ static V6TowerGameplay world;
 static V6HallwayStory hallway_story;
 static V6Checkpoint bank={144,1824,20,505147,0,0};
 static V6Teleporter teleporter={112,48,0,1,1,0};
-static const V6TowerRouteRoom tower_route_rooms[5]={{109,109,0,0,&bank,1,0,0},{0},{0},{0},{111,104,0,0,0,0,0,&teleporter}};
+static const V6TowerRouteRoom tower_route_rooms[5]={{109,109,0,0,&bank,1,0,0,2},{0},{0},{0},{111,104,0,0,0,0,0,&teleporter,2}};
 '''+ '\n'.join(parts)+'''
 void setup(const V6CampaignIO *io,const V6CheckpointSave *c,const V6HallwayStory *s) {v6_campaign_dos=*io;world.save=*c;hallway_story=*s;}
+int valid_energize(const V6CheckpointSave *c){
+static V6Teleporter t={36,68,0,1,1,0};
+const V6TowerRouteRoom rooms[1]={{110,105,0,0,0,0,0,&t,0}};
+return v6_campaign_route_checkpoint_valid(c,rooms,1);
+}
 int valid_four(const V6CheckpointSave *c){return v6_campaign_route_checkpoint_valid(c,tower_route_rooms,4);}
 int save(void){return ui_save_checked();}
 int load(V6CheckpointSave *c,V6HallwayStory *s){return ui_load_checked(c,s);}
@@ -92,6 +97,19 @@ int load(V6CheckpointSave *c,V6HallwayStory *s){return ui_load_checked(c,s);}
     assert dedicated.load(C.byref(out_cp),C.byref(out_story))==4 and f.files=={b'save':clean,b'backup':tele_blob}
     f.files={b'save':clean}
     assert dedicated.load(C.byref(out_cp),C.byref(out_story))==0 and values(out_cp)==values(tele)
+    # Codec support is broader than this renderer's five-room capability.
+    energize=Checkpoint(80,112,0,1,110,105,0);blob=encoded(energize)
+    dedicated.valid_energize.argtypes=[C.POINTER(Checkpoint)]
+    assert dedicated.valid_energize(C.byref(energize))
+    for field,value in (('x',81),('y',113),('gravity',1),('id',1),('room_x',111)):
+        bad=Checkpoint(*values(energize));setattr(bad,field,value)
+        assert not dedicated.valid_energize(C.byref(bad))
+    for image in ({b'save':blob},{b'save':clean,b'backup':blob},{b'backup':blob}):
+        f.files=image.copy();dedicated.setup(C.byref(f.io),C.byref(tele),C.byref(zero))
+        before=bytes(out_cp),bytes(out_story)
+        assert dedicated.load(C.byref(out_cp),C.byref(out_story))==4 and f.files==image
+        assert (bytes(out_cp),bytes(out_story))==before
+        assert dedicated.save()==4 and f.files==image
     f.files.clear()
     print('PASS actual UI consumers: malformed final/backup preservation, transactional load rejection, new/replaced/recovered saves and invalid-live-state guard')
 if __name__=='__main__':main()

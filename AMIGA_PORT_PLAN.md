@@ -9,7 +9,9 @@ rejection before takeover. See "Teleporter checkpoint disk persistence" below.
 Interactive Building save/load controls now pass real mouse and fresh-boot
 checks, committed as `c6800d55`; see "Building Apport interactive saving" below.
 The selector core is committed as `34eed379`. Native menu controls and captions
-now pass hardware-input checks; a second resident destination and arrival are next.
+now pass hardware-input checks, committed as `182d92cd`. Energize collision data
+and the source teleport handoff are tested; its native graphics and arrival effects
+are next.
 
 ## Implementation progress — 27 September 2026
 
@@ -1524,3 +1526,44 @@ Next: add a second source-backed resident teleporter destination and a validated
 arrival path. Only then offer cross-room travel and its source arrival effects.
 The menu currently offers no remote destination and no new exploration or
 travel progress is serialized; the 44-byte checkpoint format is unchanged.
+
+## Energize collision data and teleport handoff — 7 October 2026
+
+Selected source **Energize (110,105)** for the second normal-mode teleporter.
+`Spacestation2.cpp` translates it to literal room (48,41), with teleporter
+(36,68), ID 0, checkpoint centre (80,112), and no normal-mode moving entities.
+Its trial-only barrier is excluded. `Map.cpp` selects **tileset 0** here; it must
+not inherit Building's tileset 2. The converter now exports its exact 1,200-tile
+collision view, compressed room and source metadata. Native display integration
+is deliberately pending: its tile IDs reach 805 and require a different graphics
+bank from the existing tower atlas.
+
+Resident route descriptors now carry the explicit ordinary-room tileset. Updated
+all generated descriptors and host ABI fixtures; existing rooms retain their
+original collision classification. Added `v6_tower_route_teleport`, the bounded
+normal `Script.cpp::teleport` room-change/save stage. It validates a different
+resident ordinary destination, teleporter geometry/ID, collision decode and
+checkpoint bank before changing state. It seeds source position (150,110),
+gravity 0, interpolation history, silent teleporter state 2, and the destination
+centre checkpoint while retaining source direction/velocities. The source
+(117,117) position exception is also covered. Caller-owned exploration/menu
+gates, paused control, sounds/flashes and subsequent arrival states remain
+outside this helper.
+
+`test-teleporter-travel` passes nine handoffs against the extracted source prefix
+(including both facings, packed/decoded views, both directions and the special
+entry), silent state-2 activation, failed-load preservation, and 480 real Energize
+collision ticks against desktop player methods. The codec accepts its checkpoint
+without changing the 44-byte format (1,728 round trips); source-bank guards reject
+wrong centres/gravity/ID/room. The current five-room UI consumers reject and
+preserve Energize final/backup records because their renderer lacks that room.
+Existing Building, boundary, file/recovery and native menu regressions pass;
+native menu still uses 92,128 Chip bytes, peaks at 204 PAL lines, and misses no
+fields. Energize is resident in the six-room **host fixture only** and is not yet
+listed in the playable menu.
+
+Next: prepare Energize's private graphics bank and native room renderer, then
+implement the source arrival sequence and add a native round-trip capture. Offer
+it through the selector only after the renderer/arrival path is complete, with
+an explicit explored-destination policy. Wider exploration persistence remains
+pending.

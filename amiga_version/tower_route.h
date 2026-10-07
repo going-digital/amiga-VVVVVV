@@ -15,6 +15,7 @@ typedef struct {
     /* Optional immutable 1200-tile view prepared before the frame loop. */
     const uint16_t *decoded;
     V6Teleporter *teleporter; /* Optional source type-14 entity, caller-owned. */
+    unsigned tileset; /* Ordinary-room source tileset (0..2); tower ignores it. */
 } V6TowerRouteRoom;
 typedef struct {
     V6TowerSession *session;
@@ -36,6 +37,13 @@ int v6_tower_route_init(V6TowerRoute *,V6TowerSession *,V6TowerGameplay *,
  * a hallway destination uses a fixed zero camera.
  * Unknown/malformed rooms return 0 before changing room/checkpoint state. */
 int v6_tower_route_load(V6TowerRoute *,int x,int y,int respawn);
+/* Script.cpp normal teleport room-change stage, before arrival effects.
+ * Caller enforces exploration/menu eligibility and pauses player control for
+ * the subsequent arrival sequence. Destination must be a different resident
+ * ordinary room with a canonical teleporter. Invalid requests retain all state.
+ * Seeds the source (150,110) entry (88,110 for 117,117), gravity zero, silent entity state 2 and
+ * destination centre checkpoint; does not play effects or run arrival states. */
+int v6_tower_route_teleport(V6TowerRoute *,int x,int y);
 /* Returns 0 on unsupported exit/load failure (error is latched), 1 otherwise.
  * Renderer must rebuild both inactive banks after index changes; it owns DMA
  * and may pause logic while doing that. Unsupported exits leave an explicit

@@ -15,7 +15,7 @@ int v6_tower_route_load(V6TowerRoute *r,int x,int y,int respawn)
     uint16_t candidate[1200];
     if(index<0) return 0;
     next=&r->rooms[index];
-    if(next->count>32 || (next->count && !next->checkpoints) ||
+    if(next->tileset>2 || next->count>32 || (next->count && !next->checkpoints) ||
        (next->packed && !next->decoded && !v6_unpack_room(next->packed,next->bytes,candidate,1200))) return 0;
     if(next->packed && !next->decoded) {
         unsigned i;
@@ -30,7 +30,7 @@ int v6_tower_route_load(V6TowerRoute *r,int x,int y,int respawn)
         v6_teleporter_init(t,t->x,t->y,t->id);
     }
     if(next->packed) {
-        r->room.tiles=next->decoded?next->decoded:r->tiles;r->room.tileset=2;r->room.extra_row=0;
+        r->room.tiles=next->decoded?next->decoded:r->tiles;r->room.tileset=next->tileset;r->room.extra_row=0;
         r->room.terrain=0;r->room.blocks=0;r->room.block_count=0;
     } else v6_player_tower_room(&r->room,r->tower);
     s->camera.y=s->camera.old_y=0;s->camera.mode=0;
@@ -58,6 +58,27 @@ int v6_tower_route_load(V6TowerRoute *r,int x,int y,int respawn)
         }
         ++r->returns;
     }
+    return 1;
+}
+int v6_tower_route_teleport(V6TowerRoute *r,int x,int y)
+{
+    int index=find(r,x,y);V6Teleporter *t;
+    V6TowerSession *s=r->session;V6TowerGameplay *w=r->world;
+    if(r->error || s->death_timer!=-1 || index<0 || (unsigned)index==r->index ||
+       x<100 || x>=120 || y<100 || y>=120 || !r->rooms[index].packed)
+        return 0;
+    t=r->rooms[index].teleporter;
+    if(!t || t->id<0 || t->x< -44 || t->x>276 || t->y< -44 || t->y>196)
+        return 0;
+    /* load validates/decompresses the destination before any mutation. */
+    if(!v6_tower_route_load(r,x,y,0))return 0;
+    s->player.x=s->player.old_x=(x==117 && y==117)?88:150;
+    s->player.y=s->player.old_y=110;
+    s->motion.pending_y=110;s->player.gravity=0;
+    t->state=2;r->tele_events=0;
+    w->save.x=t->x+44;w->save.y=t->y+44;w->save.gravity=0;
+    w->save.dir=s->player.dir;w->save.room_x=x;w->save.room_y=y;w->save.id=t->id;
+    s->save_x=w->save.x;s->save_y=w->save.y;s->save_gravity=0;s->save_dir=w->save.dir;
     return 1;
 }
 int v6_tower_route_init(V6TowerRoute *r,V6TowerSession *s,V6TowerGameplay *w,

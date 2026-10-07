@@ -30,7 +30,7 @@ def main():
     expected+=struct.pack('>I',zlib.crc32(expected))
     assert blob==expected
     cases=0
-    for rx,ry,maxy in ((109,109,5600),(109,104,5600),(108,109,240),(110,104,240),(111,104,240)):
+    for rx,ry,maxy in ((109,109,5600),(109,104,5600),(108,109,240),(110,104,240),(111,104,240),(110,105,240)):
         for x in (0,140,320):
             for y in (0,maxy):
                 for gravity in (0,1):

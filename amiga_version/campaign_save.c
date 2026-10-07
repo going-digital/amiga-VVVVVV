@@ -12,7 +12,7 @@ static uint32_t get(const uint8_t *p)
 static int valid(const V6CheckpointSave *c,const V6HallwayStory *s)
 {
     int tower=c->room_x==109 && (c->room_y==104 || c->room_y==109);
-    int hall=(c->room_x==110 && c->room_y==104)||(c->room_x==108 && c->room_y==109)||(c->room_x==111 && c->room_y==104);
+    int hall=(c->room_x==110 && (c->room_y==104 || c->room_y==105))||(c->room_x==108 && c->room_y==109)||(c->room_x==111 && c->room_y==104);
     return (tower||hall) && c->x>=0 && c->x<=320 && c->y>=0 && c->y<=(tower?5600:240)
         && (c->gravity==0 || c->gravity==1) && (c->dir==0 || c->dir==1)
         && c->id>=-1 && c->id<=0x7fffffff

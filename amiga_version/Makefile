@@ -636,3 +636,8 @@ tower-building-interactive-save-capture: tower-building-interactive-save
 tower-building-menu-capture: tower-probe test-teleporter-menu test-interactive-save
 	$(MAKE) BUILD=$(ROOT)/build/amiga-building-menu CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_BUILDING_REPLAY -DV6_TOWER_UI_SAVE -DV6_TELE_MENU_CAPTURE" $(ROOT)/build/amiga-building-menu/tower.adf
 	python3 $(ROOT)/tools/amiga/run_building_menu.py
+
+.PHONY: test-teleporter-travel
+test-teleporter-travel: $(BUILD)/tower_route.o
+	python3 $(ROOT)/tools/amiga/test_teleporter_travel.py
+test: test-teleporter-travel

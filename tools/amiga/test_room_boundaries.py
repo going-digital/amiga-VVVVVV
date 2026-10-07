@@ -43,7 +43,7 @@ def fixture(core):
     rooms=(RouteRoom*9)()
     desc=keep[2][2]
     for i in range(9):
-        rooms[i]=RouteRoom(107+i%3,108+i//3,desc.packed,desc.bytes,None,0,None)
+        rooms[i]=RouteRoom(107+i%3,108+i//3,desc.packed,desc.bytes,None,0,None,None,2)
     r.rooms=rooms;r.count=9;r.index=4
     assert core.v6_tower_route_load(C.byref(r),108,109,0)
     return r,s,w,(keep,rooms)

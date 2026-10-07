@@ -2048,3 +2048,21 @@ capture target; the playable launcher uses keyboard joystick input.
 
 Next is a second resident teleporter and validated arrival; remote travel and
 exploration persistence remain unimplemented.
+
+## Energize teleport handoff
+
+`make -C amiga_version test-teleporter-travel` verifies the second source-backed
+teleporter room, Energize (110,105), in a six-room host fixture. Its source
+teleporter at (36,68) saves centre (80,112). Room descriptors now carry the source
+tileset; Energize uses tileset 0 while Building uses tileset 2. Exact collision
+data is exported as `energize_collision.h` in the private build directory.
+
+The route teleport helper validates the destination before applying the source
+room-change/checkpoint stage. Nine extracted desktop handoffs, transactional
+failure checks, silent state-2 initialization, and 480 source player collision
+ticks pass. Codec/source-bank validation supports the new checkpoint; the
+five-room native UI rejects unsupported Energize records without changing files.
+The native menu regression still passes with zero errors/missed fields.
+
+Energize is not yet available in the playable menu. Next are its separate graphics
+bank, native renderer and arrival effects, followed by native travel validation.

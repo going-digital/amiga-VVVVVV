@@ -10,7 +10,7 @@ from pack_rooms import encode
 from test_teleporter import Teleporter,Region
 class RouteRoom(C.Structure):
     _fields_=[('x',C.c_int),('y',C.c_int),('packed',C.POINTER(C.c_uint8)),
-              ('bytes',C.c_size_t),('checkpoints',C.POINTER(Checkpoint)),('count',C.c_uint),('decoded',C.POINTER(C.c_uint16)),('teleporter',C.POINTER(Teleporter))]
+              ('bytes',C.c_size_t),('checkpoints',C.POINTER(Checkpoint)),('count',C.c_uint),('decoded',C.POINTER(C.c_uint16)),('teleporter',C.POINTER(Teleporter)),('tileset',C.c_uint)]
 class Route(C.Structure):
     _fields_=[('session',C.POINTER(Session)),('world',C.POINTER(World)),
               ('rooms',C.POINTER(RouteRoom)),('count',C.c_uint),('index',C.c_uint),
@@ -26,6 +26,7 @@ def route_setup(core,index=0):
         packed=encode(desc['tiles']);data=(C.c_uint8*len(packed)).from_buffer_copy(packed)
         cp=(Checkpoint*1)(Checkpoint(*desc['checkpoint'],0,0))
         rooms[i+2]=RouteRoom(desc['x'],desc['y'],data,len(data),cp,1)
+        rooms[i+2].tileset=2
         payloads.append(data);banks.append(cp)
     core.v6_tower_route_init.argtypes=[C.POINTER(Route),C.POINTER(Session),C.POINTER(World),
         C.POINTER(RouteRoom),C.c_uint,C.c_int,C.c_int,C.POINTER(Tiles)]

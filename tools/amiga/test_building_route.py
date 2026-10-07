@@ -11,7 +11,7 @@ def fixture(core):
     for i in range(4):rooms[i]=old[2][i]
     packed=encode(building_room());payload=(C.c_uint8*len(packed)).from_buffer_copy(packed)
     tiles=(C.c_uint16*1200)(*building_room());tele=Teleporter(112,48,0,1,1,0)
-    rooms[4]=RouteRoom(111,104,payload,len(payload),None,0,tiles,C.pointer(tele))
+    rooms[4]=RouteRoom(111,104,payload,len(payload),None,0,tiles,C.pointer(tele),2)
     r.rooms=rooms;r.count=5
     w.save.x=140;w.save.y=1822;w.save.gravity=1;w.save.dir=1;
     w.save.room_x=109;w.save.room_y=109;w.save.id=-1
