@@ -11,7 +11,7 @@ ROM ?= $(HOME)/amiga/KICK13.ROM
 DATA ?= $(HOME)/Library/Application Support/Steam/steamapps/common/vvvvvv/VVVVVV.app/Contents/Resources/data.zip
 PLANES ?= 2
 SCENE ?= world
-CFLAGS := -DV6_PLANES=$(PLANES) -std=c99 -m68000 -Os -g -nostdlib -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fomit-frame-pointer -Wall -Wextra -Werror -ffunction-sections -fdata-sections -MMD -MP -I$(BUILD)
+CFLAGS := -DV6_PLANES=$(PLANES) -std=c99 -m68000 -Os -g -nostdlib -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fomit-frame-pointer -Wall -Wextra -Werror -ffunction-sections -fdata-sections -MMD -MP -I. -I$(BUILD)
 LDFLAGS := -nostdlib -m68000 -Wl,--emit-relocs,--gc-sections,-Ttext=0,-Map=$(BUILD)/prototype.map
 OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/platform.o $(BUILD)/checkpoints.o $(BUILD)/disappearing.o $(BUILD)/platform_gate.o $(BUILD)/tower_stream.o $(BUILD)/tower_draw.o $(BUILD)/tower_copper.o
 
@@ -282,7 +282,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -453,3 +453,28 @@ test: test-hallway-trigger
 tower-trigger-capture: tower-probe
 	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-trigger-replay CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY" $(ROOT)/build/amiga-tower-trigger-replay/tower.adf
 	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-trigger-replay --trigger-route
+
+$(BUILD)/rescue_script.o: rescue_script.c rescue_script.h hallway_crew.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILD)/dialogue.o: dialogue.c dialogue.h rescue_script.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+.PHONY: test-rescue-script
+test-rescue-script:
+	python3 $(ROOT)/tools/amiga/test_rescue_script.py
+test: test-rescue-script
+
+.PHONY: tower-rescue-capture tower-rescue-skip-capture tower-rescue tower-rescue-run
+tower-rescue-capture: tower-probe
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-rescue-replay CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE" $(ROOT)/build/amiga-tower-rescue-replay/tower.adf
+	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-rescue-replay --rescue-route
+tower-rescue-skip-capture: tower-probe
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-rescue-skip CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_RESCUE_SKIP" $(ROOT)/build/amiga-tower-rescue-skip/tower.adf
+	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-rescue-skip --skip-rescue
+tower-rescue: tower-probe
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-rescue CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE" $(ROOT)/build/amiga-tower-rescue/tower.adf
+tower-rescue-run: tower-rescue
+	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-rescue --interactive
+
+.PHONY: tower-caption-pixel-test
+tower-caption-pixel-test: tower-probe
+	python3 $(ROOT)/tools/amiga/test_tower_capture.py --captions

@@ -59,6 +59,15 @@ def main():
     with zipfile.ZipFile(args.data) as archive:
         original=archive.read('graphics/tiles3.png')
         sprite_png=archive.read('graphics/sprites.png')
+        font_png=archive.read('graphics/font.png')
+    font_path=out/'dialogue_font.png';font_path.write_bytes(font_png)
+    header,font=subprocess.check_output([str(decoder),str(font_path)]).split(b'\n',1)
+    fw,fh=map(int,header.split());glyphs=[]
+    for ch in range(128):
+        ox=ch%(fw//8)*8;oy=ch//(fw//8)*8;assert oy+8<=fh
+        glyphs.append([sum((font[((oy+y)*fw+ox+x)*4+3]>127 and max(font[((oy+y)*fw+ox+x)*4:((oy+y)*fw+ox+x)*4+3])>0)<<(7-x)
+            for x in range(8)) for y in range(8)])
+    (out/'dialogue_font.h').write_text('static const uint8_t dialogue_font[128][8]={'+','.join('{'+','.join(map(str,row))+'}' for row in glyphs)+'};\n')
     sprite_path=out/'tower_sprites.png';sprite_path.write_bytes(sprite_png)
     sprite_header,sprite_rgba=subprocess.check_output([str(decoder),str(sprite_path)]).split(b'\n',1)
     sw,sh=map(int,sprite_header.split());frames=[]

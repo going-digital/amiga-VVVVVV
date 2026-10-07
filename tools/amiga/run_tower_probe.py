@@ -42,7 +42,11 @@ def main():
     parser.add_argument('--route',action='store_true',help='Validate tower/hallway crossings and staged display loads')
     parser.add_argument('--upper-route',action='store_true',help='Validate upper entry and natural hazard remote checkpoint return')
     parser.add_argument('--trigger-route',action='store_true',help='Validate the one-shot Seeing Red rescue script handoff')
+    parser.add_argument('--rescue-route',action='store_true',help='Validate the rescue script and caption advancement')
+    parser.add_argument('--skip-rescue',action='store_true',help='Validate the source skip-cutscene branch')
     args = parser.parse_args()
+    if args.skip_rescue:args.rescue_route=True
+    if args.rescue_route:args.trigger_route=True
     if args.trigger_route:args.route=True
     if args.upper_route: args.route=True
     if args.wrap or args.route: args.world=True
@@ -98,7 +102,7 @@ write_protected = true
         assert 0 <= report['logic_remainder'] < 34000, report
         if args.route:
             from tower_route_trace import verify
-            verify(report, BUILD/'slow.bin',args.upper_route,args.trigger_route)
+            verify(report, BUILD/'slow.bin',args.upper_route,args.trigger_route,args.rescue_route,args.skip_rescue)
         elif args.world:
             from tower_world_trace import verify
             verify(report, BUILD / "slow.bin",args.wrap)
@@ -129,17 +133,22 @@ write_protected = true
                 with (BUILD/'live-capture.log').open('w') as log:
                     subprocess.run([EMU,'--config',str(config),'--noaudio','--screenshot-after',str(capture_time),str(visible_capture)],
                         env=dict(os.environ),stdout=log,stderr=subprocess.STDOUT,check=True)
-                _,probe=subprocess.check_output([str(ROOT/'build/amiga-feasibility/png_rgba'),str(visible_capture)]).split(b'\n',1)
+                probe_header,probe=subprocess.check_output([str(ROOT/'build/amiga-feasibility/png_rgba'),str(visible_capture)]).split(b'\n',1)
                 terrain=sum(1 for i in range(0,len(probe),4) if probe[i]>80 and probe[i]>probe[i+1]*1.5 and probe[i]>probe[i+2]*1.4)
                 player=sum(1 for i in range(0,len(probe),4) if probe[i+1]>150 and probe[i+2]>150 and probe[i]<probe[i+1]*0.8)
-                if terrain>1000 and player>20:break
+                if args.rescue_route:
+                    pw,ph=map(int,probe_header.split())
+                    player=sum(1 for i in range(158*pw*4,len(probe),4) if probe[i+1]>150 and probe[i+2]>150 and probe[i]<probe[i+1]*0.8)
+                    crew=sum(1 for y in range(400,464) for x in range(577,650) if probe[(y*pw+x)*4:(y*pw+x)*4+3]==bytes((255,68,68)))
+                else:crew=21
+                if terrain>1000 and player>20 and crew>20:break
             report['visible_capture_seconds']=capture_time
             assert terrain>1000,('No gameplay terrain in sprite capture',report)
         decoder=ROOT/'build/amiga-feasibility/png_rgba'
         header,pixels=subprocess.check_output([str(decoder),str(visible_capture)]).split(b'\n',1)
         width,height=map(int,header.split())
         assert len(pixels)==width*height*4
-        report['visible_player_pixels']=sum(1 for i in range(0,len(pixels),4)
+        report['visible_player_pixels']=sum(1 for i in range(158*width*4 if args.rescue_route else 0,len(pixels),4)
             if pixels[i+1]>150 and pixels[i+2]>150 and pixels[i]<pixels[i+1]*0.8)
         assert report['visible_player_pixels']>20,report
         if args.world:
@@ -149,13 +158,14 @@ write_protected = true
         if args.upper_route or args.trigger_route:
             report['visible_crew_pixels']=sum(1 for i in range(0,len(pixels),4)
                 if pixels[i:i+3]==bytes((255,68,68)))
+            if args.rescue_route:report['visible_crew_pixels']=crew
             assert report['visible_crew_pixels']>20,report
         report['headroom_20_percent']=report['max_work_lines']<=250
     if not args.controller:
         assert report['forward_wraps'] >= 1 and report['reverse_wraps'] >= 1, report
     if not args.play:
         assert report['max_rows'] <= (2*args.step+7)//8 + (args.step+7)//8, report
-    assert report['chip_bytes'] == (64128 if args.play else 61696), report
+    assert report['chip_bytes'] == (87424 if args.rescue_route else 64128 if args.play else 61696), report
     env.update(COPPERLINE_DBG_AFTER='43',
                COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{BUILD / "exit.bin"}')
     for name in ('exit.bin','exit.png'):
@@ -184,7 +194,8 @@ write_protected = true
             report['scope']='Main-tower normal-input horizontal wraps in both directions and natural recovery; 128 camera/player/checkpoint ticks match host integration; adjacent room loads remain pending'
         if args.route:
             report['scope']=('Upper entrance and Seeing Red checkpoint contact through ordinary input; natural spike death after tower re-entry restores saved hallway; ' if args.upper_route else 'Lower tower/hallway crossings and natural checkpoint recovery; ')+ 'staged display loads and first 128 ticks match host integration; crew dialogue/following scripts omitted'
-            if args.trigger_route:report['scope']='Seeing Red one-shot trigger 36 dispatch and retained rescuered request; first 128 camera/player/checkpoint/route/trigger ticks match host; dialogue/script consumption not integrated'
+            if args.rescue_route:report['scope']='Bounded source rescue/skip execution and full-width captions; first 128 script/platform/gameplay ticks match host; actor follow movement and source textbox/fade geometry not integrated'
+            elif args.trigger_route:report['scope']='Seeing Red one-shot trigger 36 dispatch and retained rescuered request; first 128 camera/player/checkpoint/route/trigger ticks match host; dialogue/script consumption not integrated'
     (BUILD / 'capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
 

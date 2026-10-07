@@ -47,6 +47,59 @@ static V6HallwayStory hallway_story={0,0,0,0,0};
 #include "hallway_trigger.h"
 static V6HallwayTrigger hallway_trigger;
 static int trigger_crew_visible;
+#ifdef V6_TOWER_RESCUE
+#include "rescue_programs.h"
+#include "dialogue.h"
+#include "dialogue_font.h"
+static V6RescueScript rescue_vm={.control=1,.mood=1};
+static int rescue_bars,rescue_fade,rescue_fade_mode,rescue_fire;
+static UBYTE *rescue_captions;
+static unsigned rescue_flips_applied;
+static volatile struct { ULONG magic,version,count,capacity,records[128][18]; }
+    rescue_trace={0x56365256,1,0,128,{{0}}};
+static volatile struct { ULONG magic,version,values[18]; }
+    rescue_diag={0x56365241,1,{0}};
+static void rescue_record(void)
+{
+    unsigned i;
+    ULONG values[18]={rescue_vm.pc,rescue_vm.active,rescue_vm.error,rescue_vm.delay,
+        rescue_vm.waiting,rescue_vm.bars,rescue_vm.control,rescue_vm.mood,rescue_vm.following,
+        rescue_vm.ui_serial,rescue_vm.cues,rescue_vm.flips,(ULONG)rescue_vm.fade,
+        rescue_vm.speech?rescue_vm.speech->index+1:0,hallway_story.red_rescued,
+        hallway_story.companion,rescue_bars,rescue_fade};
+    for(i=0;i<18;++i) rescue_diag.values[i]=values[i];
+    if(rescue_trace.count<128) {
+        for(i=0;i<18;++i) rescue_trace.records[rescue_trace.count][i]=values[i];
+        ++rescue_trace.count;
+    }
+}
+static void rescue_animate(void)
+{
+    if(rescue_vm.bars) { rescue_bars+=25;if(rescue_bars>361) rescue_bars=361; }
+    else { rescue_bars-=25;if(rescue_bars<0) rescue_bars=0; }
+    if(rescue_vm.fade!=rescue_fade_mode) {
+        rescue_fade_mode=rescue_vm.fade;rescue_fade=rescue_fade_mode<0?416:0;
+    } else if(rescue_fade_mode>0) {
+        rescue_fade+=24;if(rescue_fade>432) rescue_fade=432;
+    } else if(rescue_fade_mode<0) {
+        rescue_fade-=24;if(rescue_fade<0) rescue_fade=0;
+    }
+}
+static UWORD rescue_colour(unsigned c)
+{
+    static const UBYTE factors[52]={
+16,15,15,15,14,14,14,13,13,13,12,12,12,12,11,11,11,10,10,10,9,9,9,8,8,8,8,7,7,7,6,6,6,5,5,5,4,4,4,4,3,3,3,2,2,2,1,1,1,0,0,0};
+    unsigned factor;
+    if(!rescue_fade) return (UWORD)c;
+    if(rescue_fade>=416) return 0;
+    factor=factors[(unsigned)rescue_fade>>3];
+    return (UWORD)(((((c>>8)&15)*factor)>>4)<<8 |
+                  ((((c>>4)&15)*factor)>>4)<<4 | (((c&15)*factor)>>4));
+}
+#define DISPLAY_COLOUR(c) rescue_colour(c)
+#else
+#define DISPLAY_COLOUR(c) (c)
+#endif
 static volatile struct { ULONG magic,version,count,capacity,records[128][7]; }
     trigger_trace={0x56364854,1,0,128,{{0}}};
 static volatile struct { ULONG magic,version,values[7]; }
@@ -82,6 +135,9 @@ static V6Room player_room;
 static V6TowerTiles player_tiles;
 static int player_frame;
 #endif
+#ifndef DISPLAY_COLOUR
+#define DISPLAY_COLOUR(c) (c)
+#endif
 #include "tower_assets.h"
 #include "tower_map.h"
 #include "tower_background_map.h"
@@ -107,14 +163,23 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #endif
 #define CAMERA_MAX 5856
 #ifdef V6_TOWER_PLAY
+#ifdef V6_TOWER_RESCUE
+#define LIST_WORDS 192
+#else
 #define LIST_WORDS 128
+#endif
 #define PLAYER_DMA_BYTES (2*V6_SPRITE_CHANNELS*V6_SPRITE_WORDS*2)
 #else
 #define LIST_WORDS 64
 #define PLAYER_DMA_BYTES 0
 #endif
 #define LAYER_BYTES (V6_TOWER_RING_BYTES+V6_TOWER_PLANE_BYTES)
-#define CHIP_BYTES (2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES)
+#ifdef V6_TOWER_RESCUE
+#define CAPTION_DMA_BYTES (V6_RESCUE_SPEECHES*V6_DIALOGUE_BYTES)
+#else
+#define CAPTION_DMA_BYTES 0
+#endif
+#define CHIP_BYTES (2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES)
 static V6TowerStream stream,background_stream;
 static V6TowerDraw draw[2],background_draw[2];
 static UBYTE *rings[2];
@@ -298,14 +363,14 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     p=move(p,0x108,0);p=move(p,0x10a,0);
     p=move(p,0x08e,0x3481);p=move(p,0x090,0x24c1);
     p=move(p,0x092,0x0038);p=move(p,0x094,0x00d0);
-    for(i=0;i<4;++i) p=move(p,0x180+i*2,tower_palette[i]);
-    p=move(p,0x192,0x223);
+    for(i=0;i<4;++i) p=move(p,0x180+i*2,DISPLAY_COLOUR(tower_palette[i]));
+    p=move(p,0x192,DISPLAY_COLOUR(0x223));
 #ifdef V6_TOWER_ROUTE
     if(route.rooms[route.index].packed) {
         /* Source banks 15 (Divot) and 10 (Seeing Red) use two dark
          * OCS colours in the background tiles: tinted base and grey detail. */
-        p=move(p,0x180,route.index==2?0x011:0x010);
-        p=move(p,0x192,0x111);
+        p=move(p,0x180,DISPLAY_COLOUR(route.index==2?0x011:0x010));
+        p=move(p,0x192,DISPLAY_COLOUR(0x111));
     }
 #endif
 #ifdef V6_TOWER_PLAY
@@ -323,11 +388,21 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     }
 #if defined(V6_TOWER_ROUTE) && (!defined(V6_TOWER_HALLWAY_HOLD) || defined(V6_TOWER_CREW_HOLD))
 #ifdef V6_TOWER_TRIGGER_REPLAY
-    if(trigger_crew_visible)
+    if(trigger_crew_visible
+#ifdef V6_TOWER_CAPTION_HOLD
+       && 0
+#endif
+       )
 #else
     if(v6_hallway_crew_visible(route.rooms[route.index].x,route.rooms[route.index].y,&hallway_story))
 #endif
-        if(v6_sprites_add(&player_sprites[index],tower_crew_rows,264,185,6,0xf44)<0) return 0;
+        if(v6_sprites_add(&player_sprites[index],
+#ifdef V6_TOWER_RESCUE
+            rescue_vm.mood?tower_crew_rows:tower_player_rows[3],
+#else
+            tower_crew_rows,
+#endif
+            264,185,6,0xf44)<0) return 0;
 #endif
     if(player_sprites[index].count>world_diag.values[12]) world_diag.values[12]=player_sprites[index].count;
 #endif
@@ -336,10 +411,19 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         p=move(p,0x120+i*4,address>>16);p=move(p,0x122+i*4,address);
     }
 #ifdef V6_TOWER_WORLD
-    for(i=0;i<8;++i) p=move(p,v6_sprite_colour_register(i),player_sprites[index].colours[i]);
+    for(i=0;i<8;++i) p=move(p,v6_sprite_colour_register(i),DISPLAY_COLOUR(player_sprites[index].colours[i]));
 #else
     p=move(p,0x1a2,0x6ff);
 #endif
+#endif
+#ifdef V6_TOWER_RESCUE
+    if(rescue_vm.speech || rescue_bars) {
+        unsigned speech=rescue_vm.speech?rescue_vm.speech->index:0;
+        unsigned tint=rescue_vm.speech?(rescue_vm.speech->speaker?0x6ff:0xf44):0;
+        return v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
+            camera&255,bg_camera&255,(ULONG)(rescue_captions+speech*V6_DIALOGUE_BYTES),
+            DISPLAY_COLOUR(tint),DISPLAY_COLOUR(tower_palette[1]),DISPLAY_COLOUR(tower_palette[3]))!=0;
+    }
 #endif
     return v6_tower_dual_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
         camera&255,bg_camera&255)!=0;
@@ -420,6 +504,9 @@ static int run(void) {
     session.player.old_x=79;session.player.old_y=451;
 #endif
 #endif
+#ifdef V6_TOWER_CAPTION_HOLD
+    rescue_vm.speech=&v6_rescue_speeches[V6_TOWER_CAPTION_HOLD];
+#endif
     camera=0;
 #ifdef V6_TOWER_PLAY
     camera=session.camera.y;
@@ -440,6 +527,16 @@ static int run(void) {
 #ifdef V6_TOWER_PLAY
     player_sprites[0].dma=(UWORD *)(lists[1]+LIST_WORDS);
     player_sprites[1].dma=player_sprites[0].dma+8*V6_SPRITE_WORDS;
+#endif
+#ifdef V6_TOWER_RESCUE
+    {
+        unsigned i;
+        rescue_captions=chip+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES;
+        for(i=0;i<V6_RESCUE_SPEECHES;++i)
+            if(!v6_dialogue_draw(rescue_captions+i*V6_DIALOGUE_BYTES,dialogue_font,&v6_rescue_speeches[i])) {
+                FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+            }
+    }
 #endif
     if(
 #ifdef V6_TOWER_ROUTE
@@ -511,11 +608,30 @@ static int run(void) {
                 input=diag.logic_ticks<16?V6_RIGHT:0;
                 if(diag.logic_ticks>=16 && diag.logic_ticks<20) input|=V6_FLIP;
 #endif
+#ifdef V6_TOWER_RESCUE
+                if(diag.logic_ticks>=8) input=rescue_vm.waiting && (UWORD)diag.logic_ticks%30==0?V6_FLIP:0;
+#endif
 #else
                 UWORD joy=hw->joy1dat;
                 if(joy&0x0200) input|=V6_LEFT;
                 if(joy&0x0002) input|=V6_RIGHT;
                 if(!(*(volatile UBYTE *)0xbfe001&0x80)) input|=V6_FLIP;
+#endif
+#ifdef V6_TOWER_RESCUE
+                V6RescueSignals rescue_signals;
+                rescue_animate();
+                rescue_signals.bars_ready=rescue_vm.bars?rescue_bars>=360:rescue_bars==0;
+                rescue_signals.fade_ready=rescue_vm.fade>0?rescue_fade>416:rescue_fade==0;
+                rescue_signals.onroof=session.player.roof>0;
+                rescue_signals.advance=(input&V6_FLIP) && !rescue_fire;
+                rescue_fire=(input&V6_FLIP)!=0;
+                if(rescue_vm.active) {
+                    input&=~V6_FLIP;
+                    if(!rescue_vm.control) input|=V6_NO_CONTROL;
+                }
+                if(rescue_vm.flips!=rescue_flips_applied) {
+                    input|=V6_FLIP;rescue_flips_applied=rescue_vm.flips;
+                }
 #endif
 #ifdef V6_TOWER_WORLD
 #ifdef V6_TOWER_ROUTE
@@ -527,9 +643,23 @@ static int run(void) {
 #endif
                 if(route.index!=index && !route_source()) diag.error=7;
 #ifdef V6_TOWER_TRIGGER_REPLAY
-                /* Integration fixture retains the handoff for a future script
-                 * consumer; it does not silently award rescue/companion state. */
+                /* Trigger-only fixture retains the handoff; rescue builds consume it. */
                 v6_hallway_trigger_step(&hallway_trigger,&hallway_story,&session.player);
+#ifdef V6_TOWER_RESCUE
+                if(hallway_trigger.pending && !rescue_vm.active) {
+                    if(v6_hallway_trigger_take(&hallway_trigger)!=V6_SCRIPT_RESCUE_RED ||
+                       !v6_rescue_start(&rescue_vm,&v6_rescuered_program,&v6_skipred_program,
+#ifdef V6_TOWER_RESCUE_SKIP
+                           1
+#else
+                           0
+#endif
+                           )) diag.error=9;
+                }
+                v6_rescue_tick(&rescue_vm,&hallway_story,&rescue_signals);
+                if(rescue_vm.error) diag.error=10;
+                rescue_record();
+#endif
                 record_trigger();
 #endif
 #else

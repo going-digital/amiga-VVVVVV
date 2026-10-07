@@ -23,4 +23,13 @@ unsigned v6_tower_copper(uint16_t *out,uint32_t ring,unsigned pixel_offset);
 unsigned v6_tower_dual_copper(uint16_t *out,uint32_t foreground,uint32_t background,
     unsigned foreground_offset,unsigned background_offset);
 
+
+/* Hallway caption overlay (top 16, height 48): immutable two-plane bitmap.
+ * Colour 1 is black, 3 is speaker tint; sprites are behind the opaque caption.
+ * Restore the caller's colour 1/3 and three-plane priorities after the strip.
+ * Requires 80 words; invalid inputs leave output unchanged. */
+#define V6_TOWER_CAPTION_COPPER_WORDS 80
+unsigned v6_tower_caption_copper(uint16_t *,uint32_t fg,uint32_t bg,
+    unsigned fo,unsigned bo,uint32_t caption,unsigned tint,unsigned colour1,unsigned colour3);
+
 #endif

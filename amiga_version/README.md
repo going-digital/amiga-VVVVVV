@@ -1469,3 +1469,43 @@ crew remain for the rest of the replay, without awarding rescue or changing
 the checkpoint. All 6,016 state fields match, peak work is 195 PAL lines, no
 frames are missed, Chip use remains 64,128 bytes and OS restoration passes.
 The interactive route does not enable this handoff until it has a consumer.
+
+## Seeing Red rescue script and captions
+
+The trigger handoff now has an opt-in native consumer. `rescue_script` executes
+bounded opcode programs compiled from the actual `rescuered` and `skipred`
+source lines. Normal playback waits for the bar/fade backend, changes
+Vermilion to his happy pose, awards the red rescue state, presents all six
+speeches, and sets companion 9 plus a follow-player request. Fire-button
+press edges advance speech while player control is suspended. The skip path
+awards the same state without opening dialogue. `tofloor` queues a player
+flip; cue requests are recorded but do not yet play sound.
+
+The first renderer uses an opaque full-width caption strip at Y=16..63, with
+the source bitmap font and red/cyan speaker colours. It switches Copper
+planes around the strip and restores both independently wrapped terrain
+pointers and palette afterwards. Six immutable captions are prepared before
+OS takeover, adding 23,040 Chip bytes; larger inactive Copper lists bring
+explicit Chip use to 87,424 bytes. The bounded readiness backend uses source
+bar/fade durations, a placeholder black strip and uniform palette fading.
+Desktop-positioned boxes and animated bar/fade geometry remain pending.
+
+Run `make -C amiga_version tower-rescue-run` for an interactive fixture starting
+in the lower Seeing Red corridor: move right to trigger rescue and release/
+press fire to advance each speech. This fixture is separate from the ordinary
+tower route. `tower-rescue-capture` and `tower-rescue-skip-capture` exercise
+normal and skip execution on a 512K Chip/512K Slow OCS A500 configuration.
+Each compares 8,320 initial state fields plus final state against the host,
+checks rescue completion, retains the saved checkpoint, and restores the OS.
+Normal/skip playback peaks at 231/220 PAL lines with zero missed frames.
+
+`test-rescue-script` checks 48 actual Script.cpp handler cases, both complete
+programs, bounded failures, caption write guards and all 65,536 foreground/
+background offset pairs (maximum caption segment: 74 words). Run
+`tower-caption-pixel-test` to compare all six native captions and resumed
+hallway terrain against the source font/text: 460,800 logical RGB pixels
+match. Caption pixels are excluded from live player/crew visibility checks.
+
+Next: implement Vermilion's follow-player movement and room transitions;
+then connect cue playback and campaign-state persistence. Exact source
+textbox positioning, fade/bar geometry and crew tint cycling are still open.

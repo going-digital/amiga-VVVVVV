@@ -79,11 +79,14 @@ def main():
     parser.add_argument('--paired',action='store_true')
     parser.add_argument('--hallways',action='store_true')
     parser.add_argument('--crew',action='store_true',help='Fixed Seeing Red composition with Vermilion')
+    parser.add_argument("--captions",action="store_true")
     args=parser.parse_args()
+    if args.captions:args.hallways=True
     if args.crew:args.hallways=True
     if args.paired: BUILD=ROOT/'build/amiga-tower-paired-pixels'
     if args.hallways: BUILD=ROOT/'build/amiga-hallway-pixels';CAMERAS=(0,1)
     if args.crew: BUILD=ROOT/'build/amiga-crew-pixels';CAMERAS=(1,)
+    if args.captions:BUILD=ROOT/"build/amiga-caption-pixels";CAMERAS=tuple(range(6))
     BUILD.mkdir(parents=True, exist_ok=True)
     config = f'''rom = {json.dumps(str(Path.home() / 'amiga/KICK13.ROM'))}
 [machine]
@@ -111,6 +114,7 @@ write_protected = true
         if args.hallways:
             flags=f'-DV6_TOWER_HALLWAY_HOLD={camera} -DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE'
         if args.crew:flags+=' -DV6_TOWER_CREW_HOLD'
+        if args.captions:flags=f'-DV6_TOWER_HALLWAY_HOLD=1 -DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_CREW_HOLD -DV6_TOWER_CAPTION_HOLD={camera}'
         with (BUILD / f'build-{camera}.log').open('w') as log:
             subprocess.run(['make', '-C', str(ROOT / 'amiga_version'), f'BUILD={BUILD}',
                             f'CPPFLAGS={flags}', str(BUILD / 'tower.adf')],
@@ -126,11 +130,32 @@ write_protected = true
             atlas=(ASSETS/'tower_tiles.bin').read_bytes()
             palette=json.loads((ASSETS/'tower-assets.json').read_text())['palette']
             colours=[bytes(((c>>shift)&15)*17 for shift in (8,4,0)) for c in palette]
-            tiles=hallway_rooms()[camera]['tiles'];foreground=[]
+            tiles=hallway_rooms()[1 if args.captions else camera]['tiles'];foreground=[]
             for y in range(240):
                 foreground.append(b''.join(colours[((atlas[t*16+y%8]>>(7-x))&1)|
                     (((atlas[t*16+8+y%8]>>(7-x))&1)<<1)]
                     for t in tiles[y//8*40:(y//8+1)*40] for x in range(8)))
+            if args.captions:
+                from hallway_scripts import scripts,compile_script
+                speeches=compile_script(scripts()['rescuered']['lines'])['speeches']
+                speech=speeches[camera]
+                header,font=subprocess.check_output([str(ASSETS/'png_rgba'),str(ASSETS/'dialogue_font.png')]).split(b'\n',1)
+                fw,fh=map(int,header.split())
+                foreground=list(map(bytearray,foreground));tint=bytes((102,255,255) if speech['speaker']=='player' else (255,68,68))
+                for y in range(16,64):foreground[y]=bytearray(960)
+                for y in range(4,44):
+                    for x in range(8,312):
+                        if y in (4,43) or x in (8,311):foreground[16+y][x*3:x*3+3]=tint
+                for line_no,line in enumerate(speech['lines']):
+                    top=16+(48-len(speech['lines'])*8)//2+line_no*8
+                    left=((40-len(line))//2)*8
+                    for char_no,char in enumerate(line):
+                        ox=ord(char)%(fw//8)*8;oy=ord(char)//(fw//8)*8
+                        for dy in range(8):
+                            for dx in range(8):
+                                pixel=font[((oy+dy)*fw+ox+dx)*4:((oy+dy)*fw+ox+dx)*4+4]
+                                if pixel[3]>127 and max(pixel[:3])>0:
+                                    x=left+char_no*8+dx;foreground[top+dy][x*3:x*3+3]=tint
             if args.crew:
                 header,source=subprocess.check_output([str(ASSETS/'png_rgba'),str(ASSETS/'tower_sprites.png')]).split(b'\n',1)
                 width,height=map(int,header.split());tile=147
@@ -145,10 +170,12 @@ write_protected = true
             # compare() indexes modulo the tower height; these views are at 0.
             # Desktop modes 7/8 call backat(i,j,200), colour banks 15/10.
             # Their backdrop tiles contain grey details over a dark tint.
-            base=bytes((0,17,17) if camera==0 else (0,17,0))
+            base=bytes((0,17,17) if camera==0 and not args.captions else (0,17,0))
             background=[b''.join(bytes((17,17,17)) if row[x:x+3]!=bytes(3) else base
                 for x in range(0,960,3)) for row in rows[1]]
             background=background[200:]+background[:200]
+            if args.captions:
+                for y in range(16,64):background[y]=bytes(960)
             checks+=compare(path,0,(foreground,background),parallax=False)
         else: checks += compare(path, camera, rows)
         print(f'PASS: native camera {camera}, 76800 logical pixels', flush=True)
@@ -157,6 +184,7 @@ write_protected = true
     if args.hallways:
         report.update(hallways=((108,109),(110,104)),scope='Fixed native hallway terrain captures vs literal Finalclass maps and converted tower atlas; static tower backgrounds and hidden entities; no moving-frame or story-script validation')
     if args.crew:report.update(hallways=((110,104),),crew_frame=147,crew_position=(264,185),crew_source_pixels=crew_pixels,scope='Fixed Seeing Red terrain/background/Vermilion composition vs literal maps and source sprite mask; player/checkpoint hidden; dialogue not integrated')
+    if args.captions:report.update(scope='All six native opaque caption strips, source font/text, speaker tints and resumed hallway Copper/DMA pointers; exact logical pixel RGB')
     (BUILD / 'pixels.json').write_text(json.dumps(report, indent=2)+'\n')
 
 
