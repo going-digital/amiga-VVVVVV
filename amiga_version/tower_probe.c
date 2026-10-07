@@ -26,7 +26,9 @@
 #include "tower_player_assets.h"
 #ifdef V6_TOWER_WORLD
 #include "tower_checkpoints.h"
-#ifdef V6_TOWER_UPPER_REPLAY
+#ifdef V6_TOWER_TRIGGER_REPLAY
+#include "../tools/amiga/tower_trigger_replay.h"
+#elif defined(V6_TOWER_UPPER_REPLAY)
 #include "../tools/amiga/tower_upper_replay.h"
 #elif defined(V6_TOWER_ROUTE_REPLAY)
 #include "../tools/amiga/tower_route_replay.h"
@@ -40,7 +42,33 @@ static V6TowerGameplay world;
 #include "tower_route_data.h"
 #include "hallway_crew.h"
 #if !defined(V6_TOWER_HALLWAY_HOLD) || defined(V6_TOWER_CREW_HOLD)
+#ifdef V6_TOWER_TRIGGER_REPLAY
+static V6HallwayStory hallway_story={0,0,0,0,0};
+#include "hallway_trigger.h"
+static V6HallwayTrigger hallway_trigger;
+static int trigger_crew_visible;
+static volatile struct { ULONG magic,version,count,capacity,records[128][7]; }
+    trigger_trace={0x56364854,1,0,128,{{0}}};
+static volatile struct { ULONG magic,version,values[7]; }
+    trigger_diag={0x56364851,1,{0}};
+static void record_trigger(void)
+{
+    unsigned i;
+    trigger_diag.values[0]=hallway_story.rescue_triggered;
+    trigger_diag.values[1]=hallway_story.red_rescued;
+    trigger_diag.values[2]=hallway_story.companion;
+    trigger_diag.values[3]=hallway_trigger.active;
+    trigger_diag.values[4]=hallway_trigger.pending;
+    trigger_diag.values[5]=hallway_trigger.requests;
+    trigger_diag.values[6]=trigger_crew_visible;
+    if(trigger_trace.count<128) {
+        for(i=0;i<7;++i) trigger_trace.records[trigger_trace.count][i]=trigger_diag.values[i];
+        ++trigger_trace.count;
+    }
+}
+#else
 static const V6HallwayStory hallway_story={0,0,0,0,0};
+#endif
 #endif
 static V6TowerRoute route;
 static unsigned route_loading,route_budget;
@@ -105,6 +133,10 @@ static int route_source(void)
         v6_tower_draw_reset(&draw[i]);v6_tower_draw_reset(&background_draw[i]);
         prepared_camera[i]=(unsigned)route.session->camera.y;
     }
+#ifdef V6_TOWER_TRIGGER_REPLAY
+    v6_hallway_trigger_enter(&hallway_trigger,route.rooms[route.index].x,route.rooms[route.index].y,&hallway_story);
+    trigger_crew_visible=v6_hallway_crew_visible(route.rooms[route.index].x,route.rooms[route.index].y,&hallway_story);
+#endif
     route_loading=2;route_budget=1;return 1;
 }
 static volatile struct { ULONG magic,version,count,records[128][3]; }
@@ -290,7 +322,11 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
             c->x,y,0,16,16,c->active?0x6f6:0x888)<0) return 0;
     }
 #if defined(V6_TOWER_ROUTE) && (!defined(V6_TOWER_HALLWAY_HOLD) || defined(V6_TOWER_CREW_HOLD))
+#ifdef V6_TOWER_TRIGGER_REPLAY
+    if(trigger_crew_visible)
+#else
     if(v6_hallway_crew_visible(route.rooms[route.index].x,route.rooms[route.index].y,&hallway_story))
+#endif
         if(v6_sprites_add(&player_sprites[index],tower_crew_rows,264,185,6,0xf44)<0) return 0;
 #endif
     if(player_sprites[index].count>world_diag.values[12]) world_diag.values[12]=player_sprites[index].count;
@@ -354,6 +390,11 @@ static int run(void) {
     world.save.id=505147;
     if(!v6_tower_gameplay_init(&world,tower_checkpoints,TOWER_CHECKPOINT_COUNT,&world.save)) return 20;
 #endif
+#ifdef V6_TOWER_TRIGGER_REPLAY
+    v6_tower_session_init(&session,180,185,0,1);
+    world.save.id=505147;
+    if(!v6_tower_gameplay_init(&world,tower_checkpoints,TOWER_CHECKPOINT_COUNT,&world.save)) return 20;
+#endif
     player_tiles.read=v6_tower_tile;player_tiles.context=&stream;
 #ifdef V6_TOWER_WORLD
     player_tiles.walls=v6_tower_walls;
@@ -361,6 +402,12 @@ static int run(void) {
     v6_player_tower_room(&player_room,&player_tiles);
 #ifdef V6_TOWER_ROUTE
     if(!v6_tower_route_init(&route,&session,&world,tower_route_rooms,4,109,109,&player_tiles)) return 20;
+#ifdef V6_TOWER_TRIGGER_REPLAY
+    if(!v6_tower_route_load(&route,110,104,0)) return 20;
+    v6_hallway_trigger_init(&hallway_trigger);
+    v6_hallway_trigger_enter(&hallway_trigger,110,104,&hallway_story);
+    trigger_crew_visible=v6_hallway_crew_visible(110,104,&hallway_story);
+#endif
 #ifdef V6_TOWER_HALLWAY_HOLD
     if(!v6_tower_route_load(&route,V6_TOWER_HALLWAY_HOLD?110:108,V6_TOWER_HALLWAY_HOLD?104:109,0)) return 20;
     session.player.x=0;session.player.y=-2000;session.invisible=1;world.count=0;
@@ -410,6 +457,10 @@ static int run(void) {
 #ifdef V6_TOWER_HALLWAY_HOLD
        !v6_tower_open(&stream,V6_TOWER_HALLWAY_HOLD?hallway1_display:hallway0_display,
            V6_TOWER_HALLWAY_HOLD?sizeof(hallway1_display):sizeof(hallway0_display)) ||
+       !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
+#endif
+#ifdef V6_TOWER_TRIGGER_REPLAY
+       !v6_tower_open(&stream,hallway1_display,sizeof(hallway1_display)) ||
        !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
 #endif
        !prepare(rings[0],lists[0],0,camera,0)) {
@@ -475,6 +526,12 @@ static int run(void) {
                 (void)input;
 #endif
                 if(route.index!=index && !route_source()) diag.error=7;
+#ifdef V6_TOWER_TRIGGER_REPLAY
+                /* Integration fixture retains the handoff for a future script
+                 * consumer; it does not silently award rescue/companion state. */
+                v6_hallway_trigger_step(&hallway_trigger,&hallway_story,&session.player);
+                record_trigger();
+#endif
 #else
                 v6_tower_session_play_world(&session,&player_room,input,&world);
 #endif

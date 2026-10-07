@@ -878,3 +878,29 @@ must be bounded by total maximum work. Fresh lower/upper captures pass at
 250/246 PAL lines, zero misses, unchanged 64/96 loading fields, 5,120 matching
 state fields each and clean OS restoration. The upper gameplay capture shows
 614 red crew pixels. Next: the Seeing Red trigger and `rescuered` script flow.
+
+The next increment implements the source Seeing Red trigger handoff. The strip
+(208,0,32,240) intersects the player's source collision rectangle, then Game
+state 36 sets flag 8, removes the trigger and requests `rescuered` once. Rescue
+status and companion state are untouched until the script consumer runs their
+commands. A retained one-slot request survives contacts and room reloads, and
+can be taken explicitly by a consumer. Presence is sampled at room entry in
+the native fixture, so setting flag 8 does not erase the crew already loaded.
+1,254 source-extracted Entity::checktrigger/Game state 36 cases, 128 repeat
+contacts and reload/consumption checks pass. Run `test-hallway-trigger`.
+
+The offline pipeline exports all 51 `rescuered` lines and five `skipred` lines
+into a versioned JSON manifest and a C string table. It validates known command
+names, text payload lengths, all six dialogue boxes, and the required rescue,
+companion and follow-player commands. The script data is not yet executed or
+presented by the renderer. The handoff is exercised only in the dedicated
+`tower-trigger-capture` integration fixture; ordinary interactive gameplay
+awaits the script consumer and dialogue renderer.
+
+The A500 fixture enters the strip through ordinary input at tick 4, retains
+exactly one pending request, and keeps Vermilion visible for 728 logic ticks.
+All 6,016 camera/player/checkpoint/route/trigger fields match the host. Peak
+work is 195 PAL lines, with zero missed frames, unchanged 64,128 Chip bytes,
+no checkpoint mutation and clean OS restoration. The initial placement is
+in the lower Seeing Red corridor, not a full tower traversal. Next: consume
+the request through the rescue script and add dialogue presentation/advance.

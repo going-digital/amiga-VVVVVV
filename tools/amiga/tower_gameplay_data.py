@@ -21,6 +21,8 @@ def export(out):
         ',\n'.join('{'+','.join(map(str,(*r,0,0)))+'}' for r in rows)+'};\n')
     (out/'tower-checkpoints.json').write_text(json.dumps(rows,indent=2)+'\n')
     export_route(out)
+    from hallway_scripts import export as export_scripts
+    export_scripts(out)
     return rows
 
 def hallway_rooms():

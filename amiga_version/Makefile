@@ -282,7 +282,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -441,3 +441,15 @@ test: test-hallway-crew
 .PHONY: tower-crew-pixel-test
 tower-crew-pixel-test: tower-probe
 	python3 $(ROOT)/tools/amiga/test_tower_capture.py --crew
+
+$(BUILD)/hallway_trigger.o: hallway_trigger.c hallway_trigger.h hallway_crew.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+.PHONY: test-hallway-trigger
+test-hallway-trigger:
+	python3 $(ROOT)/tools/amiga/test_hallway_trigger.py
+test: test-hallway-trigger
+
+.PHONY: tower-trigger-capture
+tower-trigger-capture: tower-probe
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-trigger-replay CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY" $(ROOT)/build/amiga-tower-trigger-replay/tower.adf
+	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-trigger-replay --trigger-route

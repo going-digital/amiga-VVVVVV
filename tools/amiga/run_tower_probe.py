@@ -41,7 +41,9 @@ def main():
     parser.add_argument('--wrap',action='store_true',help='Validate normal-input horizontal wrap replay')
     parser.add_argument('--route',action='store_true',help='Validate tower/hallway crossings and staged display loads')
     parser.add_argument('--upper-route',action='store_true',help='Validate upper entry and natural hazard remote checkpoint return')
+    parser.add_argument('--trigger-route',action='store_true',help='Validate the one-shot Seeing Red rescue script handoff')
     args = parser.parse_args()
+    if args.trigger_route:args.route=True
     if args.upper_route: args.route=True
     if args.wrap or args.route: args.world=True
     if args.world:
@@ -96,7 +98,7 @@ write_protected = true
         assert 0 <= report['logic_remainder'] < 34000, report
         if args.route:
             from tower_route_trace import verify
-            verify(report, BUILD/'slow.bin',args.upper_route)
+            verify(report, BUILD/'slow.bin',args.upper_route,args.trigger_route)
         elif args.world:
             from tower_world_trace import verify
             verify(report, BUILD / "slow.bin",args.wrap)
@@ -144,7 +146,7 @@ write_protected = true
             report['visible_active_checkpoint_pixels']=sum(1 for i in range(0,len(pixels),4)
                 if pixels[i+1]>150 and pixels[i+1]>pixels[i]*1.5 and pixels[i+1]>pixels[i+2]*1.5)
             if not args.route: assert report['visible_active_checkpoint_pixels']>20,report
-        if args.upper_route:
+        if args.upper_route or args.trigger_route:
             report['visible_crew_pixels']=sum(1 for i in range(0,len(pixels),4)
                 if pixels[i:i+3]==bytes((255,68,68)))
             assert report['visible_crew_pixels']>20,report
@@ -182,6 +184,7 @@ write_protected = true
             report['scope']='Main-tower normal-input horizontal wraps in both directions and natural recovery; 128 camera/player/checkpoint ticks match host integration; adjacent room loads remain pending'
         if args.route:
             report['scope']=('Upper entrance and Seeing Red checkpoint contact through ordinary input; natural spike death after tower re-entry restores saved hallway; ' if args.upper_route else 'Lower tower/hallway crossings and natural checkpoint recovery; ')+ 'staged display loads and first 128 ticks match host integration; crew dialogue/following scripts omitted'
+            if args.trigger_route:report['scope']='Seeing Red one-shot trigger 36 dispatch and retained rescuered request; first 128 camera/player/checkpoint/route/trigger ticks match host; dialogue/script consumption not integrated'
     (BUILD / 'capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
 

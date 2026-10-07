@@ -1448,3 +1448,24 @@ Live screenshot checks now reject AmigaDOS startup pixels and capture from
 visibility evidence. The new upper capture contains 614 Vermilion pixels.
 Timing samples also retry pending VBlank at the beam wrap to prevent unsigned
 phase-clock underflow; phase maxima must fit the overall maximum work.
+
+## Seeing Red rescue trigger handoff
+
+`hallway_trigger` implements the source trigger 36 collision and one-shot
+handoff: set flag 8, remove the trigger and retain a `rescuered` request. It
+leaves rescue/companion flags for their script commands. Room entry samples
+crew presence, so the trigger does not erase an already loaded Vermilion.
+`test-hallway-trigger` compares 1,254 cases against source Entity/Game code,
+then checks repeat contacts, room reloads and explicit request consumption.
+
+The asset pipeline exports the full `rescuered`/`skipred` command streams,
+including six speech boxes, into `hallway-scripts.json` (version 1) and
+`hallway_scripts.h` in ignored build output. The script consumer and dialogue
+renderer remain pending; this is not a completed rescue cutscene.
+
+`tower-trigger-capture` tests the handoff in a dedicated native fixture. Eight
+right inputs enter the strip at tick 4. One pending request and the existing
+crew remain for the rest of the replay, without awarding rescue or changing
+the checkpoint. All 6,016 state fields match, peak work is 195 PAL lines, no
+frames are missed, Chip use remains 64,128 bytes and OS restoration passes.
+The interactive route does not enable this handoff until it has a consumer.
