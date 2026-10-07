@@ -813,7 +813,13 @@ second-checkpoint native replay still passes, now at 243 lines with zero misses.
 The hallway backgrounds are currently black. Seeing Red's crew entity and
 dialogue trigger, other story scripts, exits beyond these hallways, other tower
 entities, interpolation, palette cycling and music/SFX remain outside this
-slice. Native coverage proves the lower crossing route; upper entrance and
-remote checkpoint behavior currently have source/host coverage. Next: expand
-normal-input traversal and native remote-return coverage, improve loading
-latency, and measure Lightspeedplayer audio with the combined workload.
+slice. Native coverage now also proves the upper entrance, ordinary Seeing Red
+checkpoint activation, tower re-entry, and restore to the saved hallway after
+an explicitly scripted death at logic tick 61. Crossings occur at ticks 7, 14
+and 90; all 5,120 traced state fields match the host route. The A500 replay
+peaks at 191 PAL lines with zero misses and unchanged 64,128 Chip bytes. Three
+loads pause logic for 186 fields in total. This fixture tests recovery wiring;
+it does not claim a natural hazard traversal. Run `tower-upper-route-capture`.
+
+Next: improve loading latency, expand natural traversal and story coverage,
+and measure Lightspeedplayer audio with the combined workload.

@@ -1391,8 +1391,13 @@ old completed image stays visible during loading. This loading work is timed,
 and paused fields are excluded from logic-clock accounting.
 
 Both hallway backgrounds are black; Seeing Red's crew/dialogue and exits beyond
-these rooms remain pending. Upper entry and remote checkpoint restore have
-source/host coverage; the native route currently covers the lower crossing.
+these rooms remain pending. `tower-upper-route-capture` adds native upper entry,
+Seeing Red checkpoint activation and tower re-entry through ordinary input,
+then an explicitly scripted death at tick 61 tests remote hallway restore.
+Crossings are at ticks 7, 14 and 90, with 5,120 matching host state fields,
+191 PAL lines peak work, zero misses and 186 total loading fields. Its report
+is `build/amiga-tower-upper-replay/capture.json`. Natural hazard traversal on
+this upper route remains pending.
 This build still excludes audio, other tower entities and full story logic.
 The earlier checkpoint/wrapping work is committed as `88a5293f`; hallway work
-is the subsequent increment.
+is committed as `1db8ce47`.

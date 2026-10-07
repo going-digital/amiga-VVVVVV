@@ -26,7 +26,9 @@
 #include "tower_player_assets.h"
 #ifdef V6_TOWER_WORLD
 #include "tower_checkpoints.h"
-#ifdef V6_TOWER_ROUTE_REPLAY
+#ifdef V6_TOWER_UPPER_REPLAY
+#include "../tools/amiga/tower_upper_replay.h"
+#elif defined(V6_TOWER_ROUTE_REPLAY)
 #include "../tools/amiga/tower_route_replay.h"
 #elif defined(V6_TOWER_WRAP_REPLAY)
 #include "../tools/amiga/tower_wrap_replay.h"
@@ -324,6 +326,12 @@ static int run(void) {
     v6_tower_session_init(&session,140,1817,0,1);
     session.camera.y=session.camera.old_y=1697;
 #endif
+#ifdef V6_TOWER_UPPER_REPLAY
+    /* Start beside the upper exit; movement and checkpoint contact are live. */
+    v6_tower_session_init(&session,280,80,0,1);
+    world.save.id=505147;
+    if(!v6_tower_gameplay_init(&world,tower_checkpoints,TOWER_CHECKPOINT_COUNT,&world.save)) return 20;
+#endif
     player_tiles.read=v6_tower_tile;player_tiles.context=&stream;
 #ifdef V6_TOWER_WORLD
     player_tiles.walls=v6_tower_walls;
@@ -440,6 +448,10 @@ static int run(void) {
 #ifdef V6_TOWER_ROUTE
                 unsigned index=route.index;
 #ifndef V6_TOWER_HALLWAY_HOLD
+#ifdef V6_TOWER_UPPER_REPLAY
+                /* Explicit integration fixture: die after re-entering the tower. */
+                if(diag.logic_ticks==60) v6_tower_session_die(&session);
+#endif
                 if(!v6_tower_route_step(&route,input)) diag.error=6;
 #else
                 (void)input;
