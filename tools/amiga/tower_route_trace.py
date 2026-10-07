@@ -30,6 +30,11 @@ def verify(report,path,upper=False,trigger=False,rescue=False,skip=False):
         if rescue:
             from rescue_trace import Rescue
             runner=Rescue(core,skip)
+            from test_companion import state as crew_state
+            offset=data.index(b'V6CT\0\0\0\1');count,capacity=struct.unpack_from('>II',data,offset+8)
+            assert count==capacity==128
+            crew_records=list(struct.iter_unpack('>14I',data[offset+16:offset+16+count*56]))
+            offset=data.index(b'V6CF\0\0\0\1');crew_final=struct.unpack_from('>14I',data,offset+8)
             offset=data.index(b'V6RV\0\0\0\1');count,capacity=struct.unpack_from('>II',data,offset+8)
             assert count==capacity==128
             rescue_records=list(struct.iter_unpack('>18I',data[offset+16:offset+16+count*72]))
@@ -47,7 +52,9 @@ def verify(report,path,upper=False,trigger=False,rescue=False,skip=False):
         previous=r.index
         deaths=s.deaths
         buttons=route[tick] if tick<len(route) else 0
-        if rescue:buttons=runner.input(tick,buttons,s.player)
+        if rescue:
+            runner.crew_step(s.player,r.room,s.death_timer)
+            buttons=runner.input(tick,buttons,s.player)
         assert core.v6_tower_route_step(C.byref(r),buttons)
         if trigger:
             if r.index!=previous:core.v6_hallway_trigger_enter(C.byref(t),r.rooms[r.index].x,r.rooms[r.index].y,C.byref(story))
@@ -55,6 +62,7 @@ def verify(report,path,upper=False,trigger=False,rescue=False,skip=False):
             if rescue:runner.tick(t,story)
             if tick<128:
                 assert trigger_records[tick]==trigger_state(t,story),('trigger',tick)
+                if rescue:assert crew_records[tick]==crew_state(runner.crew),('companion',tick,crew_records[tick],crew_state(runner.crew))
                 if rescue:assert rescue_records[tick]==runner.state(story),('rescue',tick,rescue_records[tick],runner.state(story))
         if r.index!=previous:crossings.append((tick+1,r.index))
         if s.deaths!=deaths:death_ticks.append(tick+1)
@@ -72,7 +80,7 @@ def verify(report,path,upper=False,trigger=False,rescue=False,skip=False):
     assert final[:3]==(r.index,r.transitions,r.returns) and not final[4]
     assert world_final[:12]==tuple(value&0xffffffff for value in state(w,w.checkpoints[:w.count]))
     assert final[3]==(0 if trigger else 96 if upper else 64) and (trigger or s.respawns>0) and report['camera']==s.camera.y
-    report.update(trace_fields=128*(65 if rescue else 47 if trigger else 40),crossings=crossings,room_transitions=r.transitions,
+    report.update(trace_fields=128*(79 if rescue else 47 if trigger else 40),crossings=crossings,room_transitions=r.transitions,
         remote_returns=r.returns,loading_frames=final[3],deaths=s.deaths,respawns=s.respawns,
         saved_id=w.save.id,death_ticks=death_ticks)
     if trigger:
@@ -82,6 +90,9 @@ def verify(report,path,upper=False,trigger=False,rescue=False,skip=False):
             rescue_triggered=story.rescue_triggered,red_rescued=story.red_rescued,companion=story.companion,
             crew_retained=trigger_final[6])
         if rescue:
+            assert crew_final==crew_state(runner.crew)
+            assert runner.crew.follow_steps>0 and runner.crew.body.x!=264
+            report.update(companion_follow_steps=runner.crew.follow_steps,companion_x=runner.crew.body.x,companion_y=runner.crew.body.y)
             assert rescue_final==runner.state(story)
             assert not runner.vm.active and not runner.vm.error and runner.vm.following and runner.vm.control
             assert runner.shown==([] if skip else list(range(6)))

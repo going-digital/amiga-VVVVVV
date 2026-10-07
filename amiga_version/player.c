@@ -36,6 +36,25 @@ static int position(int x, int32_t velocity)
      * representable in binary32. Avoid 64-bit rounding for these common cases. */
     if (x >= -16384 && x <= 16384 && (velocity & (V6_ONE/4-1)) == 0)
         return (x*4 + velocity/(V6_ONE/4))/4;
+    if(x>=-16384 && x<=16384 && velocity>=-10*V6_ONE && velocity<=10*V6_ONE) {
+        /* Split the exact sum before rounding so it fits 32-bit registers.
+         * The integral part determines binary32 spacing; rounding the
+         * fractional magnitude can carry across the next pixel boundary. */
+        int whole=x+velocity/V6_ONE,negative;
+        int32_t fraction=velocity%V6_ONE;
+        uint32_t magnitude,reduced,step=1,rounded,tail;
+        if(whole>0 && fraction<0) { --whole;fraction+=V6_ONE; }
+        else if(whole<0 && fraction>0) { ++whole;fraction-=V6_ONE; }
+        negative=whole<0 || (!whole && fraction<0);
+        magnitude=fraction<0?(uint32_t)-fraction:(uint32_t)fraction;
+        reduced=whole<0?(unsigned)-whole:(unsigned)whole;
+        while(reduced) { reduced>>=1;step<<=1; }
+        rounded=magnitude&~(step-1);tail=magnitude&(step-1);
+        if(step>1 && (tail>step/2 || (tail==step/2 && (rounded&step)))) rounded+=step;
+        whole=whole<0?-whole:whole;
+        if(rounded>=V6_ONE) ++whole;
+        return negative?-whole:whole;
+    }
     int64_t value = (int64_t)x * V6_ONE + velocity;
     uint64_t magnitude = value < 0 ? -value : value;
     uint64_t reduced = magnitude, step = 1, rounded, tail;
@@ -90,14 +109,6 @@ static inline __attribute__((always_inline)) int wall_mode(const V6Room *room, i
     }
     /* Deliberately /8, not >>3: original getgridpoint truncates toward zero. */
     int l = left / 8, r = right / 8, t = top / 8, b = bottom / 8;
-    if (room->tileset!=V6_TILE_SOURCE_TOWER && !skip_directional && (!room->terrain || room->terrain->directional))
-    for (ty = t < 0 ? 0 : t; ty <= b && ty < 29 + room->extra_row; ++ty)
-        for (tx = l < 0 ? 0 : l; tx <= r && tx < 40; ++tx) {
-            int tile = room->tiles[ty * 40 + tx];
-            if (((tile == 14 && dy > 0) || (tile == 15 && dy <= 0) ||
-                 (tile == 16 && dx > 0) || (tile == 17 && dx <= 0)) &&
-                overlap(left, top, 12, 21, tx * 8, ty * 8, 8, 8)) return 1;
-        }
     if (solid(room, l, t) || solid(room, r, t) ||
         solid(room, l, b) || solid(room, r, b)) return 1;
     previous_row=t;
@@ -108,7 +119,28 @@ static inline __attribute__((always_inline)) int wall_mode(const V6Room *room, i
         previous_row=row;
     }
     tx=(left+6)/8;
-    return tx != l && tx != r && (solid(room,tx,t) || solid(room,tx,b));
+    if(tx != l && tx != r && (solid(room,tx,t) || solid(room,tx,b))) return 1;
+    if(room->terrain && room->tileset==2) {
+        /* Tiles 14..17 are solid in tileset 2. All edge cells have already
+         * been sampled, so only an unsampled interior directional block can
+         * add a collision. The 12-pixel body spans at most three columns. */
+        if(!skip_directional && room->terrain->directional && r-l==2)
+            for(ty=t+1;ty<b;++ty) if(ty>=0 && ty<29+room->extra_row && l+1>=0 && l+1<40) {
+                int tile=room->tiles[ty*40+l+1];
+                if((tile==14 && dy>0) || (tile==15 && dy<=0) ||
+                   (tile==16 && dx>0) || (tile==17 && dx<=0)) return 1;
+            }
+        return 0;
+    }
+    if (room->tileset!=V6_TILE_SOURCE_TOWER && !skip_directional && (!room->terrain || room->terrain->directional))
+    for (ty = t < 0 ? 0 : t; ty <= b && ty < 29 + room->extra_row; ++ty)
+        for (tx = l < 0 ? 0 : l; tx <= r && tx < 40; ++tx) {
+            int tile = room->tiles[ty * 40 + tx];
+            if (((tile == 14 && dy > 0) || (tile == 15 && dy <= 0) ||
+                 (tile == 16 && dx > 0) || (tile == 17 && dx <= 0)) &&
+                overlap(left, top, 12, 21, tx * 8, ty * 8, 8, 8)) return 1;
+        }
+    return 0;
 }
 static int wall(const V6Room *room, int x, int y, int32_t dx, int32_t dy)
 { return wall_mode(room,x,y,dx,dy,0); }

@@ -37,7 +37,7 @@ $(BUILD)/room_codec.o: room_codec.c room_codec.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/player.o: player.c player.h | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
 
 $(BUILD)/slice.o: slice.c slice.h player.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -280,9 +280,9 @@ tower-probe: tower-assets
 	$(MAKE) BUILD=$(ROOT)/build/amiga-tower $(ROOT)/build/amiga-tower/tower.adf
 
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) -O2 -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -478,3 +478,16 @@ tower-rescue-run: tower-rescue
 .PHONY: tower-caption-pixel-test
 tower-caption-pixel-test: tower-probe
 	python3 $(ROOT)/tools/amiga/test_tower_capture.py --captions
+
+$(BUILD)/companion.o: companion.c companion.h player.h animation.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+
+.PHONY: test-companion
+test-companion:
+	python3 $(ROOT)/tools/amiga/test_companion.py
+test: test-companion
+
+.PHONY: tower-companion-route-capture
+tower-companion-route-capture: tower-probe
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-companion-route CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_UPPER_REPLAY -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_COMPANION_ROUTE" $(ROOT)/build/amiga-tower-companion-route/tower.adf
+	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-companion-route --companion-route

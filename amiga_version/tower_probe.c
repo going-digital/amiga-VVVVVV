@@ -26,7 +26,9 @@
 #include "tower_player_assets.h"
 #ifdef V6_TOWER_WORLD
 #include "tower_checkpoints.h"
-#ifdef V6_TOWER_TRIGGER_REPLAY
+#if defined(V6_TOWER_COMPANION_ROUTE)
+#include "../tools/amiga/tower_upper_replay.h"
+#elif defined(V6_TOWER_TRIGGER_REPLAY)
 #include "../tools/amiga/tower_trigger_replay.h"
 #elif defined(V6_TOWER_UPPER_REPLAY)
 #include "../tools/amiga/tower_upper_replay.h"
@@ -51,6 +53,9 @@ static int trigger_crew_visible;
 #include "rescue_programs.h"
 #include "dialogue.h"
 #include "dialogue_font.h"
+#include "companion.h"
+static V6Companion companion;
+static V6Terrain hallway_terrain[2];
 static V6RescueScript rescue_vm={.control=1,.mood=1};
 static int rescue_bars,rescue_fade,rescue_fade_mode,rescue_fire;
 static UBYTE *rescue_captions;
@@ -59,6 +64,23 @@ static volatile struct { ULONG magic,version,count,capacity,records[128][18]; }
     rescue_trace={0x56365256,1,0,128,{{0}}};
 static volatile struct { ULONG magic,version,values[18]; }
     rescue_diag={0x56365241,1,{0}};
+static volatile struct { ULONG magic,version,count,capacity,records[128][14]; }
+    companion_trace={0x56364354,1,0,128,{{0}}};
+static volatile struct { ULONG magic,version,values[14]; }
+    companion_diag={0x56364346,1,{0}};
+static void companion_record(void)
+{
+    unsigned i;
+    ULONG values[14]={companion.visible,companion.following,companion.mood,companion.frame,
+        companion.body.x,companion.body.y,companion.body.vx,companion.body.vy,companion.body.dir,
+        companion.animation.delay,companion.animation.walk,companion.spawns,companion.steps,companion.follow_steps};
+    for(i=0;i<14;++i) companion_diag.values[i]=values[i];
+    if(companion_trace.count<128) {
+        volatile ULONG *record=companion_trace.records[companion_trace.count];
+        for(i=0;i<14;++i) record[i]=values[i];
+        ++companion_trace.count;
+    }
+}
 static void rescue_record(void)
 {
     unsigned i;
@@ -69,7 +91,8 @@ static void rescue_record(void)
         hallway_story.companion,rescue_bars,rescue_fade};
     for(i=0;i<18;++i) rescue_diag.values[i]=values[i];
     if(rescue_trace.count<128) {
-        for(i=0;i<18;++i) rescue_trace.records[rescue_trace.count][i]=values[i];
+        volatile ULONG *record=rescue_trace.records[rescue_trace.count];
+        for(i=0;i<18;++i) record[i]=values[i];
         ++rescue_trace.count;
     }
 }
@@ -201,6 +224,12 @@ static int route_source(void)
 #ifdef V6_TOWER_TRIGGER_REPLAY
     v6_hallway_trigger_enter(&hallway_trigger,route.rooms[route.index].x,route.rooms[route.index].y,&hallway_story);
     trigger_crew_visible=v6_hallway_crew_visible(route.rooms[route.index].x,route.rooms[route.index].y,&hallway_story);
+#endif
+#ifdef V6_TOWER_RESCUE
+    if(hallway_story.companion==9)
+        v6_companion_enter(&companion,9,route.index<2,route.rooms[route.index].x,&route.session->player);
+    else v6_companion_idle(&companion,trigger_crew_visible);
+    if(route.index>=2) route.room.terrain=&hallway_terrain[route.index-2];
 #endif
     route_loading=2;route_budget=1;return 1;
 }
@@ -388,7 +417,12 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     }
 #if defined(V6_TOWER_ROUTE) && (!defined(V6_TOWER_HALLWAY_HOLD) || defined(V6_TOWER_CREW_HOLD))
 #ifdef V6_TOWER_TRIGGER_REPLAY
-    if(trigger_crew_visible
+    if(
+#ifdef V6_TOWER_RESCUE
+       companion.visible
+#else
+       trigger_crew_visible
+#endif
 #ifdef V6_TOWER_CAPTION_HOLD
        && 0
 #endif
@@ -398,11 +432,15 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #endif
         if(v6_sprites_add(&player_sprites[index],
 #ifdef V6_TOWER_RESCUE
-            rescue_vm.mood?tower_crew_rows:tower_player_rows[3],
+            companion.mood?tower_crew_rows:tower_player_rows[companion.frame>=144?companion.frame-144:companion.frame],
 #else
             tower_crew_rows,
 #endif
+#ifdef V6_TOWER_RESCUE
+            companion.body.x,companion.body.y,6,0xf44)<0) return 0;
+#else
             264,185,6,0xf44)<0) return 0;
+#endif
 #endif
     if(player_sprites[index].count>world_diag.values[12]) world_diag.values[12]=player_sprites[index].count;
 #endif
@@ -411,7 +449,7 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         p=move(p,0x120+i*4,address>>16);p=move(p,0x122+i*4,address);
     }
 #ifdef V6_TOWER_WORLD
-    for(i=0;i<8;++i) p=move(p,v6_sprite_colour_register(i),DISPLAY_COLOUR(player_sprites[index].colours[i]));
+    for(i=0;i<player_sprites[index].count;++i) p=move(p,v6_sprite_colour_register(i),DISPLAY_COLOUR(player_sprites[index].colours[i]));
 #else
     p=move(p,0x1a2,0x6ff);
 #endif
@@ -474,7 +512,7 @@ static int run(void) {
     world.save.id=505147;
     if(!v6_tower_gameplay_init(&world,tower_checkpoints,TOWER_CHECKPOINT_COUNT,&world.save)) return 20;
 #endif
-#ifdef V6_TOWER_TRIGGER_REPLAY
+#if defined(V6_TOWER_TRIGGER_REPLAY) && !defined(V6_TOWER_COMPANION_ROUTE)
     v6_tower_session_init(&session,180,185,0,1);
     world.save.id=505147;
     if(!v6_tower_gameplay_init(&world,tower_checkpoints,TOWER_CHECKPOINT_COUNT,&world.save)) return 20;
@@ -487,10 +525,34 @@ static int run(void) {
 #ifdef V6_TOWER_ROUTE
     if(!v6_tower_route_init(&route,&session,&world,tower_route_rooms,4,109,109,&player_tiles)) return 20;
 #ifdef V6_TOWER_TRIGGER_REPLAY
+#ifdef V6_TOWER_COMPANION_ROUTE
+    hallway_story.companion=9;hallway_story.rescue_triggered=hallway_story.red_rescued=1;
+    rescue_vm.following=1;rescue_vm.mood=0;
+#else
     if(!v6_tower_route_load(&route,110,104,0)) return 20;
+#endif
     v6_hallway_trigger_init(&hallway_trigger);
-    v6_hallway_trigger_enter(&hallway_trigger,110,104,&hallway_story);
-    trigger_crew_visible=v6_hallway_crew_visible(110,104,&hallway_story);
+    v6_hallway_trigger_enter(&hallway_trigger,route.rooms[route.index].x,route.rooms[route.index].y,&hallway_story);
+    trigger_crew_visible=v6_hallway_crew_visible(route.rooms[route.index].x,route.rooms[route.index].y,&hallway_story);
+#ifdef V6_TOWER_RESCUE
+    v6_companion_init(&companion);
+#ifdef V6_TOWER_COMPANION_ROUTE
+    v6_companion_enter(&companion,9,1,109,&session.player);
+#else
+    v6_companion_idle(&companion,trigger_crew_visible);
+#endif
+    {
+        unsigned i;
+        for(i=0;i<2;++i) {
+            V6Room collision;
+            collision.tiles=tower_route_rooms[i+2].decoded;
+            collision.tileset=2;collision.extra_row=0;collision.terrain=0;
+            collision.blocks=0;collision.block_count=0;
+            v6_terrain_build(&hallway_terrain[i],&collision);
+        }
+        if(route.index>=2)route.room.terrain=&hallway_terrain[route.index-2];
+    }
+#endif
 #endif
 #ifdef V6_TOWER_HALLWAY_HOLD
     if(!v6_tower_route_load(&route,V6_TOWER_HALLWAY_HOLD?110:108,V6_TOWER_HALLWAY_HOLD?104:109,0)) return 20;
@@ -556,7 +618,7 @@ static int run(void) {
            V6_TOWER_HALLWAY_HOLD?sizeof(hallway1_display):sizeof(hallway0_display)) ||
        !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
 #endif
-#ifdef V6_TOWER_TRIGGER_REPLAY
+#if defined(V6_TOWER_TRIGGER_REPLAY) && !defined(V6_TOWER_COMPANION_ROUTE)
        !v6_tower_open(&stream,hallway1_display,sizeof(hallway1_display)) ||
        !v6_tower_pairs_validate(&stream,tower_pair_offsets,TOWER_PAIR_WORDS,TOWER_TILE_COUNT,2) ||
 #endif
@@ -608,8 +670,16 @@ static int run(void) {
                 input=diag.logic_ticks<16?V6_RIGHT:0;
                 if(diag.logic_ticks>=16 && diag.logic_ticks<20) input|=V6_FLIP;
 #endif
-#ifdef V6_TOWER_RESCUE
-                if(diag.logic_ticks>=8) input=rescue_vm.waiting && (UWORD)diag.logic_ticks%30==0?V6_FLIP:0;
+#if defined(V6_TOWER_RESCUE) && !defined(V6_TOWER_COMPANION_ROUTE)
+                if(diag.logic_ticks>=8) {
+                    input=rescue_vm.waiting && (UWORD)diag.logic_ticks%30==0?V6_FLIP:0;
+                    if(!rescue_vm.active && hallway_story.companion==9) {
+                        unsigned phase=(UWORD)(companion.follow_steps+1)%96;
+                        input=phase<12 || (phase>=36 && phase<48)?V6_LEFT:phase<36?V6_RIGHT:0;
+                        if(session.player.x>270 && input==V6_RIGHT)input=V6_LEFT;
+                        if(session.player.x<140 && input==V6_LEFT)input=V6_RIGHT;
+                    }
+                }
 #endif
 #else
                 UWORD joy=hw->joy1dat;
@@ -619,6 +689,7 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_RESCUE
                 V6RescueSignals rescue_signals;
+                v6_companion_step(&companion,&session.player,&route.room,session.death_timer);
                 rescue_animate();
                 rescue_signals.bars_ready=rescue_vm.bars?rescue_bars>=360:rescue_bars==0;
                 rescue_signals.fade_ready=rescue_vm.fade>0?rescue_fade>416:rescue_fade==0;
@@ -658,6 +729,8 @@ static int run(void) {
                 }
                 v6_rescue_tick(&rescue_vm,&hallway_story,&rescue_signals);
                 if(rescue_vm.error) diag.error=10;
+                companion.mood=rescue_vm.mood;companion.following=rescue_vm.following;
+                companion_record();
                 rescue_record();
 #endif
                 record_trigger();

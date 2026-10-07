@@ -2,10 +2,11 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
-Latest milestone (6 October 2026): the bounded tower/hallway route loads its
-adjacent rooms and passes the 250-line headroom gate at 249 PAL lines, with
-zero missed frames. See the "Tower hallway loading" update at the end for
-scope and remaining work.
+Latest milestone (7 October 2026): the bounded Seeing Red rescue script and
+captions now include Vermilion's follow movement and room-entry rules. The
+companion hallway/tower/remote-return replay passes at 249 PAL lines with zero
+missed frames. See "Vermilion follow movement and room entry" below for scope
+and remaining work.
 
 ## Implementation progress — 27 September 2026
 
@@ -944,3 +945,49 @@ match. Caption pixels are excluded from live player/crew visibility checks.
 Next: implement Vermilion's follow-player movement and room transitions;
 then connect cue playback and campaign-state persistence. Exact source
 textbox positioning, fade/bar geometry and crew tint cycling are still open.
+
+## Vermilion follow movement and room entry
+
+`companion` now executes Vermilion's bounded follow-player AI with source
+five-pixel facing and 45-pixel acceleration thresholds, downward floor physics,
+terrain collision and humanoid collision animation. It runs before Viridian's
+physics, matching the reverse entity update order. The rescue consumer changes
+the existing actor to follow after the script finishes. Interactive joystick
+movement in `tower-rescue-run` now draws the moving companion. Normal and skip
+replays add bounded left/right inputs after rescue to exercise both characters.
+
+On room changes, companion 9 follows the source spawn rule: retain the player's
+velocity/facing, use Y=185, and spawn at X=100 when entering room column 110 with
+player X<20. No companion is spawned in tower mode. `tower-companion-route-capture`
+starts with an explicitly pre-rescued companion and reuses the upper route:
+hallway entry at tick 7, tower return at tick 14, ordinary spike death at tick
+56 and remote hallway checkpoint return at tick 85. The two hallway spawns,
+tower absence, all 6,912 initial state fields and final state match the host.
+It peaks at 249 PAL lines, misses no frames, retains 96 loading fields and
+restores the OS. Its visible hallway capture contains 576 red crew pixels.
+
+The extra actor initially exceeded the frame budget. The bounded position
+calculation now reproduces binary32 rounding with a 32-bit split sum, retaining
+the general fallback. Both resident hallways have prebuilt collision caches
+(4,104 ordinary RAM bytes). For cached tileset-2 terrain, directional tiles are
+also solid: after edge probes, only an unsampled interior directional block
+needs an additional check. Player/companion/probe builds use `-O2`, traces cache
+their destination pointer, and blank sprite channels do not need palette writes.
+Explicit Chip use remains 87,424 bytes.
+
+`test-companion` passes 3,840 source AI/physics/animation ticks plus the same
+3,840 cached ticks, 72 extracted Map spawn cases, 100,198 independent binary32
+position checks and 20,000 source collision queries against both cached and
+uncached paths. Existing player tests still match 36,746 ticks and 53,280
+hazard cases; tower physics matches another 51,456 ticks and 21,600 hazard
+cases. Normal and skip rescue captures now compare 10,112 initial state fields
+plus final state, including moving crew. They peak at 232/224 PAL lines with
+zero missed frames. Screenshot retries require visible
+crew as well as terrain/player so a still-loading tower phase cannot be mistaken
+for a hallway composition.
+
+Scope remains the two resident hallways and their tower entrances. The AI 1
+special restraint in room (110,105), other companion types, gravity lines and
+unsupported campaign rooms are excluded. Next: connect the recorded sound cues
+to native playback, then campaign-state persistence. Desktop textbox placement,
+fade/bar geometry and crew tint cycling remain pending.
