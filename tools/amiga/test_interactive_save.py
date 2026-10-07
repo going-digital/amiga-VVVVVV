@@ -71,6 +71,27 @@ int load(V6CheckpointSave *c,V6HallwayStory *s){return ui_load_checked(c,s);}
             out_before=bytes(out_cp),bytes(out_story)
             assert lib.load(C.byref(out_cp),C.byref(out_story))==4 and f.files==before
             assert (bytes(out_cp),bytes(out_story))==out_before
+    # Compile the same consumers under the dedicated build's capability gate.
+    subprocess.run(['cc','-std=c99','-O2','-shared','-fPIC','-Wall','-Wextra','-Werror',
+        '-DV6_TOWER_BUILDING','-I'+str(ROOT/'amiga_version'),str(out/'ui-consumer.c'),
+        *[str(ROOT/'amiga_version'/name) for name in ('campaign_save.c','campaign_file.c','campaign_route.c','teleporter.c','player.c','terrain.c')],
+        '-o',str(out/'ui-building.so')],check=True)
+    dedicated=C.CDLL(str(out/'ui-building.so'))
+    dedicated.setup.argtypes=lib.setup.argtypes;dedicated.load.argtypes=lib.load.argtypes
+    zero=Story(0,0,0,0,0)
+    for image in ({b'save':tele_blob},{b'save':tele_blob,b'backup':tele_blob},{b'backup':tele_blob}):
+        f.files=image.copy();dedicated.setup(C.byref(f.io),C.byref(tele),C.byref(zero))
+        before=bytes(out_cp),bytes(out_story)
+        assert dedicated.load(C.byref(out_cp),C.byref(out_story))==4
+        assert f.files==image and (bytes(out_cp),bytes(out_story))==before
+        assert dedicated.save()==4 and f.files==image
+    story=zero
+    clean=encoded(tele)
+    f.files={b'save':clean,b'backup':tele_blob}
+    dedicated.setup(C.byref(f.io),C.byref(tele),C.byref(zero))
+    assert dedicated.load(C.byref(out_cp),C.byref(out_story))==4 and f.files=={b'save':clean,b'backup':tele_blob}
+    f.files={b'save':clean}
+    assert dedicated.load(C.byref(out_cp),C.byref(out_story))==0 and values(out_cp)==values(tele)
     f.files.clear()
     print('PASS actual UI consumers: malformed final/backup preservation, transactional load rejection, new/replaced/recovered saves and invalid-live-state guard')
 if __name__=='__main__':main()

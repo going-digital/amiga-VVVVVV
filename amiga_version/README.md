@@ -2003,3 +2003,18 @@ This completes backend teleporter checkpoint persistence and a native startup
 fixture. The playable Building Apport launcher still uses in-memory checkpoints.
 Next: travel/interaction UI and connect teleporter saving to the interactive
 save controls, with progression and companion rendering supported consistently.
+
+## Building Apport interactive saving
+
+`make -C amiga_version tower-building-interactive-save-run` starts the dedicated
+Building route with a persistent separate DF1 save disk. Keyboard joystick moves
+and flips; right mouse saves, fire + right mouse loads, and left mouse exits.
+Status captions report results. Loading restores the teleporter checkpoint and
+consumes fire until release. This build excludes rescue/audio and rejects saves
+containing unsupported rescue progress without changing either file.
+
+`make -C amiga_version tower-building-interactive-save-capture` checks real mouse
+controls with fixture movement, physical disk contents, and a separate fresh boot.
+The captures restore (156,92), show zero missed fields/errors, and use 88,288 bytes
+of Chip RAM (201/197 peak PAL work lines). Host consumer tests cover unsupported
+progress in both final and backup files. Teleporter travel selection is still pending.

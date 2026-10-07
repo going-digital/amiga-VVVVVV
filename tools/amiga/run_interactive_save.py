@@ -39,7 +39,9 @@ def main():
     parser.add_argument('--build',type=Path,default=DEFAULT)
     parser.add_argument('--capture',action='store_true')
     parser.add_argument('--physical',action='store_true',help='Use real emulated mouse/joystick controls rather than replay injection')
+    parser.add_argument('--building',action='store_true',help='Check the dedicated Building Apport save controls')
     args=parser.parse_args();build=args.build.resolve()
+    expected_x,expected_y=(156,92) if args.building else (140,1822)
     disk=build/('capture-save-disk.adf' if args.capture else 'save-disk.adf')
     if args.capture:disk.unlink(missing_ok=True)
     create_save_disk(build/'tower.adf',disk)
@@ -58,9 +60,9 @@ def main():
     ui=dict(zip(KEYS,struct.unpack_from('>18I',data,offset+8)));display=diagnostics(dump)
     offset=data.index(b'V6IT\0\0\0\1');count=struct.unpack_from('>I',data,offset+8)[0]
     events=list(struct.iter_unpack('>10I',data[offset+16:offset+16+count*40]))
-    assert ui['last_result']==0 and ui['loaded_x']==140 and ui['loaded_y']==1822,ui
+    assert ui['last_result']==0 and ui['loaded_x']==expected_x and ui['loaded_y']==expected_y,ui
     assert ui['saves']==ui['loads']==1 and ui['pauses']==ui['resumes'],ui
-    assert display['missed']==0 and display['max_work_lines']<=250 and display['chip_bytes']==111510,display
+    assert display['missed']==0 and display['max_work_lines']<=250 and display['chip_bytes']==(88288 if args.building else 111510),display
     assert display['logic_ticks']*34000+display['logic_remainder']==display['logic_frames']*19968,display
     assert (build/'tower.adf').read_bytes()==before  # boot disk remains read-only
     for action,result,before_hash,after_hash,fb,fa,tb,ta,x,y in events:
@@ -81,7 +83,7 @@ def main():
         cold_display=diagnostics(build/'ui-exit.bin')
         assert cold_display['status']==2 and cold_display['error']==0 and cold_display['missed']==0 and cold_display['max_work_lines']<=250,cold_display
         assert cold_ui['actions']==cold_ui['loads']==1 and cold_ui['saves']==cold_ui['errors']==0,cold_ui
-        assert cold_ui['loaded_x']==140 and cold_ui['loaded_y']==1822 and cold_ui['last_result']==0,cold_ui
+        assert cold_ui['loaded_x']==expected_x and cold_ui['loaded_y']==expected_y and cold_ui['last_result']==0,cold_ui
         assert read_record(disk)==saved_record
     else:
         assert ui['actions']==4 and ui['errors']==ui['busy']==1 and ui['pauses']==3 and display['status']==2,ui
@@ -89,7 +91,8 @@ def main():
         from tower_route_trace import verify
         verify(display,dump,False,True,True,False,prefix_only=True)
     fields=struct.unpack_from('>7iI',read_record(disk),8)
-    assert fields==(140,1822,1,1,109,109,505147,7 if not args.physical else 0),fields
+    expected=(156,92,0,0,111,104,0,0) if args.building else (140,1822,1,1,109,109,505147,7 if not args.physical else 0)
+    assert fields==expected,fields
     report=dict(ui=ui,display=display,events=events,disk_record_verified=True,restored=True,physical_controls=args.physical)
     if args.physical:report.update(cold_boot_ui=cold_ui,cold_boot_display=cold_display)
     (build/'capture.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

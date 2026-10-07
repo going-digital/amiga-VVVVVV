@@ -614,3 +614,12 @@ $(BUILD)/campaign_route.o: campaign_route.c campaign_route.h campaign_save.h tow
 tower-building-save-capture: tower-probe test-campaign-save test-interactive-save
 	$(MAKE) BUILD=$(ROOT)/build/amiga-building-save CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_BUILDING_REPLAY -DV6_BUILDING_SAVE" $(ROOT)/build/amiga-building-save/tower.adf
 	python3 $(ROOT)/tools/amiga/run_building_save.py
+
+.PHONY: tower-building-interactive-save tower-building-interactive-save-run tower-building-interactive-save-capture
+tower-building-interactive-save: tower-probe test-interactive-save
+	$(MAKE) BUILD=$(ROOT)/build/amiga-building-ui CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_UI_SAVE" $(ROOT)/build/amiga-building-ui/tower.adf
+tower-building-interactive-save-run: tower-building-interactive-save
+	python3 $(ROOT)/tools/amiga/run_interactive_save.py --build $(ROOT)/build/amiga-building-ui --building
+tower-building-interactive-save-capture: tower-building-interactive-save
+	$(MAKE) BUILD=$(ROOT)/build/amiga-building-ui-capture CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_BUILDING_REPLAY -DV6_TOWER_UI_SAVE" $(ROOT)/build/amiga-building-ui-capture/tower.adf
+	python3 $(ROOT)/tools/amiga/run_interactive_save.py --build $(ROOT)/build/amiga-building-ui-capture --building --capture --physical

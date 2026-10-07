@@ -6,7 +6,8 @@ Latest milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
 validation and a native DF1 save/fresh-boot fixture, including malformed-centre
 rejection before takeover. See "Teleporter checkpoint disk persistence" below.
-Travel UI and integration into interactive saving remain next.
+Interactive Building save/load controls now pass real mouse and fresh-boot
+checks; see "Building Apport interactive saving" below. Travel UI remains next.
 
 ## Implementation progress — 27 September 2026
 
@@ -1438,3 +1439,27 @@ This completes backend teleporter checkpoint persistence and a native startup
 fixture. The playable Building Apport launcher still uses in-memory checkpoints.
 Next: travel/interaction UI and connect teleporter saving to the interactive
 save controls, with progression and companion rendering supported consistently.
+
+## Building Apport interactive saving — 7 October 2026
+
+The dedicated five-room Building route now exposes the existing right-mouse
+save and fire + right-mouse load controls, with help/result captions and a
+persistent separate DF1 disk. Run `make -C amiga_version tower-building-interactive-save-run`.
+The build has no rescue follower or audio; shared save controls no longer depend
+on either subsystem. Load consumes fire until release, including in this build.
+
+Source-bank validation runs before recovery can remove a backup. This bounded
+build also rejects final or backup records containing rescue/companion progress,
+preserving disk contents and the current game rather than dropping that progress.
+Host tests exercise both production consumer configurations and transactional
+rejection. Real emulated mouse controls save the activated teleporter checkpoint
+(156,92), then load it during play and on a separate boot. Both native captures
+have zero errors/missed fields, peaks of 201/197 PAL lines, and 88,288 bytes of
+Chip RAM. DOS time does not advance the private gameplay clock; the read-only
+boot disk and persisted checkpoint remain intact. The loaded caption/teleporter
+capture was visually checked. Capture movement uses the established Building
+input fixture; the playable launcher uses the keyboard joystick.
+
+Next: implement the bounded normal-mode teleporter travel UI and destination
+selection. Rescue sprite sharing and wider campaign progression remain separate
+work; disk records still use the existing 44-byte format.

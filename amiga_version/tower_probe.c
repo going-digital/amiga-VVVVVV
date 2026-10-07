@@ -22,6 +22,10 @@ static const char save_name[]="DF1:campaign.v6cs";
 static const char save_temp[]="DF1:campaign.tmp";
 static const char save_backup[]="DF1:campaign.bak";
 #include "save_controls.h"
+#ifndef V6_TOWER_RESCUE
+#include "dialogue.h"
+#include "dialogue_font.h"
+#endif
 #include "rescue_script.h"
 static V6SaveControls save_controls;
 static unsigned ui_status,ui_fields;
@@ -719,8 +723,15 @@ static ULONG ui_game_hash(void)
     HASH(world.save.x);HASH(world.save.y);HASH(world.save.gravity);HASH(world.save.dir);
     HASH(world.save.room_x);HASH(world.save.room_y);HASH(world.save.id);
     HASH(hallway_story.companion);HASH(hallway_story.rescue_triggered);HASH(hallway_story.red_rescued);
+#ifdef V6_TOWER_RESCUE
     HASH(companion.body.x);HASH(companion.body.y);HASH(companion.body.vx);HASH(companion.body.vy);
     HASH(companion.follow_steps);HASH(rescue_vm.pc);HASH(rescue_vm.active);
+#endif
+#ifdef V6_TOWER_BUILDING
+    HASH(building_teleporter.tile);HASH(building_teleporter.state);
+    HASH(route.tele_region.active);HASH(building_animation.frame);
+    HASH(building_animation.delay);HASH(building_animation.walking);
+#endif
 #undef HASH
     return hash;
 }
@@ -732,10 +743,16 @@ static int ui_load_checked(V6CheckpointSave *out,V6HallwayStory *story)
     result=v6_campaign_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s);
     if(result)return result;
     if(!checkpoint_bank_valid(&c))return V6_SAVE_CORRUPT;
+#if defined(V6_TOWER_BUILDING) && !defined(V6_TOWER_RESCUE)
+    if(s.companion || s.rescue_triggered || s.red_rescued)return V6_SAVE_CORRUPT;
+#endif
     if(a && k) {
         result=v6_campaign_read(&v6_campaign_dos,save_backup,&b,&bs);
         if(result)return result;
         if(!checkpoint_bank_valid(&b))return V6_SAVE_CORRUPT;
+#if defined(V6_TOWER_BUILDING) && !defined(V6_TOWER_RESCUE)
+        if(bs.companion || bs.rescue_triggered || bs.red_rescued)return V6_SAVE_CORRUPT;
+#endif
     }
     return v6_campaign_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story);
 }
@@ -753,16 +770,23 @@ static int ui_save_checked(void)
 }
 static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
 {
-    unsigned i;
-    ui_copy(&world.save,c,sizeof(*c));ui_copy(&hallway_story,story,sizeof(*story));
+    ui_copy(&world.save,c,sizeof(*c));
+#ifdef V6_TOWER_RESCUE
+    ui_copy(&hallway_story,story,sizeof(*story));
+#else
+    (void)story;
+#endif
     v6_tower_session_init(&session,c->x,c->y,c->gravity,c->dir);
     if(!v6_tower_route_load(&route,c->room_x,c->room_y,1))return 0;
     session.player.old_x=session.player.x;session.player.old_y=session.player.y;
-    for(i=0;i<sizeof(rescue_vm);++i)((volatile UBYTE *)&rescue_vm)[i]=0;
+
+#ifdef V6_TOWER_RESCUE
+    { unsigned i;for(i=0;i<sizeof(rescue_vm);++i)((volatile UBYTE *)&rescue_vm)[i]=0; }
     rescue_vm.control=1;rescue_vm.following=story->companion==9;rescue_vm.mood=story->companion==9?0:1;
     rescue_bars=rescue_fade=rescue_fade_mode=rescue_fire=0;rescue_flips_applied=cue_consumed=0;
-    player_animation.delay=player_animation.walk=0;player_frame=c->dir?0:3;
     v6_companion_init(&companion);
+#endif
+    player_animation.delay=player_animation.walk=0;player_frame=c->dir?0:3;
     return route_source();
 }
 #endif
@@ -1109,11 +1133,20 @@ static int run(void) {
                 ULONG before_hash=ui_game_hash(),before_frames=frames,before_ticks=diag.logic_ticks;
                 int result=5;
                 ++ui_diag.values[0];ui_diag.values[7]=action;
-                if(rescue_vm.active || route_loading || session.death_timer!=-1 || cue_audio.state) {
+                if(route_loading || session.death_timer!=-1
+#ifdef V6_TOWER_RESCUE
+                   || rescue_vm.active
+#endif
+#ifdef V6_TOWER_AUDIO
+                   || cue_audio.state
+#endif
+                  ) {
                     ++ui_diag.values[4];ui_status=4;ui_fields=200;
                 } else {
-                    V6AudioPlan plan;V6CheckpointSave c;V6HallwayStory story;
-                    v6_audio_stop(&cue_audio,&plan);audio_apply(&plan);audio_record();
+                    V6CheckpointSave c;V6HallwayStory story;
+#ifdef V6_TOWER_AUDIO
+                    { V6AudioPlan plan;v6_audio_stop(&cue_audio,&plan);audio_apply(&plan);audio_record(); }
+#endif
                     Disable();hw->intena=0x7fff;hw->intreq=0x7fff;hw->dmacon=0x7fff;hw->adkcon=0x7fff;
                     __asm volatile("move.l %0,0x6c.w"::"r"(old_irq):"memory");
                     hw->cop1lc=(ULONG)GfxBase->copinit;hw->cop2lc=(ULONG)GfxBase->LOFlist;hw->copjmp1=0;
@@ -1249,11 +1282,11 @@ static int run(void) {
 #ifdef V6_TOWER_UI_REPLAY
                 if(ui_test_phase==4)input=0;
 #endif
-#ifdef V6_TOWER_RESCUE
-                V6RescueSignals rescue_signals;
 #ifdef V6_TOWER_UI_SAVE
                 input=v6_save_controls_filter(&save_controls,input);
 #endif
+#ifdef V6_TOWER_RESCUE
+                V6RescueSignals rescue_signals;
                 v6_companion_step(&companion,&session.player,&route.room,session.death_timer);
                 rescue_animate();
                 rescue_signals.bars_ready=rescue_vm.bars?rescue_bars>=360:rescue_bars==0;
