@@ -78,9 +78,12 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--paired',action='store_true')
     parser.add_argument('--hallways',action='store_true')
+    parser.add_argument('--crew',action='store_true',help='Fixed Seeing Red composition with Vermilion')
     args=parser.parse_args()
+    if args.crew:args.hallways=True
     if args.paired: BUILD=ROOT/'build/amiga-tower-paired-pixels'
     if args.hallways: BUILD=ROOT/'build/amiga-hallway-pixels';CAMERAS=(0,1)
+    if args.crew: BUILD=ROOT/'build/amiga-crew-pixels';CAMERAS=(1,)
     BUILD.mkdir(parents=True, exist_ok=True)
     config = f'''rom = {json.dumps(str(Path.home() / 'amiga/KICK13.ROM'))}
 [machine]
@@ -107,6 +110,7 @@ write_protected = true
         flags=f'-DV6_TOWER_HOLD={camera}'+(' -DV6_TOWER_PAIRS' if args.paired else '')
         if args.hallways:
             flags=f'-DV6_TOWER_HALLWAY_HOLD={camera} -DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE'
+        if args.crew:flags+=' -DV6_TOWER_CREW_HOLD'
         with (BUILD / f'build-{camera}.log').open('w') as log:
             subprocess.run(['make', '-C', str(ROOT / 'amiga_version'), f'BUILD={BUILD}',
                             f'CPPFLAGS={flags}', str(BUILD / 'tower.adf')],
@@ -127,6 +131,17 @@ write_protected = true
                 foreground.append(b''.join(colours[((atlas[t*16+y%8]>>(7-x))&1)|
                     (((atlas[t*16+8+y%8]>>(7-x))&1)<<1)]
                     for t in tiles[y//8*40:(y//8+1)*40] for x in range(8)))
+            if args.crew:
+                header,source=subprocess.check_output([str(ASSETS/'png_rgba'),str(ASSETS/'tower_sprites.png')]).split(b'\n',1)
+                width,height=map(int,header.split());tile=147
+                ox=tile%(width//32)*32;oy=tile//(width//32)*32
+                foreground=list(map(bytearray,foreground));crew_pixels=0
+                for y in range(32):
+                    for x in range(32):
+                        pixel=source[((oy+y)*width+ox+x)*4:((oy+y)*width+ox+x)*4+4]
+                        if pixel[3]>127 and max(pixel[:3])>0:
+                            foreground[185+y][(264+x)*3:(265+x)*3]=bytes((255,68,68));crew_pixels+=1
+                assert crew_pixels>20
             # compare() indexes modulo the tower height; these views are at 0.
             # Desktop modes 7/8 call backat(i,j,200), colour banks 15/10.
             # Their backdrop tiles contain grey details over a dark tint.
@@ -141,6 +156,7 @@ write_protected = true
                   scope='Three-plane dual-playfield fixed-camera native Copper/DMA captures vs desktop map and converted atlas; exact RGB at logical pixel centres; not moving-frame tearing or physical hardware validation')
     if args.hallways:
         report.update(hallways=((108,109),(110,104)),scope='Fixed native hallway terrain captures vs literal Finalclass maps and converted tower atlas; static tower backgrounds and hidden entities; no moving-frame or story-script validation')
+    if args.crew:report.update(hallways=((110,104),),crew_frame=147,crew_position=(264,185),crew_source_pixels=crew_pixels,scope='Fixed Seeing Red terrain/background/Vermilion composition vs literal maps and source sprite mask; player/checkpoint hidden; dialogue not integrated')
     (BUILD / 'pixels.json').write_text(json.dumps(report, indent=2)+'\n')
 
 

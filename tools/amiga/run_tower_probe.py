@@ -88,7 +88,7 @@ write_protected = true
         report['profile']=dict(zip(('max_logic','max_render','peak_logic','peak_render','peak_tick','peak_rows'),values[2:]))
         timing=report['profile']
         assert timing['peak_logic']+timing['peak_render']==report['max_work_lines'],report
-        assert timing['peak_logic']<=timing['max_logic'] and timing['peak_render']<=timing['max_render'],report
+        assert timing['peak_logic']<=timing['max_logic']<=report['max_work_lines'] and timing['peak_render']<=timing['max_render']<=report['max_work_lines'],report
     assert report['step'] == (0 if args.controller else args.step), report
     if args.controller:
         assert report['logic_ticks'] > 100, report
@@ -120,10 +120,19 @@ write_protected = true
         visible_capture=BUILD/'tower.png'
         if args.world:
             visible_capture=BUILD/'tower-live.png'
-            visible_capture.unlink(missing_ok=True)
-            with (BUILD/'live-capture.log').open('w') as log:
-                subprocess.run([EMU,'--config',str(config),'--noaudio','--screenshot-after','15',str(visible_capture)],
-                    env=dict(os.environ),stdout=log,stderr=subprocess.STDOUT,check=True)
+            # Natural replay deaths can hide the sprite. Try bounded fresh
+            # gameplay captures, and reject AmigaDOS/startup pixels explicitly.
+            for capture_time in (22,23,24,25):
+                visible_capture.unlink(missing_ok=True)
+                with (BUILD/'live-capture.log').open('w') as log:
+                    subprocess.run([EMU,'--config',str(config),'--noaudio','--screenshot-after',str(capture_time),str(visible_capture)],
+                        env=dict(os.environ),stdout=log,stderr=subprocess.STDOUT,check=True)
+                _,probe=subprocess.check_output([str(ROOT/'build/amiga-feasibility/png_rgba'),str(visible_capture)]).split(b'\n',1)
+                terrain=sum(1 for i in range(0,len(probe),4) if probe[i]>80 and probe[i]>probe[i+1]*1.5 and probe[i]>probe[i+2]*1.4)
+                player=sum(1 for i in range(0,len(probe),4) if probe[i+1]>150 and probe[i+2]>150 and probe[i]<probe[i+1]*0.8)
+                if terrain>1000 and player>20:break
+            report['visible_capture_seconds']=capture_time
+            assert terrain>1000,('No gameplay terrain in sprite capture',report)
         decoder=ROOT/'build/amiga-feasibility/png_rgba'
         header,pixels=subprocess.check_output([str(decoder),str(visible_capture)]).split(b'\n',1)
         width,height=map(int,header.split())
@@ -135,6 +144,10 @@ write_protected = true
             report['visible_active_checkpoint_pixels']=sum(1 for i in range(0,len(pixels),4)
                 if pixels[i+1]>150 and pixels[i+1]>pixels[i]*1.5 and pixels[i+1]>pixels[i+2]*1.5)
             if not args.route: assert report['visible_active_checkpoint_pixels']>20,report
+        if args.upper_route:
+            report['visible_crew_pixels']=sum(1 for i in range(0,len(pixels),4)
+                if pixels[i:i+3]==bytes((255,68,68)))
+            assert report['visible_crew_pixels']>20,report
         report['headroom_20_percent']=report['max_work_lines']<=250
     if not args.controller:
         assert report['forward_wraps'] >= 1 and report['reverse_wraps'] >= 1, report
@@ -168,7 +181,7 @@ write_protected = true
         if args.wrap:
             report['scope']='Main-tower normal-input horizontal wraps in both directions and natural recovery; 128 camera/player/checkpoint ticks match host integration; adjacent room loads remain pending'
         if args.route:
-            report['scope']=('Upper entrance and Seeing Red checkpoint contact through ordinary input; natural spike death after tower re-entry restores saved hallway; ' if args.upper_route else 'Lower tower/hallway crossings and natural checkpoint recovery; ')+ 'staged display loads and first 128 ticks match host integration; crew/scripts omitted'
+            report['scope']=('Upper entrance and Seeing Red checkpoint contact through ordinary input; natural spike death after tower re-entry restores saved hallway; ' if args.upper_route else 'Lower tower/hallway crossings and natural checkpoint recovery; ')+ 'staged display loads and first 128 ticks match host integration; crew dialogue/following scripts omitted'
     (BUILD / 'capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
 

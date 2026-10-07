@@ -1426,3 +1426,25 @@ stays fixed while the player moves. Chip memory and load duration are unchanged.
 Native lower/upper routes pass at 249/232 PAL lines with zero misses and all
 5,120 state fields matching. `tower-hallway-pixel-test` checks both complete
 hallway compositions, including their static backgrounds and hidden entities.
+
+## Seeing Red crew appearance
+
+The route harness now displays Vermilion's idle sad frame at the source
+position (264,185). His room-entry conditions match the desktop setup in 256
+host cases. The harness currently supplies normal unrescued campaign defaults;
+rescue persistence, dialogue and following are still pending. The source mask
+fits one existing sprite channel and adds 128 ordinary-memory bytes, with no
+additional Chip RAM. His tint is fixed red until palette animation is added.
+
+`test-hallway-crew` verifies source presence conditions. `tower-crew-pixel-test`
+compares the complete fixed Seeing Red composition against source terrain,
+background and sprite data: all 76,800 pixels match. This also validates the
+corrected sprite horizontal origin and priority over the background. Both
+native replays still match 5,120 state fields, peak at 250/246 PAL lines, miss
+no frames, and restore the OS cleanly. Loading remains 64/96 fields in total.
+
+Live screenshot checks now reject AmigaDOS startup pixels and capture from
+22 seconds; earlier route cyan counts at 15 seconds were not valid gameplay
+visibility evidence. The new upper capture contains 614 Vermilion pixels.
+Timing samples also retry pending VBlank at the beam wrap to prevent unsigned
+phase-clock underflow; phase maxima must fit the overall maximum work.

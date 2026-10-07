@@ -70,6 +70,16 @@ def main():
             for x in range(32)) for y in range(32)])
     (out/'tower_player_assets.h').write_text('static const uint32_t tower_player_rows[22][32]={\n'+
         ',\n'.join('{'+','.join(hex(v)+'UL' for v in frame)+'}' for frame in frames)+'};\n')
+    # AI 17 remains still, tile 144 (sad), facing left: visual frame 147.
+    # Export just this required frame rather than a full crew sprite sheet.
+    tile=147;ox=(tile%(sw//32))*32;oy=(tile//(sw//32))*32
+    assert oy+32<=sh
+    crew=[sum((sprite_rgba[((oy+y)*sw+ox+x)*4+3]>127 and
+        max(sprite_rgba[((oy+y)*sw+ox+x)*4:((oy+y)*sw+ox+x)*4+3])>0)<<(31-x)
+        for x in range(32)) for y in range(32)]
+    assert all(not (row & ~(((1<<16)-1)<<(32-6-16))) for row in crew), 'Crew crop loses source pixels'
+    with (out/'tower_player_assets.h').open('a') as header:
+        header.write('static const uint32_t tower_crew_rows[32]={'+','.join(hex(v)+'UL' for v in crew)+'};\n')
     path=out/'tiles3.png';path.write_bytes(original)
     header,rgba=subprocess.check_output([str(decoder),str(path)]).split(b'\n',1)
     width,height=map(int,header.split());assert len(rgba)==width*height*4

@@ -849,3 +849,32 @@ The lower/upper native routes still pass at 249/232 PAL lines, zero misses,
 64/96 loading fields and 5,120 matching state fields each. Seeing Red's story
 entity and trigger remain the next bounded room-content gap. Both fixed
 hallway captures match all 153,600 terrain/background pixels.
+
+The next bounded Seeing Red increment adds Vermilion's stand-still sad pose at
+(264,185), source frame 147, with a fixed red OCS tint. The native harness uses
+normal unrescued campaign defaults; the room-presence function accepts time
+trial, translator exploration, companion, flag 8 and red rescue state. All
+256 combinations/room cases match the literal Finalclass.cpp setup. Dialogue,
+rescue-state persistence, follow-player AI and tint cycling remain pending.
+One existing sprite channel holds every visible source pixel (crop 6), with
+128 ordinary-memory bytes for the mask and no additional Chip allocation.
+A fixed native composition matches all 76,800 terrain/background/crew pixels.
+Run `test-hallway-crew` and `tower-crew-pixel-test`.
+
+That composition also exposed existing sprite alignment and priority errors:
+DMA X was one pixel right of the playfields, and nonzero backdrop pixels could
+hide sprites. Sprite X now uses the calibrated display origin; BPLCON2=0x24
+puts both playfields behind all sprite pairs while retaining foreground over
+background. The priority encoding follows the [Commodore hardware manual](https://www.theflatnet.de/pub/cbm/amiga/AmigaDevDocs/hard_7.html).
+30,600 sprite and 33,792 wide-sprite host DMA cases pass after recalibration.
+
+Earlier route “live” screenshots taken at 15 seconds could still show AmigaDOS;
+their reported cyan pixel counts are withdrawn as player-visibility evidence.
+Capture verification now rejects startup terrain, uses bounded fresh captures
+from 22 seconds, and confirms actual player/crew pixels. State and timing trace
+comparisons were unaffected. A pending VBlank IRQ could also make a phase clock
+sample move backwards; the clock now retries that window, and phase maxima
+must be bounded by total maximum work. Fresh lower/upper captures pass at
+250/246 PAL lines, zero misses, unchanged 64/96 loading fields, 5,120 matching
+state fields each and clean OS restoration. The upper gameplay capture shows
+614 red crew pixels. Next: the Seeing Red trigger and `rescuered` script flow.

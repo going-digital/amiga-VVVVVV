@@ -38,6 +38,10 @@
 static V6TowerGameplay world;
 #ifdef V6_TOWER_ROUTE
 #include "tower_route_data.h"
+#include "hallway_crew.h"
+#if !defined(V6_TOWER_HALLWAY_HOLD) || defined(V6_TOWER_CREW_HOLD)
+static const V6HallwayStory hallway_story={0,0,0,0,0};
+#endif
 static V6TowerRoute route;
 static unsigned route_loading,route_budget;
 static volatile struct { ULONG magic,version,index,transitions,returns,loading_frames,error; }
@@ -177,8 +181,13 @@ static V6TowerSession session;
 #endif
 static UWORD beam(void) { return (*(volatile ULONG *)0xdff004>>8)&511; }
 static ULONG clock_lines(void) {
-    ULONG a,b; UWORD y;
-    do { a=frames;y=beam();b=frames; } while(a!=b);
+    ULONG a,b; UWORD y,pending;
+    /* The beam may wrap before the VBlank handler increments frames.
+     * Retry that pending-IRQ window instead of returning a clock in the
+     * previous field (which would underflow unsigned phase timings). */
+    do {
+        a=frames;y=beam();pending=y<4?(hw->intreqr&INTF_VERTB):0;b=frames;
+    } while(a!=b || pending);
     return a*312+y;
 }
 static void blank(void) {
@@ -253,7 +262,7 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         &background_stream,bg_camera>>3,tower_backdrop,TOWER_TILE_COUNT,&background_rows)) return 0;
 #endif
     if(drawn) *drawn+=background_rows;
-    p=move(p,0x100,0x3600);p=move(p,0x102,0);p=move(p,0x104,0);
+    p=move(p,0x100,0x3600);p=move(p,0x102,0);p=move(p,0x104,0x24);
     p=move(p,0x108,0);p=move(p,0x10a,0);
     p=move(p,0x08e,0x3481);p=move(p,0x090,0x24c1);
     p=move(p,0x092,0x0038);p=move(p,0x094,0x00d0);
@@ -280,6 +289,10 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         if(v6_sprites_add_rect(&player_sprites[index],tower_player_rows[c->tile],
             c->x,y,0,16,16,c->active?0x6f6:0x888)<0) return 0;
     }
+#if defined(V6_TOWER_ROUTE) && (!defined(V6_TOWER_HALLWAY_HOLD) || defined(V6_TOWER_CREW_HOLD))
+    if(v6_hallway_crew_visible(route.rooms[route.index].x,route.rooms[route.index].y,&hallway_story))
+        if(v6_sprites_add(&player_sprites[index],tower_crew_rows,264,185,6,0xf44)<0) return 0;
+#endif
     if(player_sprites[index].count>world_diag.values[12]) world_diag.values[12]=player_sprites[index].count;
 #endif
     for(i=0;i<8;++i) {

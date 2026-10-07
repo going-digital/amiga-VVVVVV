@@ -33,7 +33,7 @@ static int add_part(V6Sprites *batch, const uint32_t rows[32],
     clip=(uint16_t)(0xffffu << (16-width));
     if (left<0) clip &= 0xffffu >> -left;
     if (left>304) clip &= (uint16_t)(0xffff << (left-304));
-    start=52+y+first; stop=52+y+last; horizontal=129+left;
+    start=52+y+first; stop=52+y+last; horizontal=128+left;
     *data++=((start&255)<<8)|(horizontal>>1);
     *data++=((stop&255)<<8)|((start&256)>>6)|((stop&256)>>7)|(horizontal&1);
     /* Whole source halfwords are common for enemies. Keep shifts and their

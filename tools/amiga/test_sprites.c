@@ -41,7 +41,7 @@ static void wide_tests(void)
                 unsigned pixels[320]={0},col;
                 for(n=prefix;n<batch.count;++n) {
                     uint16_t *d=batch.dma+n*68;
-                    int sx=((d[0]&255)*2+(d[1]&1))-129;
+                    int sx=((d[0]&255)*2+(d[1]&1))-128;
                     assert(batch.colours[n]==0xf66);
                     for(col=0;col<16;++col) if(sx+(int)col>=0 && sx+(int)col<320)
                         pixels[sx+col]+=((d[2+row*2]>>(15-col))&1);
@@ -115,7 +115,7 @@ int main(void)
         assert(result==(int)ch && batch.count==ch+1 && batch.colours[ch]==0xf6b);
         d=batch.dma+ch*68;
         {
-            int left=((d[0]&255)*2+(d[1]&1))-129;
+            int left=((d[0]&255)*2+(d[1]&1))-128;
             int top=((d[0]>>8)|((d[1]&4)<<6))-52;
             int bottom=((d[1]>>8)|((d[1]&2)<<7))-52;
             assert(left==x+(int)crop && top==(y<16?16:y));
