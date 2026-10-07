@@ -1663,3 +1663,46 @@ This is a bounded new-save/cold-boot fixture, not a general in-game save menu.
 Existing-file replacement, recovery from interrupted replacement, full campaign
 fields and unsupported rooms remain open. Next: safe replacement of an existing
 save with recovery, then connect save/load actions to the interactive slice.
+
+## Save replacement and interrupted-operation recovery
+
+New-file AmigaDOS saves and cold-boot restart are committed as `b8cc0303`.
+`v6_campaign_replace` now writes and verifies a temporary record, renames the
+validated old final to `campaign.bak`, promotes the temporary file to the final
+name, rereads it and removes the backup. Startup recovery accepts a valid final,
+or restores a valid backup when the final is absent, then removes owned stale
+transaction files. An uncommitted temporary record is never promoted. Corrupt
+final or backup records are retained and reported. A temporary file without a
+committed final/backup also remains intact. Recovery failures leave decoded
+outputs unchanged; a later retry can resume cleanup.
+
+The native caller validates checkpoint-bank semantics for both existing final
+and backup records before recovery can remove either. All operations remain
+outside hardware takeover. Paths must be reserved, distinct and exclusively
+owned; ASCII case aliases are rejected. A reported I/O error can occur after
+promotion, so callers recover before retrying instead of assuming the old record
+is still final. These guarantees cover complete logical file operations, not
+arbitrary filesystem damage or physical power-loss durability.
+
+`test-campaign-replace` verifies all 24 operation snapshots, 48 replacement
+failures and 92 recovery failures, including failures reported after a mutation,
+cleanup retries, idempotence and corrupt-record preservation. Every interrupted
+replacement retains a complete old or new record. Existing file fault, source
+checkpoint and codec tests continue to pass.
+
+Run `make -C amiga_version tower-save-replacement-capture` for three private
+writable ADF variants. The successful replacement changes only the fixture's
+saved facing from 1 to 0. The two interruption fixtures construct the same file
+states as the rename boundaries: old backup plus uncommitted new temp, or new
+final plus old backup. Each is followed by a fresh emulator boot. Recovery
+restores facing 1 in the first case and retains facing 0 in the second. All six
+boots retain checkpoint 505147, rescue and following flags, active checkpoint
+state and clean OS restoration. Cold boots repeat neither rescue nor speech;
+all first-boot source traces still match. Every pair peaks at 234/236 PAL lines,
+with zero missed frames and unchanged 92,310-byte Chip allocation. The harness
+follows the named OFS file header to verify the actual final record, excluding
+freed backup blocks. The ordinary persistence target also passes both malformed
+save rejection gates before takeover.
+
+Next: connect explicit save/load actions to the interactive slice, with OS-safe
+pause and resume. Full campaign fields and unsupported rooms remain pending.

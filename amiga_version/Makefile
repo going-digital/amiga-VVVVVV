@@ -520,3 +520,17 @@ test: test-campaign-file
 tower-persistence-capture: tower-probe test-campaign-file
 	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-persistence CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_AUDIO -DV6_TOWER_PERSIST" $(ROOT)/build/amiga-tower-persistence/tower.adf
 	python3 $(ROOT)/tools/amiga/run_campaign_persistence.py
+
+.PHONY: test-campaign-replace
+test-campaign-replace: test-campaign-file
+	python3 $(ROOT)/tools/amiga/test_campaign_replace.py
+test: test-campaign-replace
+
+.PHONY: tower-save-replacement-capture
+tower-save-replacement-capture: tower-probe test-campaign-replace
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-replace-1 CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_AUDIO -DV6_TOWER_PERSIST -DV6_TOWER_REPLACE_TEST=1" $(ROOT)/build/amiga-tower-replace-1/tower.adf
+	python3 $(ROOT)/tools/amiga/run_campaign_persistence.py --build $(ROOT)/build/amiga-tower-replace-1 --replace-mode 1
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-replace-2 CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_AUDIO -DV6_TOWER_PERSIST -DV6_TOWER_REPLACE_TEST=2" $(ROOT)/build/amiga-tower-replace-2/tower.adf
+	python3 $(ROOT)/tools/amiga/run_campaign_persistence.py --build $(ROOT)/build/amiga-tower-replace-2 --replace-mode 2
+	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-replace-3 CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_AUDIO -DV6_TOWER_PERSIST -DV6_TOWER_REPLACE_TEST=3" $(ROOT)/build/amiga-tower-replace-3/tower.adf
+	python3 $(ROOT)/tools/amiga/run_campaign_persistence.py --build $(ROOT)/build/amiga-tower-replace-3 --replace-mode 3

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Boot a private writable ADF twice: rescue/save, then checkpoint restart."""
+import argparse
 import json
 import os
 from pathlib import Path
@@ -30,6 +31,12 @@ def capture(config,name,reject=False):
     assert state['display']['missed']==0 and state['display']['max_work_lines']<=250,state
     return state
 def main():
+    global BUILD
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--build',type=Path,default=BUILD)
+    parser.add_argument('--replace-mode',type=int,choices=(0,1,2,3),default=0)
+    args=parser.parse_args();BUILD=args.build.resolve()
+    expected_dir=0 if args.replace_mode in (1,3) else 1
     disk=BUILD/'persistence.adf';shutil.copyfile(BUILD/'tower.adf',disk)
     config=BUILD/'persistence.toml'
     config.write_text(f'''rom = {json.dumps(str(Path.home()/'amiga/KICK13.ROM'))}
@@ -57,7 +64,7 @@ write_protected = false
     assert (first['checkpoint'],first['companion'],first['triggered'],first['rescued'])==(505147,9,1,1),first
     second=capture(config,'restart')
     assert second['stage']==2 and second['read_result']==0 and second['restarted']==1,second
-    assert (second['x'],second['y'],second['gravity'],second['dir'],second['checkpoint'])==(140,1822,1,1,505147),second
+    assert (second['x'],second['y'],second['gravity'],second['dir'],second['checkpoint'])==(140,1822,1,expected_dir,505147),second
     assert (second['companion'],second['triggered'],second['rescued'],second['following'])==(9,1,1,1),second
     assert second['requests']==0 and second['audio_starts']==0 and second['crew_visible']==0,second
     from tower_gameplay_data import checkpoints
@@ -66,22 +73,27 @@ write_protected = false
     checkpoint_index=next(i for i,c in enumerate(checkpoints()) if c[3]==505147)
     assert world[6]==1<<checkpoint_index and world[7]==0,world
     second['active_checkpoint_verified']=True
-    # Independently find and verify the actual record written into the OFS disk.
-    image=disk.read_bytes();records=[]
-    for offset in range(len(image)-43):
-        if image[offset:offset+8]==b'V6CS\0\1\0,':
-            record=image[offset:offset+44]
-            if zlib.crc32(record[:40])==struct.unpack_from('>I',record,40)[0]:records.append(record)
-    assert len(records)==1, len(records)
+    # Follow the named OFS file header, excluding freed backup/data blocks.
+    image=disk.read_bytes();headers=[]
+    for block in range(0,len(image),512):
+        if struct.unpack_from('>I',image,block)[0]!=2 or struct.unpack_from('>I',image,block+508)[0]!=0xfffffffd:continue
+        length=image[block+432]
+        if image[block+433:block+433+length]==b'campaign.v6cs':headers.append(block)
+    assert len(headers)==1,headers
+    header=headers[0];assert sum(struct.unpack_from('>128I',image,header))&0xffffffff==0
+    block=struct.unpack_from('>I',image,header+16)[0]*512
+    assert struct.unpack_from('>I',image,block)[0]==8 and struct.unpack_from('>I',image,block+12)[0]==44
+    record_offset=block+24;records=[image[record_offset:record_offset+44]]
+    assert zlib.crc32(records[0][:40])==struct.unpack_from('>I',records[0],40)[0]
     fields=struct.unpack_from('>7iI',records[0],8)
-    assert fields==(140,1822,1,1,109,109,505147,7),fields
+    assert fields==(140,1822,1,expected_dir,109,109,505147,7),fields
     (BUILD/'campaign.v6cs').write_bytes(records[0])
     # OFS data blocks have a six-long header and a checksum over 512 bytes.
-    record_offset=image.index(records[0]);block=record_offset&~511
+    block=record_offset&~511
     assert record_offset-block==24 and struct.unpack_from('>I',image,block)[0]==8
     assert sum(struct.unpack_from('>128I',image,block))&0xffffffff==0
     rejected={}
-    for name,valid_crc in (('bad-crc',False),('bad-checkpoint',True)):
+    for name,valid_crc in (() if args.replace_mode else (('bad-crc',False),('bad-checkpoint',True))):
         bad=bytearray(image);bad[record_offset+11]^=1  # x=141 instead of checkpoint x=140
         if valid_crc:struct.pack_into('>I',bad,record_offset+40,zlib.crc32(bad[record_offset:record_offset+40]))
         struct.pack_into('>I',bad,block+20,0)
@@ -94,7 +106,7 @@ write_protected = false
         assert rejected[name]['read_result']==(0 if valid_crc else 4),rejected[name]
         assert bad_disk.read_bytes()==bytes(bad)  # rejected loads do not rewrite the save
 
-    report=dict(save=first,restart=second,rejected=rejected,disk_record_verified=True,scope='New-file AmigaDOS save after rescue and cold-boot checkpoint restart; existing-file replacement and full campaign fields pending')
+    report=dict(replacement_mode=args.replace_mode,save=first,restart=second,rejected=rejected,disk_record_verified=True,scope='Bounded AmigaDOS save/replacement and rename-boundary recovery on cold boot; full campaign fields and interactive save actions pending')
     (BUILD/'capture.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
 if __name__=='__main__':main()

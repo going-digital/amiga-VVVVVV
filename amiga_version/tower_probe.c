@@ -10,6 +10,7 @@ static unsigned persist_stage;
 static volatile struct { ULONG magic,version,values[18]; } persist_diag={0x56365356,1,{0}};
 static const char save_name[]="DF0:campaign.v6cs";
 static const char save_temp[]="DF0:campaign.tmp";
+static const char save_backup[]="DF0:campaign.bak";
 #endif
 #include <proto/graphics.h>
 #include <graphics/gfxbase.h>
@@ -952,24 +953,56 @@ static int checkpoint_bank_valid(const V6CheckpointSave *c)
 #endif
 int __attribute__((used,section(".text.unlikely"))) _start(void) {
 #ifdef V6_TOWER_PERSIST
-    int result,exists;
+    int result,exists,temp_exists,backup_exists;
     __asm volatile("move.l 4.w,%0":"=r"(SysBase));
     DOSBase=(struct DosLibrary *)OpenLibrary((CONST_STRPTR)"dos.library",0);
     if(!DOSBase)return 20;
     exists=v6_campaign_dos.exists(save_name);
-    if(exists<0){persist_diag.values[1]=V6_SAVE_IO;CloseLibrary((struct Library *)DOSBase);return 20;}
-    persist_stage=exists?2:1;persist_diag.values[0]=persist_stage;
-    if(exists) {
-        result=v6_campaign_read(&v6_campaign_dos,save_name,&persisted_checkpoint,&persisted_story);
+    temp_exists=v6_campaign_dos.exists(save_temp);backup_exists=v6_campaign_dos.exists(save_backup);
+    if(exists<0 || temp_exists<0 || backup_exists<0){persist_diag.values[1]=V6_SAVE_IO;CloseLibrary((struct Library *)DOSBase);return 20;}
+    persist_stage=(exists || backup_exists || temp_exists)?2:1;persist_diag.values[0]=persist_stage;
+    if(persist_stage==2) {
+        result=v6_campaign_read(&v6_campaign_dos,exists?save_name:save_backup,&persisted_checkpoint,&persisted_story);
         persist_diag.values[1]=result;
         if(result!=V6_SAVE_OK || !checkpoint_bank_valid(&persisted_checkpoint)) {
             persist_diag.values[3]=1;CloseLibrary((struct Library *)DOSBase);return 20;
         }
+        /* Validate source semantics before recovery can remove either record. */
+        if(exists && backup_exists) {
+            V6CheckpointSave c;V6HallwayStory s;
+            result=v6_campaign_read(&v6_campaign_dos,save_backup,&c,&s);
+            if(result || !checkpoint_bank_valid(&c)) {
+                persist_diag.values[1]=result;persist_diag.values[3]=1;
+                CloseLibrary((struct Library *)DOSBase);return 20;
+            }
+        }
+        result=v6_campaign_recover(&v6_campaign_dos,save_name,save_temp,save_backup,&persisted_checkpoint,&persisted_story);
+        persist_diag.values[1]=result;
+        if(result){persist_diag.values[3]=1;CloseLibrary((struct Library *)DOSBase);return 20;}
     }
     result=run();
     if(!result && !rescue_vm.active && checkpoint_bank_valid(&world.save)) {
         if(persist_stage==1) {
-            result=v6_campaign_write_new(&v6_campaign_dos,save_name,save_temp,&world.save,&hallway_story);
+            result=v6_campaign_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story);
+#ifdef V6_TOWER_REPLACE_TEST
+            if(!result) {
+                V6CheckpointSave newer=world.save;newer.dir=0;
+#if V6_TOWER_REPLACE_TEST == 1
+                result=v6_campaign_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&newer,&hallway_story);
+#else
+                /* Construct each rename-boundary interruption using real DOS
+                 * files, then leave it for a fresh boot to recover. */
+                if(!Rename((CONST_STRPTR)save_name,(CONST_STRPTR)save_backup))result=V6_SAVE_IO;
+#if V6_TOWER_REPLACE_TEST == 2
+                if(!result)result=v6_campaign_write_new(&v6_campaign_dos,save_temp,"DF0:campaign.stage",&newer,&hallway_story);
+#elif V6_TOWER_REPLACE_TEST == 3
+                if(!result)result=v6_campaign_write_new(&v6_campaign_dos,save_name,save_temp,&newer,&hallway_story);
+#else
+#error Unsupported replacement fixture
+#endif
+#endif
+            }
+#endif
             persist_diag.values[2]=result;
         }
         if(!result)persist_diag.values[5]=1;
