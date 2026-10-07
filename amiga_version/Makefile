@@ -499,3 +499,10 @@ $(BUILD)/audio.o: audio.c audio.h | $(BUILD)
 test-audio:
 	python3 $(ROOT)/tools/amiga/test_audio.py
 test: test-audio
+
+$(BUILD)/campaign_save.o: campaign_save.c campaign_save.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+.PHONY: test-campaign-save
+test-campaign-save: $(BUILD)/campaign_save.o
+	python3 $(ROOT)/tools/amiga/test_campaign_save.py
+test: test-campaign-save

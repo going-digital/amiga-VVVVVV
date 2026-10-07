@@ -1592,3 +1592,31 @@ This is bounded rescue speech playback with exclusive hardware ownership.
 Music, general gameplay effects and audio.device integration remain pending.
 Next: campaign-state persistence, followed by broader room coverage. Desktop
 textbox placement, fade/bar geometry and crew tint cycling are still open.
+
+## Campaign save format foundation
+
+Native rescue audio is committed as `6746812e`. `campaign_save` now defines a
+44-byte version-1 bounded-route record: `V6CS`, big-endian version and length,
+seven explicit 32-bit checkpoint fields, story flags and IEEE CRC32. It maps
+the desktop save's `savex`, `savey`, `savegc`, `savedir`, `saverx`, `savery`,
+`savepoint`, companion and red rescue/trigger state. It does not serialize
+native structure layouts or transient actors, scripts, camera and audio state.
+
+Encoding and decoding validate the four resident route destinations, coarse
+coordinate bounds, gravity/facing, supported companion and consistent rescue
+flags. Triggered-but-unrescued state is rejected: reloading it without an active
+script would consume the one-shot trigger permanently. Time trial/translator
+modes, unsupported companions and rooms are rejected. Decode is transactional:
+invalid records leave both output structures unchanged. The caller must finish
+scripts before saving and validate checkpoint identity against loaded content;
+this codec does not prove that an arbitrary coordinate is a safe spawn.
+
+`make -C amiga_version test-campaign-save` compiles the freestanding 68000
+object and runs host UBSan checks. An independent Python big-endian/CRC vector
+matches; 1,152 boundary/state round trips, every one of 352 single-bit
+corruptions, 45 length guards, and 16 checksum-valid malformed payloads pass.
+Header and encode guards also pass. The native object has no unresolved runtime
+symbols. This is the persistence format foundation, not disk saving or a native
+load/restart gate. Next: OS-safe AmigaDOS file loading/writing, checkpoint-bank
+validation and a native rescue/save/restart replay. Full campaign saves still
+require additional crew, flags, trinkets and room coverage.
