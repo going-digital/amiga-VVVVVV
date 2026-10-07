@@ -83,4 +83,5 @@ def export_building(out):
         packet=encode(tiles[row*40:(row+1)*40])
         directory+=struct.pack('>IH',len(payload),len(packet));payload+=packet
     display=struct.pack('>4sHHH',b'V6TR',1,40,30)+directory+payload
-    (out/'building_display.h').write_text('static const uint8_t building_display[]={'+','.join(map(str,display))+'};\n')
+    (out/'building_display.h').write_text('static const uint8_t building_display[]={'+','.join(map(str,display))+'};\n'+
+        'static const uint16_t building_tiles[1200]={'+','.join(map(str,tiles))+'};\n')

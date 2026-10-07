@@ -1868,3 +1868,47 @@ frames. Next: source animation,
 live activation and renderer integration, then interaction/travel UI and
 teleporter checkpoint disk-save support. Static timing is not a moving-gameplay
 performance result.
+
+## Moving teleporter activation and animation
+
+`teleporter_animation.c` ports the desktop type-14 animation branch. Active
+tile 2 uses a one-tick delay; arriving tile 6 uses two ticks. Random choices 4
+or 5 select frame 1 and a four-tick pause in both modes. No-flashing mode uses
+the current tile directly while retaining delay/walking state. The caller
+supplies a choice in 0..5 when updating; invalid choices preserve state. The
+native fixture uses a repeatable choice sequence, not the desktop global RNG.
+
+`make -C amiga_version test-teleporter-animation` compares 1,200 state cases and
+1,200 consecutive ticks against the extracted desktop animation branch,
+including inactive/active/arrival transitions and no-flashing behavior.
+
+`make -C amiga_version tower-teleporter-live-capture` runs a scripted moving
+Building Apport fixture. A real player steps against its literal ordinary-room
+terrain. The player moves right for 40 ticks, left for 40 and then idles.
+Teleporter update precedes player movement and collision; collision arms the
+next update. Animation updates once per 34 ms gameplay tick. Six hardware
+channels display the teleporter and the remaining two display the player.
+Each render writes only the inactive DMA bank. Tints remain frozen; saved-sound
+and message requests are counted rather than played or displayed.
+
+The renderer prepares nine teleporter DMA frames before hardware takeover,
+then copies a frame only when the inactive bank needs a different one. Copying
+in groups of eight words keeps the measured peak within the 250-line budget.
+Templates use 23,520 bytes outside Chip RAM; the complete fixture allocates
+69,088 bytes of Chip RAM. DMA mask rebuilding during gameplay exceeded the
+budget, so it is excluded from the frame loop.
+
+The first 256 native ticks match 3,072 fields against desktop teleporter
+activation/animation and host player physics. Contact saves exactly once on
+tick 5, producing (156,92), normal gravity, facing right, room (111,104), ID 0.
+Injected arrival state on tick 181 silently switches to tile 6 without changing
+the saved checkpoint. The private PAL/gameplay clock identity also passes.
+The capture peaks at 239 PAL lines, misses zero frames, and its player and
+teleporter image was visually inspected. All 230,400 fixed-frame pixel checks
+still pass; the existing lower route matches 5,120 trace fields at 245 lines
+with zero missed frames.
+
+This is a moving room fixture, not campaign travel. Next: integrate Building
+Apport into the resident route with a complete teleporter/checkpoint bank,
+then interaction/travel UI, saved-message/audio handling and teleporter disk
+save validation. Crew coexistence and source random tint cycling remain open.

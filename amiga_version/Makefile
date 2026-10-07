@@ -282,7 +282,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -O2 -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -579,3 +579,15 @@ test-teleporter-draw: tower-probe
 tower-teleporter-capture: test-teleporter-draw
 	python3 $(ROOT)/tools/amiga/test_teleporter_capture.py
 test: test-teleporter-draw
+
+$(BUILD)/teleporter_animation.o: teleporter_animation.c teleporter_animation.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+-include $(BUILD)/teleporter_animation.d
+
+.PHONY: test-teleporter-animation tower-teleporter-live-capture
+test-teleporter-animation: $(BUILD)/teleporter_animation.o
+	python3 $(ROOT)/tools/amiga/test_teleporter_animation.py
+test: test-teleporter-animation
+tower-teleporter-live-capture: tower-probe test-teleporter-animation test-teleporter
+	$(MAKE) BUILD=$(ROOT)/build/amiga-teleporter-live CPPFLAGS="-DV6_TOWER_PAIRS -DV6_TOWER_HOLD=0 -DV6_TOWER_TELEPORTER_HOLD=1 -DV6_TELEPORTER_LIVE -DV6_TOWER_CONTROLLER" $(ROOT)/build/amiga-teleporter-live/tower.adf
+	python3 $(ROOT)/tools/amiga/run_teleporter_live.py

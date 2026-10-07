@@ -223,6 +223,32 @@ static int player_frame;
 #include "tower_map.h"
 #include "tower_background_map.h"
 #include "tower_backdrop.h"
+#ifdef V6_TELEPORTER_LIVE
+#if !defined(V6_TOWER_TELEPORTER_HOLD) || !defined(V6_TOWER_CONTROLLER)
+#error Live teleporter fixture requires a teleporter hold and the gameplay clock
+#endif
+#include "teleporter.h"
+#include "teleporter_animation.h"
+#include "teleporter_draw.h"
+#include "sprites.h"
+#include "animation.h"
+#include "tower_player_assets.h"
+static V6Teleporter tele;
+static V6TeleporterRegion tele_region;
+static V6TeleporterAnimation tele_animation;
+static V6Player tele_player;
+static V6Room tele_room;
+static V6CheckpointSave tele_save;
+static V6CollisionAnimation tele_player_animation;
+static UWORD tele_prepared[10][6*V6_TELEPORTER_DMA_WORDS];
+static int tele_bank_frame[2]={-1,-1};
+static V6Sprites tele_player_sprites[2];
+static ULONG tele_random=1;
+static unsigned tele_saves,tele_messages,tele_player_frame;
+static volatile struct {ULONG magic,version,count,records[256][12];}
+    tele_trace={0x5636544c,1,0,{{0}}};
+#define TELE_BANK_BYTES (6*V6_TELEPORTER_DMA_WORDS*2+8*V6_SPRITE_WORDS*2)
+#endif
 #ifdef V6_TOWER_TELEPORTER_HOLD
 #include "teleporter_draw.h"
 #include "teleporter_assets.h"
@@ -233,7 +259,11 @@ static int player_frame;
 #ifndef V6_TELEPORTER_TINT
 #define V6_TELEPORTER_TINT 0x444
 #endif
+#ifdef V6_TELEPORTER_LIVE
+#define TELE_DMA_BYTES (2*TELE_BANK_BYTES)
+#else
 #define TELE_DMA_BYTES (V6_TELEPORTER_CHANNELS*V6_TELEPORTER_DMA_WORDS*2+4)
+#endif
 static UWORD *tele_dma;
 #else
 #define TELE_DMA_BYTES 0
@@ -494,10 +524,40 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #endif
 #ifdef V6_TOWER_TELEPORTER_HOLD
     p=move(p,0x180,0x010);p=move(p,0x192,0x111);
+#ifdef V6_TELEPORTER_LIVE
+    {
+        UWORD *bank=tele_dma+index*(TELE_BANK_BYTES/2);
+        int frame=tele_animation.frame;
+        if(frame>9)frame=8;
+        if(frame<1)frame=1;
+        if(tele_bank_frame[index]!=frame) {
+            unsigned word;
+            for(word=0;word<6*V6_TELEPORTER_DMA_WORDS;word+=8) {
+                bank[word]=tele_prepared[frame][word];bank[word+1]=tele_prepared[frame][word+1];
+                bank[word+2]=tele_prepared[frame][word+2];bank[word+3]=tele_prepared[frame][word+3];
+                bank[word+4]=tele_prepared[frame][word+4];bank[word+5]=tele_prepared[frame][word+5];
+                bank[word+6]=tele_prepared[frame][word+6];bank[word+7]=tele_prepared[frame][word+7];
+            }
+            tele_bank_frame[index]=frame;
+        }
+        v6_sprites_begin(&tele_player_sprites[index],bank+6*V6_TELEPORTER_DMA_WORDS);
+        tele_player_sprites[index].count=6;
+        if(v6_sprites_add_wide(&tele_player_sprites[index],tower_player_rows[tele_player_frame],
+            tele_player.x,tele_player.y,0,32,0x6ff)<0)return 0;
+    }
+#endif
     for(i=0;i<8;++i) {
+#ifdef V6_TELEPORTER_LIVE
+        ULONG address=(ULONG)(i<6?tele_dma+index*(TELE_BANK_BYTES/2)+i*V6_TELEPORTER_DMA_WORDS:
+            tele_player_sprites[index].dma+i*V6_SPRITE_WORDS);
+#else
         ULONG address=(ULONG)(tele_dma+(i<6?i*V6_TELEPORTER_DMA_WORDS:6*V6_TELEPORTER_DMA_WORDS));
+#endif
         p=move(p,0x120+i*4,address>>16);p=move(p,0x122+i*4,address);
     }
+#ifdef V6_TELEPORTER_LIVE
+    p=move(p,0x1ba,0x6ff);p=move(p,0x1be,0x6ff);
+#endif
     for(i=0;i<3;++i) {
         p=move(p,0x1a2+i*8,0x111);
         p=move(p,0x1a4+i*8,V6_TELEPORTER_TINT);
@@ -797,6 +857,19 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_TELEPORTER_HOLD
     tele_dma=(UWORD *)(chip+CHIP_BYTES-TELE_DMA_BYTES);
+#ifdef V6_TELEPORTER_LIVE
+    {
+        unsigned frame;
+        for(frame=1;frame<10;++frame)
+            if(!v6_teleporter_draw(tele_prepared[frame],teleporter_masks[0],teleporter_masks[frame],112,48)) {
+                FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+            }
+    }
+    v6_teleporter_init(&tele,112,48,0);tele_animation.frame=1;
+    v6_player_init(&tele_player,80,80,0);tele_player.dir=1;
+    tele_room.tiles=building_tiles;tele_room.tileset=2;tele_room.extra_row=0;
+    tele_room.terrain=0;tele_room.blocks=0;tele_room.block_count=0;
+#else
     {
         int frame=V6_TOWER_TELEPORTER_HOLD;
         if(frame>9)frame=8;
@@ -806,6 +879,7 @@ static int run(void) {
         }
         tele_dma[6*V6_TELEPORTER_DMA_WORDS]=tele_dma[6*V6_TELEPORTER_DMA_WORDS+1]=0;
     }
+#endif
 #endif
     if(
 #ifdef V6_TOWER_ROUTE
@@ -998,6 +1072,27 @@ static int run(void) {
             elapsed+=delta*19968UL;diag.logic_frames+=delta;
             while(elapsed>=34000) {
                 elapsed-=34000;
+#ifdef V6_TELEPORTER_LIVE
+                {
+                    unsigned events,input=diag.logic_ticks<40?V6_RIGHT:diag.logic_ticks<80?V6_LEFT:0;
+                    if(diag.logic_ticks==180)tele.state=2; /* arrival fixture */
+                    events=v6_teleporter_update(&tele,&tele_region,0,0,&tele_player,111,104,0,0,&tele_save);
+                    tele_saves+=(events&V6_TELEPORTER_SAVED)!=0;
+                    tele_messages+=(events&V6_TELEPORTER_MESSAGE)!=0;
+                    v6_player_step(&tele_player,&tele_room,input);
+                    v6_teleporter_collide(&tele,&tele_player);
+                    tele_random^=tele_random<<13;tele_random^=tele_random>>17;tele_random^=tele_random<<5;
+                    v6_teleporter_animate(&tele_animation,tele.tile,0,(UWORD)(tele_random>>16)%6);
+                    tele_player_frame=v6_collision_frame(&tele_player_animation,&tele_player,tele_player.ground,tele_player.roof,-1);
+                    if(tele_trace.count<256) {
+                        volatile ULONG *r=tele_trace.records[tele_trace.count++];
+                        r[0]=tele_player.x;r[1]=tele_player.y;r[2]=tele.tile;r[3]=tele.state;
+                        r[4]=tele_animation.frame;r[5]=tele_animation.delay;r[6]=tele_animation.walking;
+                        r[7]=tele_saves;r[8]=tele_messages;r[9]=tele_save.x;r[10]=tele_save.y;r[11]=tele_region.active;
+                    }
+                    controller.y=controller.old_y=0;
+                }
+#else
 #ifdef V6_TOWER_RECOVERY
 #ifdef V6_TOWER_PLAY
                 unsigned input=0;
@@ -1121,6 +1216,7 @@ static int run(void) {
                 controller.y=session.camera.y;controller.mode=session.camera.mode;
 #else
                 v6_tower_camera_tick(&controller,0,0,1,0,0);
+#endif
 #endif
                 diag.camera_mode=controller.mode;
                 ++diag.logic_ticks;
