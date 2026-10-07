@@ -813,13 +813,17 @@ second-checkpoint native replay still passes, now at 243 lines with zero misses.
 The hallway backgrounds are currently black. Seeing Red's crew entity and
 dialogue trigger, other story scripts, exits beyond these hallways, other tower
 entities, interpolation, palette cycling and music/SFX remain outside this
-slice. Native coverage now also proves the upper entrance, ordinary Seeing Red
-checkpoint activation, tower re-entry, and restore to the saved hallway after
-an explicitly scripted death at logic tick 61. Crossings occur at ticks 7, 14
-and 90; all 5,120 traced state fields match the host route. The A500 replay
-peaks at 191 PAL lines with zero misses and unchanged 64,128 Chip bytes. Three
-loads pause logic for 186 fields in total. This fixture tests recovery wiring;
-it does not claim a natural hazard traversal. Run `tower-upper-route-capture`.
+slice. Native upper coverage proves ordinary Seeing Red checkpoint activation,
+tower re-entry, a natural spike death at logic tick 56, and restore to the saved
+hallway at tick 85. The inputs are eight right ticks and fifty left ticks,
+then no input; no mid-replay position or damage injections are used. The
+initial placement remains a bounded upper-exit fixture, not a full tower climb.
+Crossings occur at ticks 7, 14 and 85; all 5,120 traced fields match the host
+route. Host checks confirm the exact death position (96,193) against the
+source-extracted desktop tower spike code. The A500 replay peaks at 212 PAL
+lines, with zero misses, 96 loading fields and unchanged 64,128 Chip bytes.
+Run `tower-upper-route-capture`. This supersedes the earlier scripted-death
+upper recovery fixture.
 
 The next increment reduces cold loading to 32 PAL fields per transition,
 about 0.639 seconds (48.4% shorter). The crossing frame fills one row per

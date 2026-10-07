@@ -40,7 +40,7 @@ def main():
     parser.add_argument("--world", action="store_true", help="Validate tower checkpoints and horizontal boundaries")
     parser.add_argument('--wrap',action='store_true',help='Validate normal-input horizontal wrap replay')
     parser.add_argument('--route',action='store_true',help='Validate tower/hallway crossings and staged display loads')
-    parser.add_argument('--upper-route',action='store_true',help='Validate upper entry and scripted remote checkpoint return')
+    parser.add_argument('--upper-route',action='store_true',help='Validate upper entry and natural hazard remote checkpoint return')
     args = parser.parse_args()
     if args.upper_route: args.route=True
     if args.wrap or args.route: args.world=True
@@ -168,7 +168,7 @@ write_protected = true
         if args.wrap:
             report['scope']='Main-tower normal-input horizontal wraps in both directions and natural recovery; 128 camera/player/checkpoint ticks match host integration; adjacent room loads remain pending'
         if args.route:
-            report['scope']=('Upper entrance and Seeing Red checkpoint contact through ordinary input; scripted death after tower re-entry restores saved hallway; ' if args.upper_route else 'Lower tower/hallway crossings and natural checkpoint recovery; ')+ 'staged display loads and first 128 ticks match host integration; crew/scripts and hallway backgrounds omitted'
+            report['scope']=('Upper entrance and Seeing Red checkpoint contact through ordinary input; natural spike death after tower re-entry restores saved hallway; ' if args.upper_route else 'Lower tower/hallway crossings and natural checkpoint recovery; ')+ 'staged display loads and first 128 ticks match host integration; crew/scripts and hallway backgrounds omitted'
     (BUILD / 'capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print(json.dumps(report, indent=2))
 

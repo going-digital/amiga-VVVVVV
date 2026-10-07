@@ -448,10 +448,6 @@ static int run(void) {
 #ifdef V6_TOWER_ROUTE
                 unsigned index=route.index;
 #ifndef V6_TOWER_HALLWAY_HOLD
-#ifdef V6_TOWER_UPPER_REPLAY
-                /* Explicit integration fixture: die after re-entering the tower. */
-                if(diag.logic_ticks==60) v6_tower_session_die(&session);
-#endif
                 if(!v6_tower_route_step(&route,input)) diag.error=6;
 #else
                 (void)input;

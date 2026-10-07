@@ -2,6 +2,7 @@
 """Bounded tower/hallway loads, live crossings and remote checkpoint returns."""
 import ctypes as C
 import json
+import re
 from test_player import FIELDS
 from test_tower_world import *
 from tower_gameplay_data import hallway_rooms
@@ -72,6 +73,33 @@ v[4]=ypos;v[5]=oldypos;v[6]=cameramode;}
                 assert s.player.vx==3*16777216 and s.player.vy==-2*16777216
                 cases+=1
     return cases
+def upper_traversal(core,ref):
+    # Full input-only route: a source-map spike, rather than an injected death,
+    # must drive the return to Seeing Red's saved checkpoint.
+    source=(ROOT/'desktop_version/src/Tower.cpp').read_text()
+    raw=source[source.index('void towerclass::loadmap('):]
+    raw=re.search(r'static const short tmap\[\]\s*=\s*\{(.*?)\};',raw,re.S)[1]
+    raw=re.sub(r'//[^\n]*|/\*.*?\*/','',raw,flags=re.S)
+    values=[int(v) for v in raw.split(',') if v.strip()]
+    data=(C.c_uint16*len(values))(*values)
+    r,s,w,keep=route_setup(core,index=14)
+    core.v6_tower_session_init(C.byref(s),280,80,0,1)
+    crossings=[];deaths=[]
+    for tick in range(128):
+        previous=r.index;previous_deaths=s.deaths
+        assert core.v6_tower_route_step(C.byref(r),2 if tick<8 else 1 if tick<58 else 0)
+        if previous!=r.index:crossings.append((tick+1,r.index))
+        if previous_deaths!=s.deaths:
+            deaths.append(tick+1)
+            ref.tower_init(C.byref(s.player),data,len(values)//40,0)
+            assert ref.tower_hurt()==1
+            assert (s.player.x,s.player.y)==(96,193)
+        if tick==8:assert w.save.id==50520 and (w.save.room_x,w.save.room_y)==(110,104)
+    assert crossings==[(7,3),(14,1),(85,3)] and deaths==[56]
+    assert r.returns==1 and s.respawns==1 and not r.error
+    assert (s.player.x,s.player.y,s.player.gravity)==(12,105,0)
+    return dict(crossings=crossings,death_ticks=deaths,remote_returns=r.returns)
+
 def main():
     from probe_feasibility import tower_probe
     tower_probe(OUT);core,ref=libraries();r,s,w,keep=route_setup(core)
@@ -154,9 +182,10 @@ def main():
         assert (r.rooms[r.index].x,r.rooms[r.index].y)==(desc['x'],desc['y'])
         assert (s.player.x,s.player.y,s.player.gravity,s.player.dir)==(w.save.x,w.save.y,w.save.gravity,w.save.dir)
         assert s.life_timer==10 and r.returns==1 and not s.camera.y
+    upper=upper_traversal(core,ref)
     entries=entry_reference(core)
     report=dict(crossings=crossings,remote_returns=remote_returns,source_entry_cases=entries,
-        source_hallway_movement_ticks=movement_ticks,
+        source_hallway_movement_ticks=movement_ticks,upper_natural_route=upper,
         scope='Literal hallway terrain/checkpoints, normal-input lower entrance crossing, saved tower returns; crew/scripts and full desktop loop excluded')
     (OUT/'route-tests.json').write_text(json.dumps(report,indent=2)+'\n');print('PASS',report)
 if __name__=='__main__':main()

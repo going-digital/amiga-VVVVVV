@@ -1393,11 +1393,13 @@ and paused fields are excluded from logic-clock accounting.
 Both hallway backgrounds are black; Seeing Red's crew/dialogue and exits beyond
 these rooms remain pending. `tower-upper-route-capture` adds native upper entry,
 Seeing Red checkpoint activation and tower re-entry through ordinary input,
-then an explicitly scripted death at tick 61 tests remote hallway restore.
-Crossings are at ticks 7, 14 and 90, with 5,120 matching host state fields,
-191 PAL lines peak work, zero misses and 186 total loading fields. Its report
-is `build/amiga-tower-upper-replay/capture.json`. Natural hazard traversal on
-this upper route remains pending.
+then a natural spike death at tick 56 tests remote hallway restore. The replay
+uses eight right ticks and fifty left ticks, then no input. Crossings are at
+ticks 7, 14 and 85, with 5,120 matching host state fields, 212 PAL lines peak
+work, zero misses and 96 total loading fields. Host checks also confirm the
+death position against source-extracted desktop spike code. Its report is
+`build/amiga-tower-upper-replay/capture.json`. Initial placement is beside the
+upper exit; a complete tower climb remains pending.
 This build still excludes audio, other tower entities and full story logic.
 The earlier checkpoint/wrapping work is committed as `88a5293f`; hallway work
 is committed as `1db8ce47`.
