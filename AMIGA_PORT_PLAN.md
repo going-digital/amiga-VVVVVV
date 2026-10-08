@@ -14,8 +14,9 @@ and the source teleport handoff are committed as `2a601eaf`. Its compact native
 renderer is committed as `6f2f9491`; the normal arrival state core is committed
 as `1a4a817e`. Native arrival motion, control, visibility and grey flash are
 committed as `415e6ad9`; departure and host round trips are committed as
-`5c5c07d0`. Native staged Building/Energize travel now passes both scene-bank
-transitions; see "Native teleporter round trip" below.
+`5c5c07d0`; native staged round trips are committed as `420fe2e2`.
+Flashing departure/teleporter colours now pass source and native checks;
+see "Native teleporter flashing colour" below.
 
 ## Implementation progress — 27 September 2026
 
@@ -1739,3 +1740,39 @@ Next: implement the remaining departure/effect visuals and audio, then connect
 arrival save requests to a six-room persistence build and validate a fresh
 boot. Enable Energize in the playable selector only after its explored
 selection policy and this save path are verified.
+
+## Native teleporter flashing colour — 8 October 2026
+
+Added `teleporter_colour.c/.h` for Graphics::getcol(102), preserving its red,
+green, blue and lavender branches and their channel calculations. Four uniform
+16-bit samples stand in for fRandom(); each source RGB channel is truncated
+before its high nibble becomes the OCS channel. The core uses integer arithmetic
+and returns the source's fixed (196,196,223), OCS 0xccd, for noflashing or NULL
+samples. It does not own randomness or effect timing.
+
+The native staged round trip now samples flashing teleporter tile 6 and the
+visible departure player once per fixed logic tick, with separate colour RNG
+state so validated teleporter animation choices are unchanged. Colours remain
+latched through cold scene-bank rebuilding and capture holds. State 4002 restores
+the player's cyan colour as it hides the player; visible arrival uses the existing
+0x6ff cyan. Active/inactive teleporter colours retain their previous mapping.
+Full-screen flash still overrides every palette entry with 0xbbb. This reproduces
+the source colour formulas at OCS precision, not its exact random sequence or
+render-frame sampling frequency. Global noflashing UI/mode behavior is not added.
+
+`test-teleporter-colour` compiles for 68000 and passes 337,680 comparisons against
+the extracted Graphics.cpp case, covering all branch/channel sample thresholds,
+mixed samples and fixed noflashing/NULL output under undefined behaviour checks.
+`tower-teleporter-colour-capture` holds tick 6 after the first flash has decayed,
+checks 216 native fields, and verifies the PNG contains the distinct expected
+teleporter and player RGB colours. The capture is visually checked.
+
+The full round trip now compares 4,608 fields (including per-tick colours), and
+outbound checks 2,304. All three captures use 69,088 Chip bytes, peak at 220 PAL
+work lines, and report zero errors/missed fields. Boot disks remain unchanged.
+Arrival/flash and physical Building-menu regressions also pass. No new colour
+sampling occurs during the 124 fixed-logic-paused destination-loading fields.
+
+Next: integrate flash/teleport audio requests and screen-shake displacement, then
+arrival disk saving and fresh-boot validation. Energize remains excluded from the
+playable menu while explored-destination policy and persistence are unfinished.

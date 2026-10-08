@@ -304,8 +304,22 @@ static volatile struct {ULONG magic,version,count,records[128][14];}
     arrival_trace={0x56364152,1,0,{{0}}};
 #ifdef V6_TOWER_ROUNDTRIP
 #include "teleporter_departure.h"
+#include "teleporter_colour.h"
 static V6TeleporterDeparture departure;
 static unsigned travel_leg;
+static ULONG colour_random=7;
+static UWORD teleporter_tint=0xccd,player_tint=0xccd;
+static volatile struct {ULONG magic,version,count,records[128][2];}
+    colour_trace={0x5636434c,1,0,{{0}}};
+static UWORD flashing_colour(int noflashing)
+{
+    UWORD samples[4];unsigned i;
+    for(i=0;i<4;++i) {
+        colour_random^=colour_random<<13;colour_random^=colour_random>>17;colour_random^=colour_random<<5;
+        samples[i]=(UWORD)(colour_random>>16);
+    }
+    return v6_teleporter_flash_colour(samples,noflashing);
+}
 static volatile struct {ULONG magic,version,count,records[128][8];}
     departure_trace={0x56364452,1,0,{{0}}};
 #endif
@@ -722,13 +736,21 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         player_sprites[index].count=6;
         for(i=0;i<3;++i) {
             unsigned tint=route.rooms[route.index].teleporter->tile==1?0x444:0xaaf;
+#ifdef V6_TOWER_ROUNDTRIP
+            tint=teleporter_tint;
+#endif
             p=move(p,0x1a2+i*8,0x111);p=move(p,0x1a4+i*8,tint);p=move(p,0x1a6+i*8,tint);
         }
     }
 #endif
     if(!session.invisible)
         v6_sprites_add(&player_sprites[index],tower_player_rows[player_frame],
-                      session.player.x,session.player.y-(int)camera,6,0x6ff);
+                      session.player.x,session.player.y-(int)camera,6,
+#ifdef V6_TOWER_ROUNDTRIP
+                      player_tint);
+#else
+                      0x6ff);
+#endif
 #ifdef V6_TOWER_WORLD
     for(i=0;i<world.count;++i) {
         V6Checkpoint *c=&world.checkpoints[i];
@@ -1566,6 +1588,18 @@ static int run(void) {
                     building_random^=building_random<<13;building_random^=building_random>>17;building_random^=building_random<<5;
                     v6_teleporter_animate(&building_animation,route.rooms[route.index].teleporter->tile,0,(UWORD)(building_random>>16)%6);
                 }
+#ifdef V6_TOWER_ROUNDTRIP
+                {
+                    int tile=route.rooms[route.index].teleporter->tile;
+                    teleporter_tint=tile==6?flashing_colour(session.noflashing):tile==1?0x444:0xaaf;
+                    player_tint=departure.state>=4000 && departure.state<=4002 && !session.invisible?
+                        flashing_colour(session.noflashing):0x6ff;
+                    if(colour_trace.count<128) {
+                        volatile ULONG *c=colour_trace.records[colour_trace.count++];
+                        c[0]=teleporter_tint;c[1]=player_tint;
+                    }
+                }
+#endif
                 if(building_trace.count<128) {
                     volatile ULONG *r=building_trace.records[building_trace.count++];
                     r[0]=route.index;r[1]=session.player.x;r[2]=session.player.y;

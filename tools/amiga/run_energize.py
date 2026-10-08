@@ -15,6 +15,7 @@ from test_teleporter_animation import Animation,libraries as animations
 from tower_gameplay_data import energize_room
 from test_teleporter_arrival import Arrival
 from test_teleporter_departure import Departure
+from test_teleporter_colour import libraries as colour_libraries
 
 BUILD=ROOT/'build/amiga-energize'
 def main():
@@ -23,13 +24,16 @@ def main():
     parser.add_argument('--flash',action='store_true')
     parser.add_argument('--roundtrip',action='store_true')
     parser.add_argument('--outbound',action='store_true')
+    parser.add_argument('--colour',action='store_true')
     args=parser.parse_args()
+    if args.colour and (not args.roundtrip or args.outbound or args.flash):parser.error('--colour requires roundtrip without outbound/flash')
     if args.outbound and not args.roundtrip:parser.error('--outbound requires --roundtrip')
     if args.roundtrip and args.flash:parser.error('choose roundtrip or flash')
     if args.flash or args.roundtrip:args.arrival=True
     if args.arrival:BUILD=ROOT/('build/amiga-energize-arrival-flash' if args.flash else 'build/amiga-energize-arrival')
     if args.roundtrip:BUILD=ROOT/('build/amiga-teleporter-outbound' if args.outbound else 'build/amiga-teleporter-roundtrip')
-    ticks=1 if args.flash else 64 if args.outbound else 128
+    if args.colour:BUILD=ROOT/'build/amiga-teleporter-colour'
+    ticks=6 if args.colour else 1 if args.flash else 64 if args.outbound else 128
     config=BUILD/'energize.toml'
     config.write_text(f'''rom = {json.dumps(str(Path.home()/'amiga/KICK13.ROM'))}
 [machine]
@@ -98,6 +102,18 @@ write_protected = true
         return core.v6_teleporter_arrival_tick(C.byref(arrival),C.byref(s.player),C.byref(s.motion),
             C.byref(s, type(s).invisible.offset),C.byref(t),C.byref(r.tele_region))
     core.v6_tower_route_step_phase.argtypes=[C.c_void_p,C.c_uint,PHASE,C.c_void_p]
+    colour_records=[];colour_seed=7
+    if args.roundtrip:
+        colours,_=colour_libraries()
+        at=data.index(b'V6CL\0\0\0\1');assert struct.unpack_from('>I',data,at+8)[0]==ticks
+        colour_records=[struct.unpack_from('>2i',data,at+12+8*i) for i in range(ticks)]
+    def flashing_colour():
+        nonlocal colour_seed
+        samples=(C.c_uint16*4)()
+        for i in range(4):
+            colour_seed^=(colour_seed<<13)&0xffffffff;colour_seed^=colour_seed>>17;colour_seed^=(colour_seed<<5)&0xffffffff
+            samples[i]=colour_seed>>16
+        return colours.v6_teleporter_flash_colour(samples,s.noflashing)
     animation=Animation(1,0,0);seed=1
     for tick,record in enumerate(records):
         index=r.index
@@ -130,15 +146,21 @@ write_protected = true
         t=rooms[r.index].teleporter.contents
         seed^=(seed<<13)&0xffffffff;seed^=seed>>17;seed^=(seed<<5)&0xffffffff
         anim.v6_teleporter_animate(C.byref(animation),t.tile,0,(seed>>16)%6)
+        if args.roundtrip:
+            tele_tint=flashing_colour() if t.tile==6 else 0x444 if t.tile==1 else 0xaaf
+            player_tint=flashing_colour() if 4000<=departure.state<=4002 and not s.invisible else 0x6ff
+            assert colour_records[tick]==(tele_tint,player_tint),(tick+1,colour_records[tick],tele_tint,player_tint)
         expected=(r.index,s.player.x,s.player.y,t.tile,t.state,r.tele_events,animation.frame,
             w.save.x,w.save.y,w.save.room_x,w.save.room_y,r.tele_region.active)
         assert record==expected,(tick+1,record,expected)
     assert all(row[5]==0 for row in records)
     if args.roundtrip:
-        assert [row[0] for row in records]==([4]*21+[5]*43 if args.outbound else [4]*21+[5]*64+[4]*43)
-        assert [(i+1,row[5]) for i,row in enumerate(departure_records) if row[5]]==([(1,1),(11,2),(22,4)] if args.outbound else [(1,1),(11,2),(22,4),(65,1),(75,2),(86,4)])
-        assert [(i+1,row[5]) for i,row in enumerate(arrival_records) if row[5]]==([(23,1),(38,2),(64,4)] if args.outbound else [(23,1),(38,2),(64,4),(87,1),(102,2),(128,4)])
-        assert arrival.control and not arrival.state and not s.invisible and leg==(1 if args.outbound else 2)
+        assert [row[0] for row in records]==([4]*21+[5]*64+[4]*43)[:ticks]
+        assert [(i+1,row[5]) for i,row in enumerate(departure_records) if row[5]]==[event for event in [(1,1),(11,2),(22,4),(65,1),(75,2),(86,4)] if event[0]<=ticks]
+        assert [(i+1,row[5]) for i,row in enumerate(arrival_records) if row[5]]==[event for event in [(23,1),(38,2),(64,4),(87,1),(102,2),(128,4)] if event[0]<=ticks]
+        if args.colour:
+            assert departure.state==4001 and departure.delay==5 and not departure.control and not s.invisible and not leg
+        else:assert arrival.control and not arrival.state and not s.invisible and leg==(1 if args.outbound else 2)
         at=data.index(b'V6RT\0\0\0\1')
         route_diag=struct.unpack_from('>7I',data,at)
         assert route_diag[2:5]==(r.index,r.transitions,r.returns) and route_diag[5]>=62*leg and not route_diag[6],route_diag
@@ -158,12 +180,20 @@ write_protected = true
         colours={tuple(rgba[(y*width+x)*4:(y*width+x)*4+3])
             for y in range(40,height-40) for x in range(25,width-25)}
         assert colours=={(187,187,187)},colours
+    if args.colour:
+        from collections import Counter
+        dimensions,rgba=subprocess.check_output([str(ROOT/'build/amiga-feasibility/png_rgba'),str(BUILD/'energize.png')]).split(b'\n',1)
+        pixels=Counter(tuple(rgba[i:i+3]) for i in range(0,len(rgba),4))
+        def rgb(c):return ((c>>8)*17,((c>>4)&15)*17,(c&15)*17)
+        assert tele_tint!=player_tint
+        assert pixels[rgb(tele_tint)]>500 and pixels[rgb(player_tint)]>20,(tele_tint,player_tint,pixels)
     assert (BUILD/'tower.adf').read_bytes()==before
-    report=dict(display=display,trace_fields=count*(34 if args.roundtrip else 26 if args.arrival else 12),checkpoint=list(checkpoint),
+    report=dict(display=display,trace_fields=count*(36 if args.roundtrip else 26 if args.arrival else 12),checkpoint=list(checkpoint),
         scope=('Native arrival motion, control, visibility and flash; audio, screen shake, departure and playable destinations pending' if args.arrival else 'Native Energize compact foreground and teleporter; frozen tower backdrop; arrival effects and playable menu destination pending'))
     if args.roundtrip:
         report['route_loading_frames']=route_diag[5]
-        report['scope']='Native staged departure/handoff/arrival and cold scene banks; player flashing colour, audio, screen shake, persistence and explored menu destinations pending'
+        report['last_colours']=[tele_tint,player_tint]
+        report['scope']='Native staged departure/handoff/arrival and cold scene banks; audio, screen shake, persistence and explored menu destinations pending'
     (BUILD/'energize-capture.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native teleporter round trip:' if args.roundtrip else 'PASS native Energize:',json.dumps(report))
 if __name__=='__main__':main()

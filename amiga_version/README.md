@@ -2125,9 +2125,9 @@ screen shake and final save integration remain pending.
 
 `make -C amiga_version tower-teleporter-roundtrip-capture` builds staged
 Building → Energize → Building departure/handoff/arrival sequences. The complete
-128-tick capture checks 4,352 native trace fields; a separate 64-tick hold checks
-2,176 fields and captures Energize after outbound arrival. Both use 69,088 Chip
-bytes, peak at 211 PAL lines and report zero errors/missed fields. Both scene
+128-tick capture checks 4,608 native trace fields; a separate 64-tick hold checks
+2,304 fields and captures Energize after outbound arrival. Both use 69,088 Chip
+bytes, peak at 220 PAL lines and report zero errors/missed fields. Both scene
 captures are visually checked. Output is in `build/amiga-teleporter-roundtrip/`
 and `build/amiga-teleporter-outbound/`.
 
@@ -2136,7 +2136,26 @@ paused. Control and visibility follow the source cores, and the return restores
 Building's (156,92) centre checkpoint. Arrival/flash and physical Building-menu
 regressions also pass. The captures leave their boot disks unchanged.
 
-Selections are staged; Energize remains absent from the playable menu. Player
-flashing colour, effect audio, screen-shake displacement, final disk save and
-explored-destination policy remain pending. The frozen tower backdrop and
-existing teleporter colour mapping are retained.
+Selections are staged; Energize remains absent from the playable menu. Effect
+audio, screen-shake displacement, final disk save and explored-destination policy
+remain pending. The frozen tower backdrop and
+active/inactive teleporter colour mapping are retained.
+
+## Native teleporter flashing colour
+
+`make -C amiga_version test-teleporter-colour` compares the integer OCS colour
+helper with the actual Graphics.cpp colour-102 case: 337,680 source comparisons
+pass, including all branch/channel sample thresholds and fixed noflashing output.
+The native round-trip fixture applies those colours to flashing tile 6 and the
+visible departure player, then restores the existing cyan player colour at hide/
+arrival. It samples once per fixed tick using a separate RNG; it does not match
+the desktop's exact random sequence or render frequency. No global noflashing
+mode or UI option is introduced.
+
+`make -C amiga_version tower-teleporter-colour-capture` holds tick 6, verifies
+216 trace fields and checks actual PNG pixels for the expected distinct player
+and teleporter colours. The capture in `build/amiga-teleporter-colour/` is visually
+checked. It uses 69,088 Chip bytes, peaks at 220 PAL lines and reports zero errors/
+missed fields. Full round-trip, arrival/flash and physical Building-menu checks
+also pass. Audio, screen shake, final saving and explored menu destinations remain
+pending.
