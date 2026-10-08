@@ -2080,3 +2080,16 @@ patterns; collision retains source tileset-0 IDs. `test-energize-graphics` check
 scene reuses the six-channel teleporter DMA banks and frozen tower backdrop.
 Energize remains absent from the playable selector while arrival effects and
 native round-trip validation are pending.
+
+## Default teleporter arrival core
+
+`make -C amiga_version test-teleporter-arrival` builds the 68000 state core for
+normal arrival states 4010–4019. It reproduces delays, centre/launch movement,
+control and visibility, effect requests, and final region/save request. The core
+passes 400 extracted desktop phase comparisons and a complete 42-tick sequence;
+invalid inputs preserve state. It performs no file I/O.
+
+Native player/control/effect integration is still pending. Caller input must
+precede the arrival phase, and physics must follow it so scripted acceleration
+is retained. Departure and other destinations' special arrival scripts are
+outside this helper. Energize is still excluded from the playable menu.

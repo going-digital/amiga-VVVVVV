@@ -652,3 +652,11 @@ tower-energize-capture: tower-probe test-teleporter-travel
 test-energize-graphics: tower-assets
 	python3 $(ROOT)/tools/amiga/test_energize_graphics.py
 test: test-energize-graphics
+
+$(BUILD)/teleporter_arrival.o: teleporter_arrival.c teleporter_arrival.h teleporter.h player.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+-include $(BUILD)/teleporter_arrival.d
+.PHONY: test-teleporter-arrival
+test-teleporter-arrival: $(BUILD)/teleporter_arrival.o
+	python3 $(ROOT)/tools/amiga/test_teleporter_arrival.py
+test: test-teleporter-arrival

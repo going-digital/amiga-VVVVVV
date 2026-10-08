@@ -11,7 +11,8 @@ checks, committed as `c6800d55`; see "Building Apport interactive saving" below.
 The selector core is committed as `34eed379`. Native menu controls and captions
 now pass hardware-input checks, committed as `182d92cd`. Energize collision data
 and the source teleport handoff are committed as `2a601eaf`. Its compact native
-foreground/teleporter capture now passes; arrival effects remain next.
+renderer is committed as `6f2f9491`; the normal arrival state core now passes
+source comparisons. Native arrival integration remains next.
 
 ## Implementation progress — 27 September 2026
 
@@ -1597,3 +1598,33 @@ Next: implement and source-validate the normal arrival states 4010–4019, then
 connect them to native rendering/control and validate a round trip before making
 Energize a selectable destination. Departure effects, exploration policy, and
 wider campaign progression remain pending.
+
+## Default teleporter arrival core — 8 October 2026
+
+Added `teleporter_arrival.c/.h` for normal, unlocked `Game.cpp` states 4010–4019,
+the default arrival used by Building Apport and Energize. It reproduces source
+15/5/15 delays, flash/shake requests, flash/teleport cue requests, centre placement
+and interpolation history, visible cyan-facing-right launch motion, the successive
+10/10/8/6/3/1 horizontal offsets, and final control/text/region restoration. It
+emits the final save request once without writing files or changing the already
+selected checkpoint. Direction saved by the handoff remains separate from the
+arrival's facing-right player pose.
+
+The caller must run input with prior control permission, apply this phase before
+physics so scripted acceleration survives input clearing, and separately handle
+entity state-2 update, animation, effect decay/rendering, and OS-safe persistence.
+Departure, other rooms' special arrivals, state locking and trial/no-death modes
+remain outside this bounded helper. Active starts and invalid state/geometry are
+rejected without changing outputs. Inactive ticks clear pending request bits.
+
+`make -C amiga_version test-teleporter-arrival` compiles the core for 68000 and
+compares 400 state/delay/facing/visibility cases against the actual extracted
+source switch. Seventy sequential phase ticks reproduce the complete 42-tick
+state sequence, including one-shot requests and silent completed ticks. Invalid
+state/delay/geometry preservation and active restart refusal pass under undefined
+behaviour sanitization. Existing handoff and selector tests also pass.
+
+Next: connect the arrival phase to native player/control ordering and effects,
+then verify both source motion and cold scene-bank transitions in a native round
+trip. Energize remains absent from the playable menu until this integration and
+its explored-destination policy are complete. Disk serialization is unchanged.
