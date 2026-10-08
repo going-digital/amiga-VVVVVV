@@ -1921,3 +1921,46 @@ regressions pass. The shipping
 music/SFX budget and cue priorities remain open. Next: assess the music asset
 format and Paula channel requirements before selecting the allocation; screen
 shake and final arrival saving also remain pending.
+
+## Source music catalogue and tracker intake — 8 October 2026
+
+The existing architecture decision remains Lightspeedplayer with a musician-
+produced tracker soundtrack. `make -C amiga_version music-intake` now exports an
+ignored `build/amiga-music/music-intake.json` catalogue from `Music.h`,
+`BinaryBlob.h` and `Music.cpp`: 16 base IDs and source filenames, the 400-entry
+music area map, source hashes, suggested `00.mod` through `15.mod` names, and
+source loop policy. PATHCOMPLETE (0) and PLENARY (7) are one-shot tracks;
+POSITIVEFORCEREVERSED (9) retains its own soundtrack identity. This does not
+replace it with runtime reversal of another module. Alternate/custom soundtrack
+IDs, fade/control implementation and module playback are not included yet.
+
+For an actual module, run:
+
+```
+python3 tools/amiga/audit_music.py --module /path/to/02.mod --reserved-mask 0xc
+```
+
+The intake accepts 31-instrument four-channel ProTracker M.K./M!K! containers.
+It checks header/order/sample bounds, tuning, volumes, instrument references and
+sample loops, and reports stored pattern bytes, sample bytes, hashes, used
+instruments, effect commands and ordered-pattern channel activity. Effects-only
+commands count as activity. Proposed reserved-channel conflicts are reported;
+zero conflicts do not establish replay safety. This is static inspection, not
+complete tracker effect emulation, LSP conversion or converted-bank measurement.
+`test-music-intake` verifies source IDs/loop policy, independent two-pattern MOD
+fixtures, effects-only conflicts, unplayed patterns and 14 malformed inputs.
+
+Upstream [standard LSP source](https://github.com/arnaud-carre/LSPlayer/blob/main/LightSpeedPlayer.asm)
+exposes all four Paula register banks and patches DMA restart bits. Its sample
+bank belongs in Chip memory and replay must run at the music rate. Therefore the
+SFX reservation mask alone cannot protect SFX from a tracker player. A module
+and player adapter must agree on channel ownership, including DMA restarts,
+volume/fade writes and sample reloads. Music scheduling must remain independent
+of 34 ms gameplay steps and paused destination loading. No upstream player code
+has been vendored or connected in this increment.
+
+No MOD/lsmusic/lsbank assets were found in the project/build output; the local
+original soundtrack is a desktop `vvvvvvmusic.vvv` blob. Converted tracker-bank
+memory, combined playback CPU cost and the shipping channel split remain open.
+Next: implement source-validated music control/fade semantics independently of
+the replay adapter; audit and measure a representative module when available.

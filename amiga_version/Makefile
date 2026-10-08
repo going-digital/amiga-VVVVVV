@@ -740,3 +740,10 @@ test: test-audio-policy
 tower-teleporter-reserved-audio-capture: tower-probe test-audio-policy test-paula-voice
 	$(MAKE) BUILD=$(ROOT)/build/amiga-teleporter-reserved CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_ENERGIZE -DV6_ENERGIZE_CAPTURE -DV6_TOWER_ARRIVAL -DV6_TOWER_ROUNDTRIP -DV6_TOWER_TRAVEL_AUDIO -DV6_TRAVEL_SFX_MASK=3" $(ROOT)/build/amiga-teleporter-reserved/tower.adf
 	python3 $(ROOT)/tools/amiga/run_energize.py --roundtrip --audio --reserved-audio
+
+.PHONY: music-intake test-music-intake
+music-intake:
+	python3 $(ROOT)/tools/amiga/audit_music.py
+test-music-intake:
+	python3 $(ROOT)/tools/amiga/test_music_intake.py
+test: test-music-intake
