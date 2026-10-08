@@ -137,6 +137,10 @@ failed:
 }
 int v6_tower_route_step(V6TowerRoute *r,unsigned input)
 {
+    return v6_tower_route_step_phase(r,input,0,0);
+}
+int v6_tower_route_step_phase(V6TowerRoute *r,unsigned input,V6TowerRoutePhase phase,void *context)
+{
     V6TowerSession *s=r->session;V6TowerGameplay *w=r->world;
     const V6TowerRouteRoom *here=&r->rooms[r->index];
     int x=here->x,y=here->y;
@@ -170,6 +174,7 @@ int v6_tower_route_step(V6TowerRoute *r,unsigned input)
         if(--s->death_timer<=0 && !restore(r)) goto failed;
         return 1;
     }
+    if(phase && !phase(r,context)) goto failed;
     {
         unsigned saves=v6_checkpoints_update(w->checkpoints,w->count,&s->player,x,y,&w->save);
         w->activations+=saves;

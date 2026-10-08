@@ -11,8 +11,9 @@ checks, committed as `c6800d55`; see "Building Apport interactive saving" below.
 The selector core is committed as `34eed379`. Native menu controls and captions
 now pass hardware-input checks, committed as `182d92cd`. Energize collision data
 and the source teleport handoff are committed as `2a601eaf`. Its compact native
-renderer is committed as `6f2f9491`; the normal arrival state core now passes
-source comparisons. Native arrival integration remains next.
+renderer is committed as `6f2f9491`; the normal arrival state core is committed
+as `1a4a817e`. Native arrival motion, control, visibility and grey flash now pass
+source and A500 checks; see "Native default arrival integration" below.
 
 ## Implementation progress — 27 September 2026
 
@@ -1628,3 +1629,38 @@ Next: connect the arrival phase to native player/control ordering and effects,
 then verify both source motion and cold scene-bank transitions in a native round
 trip. Energize remains absent from the playable menu until this integration and
 its explored-destination policy are complete. Disk serialization is unchanged.
+
+## Native default arrival integration — 8 October 2026
+
+The ordinary-room route now offers a script phase after player input and before
+checkpoint/teleporter updates and physics. Existing route callers retain their
+behavior. The phase is excluded from dead-player and streamed-tower updates;
+failures latch a route error before physics. The opt-in Energize arrival fixture
+runs the committed state core at this boundary, locks input with prior control
+permission, hides the player until tick 17, and restores control on tick 42.
+The arrival's final save event remains a request; this fixture performs no DOS
+write and retains the handoff's centre checkpoint and saved direction.
+
+Flash and shake counters decay once per fixed logic tick. Copper palette writes
+implement Graphics::flashlight's complete RGB 0xBB fill without extra Chip memory.
+Screen shake displacement and flash/teleport audio requests are not yet rendered
+or played. The fixture starts after the validated room handoff and assumed hidden
+departure pose; it does not implement departure or offer Energize in the menu.
+
+`test-arrival-route` couples the extracted Game.cpp states to the extracted
+Input.cpp/Entity.cpp/Map.cpp physics for 168 matching ticks, varying retained
+velocity and saved facing while holding direction/flip through the control lock.
+It also verifies dead/tower phase exclusion and failure handling.
+`tower-energize-arrival-capture` compares 3,328 native trace fields over 128 ticks:
+state/delays/effects/events, visibility, full launch velocities and history,
+teleporter animation, checkpoint and control. The A500 uses 69,088 Chip bytes,
+peaks at 207 PAL work lines, and reports zero errors/missed fields. A separate
+one-tick hold verifies the captured flash viewport is uniformly RGB (187,187,187).
+Route/handoff regressions pass. The native Building menu still passes its physical
+input and gameplay-isolation checks, with zero errors/missed fields, 92,128 Chip
+bytes and 205 peak PAL work lines; its disks remain unchanged.
+
+Next: integrate departure, audio and screen shake, then exercise a native
+Building/Energize round trip and final OS-safe save before enabling explored
+Energize destinations in the playable selector. The frozen tower backdrop and
+existing five-room playable save build remain the current supported scope.

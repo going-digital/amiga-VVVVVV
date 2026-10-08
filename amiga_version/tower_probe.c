@@ -293,6 +293,22 @@ static UWORD energize_prepared[10][6*V6_TELEPORTER_DMA_WORDS];
 #define FG_COUNT TOWER_TILE_COUNT
 #define FG_PALETTE tower_palette
 #endif
+#ifdef V6_TOWER_ARRIVAL
+#ifndef V6_ENERGIZE_CAPTURE
+#error Arrival fixture requires Energize capture
+#endif
+#include "teleporter_arrival.h"
+static V6TeleporterArrival arrival;
+static int arrival_flash;
+static volatile struct {ULONG magic,version,count,records[128][14];}
+    arrival_trace={0x56364152,1,0,{{0}}};
+static int arrival_phase(V6TowerRoute *r,void *context)
+{
+    V6TowerSession *s=r->session;
+    return v6_teleporter_arrival_tick((V6TeleporterArrival *)context,&s->player,
+        &s->motion,&s->invisible,r->rooms[r->index].teleporter,&r->tele_region);
+}
+#endif
 static ULONG building_random=1;
 #define BUILDING_DMA_BYTES (2*6*V6_TELEPORTER_DMA_WORDS*2)
 static volatile struct {ULONG magic,version,count,records[128][12];}
@@ -537,6 +553,10 @@ static void __attribute__((interrupt)) irq(void) {
     ++frames;hw->intreq=INTF_VERTB;hw->intreq=INTF_VERTB;
 }
 static UWORD *move(UWORD *p,UWORD reg,UWORD value) {
+#ifdef V6_TOWER_ARRIVAL
+    /* Graphics::flashlight fills the complete viewport with RGB 0xBB. */
+    if(arrival_flash && reg>=0x180 && reg<=0x1be)value=0xbbb;
+#endif
     *p++=reg;*p++=value;return p;
 }
 /* Copy matching cached rows from the read-only front ring. Each blit is
@@ -926,6 +946,11 @@ static int run(void) {
 #ifdef V6_ENERGIZE_CAPTURE
     if(!v6_tower_route_load(&route,111,104,0) || !v6_tower_route_teleport(&route,110,105))return 20;
     building_animation.frame=1;
+#ifdef V6_TOWER_ARRIVAL
+    v6_teleporter_arrival_init(&arrival);
+    if(!v6_teleporter_arrival_start(&arrival))return 20;
+    session.invisible=1;
+#endif
 #endif
 #ifdef V6_BUILDING_SAVE
     if(building_stage==2) {
@@ -1317,7 +1342,10 @@ static int run(void) {
             if(route_loading) delta=0;
 #endif
 #ifdef V6_ENERGIZE_CAPTURE
-            if(diag.logic_ticks>=128)delta=0; /* Hold the verified scene for capture. */
+#ifndef V6_ENERGIZE_CAPTURE_TICKS
+#define V6_ENERGIZE_CAPTURE_TICKS 128
+#endif
+            if(diag.logic_ticks>=V6_ENERGIZE_CAPTURE_TICKS)delta=0; /* Hold the verified scene for capture. */
 #endif
             elapsed+=delta*19968UL;diag.logic_frames+=delta;
             while(elapsed>=34000) {
@@ -1452,7 +1480,24 @@ static int run(void) {
 #ifdef V6_TOWER_ROUTE
                 unsigned index=route.index;
 #ifndef V6_TOWER_HALLWAY_HOLD
+#ifdef V6_TOWER_ARRIVAL
+                if(!arrival.control)input|=V6_NO_CONTROL;
+                if(!v6_tower_route_step_phase(&route,input,arrival_phase,&arrival))diag.error=6;
+                arrival_flash=arrival.flash;
+                if(arrival_trace.count<128) {
+                    volatile ULONG *a=arrival_trace.records[arrival_trace.count++];
+                    a[0]=arrival.state;a[1]=arrival.delay;a[2]=arrival.control;
+                    a[3]=arrival.flash;a[4]=arrival.shake;a[5]=arrival.events;
+                    a[6]=session.invisible;a[7]=session.player.vx;a[8]=session.player.vy;
+                    a[9]=session.player.ay;a[10]=session.player.old_x;a[11]=session.player.old_y;
+                    a[12]=session.player.dir;a[13]=session.death_timer;
+                }
+                /* Graphics::renderfixedpost effect counters decay once per tick. */
+                if(arrival.flash>0)--arrival.flash;
+                if(arrival.shake>0)--arrival.shake;
+#else
                 if(!v6_tower_route_step(&route,input)) diag.error=6;
+#endif
 #else
                 (void)input;
 #endif

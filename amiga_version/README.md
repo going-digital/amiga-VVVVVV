@@ -2089,7 +2089,18 @@ control and visibility, effect requests, and final region/save request. The core
 passes 400 extracted desktop phase comparisons and a complete 42-tick sequence;
 invalid inputs preserve state. It performs no file I/O.
 
-Native player/control/effect integration is still pending. Caller input must
-precede the arrival phase, and physics must follow it so scripted acceleration
-is retained. Departure and other destinations' special arrival scripts are
-outside this helper. Energize is still excluded from the playable menu.
+`make -C amiga_version test-arrival-route` couples the arrival phase with
+extracted desktop input/physics (168 matching ticks), checking held-input locking,
+retained velocity, saved facing, and the ordinary-room script boundary.
+`make -C amiga_version tower-energize-arrival-capture` runs arrival natively and
+compares 3,328 trace fields. It also captures a held first-tick flash and verifies
+the viewport is uniformly RGB (187,187,187), matching Graphics::flashlight.
+The complete fixture uses 69,088 Chip bytes, peaks at 207 PAL lines and reports
+zero errors/missed fields. Output is in `build/amiga-energize-arrival/` and
+`build/amiga-energize-arrival-flash/`.
+
+Arrival input precedes the script phase, with physics following so launch
+acceleration is retained. Native control, visibility and flash are implemented;
+departure, audio, screen shake displacement, round-trip/save validation and other
+destinations' special arrivals remain pending. Energize is still excluded from
+the playable menu.

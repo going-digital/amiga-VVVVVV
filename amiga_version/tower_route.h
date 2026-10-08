@@ -49,6 +49,12 @@ int v6_tower_route_teleport(V6TowerRoute *,int x,int y);
  * and may pause logic while doing that. Unsupported exits leave an explicit
  * error; they are never treated as empty rooms or silently respawned. */
 int v6_tower_route_step(V6TowerRoute *,unsigned input);
+/* Optional live ordinary-room script phase, after input and before entity
+ * updates/physics. Never called while dead or in the streamed tower. It may
+ * change player motion and entity state, but must not load/change room banks.
+ * A failed phase latches the route error before physics runs. */
+typedef int (*V6TowerRoutePhase)(V6TowerRoute *,void *);
+int v6_tower_route_step_phase(V6TowerRoute *,unsigned input,V6TowerRoutePhase,void *);
 /* Ordinary non-wrapping room edges, in desktop vertical/horizontal order.
  * Each successful crossing resets physics history through route_load.
  * Missing/malformed destinations retain coordinates at the failed edge and
