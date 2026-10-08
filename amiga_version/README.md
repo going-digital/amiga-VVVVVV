@@ -2120,3 +2120,23 @@ Script.cpp handoffs. Checkpoint preservation, held-input locks and rejected-load
 request retention pass. These staged selections do not test native scene banks
 or menu exploration/readiness. Native departure colours/rendering, effect audio,
 screen shake and final save integration remain pending.
+
+## Native teleporter round-trip capture
+
+`make -C amiga_version tower-teleporter-roundtrip-capture` builds staged
+Building → Energize → Building departure/handoff/arrival sequences. The complete
+128-tick capture checks 4,352 native trace fields; a separate 64-tick hold checks
+2,176 fields and captures Energize after outbound arrival. Both use 69,088 Chip
+bytes, peak at 211 PAL lines and report zero errors/missed fields. Both scene
+captures are visually checked. Output is in `build/amiga-teleporter-roundtrip/`
+and `build/amiga-teleporter-outbound/`.
+
+Each destination rebuilds both display banks across 62 fields with fixed logic
+paused. Control and visibility follow the source cores, and the return restores
+Building's (156,92) centre checkpoint. Arrival/flash and physical Building-menu
+regressions also pass. The captures leave their boot disks unchanged.
+
+Selections are staged; Energize remains absent from the playable menu. Player
+flashing colour, effect audio, screen-shake displacement, final disk save and
+explored-destination policy remain pending. The frozen tower backdrop and
+existing teleporter colour mapping are retained.

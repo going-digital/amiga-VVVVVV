@@ -302,11 +302,28 @@ static V6TeleporterArrival arrival;
 static int arrival_flash;
 static volatile struct {ULONG magic,version,count,records[128][14];}
     arrival_trace={0x56364152,1,0,{{0}}};
+#ifdef V6_TOWER_ROUNDTRIP
+#include "teleporter_departure.h"
+static V6TeleporterDeparture departure;
+static unsigned travel_leg;
+static volatile struct {ULONG magic,version,count,records[128][8];}
+    departure_trace={0x56364452,1,0,{{0}}};
+#endif
 static int arrival_phase(V6TowerRoute *r,void *context)
 {
     V6TowerSession *s=r->session;
     return v6_teleporter_arrival_tick((V6TeleporterArrival *)context,&s->player,
         &s->motion,&s->invisible,r->rooms[r->index].teleporter,&r->tele_region);
+}
+#endif
+#ifdef V6_TOWER_ROUNDTRIP
+static int travel_phase(V6TowerRoute *r,void *context)
+{
+    (void)context;
+    if(departure.state || departure.travel)
+        return v6_teleporter_departure_tick(&departure,&r->session->invisible,
+            r->rooms[r->index].teleporter);
+    return arrival_phase(r,&arrival);
 }
 #endif
 static ULONG building_random=1;
@@ -944,12 +961,22 @@ static int run(void) {
     v6_tower_session_init(&session,280,185,0,1);
     if(!v6_tower_route_load(&route,110,104,0))return 20;
 #ifdef V6_ENERGIZE_CAPTURE
+#ifdef V6_TOWER_ROUNDTRIP
+    if(!v6_tower_route_load(&route,111,104,0))return 20;
+    v6_player_init(&session.player,156,92,0);
+    if(!v6_tower_route_step(&route,0) || !v6_tower_route_step(&route,0))return 20;
+    v6_teleporter_departure_init(&departure);
+    if(!v6_teleporter_departure_start(&departure,&building_teleporter,&route.tele_region))return 20;
+#else
     if(!v6_tower_route_load(&route,111,104,0) || !v6_tower_route_teleport(&route,110,105))return 20;
+#endif
     building_animation.frame=1;
 #ifdef V6_TOWER_ARRIVAL
     v6_teleporter_arrival_init(&arrival);
+#ifndef V6_TOWER_ROUNDTRIP
     if(!v6_teleporter_arrival_start(&arrival))return 20;
     session.invisible=1;
+#endif
 #endif
 #endif
 #ifdef V6_BUILDING_SAVE
@@ -1151,7 +1178,9 @@ static int run(void) {
            building_stage==2?building_display:
 #endif
 
-#ifdef V6_ENERGIZE_CAPTURE
+#ifdef V6_TOWER_ROUNDTRIP
+           building_display,
+#elif defined(V6_ENERGIZE_CAPTURE)
            energize_display,
 #else
            hallway1_display,
@@ -1160,7 +1189,9 @@ static int run(void) {
            building_stage==2?sizeof(building_display):
 #endif
 
-#ifdef V6_ENERGIZE_CAPTURE
+#ifdef V6_TOWER_ROUNDTRIP
+           sizeof(building_display)) ||
+#elif defined(V6_ENERGIZE_CAPTURE)
            sizeof(energize_display)) ||
 #else
            sizeof(hallway1_display)) ||
@@ -1481,9 +1512,37 @@ static int run(void) {
                 unsigned index=route.index;
 #ifndef V6_TOWER_HALLWAY_HOLD
 #ifdef V6_TOWER_ARRIVAL
+#ifdef V6_TOWER_ROUNDTRIP
+                departure.events=arrival.events=0;
+                if(travel_leg==1 && !arrival.state && !departure.state) {
+                    if(!v6_teleporter_departure_start(&departure,route.rooms[route.index].teleporter,&route.tele_region))diag.error=14;
+                }
+                if(departure.state || !arrival.control)input|=V6_NO_CONTROL;
+                if(!v6_tower_route_step_phase(&route,input,travel_phase,0))diag.error=6;
+                if(departure.travel) {
+                    int x=travel_leg==0?110:111,y=travel_leg==0?105:104;
+                    if(!v6_tower_route_teleport(&route,x,y))diag.error=14;
+                    else {
+                        departure.travel=0;++travel_leg;
+                        v6_teleporter_arrival_init(&arrival);
+                        arrival.flash=departure.flash;arrival.shake=departure.shake;
+                        if(!v6_teleporter_arrival_start(&arrival))diag.error=14;
+                    }
+                }
+                arrival_flash=departure.state?departure.flash:arrival.flash;
+                if(departure_trace.count<128) {
+                    volatile ULONG *d=departure_trace.records[departure_trace.count++];
+                    d[0]=departure.state;d[1]=departure.delay;d[2]=departure.control;
+                    d[3]=departure.flash;d[4]=departure.shake;d[5]=departure.events;
+                    d[6]=departure.travel;d[7]=travel_leg;
+                }
+                if(departure.flash>0)--departure.flash;
+                if(departure.shake>0)--departure.shake;
+#else
                 if(!arrival.control)input|=V6_NO_CONTROL;
                 if(!v6_tower_route_step_phase(&route,input,arrival_phase,&arrival))diag.error=6;
                 arrival_flash=arrival.flash;
+#endif
                 if(arrival_trace.count<128) {
                     volatile ULONG *a=arrival_trace.records[arrival_trace.count++];
                     a[0]=arrival.state;a[1]=arrival.delay;a[2]=arrival.control;

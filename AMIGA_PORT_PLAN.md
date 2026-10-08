@@ -13,8 +13,9 @@ now pass hardware-input checks, committed as `182d92cd`. Energize collision data
 and the source teleport handoff are committed as `2a601eaf`. Its compact native
 renderer is committed as `6f2f9491`; the normal arrival state core is committed
 as `1a4a817e`. Native arrival motion, control, visibility and grey flash are
-committed as `415e6ad9`. The short departure core and host Building/Energize
-round trips now pass source checks; see "Short teleporter departure core" below.
+committed as `415e6ad9`; departure and host round trips are committed as
+`5c5c07d0`. Native staged Building/Energize travel now passes both scene-bank
+transitions; see "Native teleporter round trip" below.
 
 ## Implementation progress — 27 September 2026
 
@@ -1702,3 +1703,39 @@ Next: connect departure to native Building/Energize scene-bank transitions and
 arrival, then integrate effect audio, screen shake and the final OS-safe save.
 Energize remains excluded from the playable selector until the native round trip
 and explored-destination policy are validated.
+
+## Native teleporter round trip — 8 October 2026
+
+The opt-in round-trip fixture now runs short departure, the validated Script
+handoff and default arrival on the native A500 in both directions. It starts
+with an activated Building teleporter, requests Energize travel on tick 22,
+restores arrival control on tick 64, starts a staged return on tick 65, requests
+Building travel on tick 86, and completes arrival on tick 128. Input remains
+locked through both sequences, and visibility and effect counters follow the
+source cores. Departure and arrival events are recorded once per logic tick.
+
+Each handoff rebinds collision terrain, compact foreground/palette and teleporter
+DMA templates, invalidates both display banks, and pauses fixed logic during
+cold rebuilding. The round trip uses 124 loading fields (62 per destination),
+then resumes the source-derived 34,000/19,968 logic accumulator without advancing
+scripts or effects during those pauses. The destination checkpoint is selected
+at the handoff, and the pending departure request is consumed only on success.
+
+`make -C amiga_version tower-teleporter-roundtrip-capture` checks 4,352 native
+trace fields over the full 128 ticks and another 2,176 fields in a separate
+64-tick outbound hold. Both captures pass with zero errors/missed fields,
+69,088 Chip bytes and a 211 PAL-line peak. The captured Energize and returned
+Building scenes are visually checked. Boot disks remain unchanged. The existing
+arrival/flash captures and physical Building-menu regression also pass; the menu
+build remains at 92,128 Chip bytes, 205 peak lines and zero errors/missed fields.
+
+This is staged travel, not a newly selectable menu destination. The renderer
+still uses the frozen tower backdrop and existing teleporter palette, and the
+player's flashing departure colour remains to be integrated. Flash fills are
+rendered, but effect audio and screen-shake displacement remain pending. Final
+arrival save events do not yet invoke OS-safe disk persistence in this fixture.
+
+Next: implement the remaining departure/effect visuals and audio, then connect
+arrival save requests to a six-room persistence build and validate a fresh
+boot. Enable Energize in the playable selector only after its explored
+selection policy and this save path are verified.
