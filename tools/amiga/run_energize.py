@@ -25,7 +25,9 @@ def main():
     parser.add_argument('--roundtrip',action='store_true')
     parser.add_argument('--outbound',action='store_true')
     parser.add_argument('--colour',action='store_true')
+    parser.add_argument('--audio',action='store_true')
     args=parser.parse_args()
+    if args.audio and (not args.roundtrip or args.colour or args.outbound or args.flash):parser.error('--audio requires full roundtrip')
     if args.colour and (not args.roundtrip or args.outbound or args.flash):parser.error('--colour requires roundtrip without outbound/flash')
     if args.outbound and not args.roundtrip:parser.error('--outbound requires --roundtrip')
     if args.roundtrip and args.flash:parser.error('choose roundtrip or flash')
@@ -33,6 +35,7 @@ def main():
     if args.arrival:BUILD=ROOT/('build/amiga-energize-arrival-flash' if args.flash else 'build/amiga-energize-arrival')
     if args.roundtrip:BUILD=ROOT/('build/amiga-teleporter-outbound' if args.outbound else 'build/amiga-teleporter-roundtrip')
     if args.colour:BUILD=ROOT/'build/amiga-teleporter-colour'
+    if args.audio:BUILD=ROOT/'build/amiga-teleporter-paula'
     ticks=6 if args.colour else 1 if args.flash else 64 if args.outbound else 128
     config=BUILD/'energize.toml'
     config.write_text(f'''rom = {json.dumps(str(Path.home()/'amiga/KICK13.ROM'))}
@@ -55,13 +58,20 @@ write_protected = true
 ''')
     dump=BUILD/'energize.bin';dump.unlink(missing_ok=True)
     env=dict(os.environ,COPPERLINE_DBG_AFTER='38',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{dump}')
+    if args.audio:
+        for name in ('paula','paula-0','paula-1','paula-2','paula-3','drivesounds'):
+            (BUILD/'audio-stems'/(name+'.wav')).unlink(missing_ok=True)
     before=(BUILD/'tower.adf').read_bytes()
     with (BUILD/'energize.log').open('w') as log:
-        subprocess.run([EMU,'--config',str(config),'--noaudio','--screenshot-after','39',str(BUILD/'energize.png')],
+        subprocess.run([EMU,'--config',str(config),'--noaudio',*(['--audio-stems',str(BUILD/'audio-stems'),'--audio-stems-mode','source,channel'] if args.audio else []),'--screenshot-after','39',str(BUILD/'energize.png')],
             env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
     display=diagnostics(dump)
     assert display['status']==1 and not display['error'] and not display['missed'],display
-    assert display['max_work_lines']<=250 and display['chip_bytes']==69088,display
+    chip_bytes=69088
+    if args.audio:
+        manifest=json.loads((ROOT/'build/amiga-feasibility/teleporter-samples.json').read_text())
+        chip_bytes+=sum(s['pcm_bytes'] for s in manifest['samples'])+2
+    assert display['max_work_lines']<=250 and display['chip_bytes']==chip_bytes,display
     assert display['logic_ticks']==ticks
     assert display['logic_ticks']*34000+display['logic_remainder']==display['logic_frames']*19968
     data=dump.read_bytes();at=data.index(b'V6BR\0\0\0\1');count=struct.unpack_from('>I',data,at+8)[0]
@@ -194,6 +204,10 @@ write_protected = true
         report['route_loading_frames']=route_diag[5]
         report['last_colours']=[tele_tint,player_tint]
         report['scope']='Native staged departure/handoff/arrival and cold scene banks; audio, screen shake, persistence and explored menu destinations pending'
+    if args.audio:
+        from teleporter_audio_capture import verify
+        verify(report,dump,BUILD/'audio-stems')
+        report['scope']='Native hard-panned Paula cue overlap and round trip; final music/SFX allocation, screen shake, saving and menu destinations pending'
     (BUILD/'energize-capture.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native teleporter round trip:' if args.roundtrip else 'PASS native Energize:',json.dumps(report))
 if __name__=='__main__':main()

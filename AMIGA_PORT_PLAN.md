@@ -15,8 +15,8 @@ renderer is committed as `6f2f9491`; the normal arrival state core is committed
 as `1a4a817e`. Native arrival motion, control, visibility and grey flash are
 committed as `415e6ad9`; departure and host round trips are committed as
 `5c5c07d0`; native staged round trips are committed as `420fe2e2`.
-Flashing departure/teleporter colours now pass source and native checks;
-see "Native teleporter flashing colour" below.
+Flashing colours are committed as `ec78ab8a`. The overlap mixer and source cue
+conversion now pass host checks; see "Teleporter audio overlap core" below.
 
 ## Implementation progress — 27 September 2026
 
@@ -1776,3 +1776,88 @@ sampling occurs during the 124 fixed-logic-paused destination-loading fields.
 Next: integrate flash/teleport audio requests and screen-shake displacement, then
 arrival disk saving and fresh-boot validation. Energize remains excluded from the
 playable menu while explored-destination policy and persistence are unfinished.
+
+## Teleporter audio overlap core — 8 October 2026
+
+Source enum/load-order lookup maps Sound_FLASH to preteleport.wav (0.38449 s)
+and Sound_TELEPORT to teleport.wav (1.50930 s). These effects overlap, including
+three simultaneous cues during the staged return. The existing rescue one-shot
+player remains in use for rescue speech. Travel audio needs overlapping voices.
+
+Added `sfx_mixer.c/.h`: four caller-owned signed 8-bit one-shot voices at a common
+sample period, allocated in lowest-free-slot order. It mixes with constant 1/4
+gain to reserve four-voice headroom, truncates toward zero, advances every voice
+through silent samples, clears completed slots and emits silence after tails.
+Busy requests preserve playing voices and increment a dropped counter; invalid
+arguments/state preserve outputs. Chunk boundaries do not change the waveform.
+Completed counts rendered source tails, not drained Paula buffers.
+
+`convert_teleporter_audio.py` derives filenames from the desktop enums and sound
+load order, then reuses the private 9 kHz low-pass/signed 8-bit converter at PAL
+period 161. Generated source/PCM hashes, headers and manifest remain in ignored
+build output. The cues contain 8,474 and 33,254 bytes, including silent/aligned
+tails. Tower asset generation now exports them separately; existing rescue PCM
+and header hashes remain unchanged.
+
+`test-sfx-mixer` compiles for 68000, checks all 16 occupancy masks against the
+extracted desktop slot-allocation prefix (bounded to four voices), verifies
+2,401 signed sum/headroom cases with an independent fractional oracle, and tests
+uneven render chunks, silence and invalid-state preservation under undefined
+behaviour sanitization. A field-quantized host round-trip schedule, including
+62 PAL loading fields per destination, renders all eight source cues with three
+peak voices and zero drops. Output matches the independent overlapping-waveform
+oracle through its final silent tail. Existing one-shot audio tests and full
+asset generation also pass.
+
+This core is not yet connected to native playback and does not claim desktop
+mixing-volume equivalence: the fixed quarter gain is deliberate headroom. No
+new Chip allocation or native hardware behavior is introduced by this increment.
+Next: evaluate hardware-panned Paula voices and mono software mixing, including
+CPU/video headroom and the channel budget for eventual music. Choose the playback
+backend from those measurements before connecting events and validating captured
+waveforms and tail draining. Screen shake and final arrival saving follow.
+
+## Audio output constraint — 8 October 2026
+
+User guidance: mono or hardware-panned stereo is acceptable for the A500 port.
+Centred stereo duplication is not a requirement. Paula has four independent
+channels with fixed left/right routing, so channel allocation must account for
+both sound effects and eventual music. See the Commodore Hardware Reference
+Manual's [channel routing](https://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node00D9.html).
+
+Prioritize direct DMA voices with hardware panning for the next native audio
+experiment. Measure simultaneous-cue playback and reserve/channel-stealing policy
+with future music in mind. Retain the tested mono software mixer as an alternative
+for preserving overlaps, but measure its 68000 CPU cost before selecting it.
+Duplicating an identical mono stream on a left/right pair is an optional output
+arrangement and consumes two channels; arbitrary software stereo is not planned.
+The current rescue stereo fixture remains a regression fixture, not a required
+shipping audio layout. Source cue conversion and overlap tests remain useful for
+either backend. No playback backend or final music/SFX channel split is fixed yet.
+
+## Native hardware-panned teleporter audio — 8 October 2026
+
+`make -C amiga_version tower-teleporter-audio-capture` now runs the staged
+Building/Energize round trip with direct Paula DMA voices. The channel adapter
+reuses the one-shot tail-draining engine and confines register, DMA and IRQ writes
+to its selected channel. Requests select the lowest idle channel; playback keeps
+advancing during the 124 paused room-loading fields. This experiment reserves no
+music channels and does not establish the shipping music/SFX allocation.
+
+The A500 capture completes all eight flash/teleport requests, with three peak
+voices, zero drops and 16 completion IRQs. All 4,608 gameplay/render trace fields
+still match the source oracle. Captured channel waveforms correlate with the
+converted cues at 0.927–0.993; durations and sustained final silence pass. The
+aggregate recording confirms channels 0/3 on the left and 1/2 on the right, with
+routing correlations 0.793/0.829 after emulator filtering. Channel 3 stays silent.
+The fixture uses **110,818 Chip bytes**, including 41,730 audio bytes, and peaks
+at **233 PAL lines**, with zero missed fields or diagnostic errors. Sprite banks
+are placed before the audio allocation to prevent overlap.
+
+`test-paula-voice` checks four concurrent voices, isolated register plans,
+selective DMA/IRQ masks, draining and transactional rejection under undefined
+behaviour sanitization. The existing native rescue-audio regression also passes
+(all six cues complete and the OS display is restored). The software mixer remains an alternative; its native
+CPU cost has not been measured. Next: decide music/SFX channel reservation and
+priority/stealing policy before extending this experimental playback to normal
+gameplay. Screen shake and final arrival saving remain pending.

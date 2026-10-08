@@ -2159,3 +2159,52 @@ checked. It uses 69,088 Chip bytes, peaks at 220 PAL lines and reports zero erro
 missed fields. Full round-trip, arrival/flash and physical Building-menu checks
 also pass. Audio, screen shake, final saving and explored menu destinations remain
 pending.
+
+## Teleporter audio overlap core
+
+`make -C amiga_version test-sfx-mixer` compiles a four-voice one-shot mixer for
+68000 and verifies desktop lowest-free-slot allocation, 2,401 signed mixing cases,
+chunk-independent waveforms and invalid-state guards. A field-quantized host
+round-trip renders eight flash/teleport cues with three peak voices and no drops;
+its output matches an independent overlapping-sample oracle.
+
+Tower asset conversion now exports the source preteleport.wav and teleport.wav
+cues separately at PAL period 161 using the existing private 9 kHz converter.
+PCM, source hashes and headers remain in ignored build output; existing rescue
+PCM and headers are unchanged. Host audio artifacts are in
+`build/amiga-teleporter-audio/`.
+
+The mixer uses constant quarter gain for four-voice headroom. It emits mono PCM
+for a possible DMA stream. Mono or hardware-panned stereo is acceptable for the
+port; direct hardware voices and the music/SFX channel budget will be evaluated
+before choosing a backend. The mixer needs native CPU/video timing measurements.
+Request routing, captured playback and DMA tail draining remain pending. The
+existing rescue stereo player remains a regression fixture. Screen shake and
+final arrival saving follow this audio integration.
+
+## Native hardware-panned teleporter audio — 8 October 2026
+
+`make -C amiga_version tower-teleporter-audio-capture` now runs the staged
+Building/Energize round trip with direct Paula DMA voices. The channel adapter
+reuses the one-shot tail-draining engine and confines register, DMA and IRQ writes
+to its selected channel. Requests select the lowest idle channel; playback keeps
+advancing during the 124 paused room-loading fields. This experiment reserves no
+music channels and does not establish the shipping music/SFX allocation.
+
+The A500 capture completes all eight flash/teleport requests, with three peak
+voices, zero drops and 16 completion IRQs. All 4,608 gameplay/render trace fields
+still match the source oracle. Captured channel waveforms correlate with the
+converted cues at 0.927–0.993; durations and sustained final silence pass. The
+aggregate recording confirms channels 0/3 on the left and 1/2 on the right, with
+routing correlations 0.793/0.829 after emulator filtering. Channel 3 stays silent.
+The fixture uses **110,818 Chip bytes**, including 41,730 audio bytes, and peaks
+at **233 PAL lines**, with zero missed fields or diagnostic errors. Sprite banks
+are placed before the audio allocation to prevent overlap.
+
+`test-paula-voice` checks four concurrent voices, isolated register plans,
+selective DMA/IRQ masks, draining and transactional rejection under undefined
+behaviour sanitization. The existing native rescue-audio regression also passes
+(all six cues complete and the OS display is restored). The software mixer remains an alternative; its native
+CPU cost has not been measured. Next: decide music/SFX channel reservation and
+priority/stealing policy before extending this experimental playback to normal
+gameplay. Screen shake and final arrival saving remain pending.

@@ -305,6 +305,34 @@ static volatile struct {ULONG magic,version,count,records[128][14];}
 #ifdef V6_TOWER_ROUNDTRIP
 #include "teleporter_departure.h"
 #include "teleporter_colour.h"
+#ifdef V6_TOWER_TRAVEL_AUDIO
+#include "paula_voice.h"
+#include "teleporter_samples.h"
+static V6PaulaVoice travel_voices[4];
+static UBYTE *travel_audio_chip;
+static unsigned travel_audio_requests,travel_audio_dropped,travel_audio_peak;
+static volatile struct {ULONG magic,version,values[8],records[8][4];}
+    travel_audio_diag={0x56365441,1,{0},{{0}}};
+static void travel_audio_apply(const V6AudioPlan *p)
+{
+    unsigned i;
+    for(i=0;i<p->count;++i)*(volatile UWORD *)(0xdff000UL+p->writes[i].reg)=(UWORD)p->writes[i].value;
+}
+static void travel_audio_record(void)
+{
+    unsigned i,active=0,starts=0,completed=0,interrupts=0;
+    for(i=0;i<4;++i) {
+        active+=travel_voices[i].audio.state!=V6_AUDIO_IDLE;
+        starts+=travel_voices[i].audio.starts;completed+=travel_voices[i].audio.completed;
+        interrupts+=travel_voices[i].audio.interrupts;
+    }
+    if(active>travel_audio_peak)travel_audio_peak=active;
+    travel_audio_diag.values[0]=active;travel_audio_diag.values[1]=starts;
+    travel_audio_diag.values[2]=completed;travel_audio_diag.values[3]=interrupts;
+    travel_audio_diag.values[4]=travel_audio_requests;travel_audio_diag.values[5]=travel_audio_dropped;
+    travel_audio_diag.values[6]=travel_audio_peak;
+}
+#endif
 static V6TeleporterDeparture departure;
 static unsigned travel_leg;
 static ULONG colour_random=7;
@@ -440,6 +468,10 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #endif
 #ifdef V6_TOWER_AUDIO
 #define AUDIO_DMA_BYTES CUE_DMA_BYTES
+#define AUDIO_IRQ_MASK (INTF_AUD0|INTF_AUD1)
+#elif defined(V6_TOWER_TRAVEL_AUDIO)
+#define AUDIO_DMA_BYTES (TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+2)
+#define AUDIO_IRQ_MASK (INTF_AUD0|INTF_AUD1|INTF_AUD2|INTF_AUD3)
 #else
 #define AUDIO_DMA_BYTES 0
 #endif
@@ -1085,10 +1117,10 @@ static int run(void) {
     GfxBase=(struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library",0);
     if(!GfxBase) return 20;
     if(!(GfxBase->DisplayFlags&PAL)) { CloseLibrary((struct Library *)GfxBase);return 20; }
-#ifdef V6_TOWER_AUDIO
+#if defined(V6_TOWER_AUDIO) || defined(V6_TOWER_TRAVEL_AUDIO)
     /* This takeover fixture cannot resume another client's write-only audio
      * pointers. Start only with all audio DMA and our audio IRQs idle. */
-    if((hw->dmaconr&15) || (hw->intenar&(INTF_AUD0|INTF_AUD1))) {
+    if((hw->dmaconr&15) || (hw->intenar&AUDIO_IRQ_MASK)) {
         CloseLibrary((struct Library *)GfxBase);return 20;
     }
 #endif
@@ -1113,7 +1145,7 @@ static int run(void) {
 #ifdef V6_TOWER_BUILDING
     {
         unsigned frame;V6Room collision;
-        building_dma=(UWORD *)(chip+CHIP_BYTES-BUILDING_DMA_BYTES);
+        building_dma=(UWORD *)(chip+CHIP_BYTES-BUILDING_DMA_BYTES-AUDIO_DMA_BYTES);
         collision.tiles=building_tiles;collision.tileset=2;collision.extra_row=0;
         collision.terrain=0;collision.blocks=0;collision.block_count=0;
         v6_terrain_build(&building_terrain,&collision);
@@ -1242,12 +1274,22 @@ static int run(void) {
         ui_fields=250;ui_status=0;
     }
 #endif
+#ifdef V6_TOWER_TRAVEL_AUDIO
+    {
+        unsigned i;travel_audio_chip=chip+CHIP_BYTES-AUDIO_DMA_BYTES;
+        for(i=0;i<TELEPORTER_FLASH_BYTES;++i)travel_audio_chip[i]=teleporter_flash[i];
+        for(i=0;i<TELEPORTER_TELEPORT_BYTES;++i)travel_audio_chip[TELEPORTER_FLASH_BYTES+i]=teleporter_teleport[i];
+        for(i=0;i<4;++i)if(!v6_paula_init(&travel_voices[i],i,(ULONG)(travel_audio_chip+AUDIO_DMA_BYTES-2))) {
+            FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+        }
+    }
+#endif
     view=GfxBase->ActiView;LoadView(0);WaitTOF();WaitTOF();
     OwnBlitter();WaitBlit();Forbid();Disable();
-#ifdef V6_TOWER_AUDIO
+#if defined(V6_TOWER_AUDIO) || defined(V6_TOWER_TRAVEL_AUDIO)
     /* Recheck while scheduling and interrupts are stopped: allocation and
      * display preparation ran with the OS enabled after the early check. */
-    if((hw->dmaconr&15) || (hw->intenar&(INTF_AUD0|INTF_AUD1))) {
+    if((hw->dmaconr&15) || (hw->intenar&AUDIO_IRQ_MASK)) {
         Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();
         FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
     }
@@ -1354,7 +1396,7 @@ static int run(void) {
                     route_loading=0;back=1;
                     view=GfxBase->ActiView;LoadView(0);WaitTOF();WaitTOF();
                     OwnBlitter();WaitBlit();Forbid();Disable();
-                    if((hw->dmaconr&15) || (hw->intenar&(INTF_AUD0|INTF_AUD1))) {
+                    if((hw->dmaconr&15) || (hw->intenar&AUDIO_IRQ_MASK)) {
                         Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();
                         diag.error=12;diag.status=2;break;
                     }
@@ -1385,6 +1427,16 @@ static int run(void) {
             V6AudioPlan plan;
             v6_audio_tick(&cue_audio,(hw->intreqr&INTF_AUD0)!=0,&plan);
             audio_apply(&plan);audio_record();
+        }
+#endif
+#ifdef V6_TOWER_TRAVEL_AUDIO
+        {
+            unsigned i;V6AudioPlan plan;
+            for(i=0;i<4;++i) {
+                if(!v6_paula_tick(&travel_voices[i],(hw->intreqr&(INTF_AUD0<<i))!=0,&plan))diag.error=15;
+                travel_audio_apply(&plan);
+            }
+            travel_audio_record();
         }
 #endif
 #ifdef V6_TOWER_CONTROLLER
@@ -1551,6 +1603,30 @@ static int run(void) {
                         if(!v6_teleporter_arrival_start(&arrival))diag.error=14;
                     }
                 }
+#ifdef V6_TOWER_TRAVEL_AUDIO
+                {
+                    unsigned events=departure.events|arrival.events,cue;
+                    for(cue=0;cue<2;++cue)if(events&(1U<<cue)) {
+                        unsigned i;V6AudioSample sample;V6AudioPlan plan;
+                        for(i=0;i<4 && travel_voices[i].audio.state!=V6_AUDIO_IDLE;++i) {}
+                        if(i==4){++travel_audio_dropped;diag.error=15;}
+                        else {
+                            sample.address=(ULONG)(travel_audio_chip+(cue?TELEPORTER_FLASH_BYTES:0));
+                            sample.bytes=cue?TELEPORTER_TELEPORT_BYTES:TELEPORTER_FLASH_BYTES;
+                            sample.period=TELEPORTER_PERIOD;sample.volume=64;
+                            if(!v6_paula_request(&travel_voices[i],&sample,&plan))diag.error=15;
+                            else {
+                                if(travel_audio_requests<8) {
+                                    volatile ULONG *a=travel_audio_diag.records[travel_audio_requests];
+                                    a[0]=diag.logic_ticks+1;a[1]=cue;a[2]=i;a[3]=frames;
+                                }
+                                ++travel_audio_requests;travel_audio_apply(&plan);
+                            }
+                        }
+                    }
+                    travel_audio_record();
+                }
+#endif
                 arrival_flash=departure.state?departure.flash:arrival.flash;
                 if(departure_trace.count<128) {
                     volatile ULONG *d=departure_trace.records[departure_trace.count++];
@@ -1759,6 +1835,13 @@ tele_menu_paused:
     }
 #ifdef V6_TOWER_UI_SAVE
     if(!ui_os_paused) {
+#endif
+#ifdef V6_TOWER_TRAVEL_AUDIO
+    {
+        unsigned i;V6AudioPlan plan;
+        for(i=0;i<4;++i){v6_paula_stop(&travel_voices[i],&plan);travel_audio_apply(&plan);}
+        travel_audio_record();
+    }
 #endif
 #ifdef V6_TOWER_AUDIO
     { V6AudioPlan plan;v6_audio_stop(&cue_audio,&plan);audio_apply(&plan);audio_record(); }
