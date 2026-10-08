@@ -2311,3 +2311,41 @@ original soundtrack is a desktop `vvvvvvmusic.vvv` blob. Converted tracker-bank
 memory, combined playback CPU cost and the shipping channel split remain open.
 Next: implement source-validated music control/fade semantics independently of
 the replay adapter; audit and measure a representative module when available.
+
+## Portable source music transitions and fades — 8 October 2026
+
+`music_control.c/h` now implement the base soundtrack control layer independently
+of tracker replay. Caller-owned state tracks current/halted/queued IDs, pause,
+backend presence, successful-start availability, source control gain (0..128),
+quick/slow fade selection and the shared integer fade envelope. Commands emit
+ordered start, pause-clock, resume-clock and gain operations for an adapter.
+Gain is source control volume, not a Paula channel volume; user gain and tracker
+instrument-volume scaling remain adapter responsibilities.
+
+The core preserves the source's 3000 ms fade-in, 500/2000 ms fade-out, fade-out
+duration proportional to current gain, evaluate-before-advance integer rounding,
+zero-duration completion, same-track no-restart and queued niceplay ordering.
+Fade completion pauses rather than destroys playback; resume restores the halted
+song. Explicit halt cancels queued changes, whereas fade completion preserves
+one for the same tick. Tracks 0/7 start once at full gain; other base tracks loop.
+The source's safe-processing gate and unsuccessful backend-start state changes
+are retained. IDs are restricted to -1/0..15 for play and 0..15 for niceplay;
+alternate/custom soundtrack remapping is excluded. Duration and elapsed timestep
+limits (60000/1000 ms) keep all products in bounded signed 32-bit arithmetic.
+
+`make -C amiga_version test-music-control` compiles the core for 68000 and compares
+30,167 state snapshots against extracted `Music.cpp` method bodies with minimal
+backend stubs. Tests cover every base ID, complete fade envelopes, repeated and
+queued requests, interruptions by one-shot tracks, pause/halt/resume, zero and
+partial durations, unavailable starts and deterministic mixed sequences. The
+fade-completion adapter order is explicitly checked as gain-zero, pause, start,
+gain-zero. Invalid commands, limits, NULL arguments and corrupt states preserve
+state/output transactionally. Host builds run with undefined behaviour
+sanitization. Music intake regressions also pass.
+
+No player code is linked into the native executable, and this increment adds no
+Chip allocation or native timing claim. Control ticks consume game elapsed ms;
+tracker replay must continue on its independent music clock during gameplay
+pauses. Next: connect source room music selection to this controller and validate
+its area-map/special-case behavior before native replay integration. A musician-
+produced representative module is still needed for music/SFX memory and timing.

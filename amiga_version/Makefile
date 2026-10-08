@@ -747,3 +747,11 @@ music-intake:
 test-music-intake:
 	python3 $(ROOT)/tools/amiga/test_music_intake.py
 test: test-music-intake
+
+$(BUILD)/music_control.o: music_control.c music_control.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+-include $(BUILD)/music_control.d
+.PHONY: test-music-control
+test-music-control: $(BUILD)/music_control.o
+	python3 $(ROOT)/tools/amiga/test_music_control.py
+test: test-music-control
