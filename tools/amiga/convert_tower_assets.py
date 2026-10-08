@@ -65,6 +65,8 @@ def main():
         sprite_png=archive.read('graphics/sprites.png')
         font_png=archive.read('graphics/font.png')
         teleporter_png=archive.read('graphics/teleporter.png')
+        from energize_assets import export as export_energize_assets
+        export_energize_assets(archive,out,decoder)
     tele_path=out/'teleporter.png';tele_path.write_bytes(teleporter_png)
     dimensions,tele_rgba=subprocess.check_output([str(decoder),str(tele_path)]).split(b'\n',1)
     tw,th=map(int,dimensions.split());assert (tw,th)==(960,96)

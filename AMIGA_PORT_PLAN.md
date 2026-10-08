@@ -10,8 +10,8 @@ Interactive Building save/load controls now pass real mouse and fresh-boot
 checks, committed as `c6800d55`; see "Building Apport interactive saving" below.
 The selector core is committed as `34eed379`. Native menu controls and captions
 now pass hardware-input checks, committed as `182d92cd`. Energize collision data
-and the source teleport handoff are tested; its native graphics and arrival effects
-are next.
+and the source teleport handoff are committed as `2a601eaf`. Its compact native
+foreground/teleporter capture now passes; arrival effects remain next.
 
 ## Implementation progress — 27 September 2026
 
@@ -1567,3 +1567,33 @@ implement the source arrival sequence and add a native round-trip capture. Offer
 it through the selector only after the renderer/arrival path is complete, with
 an explicit explored-destination policy. Wider exploration persistence remains
 pending.
+
+## Native Energize graphics — 8 October 2026
+
+Disk space is available again and the interrupted renderer increment is validated.
+The private converter reads `graphics/tiles.png`, remaps Energize's 16 source tile
+IDs to a compact display-only bank, and emits 28 paired-column patterns plus a
+frozen four-colour palette. Original 1,200-tile collision IDs remain intact in
+tileset 0. `test-energize-graphics` compares all 79,360 pixels in the 31-row ring
+against the original PNG and chosen palette, including the wrapped coverage row.
+
+The opt-in `V6_TOWER_ENERGIZE` six-room build binds this foreground bank and
+cached terrain, reuses the two-bank six-channel teleporter DMA allocation, and
+prepares its masks at the source (36,68) position. Both foreground banks use the
+matching pair table/palette; switching scenes resets frame caches and cold fills.
+This fixture retains the frozen tower backdrop and omits source arrival effects.
+It does not add Energize to the playable menu or change the standard five-room
+save build's supported-room list.
+
+`make -C amiga_version tower-energize-capture` starts through the validated
+teleport handoff, exercises silent state-2 entity initialization, and checks
+1,536 native trace fields against host route/animation state. It holds after 128
+verified logic ticks for the screenshot. The native capture is visually checked,
+uses 69,088 Chip bytes, peaks at 188 PAL lines, and has zero errors/missed fields.
+The Building menu regression still passes at 204 peak lines with zero errors or
+missed fields. An initial finite fixture also returned to the AmigaDOS prompt.
+
+Next: implement and source-validate the normal arrival states 4010–4019, then
+connect them to native rendering/control and validate a round trip before making
+Energize a selectable destination. Departure effects, exploration policy, and
+wider campaign progression remain pending.

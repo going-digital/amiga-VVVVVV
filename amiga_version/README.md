@@ -2066,3 +2066,17 @@ The native menu regression still passes with zero errors/missed fields.
 
 Energize is not yet available in the playable menu. Next are its separate graphics
 bank, native renderer and arrival effects, followed by native travel validation.
+
+## Native Energize graphics capture
+
+`make -C amiga_version tower-energize-capture` builds the opt-in six-room Energize
+renderer and verifies 128 logic ticks (1,536 fields) against the host handoff and
+animation. It holds the final scene for a screenshot. The capture passes with
+69,088 Chip bytes, 188 peak PAL work lines and zero errors/missed fields.
+
+The private graphics converter compacts 16 original tile IDs into 28 paired
+patterns; collision retains source tileset-0 IDs. `test-energize-graphics` checks
+79,360 ring pixels against the source PNG and frozen four-colour palette. The
+scene reuses the six-channel teleporter DMA banks and frozen tower backdrop.
+Energize remains absent from the playable selector while arrival effects and
+native round-trip validation are pending.

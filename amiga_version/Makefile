@@ -641,3 +641,14 @@ tower-building-menu-capture: tower-probe test-teleporter-menu test-interactive-s
 test-teleporter-travel: $(BUILD)/tower_route.o
 	python3 $(ROOT)/tools/amiga/test_teleporter_travel.py
 test: test-teleporter-travel
+
+.PHONY: tower-energize-capture
+tower-energize-capture: tower-probe test-teleporter-travel
+	python3 $(ROOT)/tools/amiga/test_energize_graphics.py
+	$(MAKE) BUILD=$(ROOT)/build/amiga-energize CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_ENERGIZE -DV6_ENERGIZE_CAPTURE" $(ROOT)/build/amiga-energize/tower.adf
+	python3 $(ROOT)/tools/amiga/run_energize.py
+
+.PHONY: test-energize-graphics
+test-energize-graphics: tower-assets
+	python3 $(ROOT)/tools/amiga/test_energize_graphics.py
+test: test-energize-graphics
