@@ -12,8 +12,9 @@ The selector core is committed as `34eed379`. Native menu controls and captions
 now pass hardware-input checks, committed as `182d92cd`. Energize collision data
 and the source teleport handoff are committed as `2a601eaf`. Its compact native
 renderer is committed as `6f2f9491`; the normal arrival state core is committed
-as `1a4a817e`. Native arrival motion, control, visibility and grey flash now pass
-source and A500 checks; see "Native default arrival integration" below.
+as `1a4a817e`. Native arrival motion, control, visibility and grey flash are
+committed as `415e6ad9`. The short departure core and host Building/Energize
+round trips now pass source checks; see "Short teleporter departure core" below.
 
 ## Implementation progress — 27 September 2026
 
@@ -1664,3 +1665,40 @@ Next: integrate departure, audio and screen shake, then exercise a native
 Building/Energize round trip and final OS-safe save before enabling explored
 Energize destinations in the playable selector. The frozen tower backdrop and
 existing five-room playable save build remain the current supported scope.
+
+## Short teleporter departure core — 8 October 2026
+
+Added `teleporter_departure.c/.h` for the normal remote selector confirmation
+and Game.cpp states 4000–4003. Start disables player control and the active
+teleporter region and selects flashing tile 6. Departure requests flash on tick
+1 and teleport audio on tick 11, hides the player and selects inactive tile 1
+on tick 12, then unlocks state and emits the travel request on tick 22. The
+source's manual state increments work even while state is locked. Control stays
+disabled until arrival completes. The pending travel flag survives inactive
+ticks and is cleared by the caller only after a successful room handoff.
+
+The core owns no player motion, entity colour, rendering, audio, room load,
+checkpoint mutation or disk access. Native integration must supply the flashing
+player colour and its cyan restoration at state 4002, run locked input before
+the script phase and physics afterward, and handle the effect requests. Active,
+locked or unconsumed starts are refused; invalid state, delay, geometry and null
+arguments retain all outputs.
+
+`test-teleporter-departure` compiles for 68000 and compares the extracted remote
+Input.cpp selection and 160 Game.cpp phase cases, including locked states,
+delays and visibility. Forty sequential ticks verify the complete 22-tick
+departure, one-shot cues/travel and persistent pending request under undefined
+behaviour sanitization.
+
+`test-departure-route` exercises two host Building → Energize → Building round
+trips: 256 coupled source departure/arrival/input/physics ticks and four extracted
+Script.cpp handoffs. It checks unchanged departure checkpoints, exact destination
+centre saves, held-input locking and retained pending requests on rejected loads.
+Selections are staged; this is not a native scene-bank, exploration/readiness,
+audio, screen-shake or disk-save test. Arrival core/physics and travel regressions
+also pass.
+
+Next: connect departure to native Building/Energize scene-bank transitions and
+arrival, then integrate effect audio, screen shake and the final OS-safe save.
+Energize remains excluded from the playable selector until the native round trip
+and explored-destination policy are validated.

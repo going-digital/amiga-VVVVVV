@@ -2104,3 +2104,19 @@ acceleration is retained. Native control, visibility and flash are implemented;
 departure, audio, screen shake displacement, round-trip/save validation and other
 destinations' special arrivals remain pending. Energize is still excluded from
 the playable menu.
+
+## Short teleporter departure core
+
+`make -C amiga_version test-teleporter-departure` builds the 68000 core for
+normal selector confirmation and states 4000–4003. The extracted desktop
+selection and 160 phase comparisons pass, including locked-state increments,
+visibility and delays. Departure emits cues on ticks 1 and 11, hides the player
+on tick 12, and requests travel on tick 22. It retains that request until the
+caller completes the handoff; it performs no room load or file I/O.
+
+`make -C amiga_version test-departure-route` checks two host Building/Energize
+round trips against 256 source departure/arrival/input/physics ticks and four
+Script.cpp handoffs. Checkpoint preservation, held-input locks and rejected-load
+request retention pass. These staged selections do not test native scene banks
+or menu exploration/readiness. Native departure colours/rendering, effect audio,
+screen shake and final save integration remain pending.

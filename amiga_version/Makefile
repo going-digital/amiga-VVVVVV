@@ -673,3 +673,16 @@ tower-energize-arrival-capture: tower-probe test-teleporter-arrival test-arrival
 test-arrival-route: $(BUILD)/tower_route.o $(BUILD)/teleporter_arrival.o
 	python3 $(ROOT)/tools/amiga/test_arrival_route.py
 test: test-arrival-route
+
+$(BUILD)/teleporter_departure.o: teleporter_departure.c teleporter_departure.h teleporter.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+-include $(BUILD)/teleporter_departure.d
+.PHONY: test-teleporter-departure
+test-teleporter-departure: $(BUILD)/teleporter_departure.o
+	python3 $(ROOT)/tools/amiga/test_teleporter_departure.py
+test: test-teleporter-departure
+
+.PHONY: test-departure-route
+test-departure-route: $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/tower_route.o
+	python3 $(ROOT)/tools/amiga/test_departure_route.py
+test: test-departure-route

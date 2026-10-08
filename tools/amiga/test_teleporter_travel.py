@@ -121,5 +121,5 @@ def main():
             original.reference_read(C.byref(expected_p))
             assert all(getattr(p,f)==getattr(expected_p,f) for f in FIELDS),(gravity,tick)
             steps+=1
-    print(f'PASS Energize travel staging: {cases} extracted Script.cpp handoffs, silent state-2 arrival, transactional rejection and {steps} source collision ticks; departure, round-trip and playable destinations remain pending')
+    print(f'PASS Energize travel staging: {cases} extracted Script.cpp handoffs, silent state-2 arrival, transactional rejection and {steps} source collision ticks; native round-trip, effects and playable destinations remain pending')
 if __name__=='__main__':main()
