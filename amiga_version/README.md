@@ -2208,3 +2208,32 @@ behaviour sanitization. The existing native rescue-audio regression also passes
 CPU cost has not been measured. Next: decide music/SFX channel reservation and
 priority/stealing policy before extending this experimental playback to normal
 gameplay. Screen shake and final arrival saving remain pending.
+
+## Configurable Paula allocation policy — 8 October 2026
+
+`audio_policy.c` provides a pure four-channel allocation decision. A caller-owned
+mask protects channels reserved for music. Idle channels are chosen first, in
+hardware order. When all permitted channels are busy (including cooldown and
+silence draining), only a strictly higher incoming priority may replace a voice:
+lowest priority first, then oldest elapsed age, then lowest channel. Equal-priority
+requests are rejected rather than restarting existing cues. Allocation itself
+mutates no voice or register state; sample validation and channel-local playback
+remain the caller's responsibility. No shipping cue priorities or music channel
+count have been selected, and the native fixture still uses its original pool.
+
+`make -C amiga_version test-audio-policy` compiles for 68000 and checks 62,208
+mask/occupancy/priority combinations against an independent ordered oracle,
+24 age permutations including unsigned wrap-derived ages, invalid inputs, and
+12 replacements across cooldown, playback and draining. Replacement plans touch
+only the selected voice's DMA/IRQ bits; all three reserved voice states remain
+unchanged. Checks run with undefined behaviour sanitization.
+
+When the prior native capture is available, its eight recorded request times
+also drive an optional budget simulation using the converted cue durations,
+two cooldown fields and a final polling field. With experimental teleport-above-
+flash priority, one SFX channel accepts six requests, drops two and interrupts
+one cue; two channels accept eight but interrupt one cue; three or four channels
+accept all eight without interruptions. This is not a music playback measurement.
+Results are in `build/amiga-audio/audio-policy-budgets.json`. Next: connect the
+policy to a native reserved-channel stress fixture and verify replacement audio
+and reserved DMA/IRQ isolation before choosing the shipping music/SFX budget.

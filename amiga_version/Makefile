@@ -727,3 +727,11 @@ tower-teleporter-audio-capture: tower-probe test-audio test-paula-voice
 test-paula-voice: $(BUILD)/paula_voice.o
 	python3 $(ROOT)/tools/amiga/test_paula_voice.py
 test: test-paula-voice
+
+$(BUILD)/audio_policy.o: audio_policy.c audio_policy.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+-include $(BUILD)/audio_policy.d
+.PHONY: test-audio-policy
+test-audio-policy: $(BUILD)/audio_policy.o
+	python3 $(ROOT)/tools/amiga/test_audio_policy.py
+test: test-audio-policy
