@@ -2002,3 +2002,38 @@ tracker replay must continue on its independent music clock during gameplay
 pauses. Next: connect source room music selection to this controller and validate
 its area-map/special-case behavior before native replay integration. A musician-
 produced representative module is still needed for music/SFX memory and timing.
+
+## Source room music selection — 8 October 2026
+
+`music_area.c/h` now implement main-map `Music.cpp::changemusicarea` selection,
+and `v6_music_change_area` connects it to the portable transition controller's
+niceplay command. Inputs are normalized main-map coordinates 0..19: source
+`Map.cpp` wraps ordinary room coordinates to 100..119 before subtracting 100.
+The API validates each coordinate separately, avoiding overflow and flattened
+index aliases, and requires boolean script/flip/time-trial flags.
+
+The 400-byte signed music map is generated from source through
+`export_music_area.py`, with Make dependencies on the source catalogue inputs.
+The table contains no music samples and is immutable ordinary-memory data.
+Script ownership and map value -1 suppress changes without disturbing current,
+halted or queued IDs, fade envelope or processing flags. Tower entries (-2)
+select Positive Force (2) normally and its reversed track (9) in flip mode.
+The Space Station 2 entry (-3) selects Pushing Onwards (1) in time trials and
+Passion for Exploring (4) otherwise. Other entries pass their base ID to niceplay;
+selection queues transitions without directly starting the replay driver.
+
+`make -C amiga_version test-music-area` cross-compiles both modules and checks
+3,200 exhaustive room/flag selections and 22,400 controller snapshots against
+extracted desktop area-map, changemusicarea, niceplay and fade method bodies.
+Stateful route sweeps cover pending fades and repeated requests, including script
+ownership while a transition is queued. Invalid coordinates/flags, NULL inputs
+and corrupt controller state preserve state/output transactionally, even on
+no-change paths. All host comparisons run with undefined behaviour sanitization;
+the existing 30,167 transition/fade comparisons still pass.
+
+These functions are not yet called by the native game loop and make no native
+music timing or Chip-allocation claim. Custom/final-level rooms outside the main
+map remain outside this selector. Next: cover source room-entry music dispatch
+for final-level special cases and connect main-map selection at native route
+handoffs using a trace fixture. Tracker playback still awaits a representative
+musician-produced module and a player adapter with coordinated Paula ownership.

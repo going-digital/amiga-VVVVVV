@@ -748,10 +748,20 @@ test-music-intake:
 	python3 $(ROOT)/tools/amiga/test_music_intake.py
 test: test-music-intake
 
-$(BUILD)/music_control.o: music_control.c music_control.h | $(BUILD)
+$(BUILD)/music_control.o: music_control.c music_control.h music_area.h | $(BUILD)
 	$(CC) $(CFLAGS) -O2 -c $< -o $@
 -include $(BUILD)/music_control.d
 .PHONY: test-music-control
 test-music-control: $(BUILD)/music_control.o
 	python3 $(ROOT)/tools/amiga/test_music_control.py
 test: test-music-control
+
+$(BUILD)/music_area_map.h: $(ROOT)/tools/amiga/export_music_area.py $(ROOT)/tools/amiga/audit_music.py $(addprefix $(ROOT)/desktop_version/src/,Music.cpp Music.h BinaryBlob.h) | $(BUILD)
+	python3 $(ROOT)/tools/amiga/export_music_area.py --out $(BUILD)
+$(BUILD)/music_area.o: music_area.c music_area.h $(BUILD)/music_area_map.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+-include $(BUILD)/music_area.d
+.PHONY: test-music-area
+test-music-area: $(BUILD)/music_area.o $(BUILD)/music_control.o
+	python3 $(ROOT)/tools/amiga/test_music_area.py
+test: test-music-area

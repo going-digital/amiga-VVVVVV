@@ -5,6 +5,7 @@ import random
 import subprocess
 from pathlib import Path
 from test_audio import ROOT
+from export_music_area import export
 
 FIELDS='current halted_song queued nice quick safe fade_in fade_out volume present paused available start end duration elapsed'.split()
 class State(C.Structure):
@@ -22,6 +23,7 @@ def method(source,signature):
 
 def libraries():
     out=ROOT/'build/amiga-music';out.mkdir(parents=True,exist_ok=True)
+    export(out)
     source=(ROOT/'desktop_version/src/Music.cpp').read_text()
     helpers=source[source.index('struct FadeState'):source.index('void musicclass::fadeMusicVolumeIn')]
     signatures=['bool musicclass::play(int t)','void musicclass::resume(void)',
@@ -30,9 +32,14 @@ def libraries():
         'void musicclass::fadeMusicVolumeIn(int ms)','void musicclass::fadeMusicVolumeOut(const int fadeout_ms)',
         'void musicclass::fadeout(const bool quick_fade_','void musicclass::processmusicfadein(void)',
         'void musicclass::processmusicfadeout(void)','void musicclass::processmusic(void)',
-        'void musicclass::niceplay(int t)','bool musicclass::halted(void)']
+        'void musicclass::niceplay(int t)','bool musicclass::halted(void)',
+        'void musicclass::changemusicarea(int x, int y)']
     code='''#include <stdint.h>
+#include <assert.h>
 #include "music_control.h"
+#define SDL_assert assert
+#define musicroom(x,y) ((x)+(y)*20)
+#define INBOUNDS_ARR(i,a) ((i)>=0 && (i)<400)
 #define VVV_MAX_VOLUME 128
 #define Music_PATHCOMPLETE 0
 #define Music_PLENARY 7
@@ -40,7 +47,9 @@ def libraries():
 #define vlog_error(...) ((void)0)
 static unsigned available;static bool present,paused;static int timestep;
 struct {bool custommode;} map;
-struct {int get_timestep(){return timestep;}} game;
+struct {int get_timestep(){return timestep;} bool intimetrial;} game;
+struct {bool running;} script;
+struct {bool setflipmode;} graphics;
 struct MusicTrack {
  int id;
  bool Play(bool){if(!(available&(1U<<id)))return false;present=true;paused=false;return true;}
@@ -56,9 +65,9 @@ struct musicclass {
  bool play(int);void resume();void resumefade(int);void pause();void haltdasmusik(bool);
  void silencedasmusik();void fadeMusicVolumeIn(int);void fadeMusicVolumeOut(int);
  void fadeout(bool);void processmusicfadein();void processmusicfadeout();void processmusic();
- void niceplay(int);bool halted();
+ void niceplay(int);bool halted();void changemusicarea(int,int);
 };
-'''+helpers+'\n'+'\n'.join(method(source,s) for s in signatures)+'''
+'''+helpers+'\n'+source[source.index('static const int areamap'):source.index('SDL_COMPILE_TIME_ASSERT(areamap')]+'\n'+'\n'.join(method(source,s) for s in signatures)+'''
 static musicclass m;
 extern "C" void reference_init(unsigned mask) {
  m={};m.currentsong=m.haltedsong=m.nicechange=-1;m.quick_fade=true;
@@ -74,6 +83,9 @@ extern "C" void reference_command(unsigned c,int arg) {
  }
 }
 extern "C" void reference_tick(unsigned ms){timestep=ms;m.processmusic();}
+extern "C" void reference_area(int x,int y,int running,int flip,int trial){
+ script.running=running;graphics.setflipmode=flip;game.intimetrial=trial;m.changemusicarea(x,y);
+}
 extern "C" void reference_snapshot(V6MusicControl *s){
  *s={m.currentsong,m.haltedsong,m.nicechange,m.nicefade,m.quick_fade,m.safeToProcessMusic,
  m.m_doFadeInVol,m.m_doFadeOutVol,m.controlVolume,present,paused,(int)available,
@@ -82,9 +94,9 @@ extern "C" void reference_snapshot(V6MusicControl *s){
 '''
     path=out/'music-control-reference.cpp';path.write_text(code)
     flags=['-O2','-shared','-fPIC','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
-        '-I'+str(ROOT/'amiga_version')]
+        '-I'+str(ROOT/'amiga_version'),'-I'+str(out)]
     subprocess.run(['c++','-std=c++11',*flags,str(path),'-o',str(out/'music-reference.so')],check=True)
-    subprocess.run(['cc','-std=c99',*flags,str(ROOT/'amiga_version/music_control.c'),'-o',str(out/'music-control.so')],check=True)
+    subprocess.run(['cc','-std=c99',*flags,str(ROOT/'amiga_version/music_control.c'),str(ROOT/'amiga_version/music_area.c'),'-o',str(out/'music-control.so')],check=True)
     core=C.CDLL(str(out/'music-control.so'));ref=C.CDLL(str(out/'music-reference.so'))
     core.v6_music_init.argtypes=[C.POINTER(State),C.c_uint]
     core.v6_music_command.argtypes=[C.POINTER(State),C.c_uint,C.c_int,C.POINTER(Plan)]

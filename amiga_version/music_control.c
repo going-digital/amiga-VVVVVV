@@ -1,4 +1,5 @@
 #include "music_control.h"
+#include "music_area.h"
 static int valid(const V6MusicControl *m,const V6MusicPlan *p)
 {
  return m && p && m->current>=-1 && m->current<16 && m->halted_song>=-1 && m->halted_song<16 &&
@@ -98,4 +99,13 @@ int v6_music_tick(V6MusicControl *m,unsigned ms,V6MusicPlan *p)
  }
  if(m->nice && halted(m)){play(m,m->queued,p);m->queued=-1;m->nice=0;}
  return 1;
+}
+
+int v6_music_change_area(V6MusicControl *m,int x,int y,int script_running,
+    int flip_mode,int time_trial,V6MusicPlan *p)
+{
+ int track;
+ if(!valid(m,p) || !v6_music_area_track(x,y,script_running,flip_mode,time_trial,&track))return 0;
+ if(track==-1){p->count=0;return 1;}
+ return v6_music_command(m,V6_MUSIC_NICEPLAY,track,p);
 }
