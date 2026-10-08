@@ -1890,3 +1890,34 @@ accept all eight without interruptions. This is not a music playback measurement
 Results are in `build/amiga-audio/audio-policy-budgets.json`. Next: connect the
 policy to a native reserved-channel stress fixture and verify replacement audio
 and reserved DMA/IRQ isolation before choosing the shipping music/SFX budget.
+
+## Native reserved-channel replacement capture — 8 October 2026
+
+The staged teleporter audio fixture now uses `v6_audio_choose` with a configurable
+`V6_TRAVEL_SFX_MASK` (default 15). Experimental priority assigns teleport above
+flash; accepted requests update caller-owned priority/start time only after
+sample validation. Cooldown, playback and drain all count as occupied. Tick and
+stop operations visit permitted channels only. The capture's register-plan
+adapter records and blocks any attempted sample-register, DMA or IRQ write to a
+reserved channel; the policy diagnostic exposes the mask and replacement count.
+
+`make -C amiga_version tower-teleporter-reserved-audio-capture` uses mask 3:
+channels 0/1 for SFX, 2/3 reserved and idle. All eight requests start with no drops
+and two peak voices. The tick-65 flash is interrupted by the tick-75 teleport on
+channel 1, producing seven fully drained cues, one replacement and 15 completion
+IRQs. The isolated recording confirms the shortened flash (0.313 seconds), the
+replacement teleport waveform, expected complete-cue durations, sustained final
+silence and hardware panning. Reserved-channel stems remain silent, with zero
+attempted forbidden writes. This checks SFX isolation with idle reservations;
+concurrent music playback has not yet been implemented or measured.
+
+All 4,608 round-trip source/render fields still match. The A500 fixture uses
+110,818 Chip bytes, peaks at 229 PAL lines, and reports no errors or missed
+fields. Artifacts are in `build/amiga-teleporter-reserved/`. The four-channel
+fixture also passes with the allocator integrated: eight complete cues, zero
+replacements or policy violations, unchanged channel order, all 4,608 trace
+fields matching, and a peak of 233 PAL lines. Host policy and isolated voice
+regressions pass. The shipping
+music/SFX budget and cue priorities remain open. Next: assess the music asset
+format and Paula channel requirements before selecting the allocation; screen
+shake and final arrival saving also remain pending.

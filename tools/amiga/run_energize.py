@@ -26,7 +26,9 @@ def main():
     parser.add_argument('--outbound',action='store_true')
     parser.add_argument('--colour',action='store_true')
     parser.add_argument('--audio',action='store_true')
+    parser.add_argument('--reserved-audio',action='store_true')
     args=parser.parse_args()
+    if args.reserved_audio and not args.audio:parser.error('--reserved-audio requires --audio')
     if args.audio and (not args.roundtrip or args.colour or args.outbound or args.flash):parser.error('--audio requires full roundtrip')
     if args.colour and (not args.roundtrip or args.outbound or args.flash):parser.error('--colour requires roundtrip without outbound/flash')
     if args.outbound and not args.roundtrip:parser.error('--outbound requires --roundtrip')
@@ -35,7 +37,7 @@ def main():
     if args.arrival:BUILD=ROOT/('build/amiga-energize-arrival-flash' if args.flash else 'build/amiga-energize-arrival')
     if args.roundtrip:BUILD=ROOT/('build/amiga-teleporter-outbound' if args.outbound else 'build/amiga-teleporter-roundtrip')
     if args.colour:BUILD=ROOT/'build/amiga-teleporter-colour'
-    if args.audio:BUILD=ROOT/'build/amiga-teleporter-paula'
+    if args.audio:BUILD=ROOT/('build/amiga-teleporter-reserved' if args.reserved_audio else 'build/amiga-teleporter-paula')
     ticks=6 if args.colour else 1 if args.flash else 64 if args.outbound else 128
     config=BUILD/'energize.toml'
     config.write_text(f'''rom = {json.dumps(str(Path.home()/'amiga/KICK13.ROM'))}
@@ -206,7 +208,8 @@ write_protected = true
         report['scope']='Native staged departure/handoff/arrival and cold scene banks; audio, screen shake, persistence and explored menu destinations pending'
     if args.audio:
         from teleporter_audio_capture import verify
-        verify(report,dump,BUILD/'audio-stems')
+        verify(report,dump,BUILD/'audio-stems',reserved=args.reserved_audio)
+        if args.reserved_audio:report['scope']='Native two-channel SFX reservation and priority replacement; reserved channels idle; gameplay oracle and captured playback verified; music playback and shipping allocation pending'
         report['scope']='Native hard-panned Paula cue overlap and round trip; final music/SFX allocation, screen shake, saving and menu destinations pending'
     (BUILD/'energize-capture.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native teleporter round trip:' if args.roundtrip else 'PASS native Energize:',json.dumps(report))

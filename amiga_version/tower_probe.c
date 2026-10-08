@@ -307,6 +307,13 @@ static volatile struct {ULONG magic,version,count,records[128][14];}
 #include "teleporter_colour.h"
 #ifdef V6_TOWER_TRAVEL_AUDIO
 #include "paula_voice.h"
+#include "audio_policy.h"
+#ifndef V6_TRAVEL_SFX_MASK
+#define V6_TRAVEL_SFX_MASK 15
+#endif
+static unsigned travel_priority[4],travel_started[4],travel_stolen;
+static volatile struct {ULONG magic,version,mask,stolen,violations;}
+    travel_policy_diag={0x56364150,1,V6_TRAVEL_SFX_MASK,0,0};
 #include "teleporter_samples.h"
 static V6PaulaVoice travel_voices[4];
 static UBYTE *travel_audio_chip;
@@ -316,7 +323,15 @@ static volatile struct {ULONG magic,version,values[8],records[8][4];}
 static void travel_audio_apply(const V6AudioPlan *p)
 {
     unsigned i;
-    for(i=0;i<p->count;++i)*(volatile UWORD *)(0xdff000UL+p->writes[i].reg)=(UWORD)p->writes[i].value;
+    for(i=0;i<p->count;++i) {
+        unsigned reg=p->writes[i].reg,value=p->writes[i].value;
+        if((reg==0x96 && (value&15)&~V6_TRAVEL_SFX_MASK) ||
+           (reg==0x9c && ((value>>7)&15)&~V6_TRAVEL_SFX_MASK) ||
+           (reg>=0xa0 && reg<0xe0 && !(V6_TRAVEL_SFX_MASK&(1U<<((reg-0xa0)/16))))) {
+            ++travel_policy_diag.violations;continue;
+        }
+        *(volatile UWORD *)(0xdff000UL+reg)=(UWORD)value;
+    }
 }
 static void travel_audio_record(void)
 {
@@ -331,6 +346,7 @@ static void travel_audio_record(void)
     travel_audio_diag.values[2]=completed;travel_audio_diag.values[3]=interrupts;
     travel_audio_diag.values[4]=travel_audio_requests;travel_audio_diag.values[5]=travel_audio_dropped;
     travel_audio_diag.values[6]=travel_audio_peak;
+    travel_policy_diag.stolen=travel_stolen;
 }
 #endif
 static V6TeleporterDeparture departure;
@@ -1432,7 +1448,7 @@ static int run(void) {
 #ifdef V6_TOWER_TRAVEL_AUDIO
         {
             unsigned i;V6AudioPlan plan;
-            for(i=0;i<4;++i) {
+            for(i=0;i<4;++i)if(V6_TRAVEL_SFX_MASK&(1U<<i)) {
                 if(!v6_paula_tick(&travel_voices[i],(hw->intreqr&(INTF_AUD0<<i))!=0,&plan))diag.error=15;
                 travel_audio_apply(&plan);
             }
@@ -1607,15 +1623,22 @@ static int run(void) {
                 {
                     unsigned events=departure.events|arrival.events,cue;
                     for(cue=0;cue<2;++cue)if(events&(1U<<cue)) {
-                        unsigned i;V6AudioSample sample;V6AudioPlan plan;
-                        for(i=0;i<4 && travel_voices[i].audio.state!=V6_AUDIO_IDLE;++i) {}
-                        if(i==4){++travel_audio_dropped;diag.error=15;}
+                        unsigned i,busy=0,age[4];int chosen;V6AudioSample sample;V6AudioPlan plan;
+                        for(i=0;i<4;++i) {
+                            if(travel_voices[i].audio.state!=V6_AUDIO_IDLE)busy|=1U<<i;
+                            age[i]=frames-travel_started[i];
+                        }
+                        chosen=v6_audio_choose(V6_TRAVEL_SFX_MASK,busy,travel_priority,age,cue+1);
+                        if(chosen<0){++travel_audio_dropped;if(chosen==-2)diag.error=15;}
                         else {
+                            i=(unsigned)chosen;
                             sample.address=(ULONG)(travel_audio_chip+(cue?TELEPORTER_FLASH_BYTES:0));
                             sample.bytes=cue?TELEPORTER_TELEPORT_BYTES:TELEPORTER_FLASH_BYTES;
                             sample.period=TELEPORTER_PERIOD;sample.volume=64;
                             if(!v6_paula_request(&travel_voices[i],&sample,&plan))diag.error=15;
                             else {
+                                if(busy&(1U<<i))++travel_stolen;
+                                travel_started[i]=frames;travel_priority[i]=cue+1;
                                 if(travel_audio_requests<8) {
                                     volatile ULONG *a=travel_audio_diag.records[travel_audio_requests];
                                     a[0]=diag.logic_ticks+1;a[1]=cue;a[2]=i;a[3]=frames;
@@ -1839,7 +1862,7 @@ tele_menu_paused:
 #ifdef V6_TOWER_TRAVEL_AUDIO
     {
         unsigned i;V6AudioPlan plan;
-        for(i=0;i<4;++i){v6_paula_stop(&travel_voices[i],&plan);travel_audio_apply(&plan);}
+        for(i=0;i<4;++i)if(V6_TRAVEL_SFX_MASK&(1U<<i)){v6_paula_stop(&travel_voices[i],&plan);travel_audio_apply(&plan);}
         travel_audio_record();
     }
 #endif
