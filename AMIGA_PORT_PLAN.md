@@ -2336,3 +2336,22 @@ path on another supported little-endian host. Next: compare the audition
 candidates to the source, correct recognition errors and identify musical parts
 before separating percussion/improving timbres or baking chord samples. No
 musical part identification or subjective quality improvement is claimed yet.
+
+### Audition decision: retain original grid; defer vibrato repair
+
+User comparison finds the original 92 BPM editing grid sounds just as good as
+the finer 184 BPM candidate. Keep 92 BPM as the working baseline; retain the
+finer candidate for comparison without making it the preferred arrangement.
+This is an audition choice, not confirmation of the recording's musical tempo.
+
+The user hears vibrato in the recording that the reconstruction misses and
+suspects it contributes to dropped notes. That causal explanation remains to
+be checked against pitch contours; retaining every detected note does not mean
+the recognizer detected every source note. Defer vibrato reconstruction and
+related note-gap repair until later, as requested. When revisiting it, inspect
+pitch contours and distinguish modulation within a sustained note from a new
+attack before merging fragments or adding tracker vibrato/pitch effects.
+
+Next priority remains identifying melody, bass, harmony and percussion and
+improving timbres on the eight-channel master. Keep three/four-channel reduction
+and chord-sample baking downstream of that work.
