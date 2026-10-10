@@ -2428,3 +2428,63 @@ drum attacks from melodic leakage, and match representative drum sounds and
 hit timing. Preserve the accepted melodic baseline during that comparison.
 Vibrato and associated missing-note repair remain deferred. This audition does
 not confirm every melodic note or validate the current percussion transcription.
+
+### Repeated-hit drum candidates with preserved low-frequency attacks
+
+`tools/amiga/recognize_percussion.py` replaces the broad low/mid/high transient
+exemplars with a new percussion-only audition. It keeps the accepted 92 BPM
+arrangement's pitched channels, role levels, instrument headers and sample bank
+byte-for-byte identical. Vibrato and melody recognition remain untouched.
+
+The detector combines a gentler HPSS mask with low-frequency spectral novelty,
+so tonal low-frequency attacks are not automatically removed with harmonic
+content. Independent low/mid/high-band onset detection catches quieter high-band
+hits beneath stronger attacks. Nearby energy rise refines timestamps on both
+sides of centered spectral frames; an energy-growth check and 60 ms deduplication
+reduce repeated detections inside decaying drum tails. Those choices can still
+miss fast rolls or simultaneous hits.
+
+Short spectral-band and decay profiles form three recurring-hit clusters.
+Brightness ordering gives provisional kick/snare/hat labels; a representative
+cluster member above the quietest detections supplies each exemplar, replacing
+the previous maximum-energy selection. Category filters, resampling to 11,025 Hz
+and short edge fades produce 240 ms signed 8-bit one-shots. This is unsupervised
+candidate classification, not confirmed identification of the game's drums.
+Pitched attacks can still contaminate clusters, and brightness ordering can
+mislabel a class. Single-lane playback still truncates overlapping sample tails;
+simultaneous layers need later inspection/composite samples or a different budget.
+
+A controlled test beneath sustained bass/lead tones initially exposed missed
+hats and retriggers in decaying drum bodies. After fixes it detects and labels
+all nine separated synthetic kick/snare/hat hits within 60 ms, checks MOD sample
+layout, and emits no hits for silence or the sustained-tone-only input. This
+establishes controlled behavior; it does not prove real-song detection accuracy.
+The test requires the isolated audio environment's NumPy/SciPy/librosa and
+scikit-learn dependencies (scikit-learn 1.6.1 is now pinned explicitly).
+
+Positive Force yields 166 candidate attacks: 42 kick, 82 snare, 42 hat guesses.
+Representative source times are 21.213, 11.350 and 20.370 seconds respectively.
+The unchanged grid emits all 166 as distinct hit rows. The resulting MOD is
+20,750 bytes with 9,426 sample bytes, not converted Amiga bank measurements.
+Independent libxmp playback accepts the mix and percussion stem, completes the
+first loop and produces non-clipping previews (mix peak 0.560, percussion 0.308).
+All 320 stored rows' seven pitched-channel cells, their headers and the 1,488-byte
+pitched bank match the accepted baseline exactly. All 351 melodic note starts
+remain, with the same one-row overlap delay as before.
+
+Private outputs in `build/amiga-transcription/drum-refinement/` include the mix,
+percussion stem, individual `sample-{1,2,3}.wav` candidates, cleaned source stem,
+editable arrangement/hit profiles and provenance reports. Next: audition the
+candidate kick/snare/hat sounds and percussion sequence against the recording,
+correct wrong classes/exemplars and timing, and inspect simultaneous hits before
+any channel reduction. No subjective improvement is claimed before audition.
+
+```sh
+build/amiga-transcription-env/bin/python tools/amiga/test_percussion_recognition.py
+build/amiga-transcription-env/bin/python tools/amiga/recognize_percussion.py build/amiga-transcription/positive-force-excerpt.wav --arrangement build/amiga-transcription/role-arrangement/arrangement.json --out build/amiga-transcription/drum-refinement
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/eight-master/notes.json --arrangement build/amiga-transcription/drum-refinement/arrangement.json --out build/amiga-transcription/drum-refinement
+python3 tools/amiga/render_tracker.py build/amiga-transcription/drum-refinement/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/drum-refinement/arranged-eight.wav
+```
+
+Use the same renderer for `percussion.mod`. Original and derived recordings,
+exemplars and modules remain ignored and uncommitted.

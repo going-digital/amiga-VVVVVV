@@ -7,3 +7,4 @@ onnxruntime==1.19.2
 pretty_midi==0.2.11.post0
 mir_eval==0.8.2
 resampy==0.4.3
+scikit-learn==1.6.1
