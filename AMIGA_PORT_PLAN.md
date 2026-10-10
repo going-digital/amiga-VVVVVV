@@ -3293,3 +3293,83 @@ build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/am
 python3 tools/amiga/render_tracker.py build/amiga-transcription/finer-timing/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/finer-timing/arranged-eight.wav
 python3 tools/amiga/test_tracker_timing_comparison.py
 ```
+
+
+### Localized lead attack recovery at reported gaps
+
+Continue from the 407-event baseline using the user's reported lead omissions
+near 3, 5, 9, 10, 12 and 18 seconds. `recover_local_lead.py` reads the existing
+lower-frame candidate review, checks its source/baseline hashes, and limits
+source analysis to candidate attacks within 0.6 seconds of those locations.
+Timestamps select review windows, not invented pitches or onset positions.
+
+The earlier one-bin-per-semitone CQT can smear a short attack into neighboring
+pitches and weaken its harmonic evidence. The local pass uses three bins per
+semitone with a +/- one-bin band and tests the second and third harmonics.
+Each accepted attack requires model confidence >=0.3, onset >=0.5, contour
+>=0.18, fundamental attack rise/isolation >=2, and at least one upper harmonic
+with rise/isolation >=2. Interpolated STFT pitch traces must remain within
+40 cents for 90% of frames, span no more than 40 cents, and agree between
+fundamental/upper harmonic median pitch within 20 cents. These stable-pitch
+checks help reject adjacent-pitch leakage and slides. They do not establish
+instrument identity or detect new vibrato.
+
+Three source-supported changes form an audition candidate:
+
+- Advance existing MIDI 76 event 294 from 3.252078 to 3.205638 seconds by
+  joining its immediately preceding same-pitch candidate fragment. Its end,
+  confidence, role and effects stay intact. The fragment fundamental rise is
+  2.883, isolation 4.716; third harmonic rise 2.137, isolation 2.274. This moves
+  an existing attack rather than allocating a second same-pitch voice.
+- Add MIDI 75 at 4.495629-4.542069 seconds (confidence 0.347). Fundamental
+  rise/isolation 9.542/6.242 and second harmonic 19.053/5.352 support this short
+  attack. Coarse isolation had previously rejected it.
+- Add MIDI 74 at 9.583367-9.641417 seconds (confidence 0.401). Fundamental
+  rise/isolation 2.248/5.069 and third harmonic 3.815/4.479 support this short
+  transition. The earlier second-harmonic-only check was insufficient.
+
+For new pitches, retain the simultaneous lower-note overtone veto, same-pitch
+source/quantized duplicate guards, adjacent-pitch ambiguity check, and seven
+pitched-voice capacity limit. A contiguous fragment may advance an already
+accepted pitch despite a coincident lower attack, because it adds no upper
+voice and must independently satisfy the stable fundamental/harmonic gates.
+The new test suite covers that distinction, unstable/weak harmonic evidence,
+new overtone rejection, voice capacity, duplicates and input preservation.
+
+No accepted notes are removed. The result has 409 events, all started. The
+known delayed attack near 22.28 seconds remains the only allocation delay;
+there is no added overload. Use the original 92 editing grid (replay BPM 184,
+speed 6), leaving the finer-grid experiment separate. All 71 drum placements,
+instrument samples, existing roles and eight vibrato-effect rows are unchanged.
+The one excerpt-boundary percussion skip remains. Independent libxmp mix and
+lead rendering reach the first loop in 24.2 seconds; peaks are 0.62454 and
+0.40106, respectively, with no clipping. MOD is 21,314 bytes / 9,990 sample
+bytes, SHA-256
+`a7dcf5ab03bcbd36251df458f6143dab274577cb4d646f87525c86bc7618cb98`.
+
+The 18.204-second MIDI 71 candidate has two matching accepted phrase
+repetitions near 14.788 and 21.654 seconds. It still fails model confidence /
+contour and coincides with an accepted lower MIDI 59 attack; recurrence alone
+does not remove that ambiguity. Likewise upper MIDI 78 candidates around 5,
+10 and 12 seconds are not accepted by this pass. The reported six gaps are
+not all resolved, and the three edits need audition for instrument/articulation
+accuracy before becoming an accepted baseline.
+
+Ignored licensed derivatives are in
+`build/amiga-transcription/local-lead-notes/{arranged-eight,lead}.{mod,wav}`,
+with notes and editable arrangement containing per-candidate decisions and
+high-resolution source evidence. Matching 1.2-second localized mix/lead clips
+are in `build/amiga-transcription/lead-gap-comparison/`. No music assets are
+committed. Local recovery, fast/short recovery, tracker and allocation-audit
+tests pass, as do metadata preservation and independent replay checks.
+
+```sh
+python3 tools/amiga/test_local_lead_recovery.py
+build/amiga-transcription-env/bin/python tools/amiga/recover_local_lead.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/source-supported-notes/notes.json --arrangement build/amiga-transcription/source-supported-notes/arrangement.json --candidate-arrangement build/amiga-transcription/lower-frame-recheck/arrangement.json --times 3 5 9 10 12 18 --out build/amiga-transcription/local-lead-notes
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/local-lead-notes/notes.json --arrangement build/amiga-transcription/local-lead-notes/arrangement.json --out build/amiga-transcription/local-lead-notes
+python3 tools/amiga/render_tracker.py build/amiga-transcription/local-lead-notes/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/local-lead-notes/arranged-eight.wav
+```
+
+Next: audition these localized changes, then distinguish independent lead
+energy from simultaneous accompaniment overtones in the unresolved windows.
+Do not substitute lowered thresholds or phrase recurrence for that distinction.
