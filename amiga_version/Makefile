@@ -775,3 +775,12 @@ test: test-music-entry
 tower-teleporter-music-capture: tower-probe test-music-entry
 	$(MAKE) BUILD=$(ROOT)/build/amiga-teleporter-music CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_ENERGIZE -DV6_ENERGIZE_CAPTURE -DV6_TOWER_ARRIVAL -DV6_TOWER_ROUNDTRIP -DV6_TOWER_MUSIC_TRACE" $(ROOT)/build/amiga-teleporter-music/tower.adf
 	python3 $(ROOT)/tools/amiga/run_energize.py --roundtrip --music
+
+$(BUILD)/music_gain.o: music_gain.c music_gain.h audio.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+-include $(BUILD)/music_gain.d
+.PHONY: test-music-gain
+test-music-gain: $(BUILD)/music_gain.o
+	$(CC) -nostdlib -m68000 -Wl,-e,v6_music_gain_plan $< -o $(BUILD)/music_gain-check.elf
+	python3 $(ROOT)/tools/amiga/test_music_gain.py
+test: test-music-gain

@@ -2080,3 +2080,35 @@ Next: implement the adapter's user/control/instrument gain scaling and channel
 ownership rules, then measure combined playback using a representative converted
 tracker module. Native source music selection/fades are traced, but no music is
 yet audible and the shipping music/SFX split remains open.
+
+## Music gain plans and volume ownership — 10 October 2026
+
+`music_gain.c/h` add the portable adapter's volume stage. The source first
+truncates control gain (0..128) times user gain (0..256) divided by 256. Each
+tracker instrument volume (0..64) then scales by that result divided by 128,
+truncating at Paula resolution. This two-stage rule retains source user-gain
+rounding; the second stage is the chosen hardware quantization. Global/music
+mute select zero without changing the caller's stored instrument volumes, so
+unmuting can restore the current tracker envelope.
+
+A gain plan accepts disjoint music/SFX masks and writes only the music-owned
+AUDnVOL words, in hardware channel order. It emits no DMA or IRQ operations and
+leaves SFX/unassigned registers untouched. Empty music masks emit empty plans.
+Invalid masks, overlapping ownership, invalid gain/instrument values, nonboolean
+mute flags and NULL inputs preserve the output transactionally. This enforces
+ownership for gain writes only; raw tracker sample/period/DMA writes still need
+a coordinated driver boundary. No shipping channel split is selected.
+
+`make -C amiga_version test-music-gain` checks 2,254,404 source/fraction gain
+comparisons and 324 valid partition/mute plans. The reference extracts both
+source set_music_volume and updatemutestate bodies. Tests cover all source
+control/user pairs and instrument levels, effects ownership, mute restoration,
+register isolation and invalid-input preservation under undefined behaviour
+sanitization. The 68000 object uses native MULU with power-of-two shifts, and an
+entry-point link check verifies there are no freestanding runtime dependencies.
+
+The gain stage is not yet connected to tracker replay or native gain writes;
+no new Chip allocation, audible music or playback timing is claimed. Next:
+implement the driver boundary for decoded tracker register plans, including
+reserved-channel sample/period writes and DMA restarts, then connect it to an
+actual representative module for combined playback measurements.
