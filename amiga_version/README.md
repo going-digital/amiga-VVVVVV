@@ -2384,3 +2384,46 @@ map remain outside this selector. Next: cover source room-entry music dispatch
 for final-level special cases and connect main-map selection at native route
 handoffs using a trace fixture. Tracker playback still awaits a representative
 musician-produced module and a player adapter with coordinated Paula ownership.
+
+## Room-entry music dispatch and native controller trace — 8 October 2026
+
+`v6_music_entry_track` and `v6_music_enter_room` now cover the music portion of
+source `Map.cpp` room-entry dispatch. Normal coordinates wrap independently to
+100/119 before main-map selection. Final mode takes precedence over custom mode;
+only final time-trial room (46,54) requests Predestined Fate Remix (15), including
+when a script is running. Other final rooms and custom-mode entries leave music
+unchanged. Flags and controller state are validated transactionally. Custom
+soundtrack playback and full final-level gameplay are not implemented here.
+`test-music-entry` matches 14,270 snapshots against extracted Map.cpp dispatch
+and Music.cpp controller methods, including extreme coordinates, mode precedence,
+final-trigger neighbors and stateful transitions. Area, control and intake
+regressions remain green.
+
+`make -C amiga_version tower-teleporter-music-capture` adds an opt-in trace-only
+controller to the native staged Building/Energize round trip. A virtual successful
+backend is seeded with track 4, then source dispatch selects each room at startup
+and route handoff. End-of-logic control ticks use 34 ms; the 124 cold scene-bank
+loading fields do not advance this logic-clock envelope. Music emits ordered
+adapter operations into the trace, with no tracker replay or Paula music writes.
+This fixture uses normal mode, no running script, no flip mode and no time trial.
+
+All 4,096 controller/operation/entry trace fields match the host oracle, with
+controller snapshots checked against extracted desktop methods. The fixture
+enters three rooms and requests looping tracks 2, 1 and 2 on ticks 1, 35 and 119;
+final control gain is 11. All 4,608 gameplay/render fields still match. On the
+A500 profile it uses 69,088 Chip bytes, peaks at 240 PAL lines and has zero errors
+or missed fields. The trace itself occupies 16,384 ordinary RAM bytes plus its
+header; these instrumentation costs are not a tracker replay timing estimate.
+Artifacts are in `build/amiga-teleporter-music/`.
+
+Native linkage exposed compiler runtime calls for 32-bit fade arithmetic and
+aggregate clearing. Bounded products/quotients now use 68000 MULU/DIVU and
+volatile byte clearing for trace plans, keeping the freestanding executable
+free of those runtime dependencies. All 30,167 source controller comparisons
+still pass, and the emitted arithmetic instructions are checked in the object.
+The reserved-audio report also now retains its accurate idle-reservation scope.
+
+Next: implement the adapter's user/control/instrument gain scaling and channel
+ownership rules, then measure combined playback using a representative converted
+tracker module. Native source music selection/fades are traced, but no music is
+yet audible and the shipping music/SFX split remains open.

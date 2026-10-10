@@ -43,11 +43,15 @@ def libraries():
 #define VVV_MAX_VOLUME 128
 #define Music_PATHCOMPLETE 0
 #define Music_PLENARY 7
+#define Music_PREDESTINEDFATEREMIX 15
 #define INBOUNDS_VEC(t,v) ((t)>=0 && (t)<16)
 #define vlog_error(...) ((void)0)
 static unsigned available;static bool present,paused;static int timestep;
 struct {bool custommode;} map;
-struct {int get_timestep(){return timestep;} bool intimetrial;} game;
+struct {int get_timestep(){return timestep;} bool intimetrial;int roomx,roomy,currentroomdeaths;} game;
+static bool finalmode,custommode;
+static int roomdeaths[400],roomdeathsfinal[400];
+struct {int mapwidth=20,mapheight=20;} cl;
 struct {bool running;} script;
 struct {bool setflipmode;} graphics;
 struct MusicTrack {
@@ -92,6 +96,12 @@ extern "C" void reference_snapshot(V6MusicControl *s){
  fade.start_volume,fade.end_volume,fade.duration_ms,fade.step_ms};
 }
 '''
+    dispatch_source=(ROOT/'desktop_version/src/Map.cpp').read_text()
+    begin=dispatch_source.index('    if (finalmode)\n    {\n        //Ok, what way')
+    dispatch=dispatch_source[begin:dispatch_source.index('    loadlevel(game.roomx, game.roomy);',begin)]
+    code+='\nextern "C" void reference_room(int rx,int ry,int final_,int custom_,int running,int flip,int trial){\n'
+    code+='finalmode=final_;custommode=custom_;script.running=running;graphics.setflipmode=flip;game.intimetrial=trial;\n'
+    code+=dispatch.replace('music.', 'm.')+'\n}\n'
     path=out/'music-control-reference.cpp';path.write_text(code)
     flags=['-O2','-shared','-fPIC','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
         '-I'+str(ROOT/'amiga_version'),'-I'+str(out)]

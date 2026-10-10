@@ -246,6 +246,36 @@ static const V6HallwayStory hallway_story={0,0,0,0,0};
 #endif
 #endif
 static V6TowerRoute route;
+#ifdef V6_TOWER_MUSIC_TRACE
+#include "music_control.h"
+static V6MusicControl route_music;
+typedef char music_state_trace_size[(sizeof(V6MusicControl)==64 && sizeof(V6MusicPlan)==52)?1:-1];
+static unsigned music_entry_pending;
+static volatile struct {ULONG magic,version,count,entries;int32_t records[128][32];}
+    music_trace={0x56364d55,1,0,0,{{0}}};
+static int music_trace_enter(void)
+{
+    V6MusicPlan p;
+    if(!v6_music_enter_room(&route_music,route.rooms[route.index].x,route.rooms[route.index].y,
+       0,0,0,0,0,&p))return 0;
+    ++music_trace.entries;music_entry_pending=1;return 1;
+}
+static int music_trace_tick(void)
+{
+    V6MusicPlan p;unsigned i;volatile int32_t *r;
+    const UBYTE *src;volatile UBYTE *dst;
+    /* Volatile byte stores avoid freestanding aggregate-init memset calls. */
+    dst=(volatile UBYTE *)&p;for(i=0;i<sizeof(p);++i)dst[i]=0;
+    if(!v6_music_tick(&route_music,34,&p) || music_trace.count>=128)return 0;
+    r=music_trace.records[music_trace.count];
+    src=(const UBYTE *)&route_music;dst=(volatile UBYTE *)r;
+    for(i=0;i<sizeof(route_music);++i)dst[i]=src[i];
+    src=(const UBYTE *)&p;dst=(volatile UBYTE *)(r+16);
+    for(i=0;i<sizeof(p);++i)dst[i]=src[i];
+    r[29]=route.rooms[route.index].x;r[30]=route.rooms[route.index].y;r[31]=music_entry_pending;
+    music_entry_pending=0;++music_trace.count;return 1;
+}
+#endif
 static unsigned route_loading,route_budget;
 static volatile struct { ULONG magic,version,index,transitions,returns,loading_frames,error; }
     route_diag={0x56365254,1,0,0,0,0,0};
@@ -539,6 +569,9 @@ static int route_source(void)
         v6_companion_enter(&companion,9,route.index<2,route.rooms[route.index].x,&route.session->player);
     else v6_companion_idle(&companion,trigger_crew_visible);
     if(route.index>=2) route.room.terrain=&hallway_terrain[route.index-2];
+#endif
+#ifdef V6_TOWER_MUSIC_TRACE
+    if(!music_trace_enter())return 0;
 #endif
     route_loading=2;route_budget=1;return 1;
 }
@@ -1119,6 +1152,15 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_CAPTION_HOLD
     rescue_vm.speech=&v6_rescue_speeches[V6_TOWER_CAPTION_HOLD];
+#endif
+#ifdef V6_TOWER_MUSIC_TRACE
+    {
+        V6MusicPlan p;
+        /* Trace-only virtual backend: seed Passion for Exploring, then apply
+         * the current room's source dispatch. No operations touch Paula. */
+        if(!v6_music_init(&route_music,65535) ||
+           !v6_music_command(&route_music,V6_MUSIC_PLAY,4,&p) || !music_trace_enter())return 20;
+    }
 #endif
     camera=0;
 #ifdef V6_TOWER_PLAY
@@ -1776,6 +1818,9 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_TELE_MENU
 tele_menu_paused:
+#endif
+#ifdef V6_TOWER_MUSIC_TRACE
+                if(!music_trace_tick())diag.error=16;
 #endif
                 diag.camera_mode=controller.mode;
                 ++diag.logic_ticks;

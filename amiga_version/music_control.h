@@ -28,4 +28,7 @@ int v6_music_tick(V6MusicControl *,unsigned timestep_ms,V6MusicPlan *);
  * preserve both state and plan. See music_area.h for coordinate/flag bounds. */
 int v6_music_change_area(V6MusicControl *,int x,int y,int script_running,
     int flip_mode,int time_trial,V6MusicPlan *);
+/* Source Map.cpp dispatch using unnormalized room-entry coordinates. */
+int v6_music_enter_room(V6MusicControl *,int room_x,int room_y,int final_mode,
+    int custom_mode,int script_running,int flip_mode,int time_trial,V6MusicPlan *);
 #endif

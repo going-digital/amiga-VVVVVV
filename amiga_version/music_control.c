@@ -1,5 +1,18 @@
 #include "music_control.h"
 #include "music_area.h"
+/* Products are bounded by 128*60000; every quotient fits 16 bits. Narrow
+ * operands use native MULU and DIVU on 68000, with no libgcc runtime. */
+static unsigned scaled(unsigned gain,unsigned elapsed,unsigned duration)
+{
+ uint32_t product=(uint32_t)(uint16_t)gain*(uint16_t)elapsed;
+#ifdef __m68k__
+ uint16_t divisor=(uint16_t)duration;
+ __asm volatile("divu.w %1,%0":"+d"(product):"d"(divisor):"cc");
+ return (uint16_t)product;
+#else
+ return product/duration;
+#endif
+}
 static int valid(const V6MusicControl *m,const V6MusicPlan *p)
 {
  return m && p && m->current>=-1 && m->current<16 && m->halted_song>=-1 && m->halted_song<16 &&
@@ -34,7 +47,7 @@ static void fade_in(V6MusicControl *m,int ms,V6MusicPlan *p)
 static void fade_out(V6MusicControl *m,int ms)
 {
  if(halted(m))return;
- m->fade_in=0;m->fade_out=1;m->elapsed=0;m->duration=ms*m->volume/128;
+ m->fade_in=0;m->fade_out=1;m->elapsed=0;m->duration=(int32_t)scaled((unsigned)m->volume,(unsigned)ms,128);
  m->start=m->volume;m->end=0;
 }
 static void play(V6MusicControl *m,int track,V6MusicPlan *p)
@@ -93,7 +106,11 @@ int v6_music_tick(V6MusicControl *m,unsigned ms,V6MusicPlan *p)
   old=m->volume;
   if(!m->duration || m->start==m->end || m->elapsed>=m->duration) {
    m->volume=m->end;m->elapsed=0;finished=1;
-  } else {m->volume=m->start+(m->end-m->start)*m->elapsed/m->duration;m->elapsed+=(int32_t)ms;}
+  } else {
+   int delta=m->end-m->start;
+   int change=(int)scaled((unsigned)(delta<0?-delta:delta),(unsigned)m->elapsed,(unsigned)m->duration);
+   m->volume=m->start+(delta<0?-change:change);m->elapsed+=(int32_t)ms;
+  }
   if(old!=m->volume)emit(p,V6_MUSIC_GAIN,-1,m->volume);
   if(finished){if(m->fade_out)halt_music(m,1,p);else m->fade_in=0;}
  }
@@ -106,6 +123,15 @@ int v6_music_change_area(V6MusicControl *m,int x,int y,int script_running,
 {
  int track;
  if(!valid(m,p) || !v6_music_area_track(x,y,script_running,flip_mode,time_trial,&track))return 0;
+ if(track==-1){p->count=0;return 1;}
+ return v6_music_command(m,V6_MUSIC_NICEPLAY,track,p);
+}
+
+int v6_music_enter_room(V6MusicControl *m,int x,int y,int final_mode,
+    int custom_mode,int script_running,int flip_mode,int time_trial,V6MusicPlan *p)
+{
+ int track;
+ if(!valid(m,p) || !v6_music_entry_track(x,y,final_mode,custom_mode,script_running,flip_mode,time_trial,&track))return 0;
  if(track==-1){p->count=0;return 1;}
  return v6_music_command(m,V6_MUSIC_NICEPLAY,track,p);
 }
