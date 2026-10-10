@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Recover fast pitched attacks supported by source evidence and nearby runs.
 
-These are candidate arpeggio/run notes, not inferred MOD arpeggio effects.
+Fast-run or recurring-phrase context validates candidate pitched attacks.
+These are not inferred MOD arpeggio effects.
 Retains accepted events and reserves the eighth channel for percussion.
 """
 import argparse
@@ -13,12 +14,14 @@ from arrange_tracker import role_map
 from recover_short_notes import note_rows
 
 
-def choose_fast(notes,evidence,bpm=92):
+def choose_fast(notes,evidence,bpm=92,context='fast-run',bar_seconds=None):
+    if context not in ('fast-run','recurring-phrase') or (context=='recurring-phrase' and (bar_seconds is None or not .5<=bar_seconds<=8)):
+        raise ValueError('invalid context/bar length')
     occupancy=collections.Counter(row for n in notes for row in note_rows(n,7.5/bpm))
     accepted=[];review=[]
     for e in sorted(evidence,key=lambda e:(-e['note'][3],e['note'][0],e['note'][2])):
         n=e['note'];start,end,pitch,strength=n
-        reason='accepted fast pitched attack'
+        reason='accepted fast pitched attack' if context=='fast-run' else 'accepted phrase-supported attack'
         current=notes+accepted
         overlap=lambda o:max(0,min(o[1],end)-max(o[0],start))
         # Supporting attacks come from the accepted baseline, not other new
@@ -29,10 +32,18 @@ def choose_fast(notes,evidence,bpm=92):
         preceding=[o for o in support if o[0]<start]
         following=[o for o in support if o[0]>start]
         run=any(a[2]!=b[2] and b[0]-a[0]<=.32 for a in preceding for b in following)
+        matches=[]
+        if context=='recurring-phrase':
+            period=bar_seconds*2
+            for index,o in enumerate(notes):
+                cycle=round((o[0]-start)/period)
+                if o[2]==pitch and o[3]>=.3 and 0<abs(cycle)<=6 and abs(o[0]-start-cycle*period)<=.035:
+                    matches.append(dict(note_index=index,cycle=cycle,time=o[0]))
+            run=len({m['cycle'] for m in matches})>=2
         rows=list(note_rows(n,7.5/bpm))
         if any(o[2]==pitch and overlap(o)>0 for o in current):
             reason='already covered by accepted pitch'
-        elif not .035<=end-start<=.128:
+        elif not .035<=end-start<=(.128 if context=='fast-run' else .35):
             reason='outside fast-note scope'
         elif strength<.3 or e['onset_probability']<.45 or e['contour_mean']<.18:
             reason='weak pitched attack evidence'
@@ -41,12 +52,12 @@ def choose_fast(notes,evidence,bpm=92):
         elif any(abs(o[2]-pitch)==1 and overlap(o)>(end-start)*.5 for o in current):
             reason='adjacent pitch ambiguity'
         elif not run:
-            reason='no accepted surrounding fast run'
+            reason='no accepted surrounding fast run' if context=='fast-run' else 'insufficient accepted phrase recurrence'
         elif any(occupancy[row]>=7 for row in rows):
             reason='would crowd accepted pitched voices'
         else:
             accepted.append(n);occupancy.update(rows)
-        review.append(dict(e,decision=reason))
+        review.append(dict(e,decision=reason,recurrence_matches=matches))
     return sorted(accepted,key=lambda n:(n[0],n[2])),review
 
 
@@ -58,6 +69,7 @@ def main():
     p.add_argument('--out',type=Path,required=True)
     p.add_argument('--duration',type=float,default=24)
     p.add_argument('--bpm',type=int,default=92)
+    p.add_argument('--context',choices=('fast-run','recurring-phrase'),default='fast-run')
     a=p.parse_args()
     if not 0<a.duration<=120 or not 32<=a.bpm<=255:p.error('invalid duration/BPM')
     notes=json.loads(a.notes.read_text());arrangement=json.loads(a.arrangement.read_text())
@@ -89,11 +101,16 @@ def main():
         ratio=float(cqt[index,cqframes].mean()/max(1e-12,cqt[index-1,cqframes].mean(),cqt[index+1,cqframes].mean()))
         evidence.append(dict(note=[start,end,pitch,strength],contour_mean=float(contour.mean()),
                              onset_probability=float(model['onset'][attacks,pitch-21].max()),pitch_ratio=ratio))
-    additions,review=choose_fast(notes,evidence,a.bpm)
+    bar=arrangement['percussion']['bar_template']['seconds'] if a.context=='recurring-phrase' else None
+    additions,review=choose_fast(notes,evidence,a.bpm,a.context,bar)
     output=a.out/'notes.json';output.write_text(json.dumps(notes+additions,indent=2)+'\n')
     arrangement['notes_sha256']=hashlib.sha256(output.read_bytes()).hexdigest()
     arrangement['roles']+=role_map(additions)
-    arrangement['fast_note_recovery']=dict(base_notes_sha256=base_sha,added_notes=additions,review=review,
+    if 'vibrato' in arrangement:
+        arrangement['vibrato'] += [None]*len(additions)
+    key='fast_note_recovery' if a.context=='fast-run' else 'phrase_note_recovery'
+    arrangement[key]=dict(base_notes_sha256=base_sha,added_notes=additions,review=review,context=a.context,
+                                           assumed_phrase_bars=2 if bar else None,
                                            limitations='Candidate fast runs need audition; accepted notes unchanged; original row grid; no MOD arpeggio/vibrato effects')
     (a.out/'arrangement.json').write_text(json.dumps(arrangement,indent=2)+'\n')
     print(json.dumps(dict(added_notes=additions,decisions=dict(collections.Counter(e['decision'] for e in review))),indent=2))

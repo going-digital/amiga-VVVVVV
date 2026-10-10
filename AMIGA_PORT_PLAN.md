@@ -3021,3 +3021,61 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/vibrato/arranged
 Next: audition modulation phase/depth at the two notes, then refine contour
 tracking for shorter notes and fast arpeggios. Percussion accuracy and native
 three/four-channel replay integration remain pending.
+
+### Trace export losses and recover phrase-supported omitted notes
+
+User still hears dropped notes after the initial vibrato pass. Distinguish
+recognition omissions from tracker allocation losses before changing timing.
+`working_module` now reports `unstarted_note_indices` and `delayed_attacks`
+with event indices and planned/actual rows. Tests distinguish a completely
+lost short note under overload from a held note that receives a late attack.
+
+The current baseline starts every recognized event. Its existing one-row
+omission is a delayed MIDI-68 attack at source time 22.282 seconds: eight
+pitched events briefly overlap, while percussion reserves channel 7. Event 24
+starts on row 274 instead of row 273. This is an actual eight-pitch overlap in
+the source event list, not merely an artifact of rounding. It remains unchanged;
+removing that overload requires a separate voice-sharing/chord-sample decision.
+
+The sensitive recognition pass had excluded useful candidates because they
+lacked accepted fast-run neighbors. `recover_fast_notes.py` now also supports
+`--context recurring-phrase`: same source attack/contour/CQT gates, accepted
+same-pitch repetitions at an assumed two-bar interval, alignment within 35 ms,
+and at least two distinct accepted repetition cycles (up to six cycles away).
+Accepted supporting notes must have confidence >=0.3. Duration scope is
+35–350 ms; duplicate/adjacent-pitch/capacity protections remain. New candidates
+cannot support one another. Phrase matching is additional evidence, not an
+instruction to fill all repeated positions. Only actual observed attacks are
+added; phrase length and candidate identity still need audition.
+
+Five candidates pass: E4 at 8.562 and 12.454 seconds, D4 at 17.042, F#4 at
+22.166 and F#3 at 23.780. The earlier fast-note addition remains intact. Saved
+vibrato metadata is extended with empty entries for new notes, retaining the
+two existing effects and doubled tick clock. Previous fast-note provenance is
+retained; the new review is stored separately as `phrase_note_recovery`.
+
+The module starts all 375 notes with no unstarted events, the same single late
+attack, eight vibrato rows and 71 drum hits. Original 370 events/roles/effects,
+every original pitched attack cell on its original row, all drum cells, header
+and sample bytes are preserved. File/sample sizes remain 21,314/9,990 bytes.
+Independent libxmp mix and bass/lead/harmony playback reaches the first loop,
+lasts 24.2 seconds and does not clip (mix peak 0.625). Licensed outputs remain
+ignored at `build/amiga-transcription/recurring-notes/{arranged-eight,bass,lead,harmony}.{mod,wav}`,
+with `notes.json`, source model outputs and editable `arrangement.json`.
+
+Tests cover distinct accepted phrase support, duplicate-cycle rejection and
+phase mismatch, alongside existing fast-note safeguards. New export audit tests
+cover complete losses versus late attacks; tracker, gap, vibrato and percussion
+recovery tests pass. This does not establish complete source-note coverage.
+
+```sh
+python3 tools/amiga/test_note_export_audit.py
+python3 tools/amiga/test_fast_note_recovery.py
+build/amiga-transcription-env/bin/python tools/amiga/recover_fast_notes.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/fast-notes/notes.json --arrangement build/amiga-transcription/vibrato/arrangement.json --out build/amiga-transcription/recurring-notes --context recurring-phrase
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/recurring-notes/notes.json --arrangement build/amiga-transcription/recurring-notes/arrangement.json --out build/amiga-transcription/recurring-notes
+python3 tools/amiga/render_tracker.py build/amiga-transcription/recurring-notes/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/recurring-notes/arranged-eight.wav
+```
+
+Next: audition the five recovered attacks; localize remaining recognition gaps,
+then refine rapid pitch changes, vibrato coverage and percussion. The known
+eight-pitch overlap and native three/four-channel reduction remain pending.

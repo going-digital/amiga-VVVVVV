@@ -30,6 +30,17 @@ class FastTests(unittest.TestCase):
         notes=run()+[[.08,.18,p,.7] for p in range(40,47)]
         self.assertEqual(choose_fast(notes,[evidence()])[0],[])
 
+    def test_phrase_support_needs_distinct_accepted_repetitions(self):
+        period=3.428
+        notes=[[.1,.2,64,.7],[.1+period,.2+period,64,.7]]
+        e=evidence(.1+2*period)
+        additions,review=choose_fast(notes,[e],context='recurring-phrase',bar_seconds=period/2)
+        self.assertEqual(additions,[e['note']])
+        self.assertEqual(len(review[0]['recurrence_matches']),2)
+        self.assertEqual(choose_fast([notes[0]]*4,[e],context='recurring-phrase',bar_seconds=period/2)[0],[])
+        shifted=evidence(e['note'][0]+.08)
+        self.assertEqual(choose_fast(notes,[shifted],context='recurring-phrase',bar_seconds=period/2)[0],[])
+
     def test_candidates_cannot_create_their_own_support(self):
         self.assertEqual(choose_fast([], [evidence(0,60),evidence(.1,64),evidence(.2,67)])[0],[])
 
