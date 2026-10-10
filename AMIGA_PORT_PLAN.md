@@ -3373,3 +3373,93 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/local-lead-notes
 Next: audition these localized changes, then distinguish independent lead
 energy from simultaneous accompaniment overtones in the unresolved windows.
 Do not substitute lowered thresholds or phrase recurrence for that distinction.
+
+
+### Lower-register lead-role audition; test timbre-induced apparent omissions
+
+Continue from the 409-event localized lead candidate. The remaining upper
+candidates frequently coincide with lower notes already present: MIDI 78 is
+an octave above 66, MIDI 76 an octave above 64, and MIDI 71 an octave above 59.
+At 11.895 s the MIDI 78 candidate instead matches the third harmonic of 59.
+Upper/lower frequency traces alone do not establish independent voices.
+
+A different hypothesis deserves audition: the pitch-only role threshold sends
+all MIDI pitches below 67 to the soft harmony bank. That bank's synthesized
+waveform has a fundamental plus weak third/fifth harmonics and no second
+harmonic. It cannot reproduce prominent upper energy in these source windows.
+The existing lead pulse bank has a second harmonic. A lower-register note can
+therefore be present in the event list while its missing upper harmonics make
+it sound unlike the foreground source instrument. This is a role/timbre
+hypothesis, not proof that the source contains no independent upper note.
+
+`audition_lead_roles.py` makes a separate comparison by selecting existing
+notes with explicit onset/pitch requests, requiring exactly one harmony event
+within 35 ms. It rejects duplicate/ambiguous requests, invalid lower-register
+pitches, and notes with existing calibrated vibrato (a different instrument
+requires fresh calibration). It changes only six supplied roles, copies the
+note file byte-for-byte, and records instrument/volume changes and provenance.
+The normal lead gain also applies, so this tests both brighter timbre and
+foreground level rather than claiming a timbre-only comparison.
+
+Selected events: 391 / MIDI 66 at 4.913588 s; 263 / MIDI 64 at 5.145788 s;
+200 / MIDI 66 at 10.292859 s; 179 / MIDI 59 at 11.895036 s; and 90 / MIDI 59
+plus 88 / MIDI 66 at 18.204390 s. Tracker attack volumes change respectively
+13->30, 13->31, 12->28, 15->36, 11->27 and 16->39. These are existing pitches;
+no uncertain octave candidate is added to the score.
+
+`compare_lead_role_harmonics.py` binds its diagnostic to the source, baseline
+arrangement, identical note files, independent replay module/library metadata,
+and rendered audio hashes. It measures first/second/third CQT harmonic
+magnitudes with three bins per semitone and normalizes each profile to its
+fundamental. Windows run from source onset +20 ms to the earlier of end -10 ms
+or onset +130 ms. Shared harmonics, interference, leakage and quantization can
+contaminate these mixed-source ratios; they are not instrument recognition.
+
+Measured second-harmonic ratios (fundamental normalized to 1):
+
+| Source event | Original role | Source | Role audition |
+| --- | ---: | ---: | ---: |
+| 4.914 s / MIDI 66 | 0.283 | 1.265 | 0.781 |
+| 5.146 s / MIDI 64 | 0.014 | 0.731 | 0.511 |
+| 10.293 s / MIDI 66 | 0.003 | 0.791 | 0.503 |
+| 11.895 s / MIDI 59 | 0.084 | 0.459 | 0.473 |
+| 18.204 s / MIDI 59 | 0.022 | 0.441 | 0.507 |
+| 18.204 s / MIDI 66 | 0.095 | 0.523 | 0.622 |
+
+Both second- and third-harmonic absolute ratio errors decrease at all six
+probes. At 18.204 s / MIDI 59, the third-harmonic ratio improves from 0.113 to
+0.734 versus source 0.940 when both MIDI 59 and 66 use the lead bank. This
+illustrates shared harmonic energy: the third harmonic of 59 nearly coincides
+with the second harmonic of 66. It still does not identify a missing voice.
+
+Verification: all 409 events start, with only the previous delayed attack near
+22.28 s. Encoded pitched attack row/period/sample-cycle multisets match the
+409-event baseline exactly; sample payload and every percussion channel cell
+match. Existing effects, event confidences/timings, all 71 drums and original
+92 editing grid (replay 184 / speed 6) stay intact. Independent libxmp mix/lead
+renders reach the first loop in 24.2 s, peaks 0.62454 / 0.40106, no clipping.
+MOD remains 21,314 bytes with 9,990 sample bytes; SHA-256
+`a33b4a621c82ec50bb54dab6d49c48b77fb7675d3ae68b68b5ebd9d413a7196e`.
+Tests cover exact role/input preservation, volume audit, explicit-request
+ambiguity/vibrato guards, and encoded pitch preservation through export.
+Tracker and allocation-audit tests pass. Channel choices may change with the
+role assignment; native mono/hard-panned reduction remains later work.
+
+Private preview, lead stem, editable arrangement, identical notes and measured
+profiles are ignored under `build/amiga-transcription/lead-role-audition/`.
+Localized source/comparison clips remain in `lead-gap-comparison/`. No music
+assets are committed. Keep this comparison separate until auditioned; no
+claim that the six reported gaps are resolved or that roles are recognized.
+
+```sh
+python3 tools/amiga/test_lead_role_audition.py
+python3 tools/amiga/audition_lead_roles.py --notes build/amiga-transcription/local-lead-notes/notes.json --arrangement build/amiga-transcription/local-lead-notes/arrangement.json --lead-note 4.914:66 --lead-note 5.146:64 --lead-note 10.293:66 --lead-note 11.895:59 --lead-note 18.204:59 --lead-note 18.204:66 --out build/amiga-transcription/lead-role-audition
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/lead-role-audition/notes.json --arrangement build/amiga-transcription/lead-role-audition/arrangement.json --out build/amiga-transcription/lead-role-audition
+python3 tools/amiga/render_tracker.py build/amiga-transcription/lead-role-audition/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/lead-role-audition/arranged-eight.wav
+build/amiga-transcription-env/bin/python tools/amiga/compare_lead_role_harmonics.py build/amiga-transcription/positive-force-excerpt.wav --baseline build/amiga-transcription/local-lead-notes --audition build/amiga-transcription/lead-role-audition
+```
+
+Next: audition the foreground role comparison at the reported gaps. If it
+helps, learn/source-check a consistent instrument assignment across repeated
+phrases rather than assuming pitch range determines the role. Continue source
+pitch/arpeggio, vibrato, percussion and native reduction work afterward.
