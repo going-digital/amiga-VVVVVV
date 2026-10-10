@@ -92,12 +92,13 @@ def module(notes, bpm, duration, reduced=False):
     return result, report
 
 
-def working_module(notes, bpm, duration, quantize=True):
+def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=None, role_levels=None):
     """Eight-channel editing master: retain held notes on their assigned lane.
 
-    Chord ranks are not instrument identities. This allocator stabilizes lanes
-    while preserving detected pitches; musical part separation remains future
-    work. The 8CHN file is an editing asset, not LSP/Paula replay input.
+    Held events keep their lanes. Optional roles select distinct timbres and
+    preferred channels with spillover; channel 7 is then reserved for supplied
+    one-shot percussion. Roles are supplied guesses, not instrument recognition.
+    The 8CHN file is an editing asset, not LSP/Paula replay input.
     """
     if not 32 <= bpm <= 255 or not 0 < duration <= 120:
         raise ValueError('BPM must be 32..255; duration must be 0..120 seconds')
@@ -105,6 +106,18 @@ def working_module(notes, bpm, duration, quantize=True):
     rows = math.ceil(duration / step)
     patterns = math.ceil(rows / 64)
     original_notes = notes
+    arranged = roles is not None
+    if arranged and (len(roles) != len(notes) or any(r not in ('bass','lead','harmony') for r in roles)):
+        raise ValueError('one valid role is required per detected note')
+    if percussion is not None and not arranged:
+        raise ValueError('percussion requires role arrangement')
+    percussion = percussion or dict(samples=[], hits=[])
+    role_levels = role_levels or dict(bass=1,lead=1.2,harmony=.5)
+    if any(not math.isfinite(role_levels[r]) or not 0 <= role_levels[r] <= 2
+           for r in ('bass','lead','harmony')):
+        raise ValueError('role levels must be finite gains from 0 to 2')
+    if len(percussion['samples']) > 3:
+        raise ValueError('at most three percussion samples')
     if quantize:
         notes = []
         for start, end, pitch, strength in original_notes:
@@ -115,7 +128,10 @@ def working_module(notes, bpm, duration, quantize=True):
     data = bytearray(patterns * 64 * 8 * 4)
     lanes = [None] * 8
     starts = dropped = 0
+    role_spills = 0
     cycles = (16, 32, 64, 128, 256)
+    preferred = dict(bass=[0,1], lead=[2,3], harmony=[4,5,6])
+    role_bank = dict(bass=0, lead=5, harmony=10)
     for row in range(rows):
         t = row * step
         active = {i for i, n in enumerate(notes) if n[0] <= t < n[1]}
@@ -135,9 +151,17 @@ def working_module(notes, bpm, duration, quantize=True):
         if pending:
             priority.append(pending.pop())
         priority.extend(sorted(pending, key=lambda i: -notes[i][3]))
-        free = [ch for ch, i in enumerate(lanes) if i is None]
+        free = [ch for ch, i in enumerate(lanes) if i is None and (not arranged or ch != 7)]
         dropped += max(0, len(priority)-len(free))
-        for ch, i in zip(free, priority):
+        for i in priority[:len(free)]:
+            if arranged:
+                role = roles[i]
+                wanted = [ch for ch in free if ch in preferred[role]]
+                ch = wanted[0] if wanted else free[0]
+                role_spills += not bool(wanted)
+            else:
+                ch = free[0]
+            free.remove(ch)
             n = notes[i]
             frequency = 440 * 2 ** ((n[2]-69)/12)
             options = [(j, round(3546895/(frequency*cycle)))
@@ -148,10 +172,25 @@ def working_module(notes, bpm, duration, quantize=True):
             j, period = min(valid, key=lambda item: abs(
                 3546895/(item[1]*cycles[item[0]])-frequency))
             at = row*32 + ch*4
-            data[at:at+4] = cell(j+1, period, 12,
-                                max(8, min(48, round(n[3]*48))))
+            sample = j+1+(role_bank[roles[i]] if arranged else 0)
+            gain = role_levels[roles[i]] if arranged else 1
+            data[at:at+4] = cell(sample, period, 12,
+                                max(0 if arranged else 8, min(48, round(n[3]*48*gain))))
             lanes[ch] = i
             starts += 1
+    drum_rows = {}
+    for hit in percussion['hits']:
+        row = max(0, math.floor(hit['time']/step+.5))
+        if row >= rows:
+            continue
+        if not 0 <= hit['sample'] < len(percussion['samples']):
+            raise ValueError('invalid percussion sample index')
+        if row not in drum_rows or hit['strength'] > drum_rows[row]['strength']:
+            drum_rows[row] = hit
+    for row, hit in drum_rows.items():
+        at = row*32+7*4
+        data[at:at+4] = cell(16+hit['sample'], 322, 12,
+                            max(8, min(48, round(hit['strength']*48))))
     for ch, value in enumerate((3, bpm)):
         data[ch*4+2] = (data[ch*4+2] & 240) | 15
         data[ch*4+3] = value
@@ -161,16 +200,38 @@ def working_module(notes, bpm, duration, quantize=True):
     header = bytearray(1084)
     header[:20] = b'Eight voice master'.ljust(20, b'\0')
     samples = []
-    for i, cycle in enumerate(cycles):
-        wave = bytes(round(90*2/math.pi*math.asin(math.sin(2*math.pi*j/cycle))) & 255
-                     for j in range(cycle))
+    banks = ('bass','lead','harmony') if arranged else ('triangle',)
+    for bank, role in enumerate(banks):
+        for j, cycle in enumerate(cycles):
+            values = []
+            for point in range(cycle):
+                phase = 2*math.pi*point/cycle
+                if role == 'bass':
+                    value = math.sin(phase)+.25*math.sin(2*phase)
+                elif role == 'lead':
+                    # Bright pulse-like wave, softened to seven harmonics.
+                    value = sum(math.sin(k*math.pi/4)/k * math.cos(k*phase)
+                                for k in range(1,min(8,cycle//2)))
+                elif role == 'harmony':
+                    value = math.sin(phase)+.2*math.sin(3*phase)+.1*math.sin(5*phase)
+                else:
+                    value = 2/math.pi*math.asin(math.sin(phase))
+                values.append(value)
+            peak = max(abs(v) for v in values)
+            wave = bytes(round(90*v/peak) & 255 for v in values)
+            samples.append(wave)
+            at = 20+(bank*5+j)*30
+            header[at:at+22] = (role+' '+str(cycle)).encode().ljust(22, b'\0')
+            default_volume = min(48, round(40*role_levels[role])) if arranged else 40
+            struct.pack_into('>HBBHH', header, at+22, cycle//2, 1, default_volume, 0, cycle//2)
+    for i, drum in enumerate(percussion['samples']):
+        wave = bytes(drum['pcm'])
+        if not wave or len(wave)%2 or len(wave)>131070:
+            raise ValueError('percussion sample must have a nonempty even MOD length')
         samples.append(wave)
-        at = 20+i*30
-        header[at:at+22] = ('Triangle '+str(cycle)).encode().ljust(22, b'\0')
-        # Fasttracker-style MOD playback maps periods to its note table.
-        # Fine +1 offsets most of the ~17-cent reference mismatch measured
-        # by independent playback; actual pitch is tested through libxmp.
-        struct.pack_into('>HBBHH', header, at+22, cycle//2, 1, 40, 0, cycle//2)
+        at = 20+(15+i)*30
+        header[at:at+22] = drum['name'].encode()[:22].ljust(22,b'\0')
+        struct.pack_into('>HBBHH', header, at+22, len(wave)//2, 0, 40, 0, 1)
     header[950] = patterns
     header[952:952+patterns] = bytes(range(patterns))
     header[1080:1084] = b'8CHN'
@@ -180,7 +241,11 @@ def working_module(notes, bpm, duration, quantize=True):
                         quantized=quantize, sample_finetune=1,
                         onset_rms_error_ms=1000*math.sqrt(sum(e*e for e in onset_errors)/max(1,len(onset_errors))),
                         onset_max_error_ms=1000*max([abs(e) for e in onset_errors], default=0),
-                        sample_bytes=sum(cycles), file_bytes=len(result),
+                        sample_bytes=sum(len(wave) for wave in samples), file_bytes=len(result),
+                        role_arrangement=arranged, role_spills=role_spills,
+                        role_levels=role_levels if arranged else None,
+                        percussion_hits=len(drum_rows),
+                        percussion_row_collisions=len(percussion['hits'])-len(drum_rows),
                         sha256=hashlib.sha256(result).hexdigest(),
                         scope='Editing master only; stable event lanes, no octave folding; not hardware replay input')
 

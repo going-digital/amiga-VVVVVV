@@ -5,6 +5,7 @@ import struct
 import unittest
 from transcribe_tracker import module, working_module
 from audit_music import audit
+from arrange_tracker import role_map
 
 
 class TrackerTests(unittest.TestCase):
@@ -62,6 +63,28 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(data[1084+64:1088+64], bytes([0,0,12,0]))
         self.assertEqual(report['note_starts'], 1)
         self.assertAlmostEqual(report['onset_max_error_ms'], 11)
+
+    def test_role_banks_and_reserved_percussion_lane(self):
+        notes = [[0,.5,p,.8] for p in (40,60,73)]
+        roles = role_map(notes)
+        self.assertEqual(roles,['bass','harmony','lead'])
+        drums = dict(samples=[dict(name='hit',pcm=[0,0,80,0,176,0])],
+                     hits=[dict(time=.1,sample=0,strength=.8)])
+        data, report = working_module(notes,150,1,roles=roles,percussion=drums)
+        def instrument(row,ch):
+            a,_,c,_ = data[1084+row*32+ch*4:1088+row*32+ch*4]
+            return (a & 240) | (c >> 4)
+        self.assertIn(instrument(0,0),range(1,6))
+        self.assertIn(instrument(0,2),range(6,11))
+        self.assertIn(instrument(0,4),range(11,16))
+        self.assertEqual(instrument(2,7),16)
+        self.assertEqual(report['note_starts'],3)
+        self.assertEqual(report['percussion_hits'],1)
+        self.assertEqual(report['omitted_note_rows'],0)
+        # Drum instrument has a non-looping two-byte restart region.
+        self.assertEqual(struct.unpack_from('>HH',data,20+15*30+26),(0,1))
+        with self.assertRaises(ValueError):
+            working_module(notes,150,1,roles=['bass'])
 
     def test_bounds(self):
         for bpm, duration in [(0,1), (256,1), (125,0), (125,121)]:

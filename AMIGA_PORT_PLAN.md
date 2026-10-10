@@ -2355,3 +2355,61 @@ attack before merging fragments or adding tracker vibrato/pitch effects.
 Next priority remains identifying melody, bass, harmony and percussion and
 improving timbres on the eight-channel master. Keep three/four-channel reduction
 and chord-sample baking downstream of that work.
+
+### Provisional musical roles, distinct timbres and percussion audition
+
+`tools/amiga/arrange_tracker.py` builds an editable eight-channel audition from
+cached detected notes and the source excerpt, keeping the chosen 92 BPM grid.
+Pitch-range guesses assign MIDI below 48 to bass, 67 and above to lead, and the
+remainder to harmony. These are provisional labels, not recovered instruments
+or a corrected score. Boundaries are CLI options; `arrangement.json` records a
+role per input note, role levels, transient samples and hit events. Reusing an
+edited arrangement checks the detected-note file digest and does not rerun note
+recognition or transient extraction. Vibrato and note-gap repair remain deferred.
+
+The master exporter accepts optional roles, prefers bass channels 0/1, lead 2/3
+and harmony 4/5/6, and spills into other free pitched channels during overlaps.
+Held notes retain their lanes. Channel 7 is reserved for percussion. Distinct
+loop banks use a round bass wave, a bright seven-harmonic pulse-like lead and
+softer harmony. Default level multipliers are bass 1, lead 1.2, harmony 0.5;
+these are editable audition choices, not measured source instrument matches.
+The original all-triangle working master remains available unchanged in mode.
+
+Percussion extraction uses a conservative HPSS percussive component, onset
+detection and spectral-centroid low/mid/high transient categories. It chooses
+one energetic source excerpt per category, converts it to a short 11,025 Hz
+signed 8-bit one-shot and reuses it for that category's detected hits. Attack and
+release fades reduce clip-edge clicks. Transient labels deliberately do not
+claim kick/snare/hat recognition. Melodic attacks can leak into samples and hit
+candidates; onset timestamps, selection, playback rate and repeatability require
+listening review. Same-row hits retain the stronger candidate; a subsequent hit
+can truncate the preceding one-shot on the single percussion lane.
+
+For Positive Force's first 24 seconds: 53 bass, 103 lead and 195 harmony guesses;
+all 351 note starts are played. Reserving percussion causes one omitted pitched
+note-row (the affected event starts later); 14 starts spill outside preferred
+role channels. 165 candidate transients produce 157 tracker hit rows after eight
+same-row collisions. Three 1,764-byte transient samples plus pitched banks use
+6,780 MOD sample bytes; the complete editing MOD occupies 18,104 bytes. These
+are MOD storage figures, not converted hardware bank measurements.
+
+Private mix, four isolated stems, MODs and editable arrangement are in
+`build/amiga-transcription/role-arrangement/`. Independent libxmp playback accepts
+all five modules, reaches their first loop and produces non-silent previews
+without clipping. They last 24.2 seconds including replay rounding/padding.
+Structural tests cover role-to-bank/channel assignments, percussion reservation,
+non-looping sample headers and invalid role counts; existing pitch/release/loop
+playback tests and music intake checks also pass. No subjective improvement or
+successful instrument separation is claimed before audition.
+
+```sh
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/eight-master/notes.json --out build/amiga-transcription/role-arrangement
+python3 tools/amiga/render_tracker.py build/amiga-transcription/role-arrangement/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/role-arrangement/arranged-eight.wav
+```
+
+To re-export corrections, add `--arrangement PATH_TO_EDITED_ARRANGEMENT_JSON`.
+The remaining `bass`, `lead`, `harmony` and `percussion` MOD stems can be rendered
+with the same command. Original and derived licensed assets remain ignored.
+Next: audition stems to correct role guesses and transient contamination, then
+improve instrument matching/envelopes. Three/four-channel reduction and chord
+sample baking remain downstream of the eight-channel arrangement.
