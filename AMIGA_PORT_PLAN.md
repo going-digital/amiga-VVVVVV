@@ -2642,3 +2642,61 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/regular-drums/ar
 Next: audition bar phase and template positions against the source, adjusting
 syncopation/fills where necessary while preserving accepted timbres. Original
 and derived licensed audio remain ignored and uncommitted.
+
+### Preserve promising groove; add sparse observed syncopation/pickups
+
+User audition finds the regularized bar phase promising and the result starting
+to sound musical. Keep that phase, steady groove and accepted drum timbres as
+the working baseline; this feedback does not confirm an exact rhythm score.
+
+`tools/amiga/vary_percussion.py` adds conservative variations to that accepted
+regular arrangement. The original unregularized observations must align within
+30% of a 16th-note slot (32.14 ms here), and an extra position must recur in at
+least three distinct bars. Multiple detections/roll hits in one bar count once.
+Even-slot offbeat kick positions may be restored in observed bars. Late-bar
+snare pickups may be restored only where observed at an assumed four-bar phrase
+end. At most one extra is allowed per bar, with a supported phrase-end pickup
+preferred there. Anchor positions and existing hits are never removed or moved.
+
+The bar length/phase are taken directly from the promising arrangement rather
+than re-estimated. Samples, instrument-header levels and EDx timing are retained.
+Variation support counts, original detection timestamps, alignment exclusions
+and chosen additions remain editable in the output JSON. Re-export is idempotent
+and retains the original base-groove hit list. This does not establish correct
+source drum identities, phrase length, rests or fills; the prior detector's
+labels can still be wrong. It is an audition of sparse evidence-backed additions.
+
+For Positive Force, four offbeat kicks at approximately 12.641, 16.069, 17.783
+and 22.925 seconds restore slot 6 (the eighth-note upbeat following beat 2),
+supported in four observed bars. One snare at 20.461 seconds restores slot 15
+(the last sixteenth before the next downbeat) at a phrase end; that slot has
+observations in five bars. Three observed slot-14 snare bars also qualify as
+candidates but are not selected under the one-extra/phrase-priority rules.
+Four original observations fail the alignment tolerance. Other isolated or
+non-qualifying positions remain suppressed; no fills are invented for missing
+observations or unobserved phrase boundaries.
+
+There are 61 placed drum hits (five more than the baseline), no row collisions
+and the same single excerpt-boundary skip. The original nonempty percussion
+cells, all pitched-channel cells, the full MOD header and every sample byte
+match the baseline. The module remains 21,314 bytes with 9,990 sample bytes.
+Independent libxmp playback accepts the mix/stem and reaches their first loop;
+24.2-second previews do not clip (mix peak 0.583; percussion 0.244). Artifacts:
+`build/amiga-transcription/varied-drums/{arranged-eight,percussion}.{mod,wav}`
+and the editable arrangement/variation report. Licensed outputs remain ignored.
+
+Tests cover anchor/sample/phase preservation, distinct-bar support, rejection of
+a one-bar roll and off-grid detections, observed phrase-end priority, one-extra
+per bar, non-mutation of input and idempotent regeneration. Existing bar-template
+and tracker-structure checks also pass.
+
+```sh
+python3 tools/amiga/test_percussion_variations.py
+python3 tools/amiga/vary_percussion.py --arrangement build/amiga-transcription/regular-drums/arrangement.json --out build/amiga-transcription/varied-drums
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/eight-master/notes.json --arrangement build/amiga-transcription/varied-drums/arrangement.json --out build/amiga-transcription/varied-drums
+python3 tools/amiga/render_tracker.py build/amiga-transcription/varied-drums/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/varied-drums/arranged-eight.wav
+```
+
+Next: compare the sparse additions to the steady baseline and source, retaining
+only musically justified variations. Vibrato repair, simultaneous percussion
+and three/four-channel reduction remain deferred.
