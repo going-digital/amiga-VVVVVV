@@ -3463,3 +3463,89 @@ Next: audition the foreground role comparison at the reported gaps. If it
 helps, learn/source-check a consistent instrument assignment across repeated
 phrases rather than assuming pitch range determines the role. Continue source
 pitch/arpeggio, vibrato, percussion and native reduction work afterward.
+
+
+### Accepted editing baseline and protected manual-edit handoff
+
+The user considers the latest reconstruction close enough for manual correction.
+Treat `lead-role-audition` (409 events, six lower-register role adjustments) as
+the working editing baseline and stop automatic recognition refinement for this
+excerpt. It is still an approximation, with vibrato/arpeggios, percussion and
+individual note corrections remaining. Acceptance for editing is not approval
+of native playback or a complete soundtrack conversion.
+
+`prepare_tracker_edit.py` creates a protected handoff under the ignored
+`build/amiga-transcription/manual-edit-v1/` directory:
+
+- `positive-force-edit.mod`: the editable eight-channel MOD, with a descriptive
+  title and pitched instrument names explaining their reference tuning.
+- `baseline.mod`: byte-identical accepted unedited module.
+- `preview.wav`: independent replay of the named editing copy; verified
+  byte-for-byte identical to the accepted preview.
+- `reference.wav`: original first-24-second mono excerpt.
+- `README.txt`: playback-clock, instrument, effect, location and save guidance.
+- `event-map.json`: all 409 source events matched to actual decoded tracker
+  order/pattern/row/channel/instrument/period/volume, including the delayed
+  attack and existing vibrato annotations.
+- `manifest.json`, `notes.json`, `arrangement.json`: initial provenance, source
+  recognition history and editing/reduction diagnostics.
+
+The editable MOD changes display-name bytes only. Pattern cells, sample
+metadata and sample PCM remain unchanged; initial editable SHA-256 is
+`30ae0d84894d2a8345973029cf0066b1cf67738fbeee9a292447a377d6383030`.
+It plays identically to baseline
+`a33b4a621c82ec50bb54dab6d49c48b77fb7675d3ae68b68b5ebd9d413a7196e`.
+The tool validates source/notes/module/replay-library provenance and the
+expected sample-bank format before preparing the copy. It refuses an existing
+output directory, preventing regeneration over later tracker edits. After
+manual changes, the edited MOD is authoritative; original JSON and event map
+are historical and must not be used to regenerate over those changes.
+
+Important editing details: enter replay BPM 184 / speed 6, preserving F06 and
+FB8, not the separate analysis-grid BPM 92. Rows are 81.522 ms. The source
+1.714-second bar does not align with the 64-row editing pattern boundary.
+Pitched sample banks contain five cycle lengths (16, 32, 64, 128, 256 samples)
+for each of bass, lead and harmony, rather than five different instruments.
+Names indicate approximate sounding C octave at period 428 (conventional
+tracker C-2); tracker octave labels can differ. Pitched finetune remains +1.
+Drum samples are decimal 16 / hex 10 kick and decimal 17 / hex 11 snare.
+Channels 1-7 carry pitched events with role spillover; channel 8 carries drums.
+The handoff is an eight-channel editing asset, not LSP/four-channel replay input.
+
+Correction markers map the user's reported times approximately as follows
+(order/pattern decimal, row hex): 3 s -> 0/0/25; 5 s -> 0/0/3D;
+9 s -> 1/1/2E; 10 s -> 1/1/3B; 12 s -> 2/2/13; 18 s -> 3/3/1D.
+The existing overloaded MIDI 68 attack near 22.28 s waits from order/pattern
+4 row 11 to row 12. No accepted event is completely lost by allocation.
+
+A decoded held-lane capacity audit starts the next three/four-channel planning
+step without silently dropping notes. Across 295 played rows, peak pitched
+activity is seven voices, and peak provisional foreground (lead/bass) activity
+is five. Reserving one music voice for percussion, 190 rows exceed a four-voice
+budget and 269 exceed a three-voice budget. On 54 rows, more than two foreground
+voices remain, so merely baking all harmony into one voice cannot guarantee
+four-voice playback. Roles remain guesses, not independent instrument tracks;
+manual part identification and selective foreground/composite sample decisions
+are necessary before choosing SFX ownership and native reduction. These row
+counts are a capacity diagnostic, not a duration-weighted musical quality score
+or a shipping voice-allocation decision.
+
+Four handoff tests cover display-only renaming/sample integrity and tuning
+labels, actual delayed/lost-event mapping, held-lane capacity/release counting,
+and refusal to overwrite an existing edit directory. Tracker and allocation
+audit tests pass. Full preparation independently replays the copy identically
+to the accepted audio. Original and derived music assets remain ignored and
+uncommitted; only tooling, tests and implementation records are committed.
+
+```sh
+python3 tools/amiga/test_tracker_edit_handoff.py
+python3 tools/amiga/prepare_tracker_edit.py --baseline build/amiga-transcription/lead-role-audition --reference build/amiga-transcription/positive-force-excerpt.wav --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/manual-edit-v1
+```
+
+The preparation command intentionally fails if that handoff already exists;
+choose a new version directory for an independent fresh handoff. Keep manual
+edits in a separately named MOD. This remains only the first 24 seconds; full
+Positive Force and other soundtrack tracks are not yet transcribed. Next:
+work from the manually corrected master for three/four-channel comparisons,
+selectively bake simultaneous parts where appropriate, then measure Chip bank
+size, mono/hard-panned balance, SFX policy and native replay alongside gameplay.
