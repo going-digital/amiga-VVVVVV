@@ -2238,3 +2238,46 @@ Next: listen against the source, correct beat/subdivision and stable voice
 assignment, separate bass/lead/percussion, and improve timbres before native
 replay integration. Current output is a reviewable recognition baseline, not
 shipping soundtrack quality.
+
+### Eight-channel working arrangement and revised reduction target
+
+User audition: the four-voice pitch sketch is recognisable but needs substantial
+refinement; the two-voice sketch is not recognisable. Two music voices are no
+longer the intended soundtrack budget. Plan for three or four music channels;
+SFX allocation must be reconsidered after the arrangement is convincing.
+Existing two-channel coexistence fixtures remain useful adapter tests, not a
+shipping channel-budget decision.
+
+The transcription exporter now writes `eight-channel.mod` (8CHN editing master)
+and the four-channel baseline by default. The rejected two-channel baseline is
+available only with `--legacy-two-channel`. The master retains held events on
+stable lanes, allocates new events to free lanes and uses different triangle
+loop lengths to preserve detected pitch without octave folding. This is event
+continuity, not identification of instruments or musical parts. It still uses
+the existing uncorrected 92 BPM grid and recognition results.
+
+For the Positive Force excerpt, the editing master retains all 351 detected
+note starts with zero omitted note-rows, uses 496 sample bytes, and occupies
+11,820 bytes. Private output: `build/amiga-transcription/eight-master/`. Tests
+cover stable held lanes when a lower note enters, low/high pitch preservation,
+eight-channel pattern storage, plus prior four-channel checks. The eight-channel
+file has not yet been auditioned or independently player-validated; the LSP
+converter and four-channel hardware intake are not its playback path.
+
+Next sequence:
+
+1. Correct the eight-channel master against the recording: beat/grid and note
+   errors first, then stable melody, bass, harmony and percussion parts, timbre
+   and envelopes. Additional channels preserve room for these parts; they do
+   not improve recognition automatically.
+2. Once the master is musically convincing, compare three- and four-channel
+   reductions. Keep lead/bass articulation; consider pre-rendered chord samples
+   or layered attacks for simultaneous inner voices. Chord sample transposition
+   shifts every component together, so use a suitable sample per chord shape
+   and retain independent parts when their timing/envelopes differ. Measure
+   converted Chip bank size and audible seams; do not assume tiny loop samples
+   suffice for every chord or instrument.
+3. Decide SFX policy from those arrangements (reserved voice, temporary voice
+   stealing or further measured mixing), then validate ownership-safe native
+   replay, timing and memory alongside gameplay. No shipping allocation is
+   selected by the eight-channel editing format.

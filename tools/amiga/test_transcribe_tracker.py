@@ -3,7 +3,7 @@
 import math
 import struct
 import unittest
-from transcribe_tracker import module
+from transcribe_tracker import module, working_module
 from audit_music import audit
 
 
@@ -34,6 +34,25 @@ class TrackerTests(unittest.TestCase):
         row = report['rows']-1
         self.assertEqual(data[1084+row*16+14] & 15, 11)
         self.assertEqual(audit(data)['trailing_bytes'], 0)
+
+    def test_eight_channel_master_retains_pitches_and_held_lanes(self):
+        # New lower note must not reshuffle/retrigger seven sustained notes.
+        notes = [[0, .8, pitch, .8] for pitch in (24,36,48,55,60,67,84)]
+        notes.append([.2, .6, 30, .8])
+        data, report = working_module(notes, 150, 1)
+        self.assertEqual(data[1080:1084], b'8CHN')
+        self.assertEqual(report['note_starts'], 8)
+        self.assertEqual(report['omitted_note_rows'], 0)
+        self.assertEqual(len(data), 1084+2048+report['sample_bytes'])
+        cycles = (16,32,64,128,256)
+        for ch, note in enumerate((notes[0], notes[6], *notes[1:6])):
+            a,b,c,_ = data[1084+ch*4:1088+ch*4]
+            instrument = (a & 240) | (c >> 4)
+            frequency = 3546895/(((a & 15)*256+b)*cycles[instrument-1])
+            expected = 440*2**((note[2]-69)/12)
+            self.assertLess(abs(1200*math.log2(frequency/expected)), 10)
+        for ch in range(7):
+            self.assertEqual(data[1084+4*32+ch*4:1088+4*32+ch*4], bytes(4))
 
     def test_bounds(self):
         for bpm, duration in [(0,1), (256,1), (125,0), (125,121)]:
