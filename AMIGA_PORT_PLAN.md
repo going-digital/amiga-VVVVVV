@@ -2413,3 +2413,18 @@ with the same command. Original and derived licensed assets remain ignored.
 Next: audition stems to correct role guesses and transient contamination, then
 improve instrument matching/envelopes. Three/four-channel reduction and chord
 sample baking remain downstream of the eight-channel arrangement.
+
+### Role-arrangement audition: melody close; percussion needs identification
+
+User audition finds the role-based mix close and the melody close. Retain that
+arrangement and the original timing grid as the next comparison baseline.
+Percussion, especially the drum sample, is not being recognised adequately.
+The present low/mid/high transient exemplars are not identified drum instruments;
+this feedback establishes percussion identification and timbre matching as the
+next priority, ahead of general melodic timbre changes or channel reduction.
+
+Next: inspect candidate source hits and isolated percussion, distinguish actual
+drum attacks from melodic leakage, and match representative drum sounds and
+hit timing. Preserve the accepted melodic baseline during that comparison.
+Vibrato and associated missing-note repair remain deferred. This audition does
+not confirm every melodic note or validate the current percussion transcription.
