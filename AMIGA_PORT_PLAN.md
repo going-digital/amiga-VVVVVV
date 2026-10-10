@@ -3079,3 +3079,59 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/recurring-notes/
 Next: audition the five recovered attacks; localize remaining recognition gaps,
 then refine rapid pitch changes, vibrato coverage and percussion. The known
 eight-pitch overlap and native three/four-channel reduction remain pending.
+
+### Restore same-pitch attacks hidden inside held recognition events
+
+Continue investigating remaining dropped attacks. Earlier recovery stages
+reject any candidate overlapping an accepted same pitch; that protection also
+hides genuine repeated attacks inside notes the first recognizer merged.
+
+`tools/amiga/retrigger_notes.py` examines model onset peaks within accepted
+held events. Peaks must have prominence >=0.15, onset probability >=0.7 and
+note probability >=0.3. Source CQT strength must rise at least 2x at the
+fundamental and 1.5x at the second harmonic, comparing 45–10 ms before the
+candidate with 0–40 ms afterward. Fundamental strength after the attack must
+also exceed either adjacent semitone by 1.3x. These source gates reject many
+model-only peaks and isolated harmonic/noise changes.
+
+Require at least 70 ms from the event edges and between restored attacks,
+distinct interior tracker rows and no existing same-pitch attack within 40 ms.
+Already annotated vibrato notes are excluded to preserve their articulation.
+Split qualifying held events into contiguous same-pitch segments, keeping the
+original attack, final release, pitch, gain and role. Additional tail segments
+inherit their parent's role and receive no new vibrato. Quantized per-pitch
+coverage and simultaneous voice occupancy remain exactly unchanged; this pass
+adds retriggers rather than new concurrent voices or new pitches.
+
+Twenty-five attacks qualify. Of 185 reviewed internal peaks, 121 fail model
+attack evidence, 38 fail isolated harmonic rises and one is excluded to preserve
+vibrato. The exported module starts all 400 events, retaining the same single
+late attack at row 273/274, eight vibrato-effect rows and 71 drum hits. Every
+original pitched attack cell remains on its original row. Complete drum cells,
+MOD header and all sample bytes match the previous version; final per-pitch
+coverage matches at every quantized row. File/sample sizes remain 21,314/9,990
+bytes. Independent libxmp mix and bass/lead/harmony renders reach the first loop,
+last 24.2 seconds and do not clip (mix peak 0.625). The mix waveform changes
+(RMS difference 0.0198), confirming the retriggers affect playback. Their
+musical articulation still needs audition; these gates do not establish exact
+source note identity or intended envelopes.
+
+Ignored licensed artifacts:
+`build/amiga-transcription/retriggered-notes/{arranged-eight,bass,lead,harmony}.{mod,wav}`,
+`notes.json`, model outputs and editable `arrangement.json` with peak decisions
+and tail-to-parent event indices. Tests cover original attack/pitch/gain/release
+and input preservation, exact quantized coverage, complete playback allocation,
+weak/model-only/single-harmonic attacks, vibrato exclusion, duplicate rows,
+close/edge attacks and repeated-selection stability. Existing tracker, vibrato
+and note-export audit tests pass.
+
+```sh
+python3 tools/amiga/test_note_retriggers.py
+build/amiga-transcription-env/bin/python tools/amiga/retrigger_notes.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/recurring-notes/notes.json --arrangement build/amiga-transcription/recurring-notes/arrangement.json --out build/amiga-transcription/retriggered-notes
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/retriggered-notes/notes.json --arrangement build/amiga-transcription/retriggered-notes/arrangement.json --out build/amiga-transcription/retriggered-notes
+python3 tools/amiga/render_tracker.py build/amiga-transcription/retriggered-notes/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/retriggered-notes/arranged-eight.wav
+```
+
+Next: audition repeated-note articulation, then investigate residual missing
+pitches, more vibrato coverage and inaccurate/missing percussion. The known
+eight-pitch overlap and native three/four-channel reduction remain pending.
