@@ -28,7 +28,9 @@ def main():
     parser.add_argument('--audio',action='store_true')
     parser.add_argument('--reserved-audio',action='store_true')
     parser.add_argument('--music',action='store_true')
+    parser.add_argument('--coexist-audio',action='store_true')
     args=parser.parse_args()
+    if args.coexist_audio and not (args.audio and args.reserved_audio):parser.error('--coexist-audio requires --audio --reserved-audio')
     if args.music and (not args.roundtrip or args.audio or args.colour or args.flash or args.outbound):parser.error('--music requires full roundtrip without audio/colour/flash/outbound')
     if args.reserved_audio and not args.audio:parser.error('--reserved-audio requires --audio')
     if args.audio and (not args.roundtrip or args.colour or args.outbound or args.flash):parser.error('--audio requires full roundtrip')
@@ -41,6 +43,7 @@ def main():
     if args.colour:BUILD=ROOT/'build/amiga-teleporter-colour'
     if args.audio:BUILD=ROOT/('build/amiga-teleporter-reserved' if args.reserved_audio else 'build/amiga-teleporter-paula')
     if args.music:BUILD=ROOT/'build/amiga-teleporter-music'
+    if args.coexist_audio:BUILD=ROOT/'build/amiga-coexist-audio'
     ticks=6 if args.colour else 1 if args.flash else 64 if args.outbound else 128
     config=BUILD/'energize.toml'
     config.write_text(f'''rom = {json.dumps(str(Path.home()/'amiga/KICK13.ROM'))}
@@ -75,7 +78,7 @@ write_protected = true
     chip_bytes=69088
     if args.audio:
         manifest=json.loads((ROOT/'build/amiga-feasibility/teleporter-samples.json').read_text())
-        chip_bytes+=sum(s['pcm_bytes'] for s in manifest['samples'])+2
+        chip_bytes+=sum(s['pcm_bytes'] for s in manifest['samples'])+2+(64 if args.coexist_audio else 0)
     assert display['max_work_lines']<=250 and display['chip_bytes']==chip_bytes,display
     assert display['logic_ticks']==ticks
     assert display['logic_ticks']*34000+display['logic_remainder']==display['logic_frames']*19968
@@ -211,8 +214,11 @@ write_protected = true
         report['scope']='Native staged departure/handoff/arrival and cold scene banks; audio, screen shake, persistence and explored menu destinations pending'
     if args.audio:
         from teleporter_audio_capture import verify
-        verify(report,dump,BUILD/'audio-stems',reserved=args.reserved_audio)
+        verify(report,dump,BUILD/'audio-stems',reserved=args.reserved_audio,coexist=args.coexist_audio)
         report['scope']=('Native two-channel SFX reservation and priority replacement; reserved channels idle; gameplay oracle and captured playback verified; music playback and shipping allocation pending' if args.reserved_audio else 'Native hard-panned Paula cue overlap and round trip; final music/SFX allocation, screen shake, saving and menu destinations pending')
+    if args.coexist_audio:
+        from coexist_audio_capture import verify
+        verify(report,dump,BUILD/'audio-stems')
     if args.music:
         from music_capture import verify
         verify(report,dump)

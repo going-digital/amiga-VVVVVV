@@ -378,6 +378,72 @@ static void travel_audio_record(void)
     travel_audio_diag.values[6]=travel_audio_peak;
     travel_policy_diag.stolen=travel_stolen;
 }
+#ifdef V6_TOWER_COEXIST_AUDIO
+#include "music_gain.h"
+#include "music_registers.h"
+static UBYTE *coexist_sample;
+static unsigned coexist_fields,coexist_stage;
+static volatile struct {ULONG magic,version,count,violations;ULONG records[7][6];}
+    coexist_diag={0x56364d58,1,0,0,{{0}}};
+static int coexist_apply(const V6AudioPlan *p)
+{
+    unsigned i;
+    for(i=0;i<p->count;++i) {
+        unsigned r=p->writes[i].reg,v=p->writes[i].value;
+        if((r==0x96 && (v&15)&3) || (r==0x9c && (v&0x780)&0x180) ||
+           (r!=0x96 && r!=0x9c && (r<0xc0 || r>0xd8))) {
+            ++coexist_diag.violations;return 0;
+        }
+    }
+    for(i=0;i<p->count;++i)*(volatile UWORD *)(0xdff000UL+p->writes[i].reg)=(UWORD)p->writes[i].value;
+    return 1;
+}
+static int coexist_tick(ULONG hardware_frame)
+{
+    V6AudioPlan raw,guarded,gain;unsigned i,period[4]={161,161,161,241};
+    unsigned instruments[4]={64,64,48,32},control=128,mute=0;
+    ++coexist_fields;
+    /* Raw audio IRQ acknowledgements deliberately include the SFX channels.
+     * Run before SFX polling: filtering must preserve their pending IRQs. */
+    raw.count=1;raw.writes[0].reg=0x9c;raw.writes[0].value=0x780;
+    if(!v6_music_register_plan(&raw,12,3,&guarded) || !coexist_apply(&guarded))return 0;
+    if(coexist_fields!=1 && coexist_fields!=80 && coexist_fields!=120 &&
+       coexist_fields!=160 && coexist_fields!=200 && coexist_fields!=240 && coexist_fields!=280)return 1;
+    if(coexist_fields==1) {
+        raw.count=0;
+        for(i=0;i<4;++i) {
+            unsigned b=0xa0+16*i;ULONG address=(ULONG)coexist_sample;
+            raw.writes[raw.count].reg=b;raw.writes[raw.count++].value=address>>16;
+            raw.writes[raw.count].reg=b+2;raw.writes[raw.count++].value=address&65535;
+            raw.writes[raw.count].reg=b+4;raw.writes[raw.count++].value=32;
+            raw.writes[raw.count].reg=b+6;raw.writes[raw.count++].value=period[i];
+        }
+        if(!v6_music_register_plan(&raw,12,3,&guarded) || !coexist_apply(&guarded))return 0;
+    }
+    if(coexist_fields==80 || coexist_fields==120 || coexist_fields==160)control=64;
+    if(coexist_fields==120)mute=1;
+    if(coexist_fields>=240){period[2]=251;period[3]=181;}
+    if(coexist_fields==240) {
+        raw.count=4;
+        for(i=0;i<4;++i){raw.writes[i].reg=0xa6+16*i;raw.writes[i].value=period[i];}
+        if(!v6_music_register_plan(&raw,12,3,&guarded) || !coexist_apply(&guarded))return 0;
+    }
+    if(coexist_fields==280)control=0;
+    if(!v6_music_gain_plan(12,3,instruments,control,256,0,mute,&gain) ||
+       !v6_music_register_plan(&gain,12,3,&guarded) || !coexist_apply(&guarded))return 0;
+    if(coexist_fields==1 || coexist_fields==280) {
+        raw.count=1;raw.writes[0].reg=0x96;raw.writes[0].value=coexist_fields==1?0x800f:15;
+        if(!v6_music_register_plan(&raw,12,3,&guarded) || !coexist_apply(&guarded))return 0;
+    }
+    {
+        volatile ULONG *r=coexist_diag.records[coexist_stage++];
+        r[0]=coexist_fields;r[1]=hardware_frame;r[2]=period[2];r[3]=period[3];
+        r[4]=gain.writes[0].value;r[5]=gain.writes[1].value;coexist_diag.count=coexist_stage;
+    }
+    return 1;
+}
+#endif
+
 #endif
 static V6TeleporterDeparture departure;
 static unsigned travel_leg;
@@ -516,7 +582,12 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #define AUDIO_DMA_BYTES CUE_DMA_BYTES
 #define AUDIO_IRQ_MASK (INTF_AUD0|INTF_AUD1)
 #elif defined(V6_TOWER_TRAVEL_AUDIO)
-#define AUDIO_DMA_BYTES (TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+2)
+#ifdef V6_TOWER_COEXIST_AUDIO
+#define COEXIST_BYTES 64
+#else
+#define COEXIST_BYTES 0
+#endif
+#define AUDIO_DMA_BYTES (TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+2)
 #define AUDIO_IRQ_MASK (INTF_AUD0|INTF_AUD1|INTF_AUD2|INTF_AUD3)
 #else
 #define AUDIO_DMA_BYTES 0
@@ -1337,6 +1408,10 @@ static int run(void) {
         unsigned i;travel_audio_chip=chip+CHIP_BYTES-AUDIO_DMA_BYTES;
         for(i=0;i<TELEPORTER_FLASH_BYTES;++i)travel_audio_chip[i]=teleporter_flash[i];
         for(i=0;i<TELEPORTER_TELEPORT_BYTES;++i)travel_audio_chip[TELEPORTER_FLASH_BYTES+i]=teleporter_teleport[i];
+#ifdef V6_TOWER_COEXIST_AUDIO
+        coexist_sample=travel_audio_chip+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES;
+        for(i=0;i<64;++i)coexist_sample[i]=(UBYTE)(i<32?(int)i*6-96:288-(int)i*6);
+#endif
         for(i=0;i<4;++i)if(!v6_paula_init(&travel_voices[i],i,(ULONG)(travel_audio_chip+AUDIO_DMA_BYTES-2))) {
             FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
         }
@@ -1486,6 +1561,9 @@ static int run(void) {
             v6_audio_tick(&cue_audio,(hw->intreqr&INTF_AUD0)!=0,&plan);
             audio_apply(&plan);audio_record();
         }
+#endif
+#ifdef V6_TOWER_COEXIST_AUDIO
+        if(!coexist_tick(frames))diag.error=17;
 #endif
 #ifdef V6_TOWER_TRAVEL_AUDIO
         {
@@ -1903,6 +1981,12 @@ tele_menu_paused:
     }
 #ifdef V6_TOWER_UI_SAVE
     if(!ui_os_paused) {
+#endif
+#ifdef V6_TOWER_COEXIST_AUDIO
+    {
+        V6AudioPlan raw,p;raw.count=1;raw.writes[0].reg=0x96;raw.writes[0].value=15;
+        if(v6_music_register_plan(&raw,12,3,&p))coexist_apply(&p);
+    }
 #endif
 #ifdef V6_TOWER_TRAVEL_AUDIO
     {

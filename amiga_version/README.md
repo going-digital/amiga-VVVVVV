@@ -2492,3 +2492,47 @@ No new native playback, Chip allocation or timing claim is introduced. Next:
 compose gain plans and guarded sample/restart plans in a native synthetic
 music/SFX coexistence fixture, then connect an actual converted representative
 tracker module to measure the replay adapter and combined frame budget.
+
+## Native synthetic music/SFX coexistence — 10 October 2026
+
+`make -C amiga_version tower-coexist-audio-capture` now combines synthetic
+looping replay on channels 2/3 with the two-channel teleporter SFX pool on 0/1.
+A generated 64-byte triangle sample is shared by the looping voices, with
+instrument volumes 48/32. Decoded plans intentionally contain writes for all
+four channels: the register boundary removes SFX-owned locations, lengths,
+periods, DMA and IRQ bits before application. Music IRQ acknowledgement runs
+before SFX IRQ polling, exercising isolation with the hardware voices active.
+A separate native application check records forbidden-write attempts.
+
+Seven hardware-field stages cover start (field 1), half gain (80), music mute
+(120), half-gain restoration (160), full gain (200), changed periods (240) and
+stop (280). Gain plans are also passed through the register boundary. Synthetic
+playback continues during cold scene-bank loading independently of logic ticks;
+this is fixed synthetic replay, not tracker tempo scheduling or a MOD player.
+The stop uses a raw all-channel DMA-clear plan, testing preservation of active
+SFX channels through filtering. Exit cleanup also stops music-owned DMA.
+
+Captured isolated stems verify half-gain ratios of approximately 0.500 on both
+voices, exact silent mute windows, restored gains and final sustained silence.
+Hann-windowed spectral scans find fundamentals 344/221 Hz on channel 2 and
+230/306 Hz on channel 3 before/after period changes. Spectral analysis avoids
+false extra zero crossings from emulator filter ringing. Aggregate stereo
+correlations confirm hardware panning (0.915/0.965). All eight SFX requests start;
+seven cues drain completely and one flash is replaced by a teleport, as in the
+existing two-channel policy fixture. SFX waveforms, durations, replacement and
+silence remain valid with the synthetic voices active. Both ownership diagnostics
+report zero violations; all 4,608 gameplay/render trace fields still match.
+
+On the A500 profile the combined fixture uses 110,882 Chip bytes (64 more than
+the reserved-SFX fixture), peaks at 234 PAL lines, and reports zero errors or
+missed fields. Artifacts are in `build/amiga-coexist-audio/`. Gain and register
+boundary host tests and freestanding link checks also pass. The original private
+cue assets remain in ignored build output; the synthetic sample is generated
+at startup and introduces no licensed music asset.
+
+This validates the adapter primitives during native overlapping playback;
+it does not measure Lightspeedplayer, tracker conversion, actual module memory
+or soundtrack quality. The fixture holds its scene for capture, so full OS-exit
+restoration has not been capture-validated here. Next: adapt actual tracker
+replay to emit decoded ownership-safe plans and measure a representative module
+alongside gameplay/SFX before selecting the shipping music channel budget.

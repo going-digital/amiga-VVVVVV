@@ -4,7 +4,7 @@ import math
 import struct
 from audio_capture import ROOT,read_wav
 
-def verify(report,ram,folder,reserved=False):
+def verify(report,ram,folder,reserved=False,coexist=False):
     data=ram.read_bytes();at=data.index(b'V6TA\0\0\0\1')
     values=struct.unpack_from('>8I',data,at+8)
     assert values[:7]==((0,8,7,15,8,0,2) if reserved else (0,8,8,16,8,0,3)),values
@@ -29,6 +29,7 @@ def verify(report,ram,folder,reserved=False):
         channel_records=[r for r in records if r[2]==channel]
         order=[r[1] for r in channel_records]
         if not order:
+            if coexist and channel in (2,3):continue
             assert max(map(abs,wave),default=0)<1e-6
             continue
         active=[i for i in range(0,len(wave),256) if max(map(abs,wave[i:i+256]),default=0)>.002]
