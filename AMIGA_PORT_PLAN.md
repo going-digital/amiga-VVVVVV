@@ -2488,3 +2488,29 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/drum-refinement/
 
 Use the same renderer for `percussion.mod`. Original and derived recordings,
 exemplars and modules remain ignored and uncommitted.
+
+### Drum-candidate audition: reject melodic contamination
+
+User audition of the repeated-hit candidates finds melodic content remaining:
+
+- Sample 1 (kick candidate) contains higher-pitched melodic material that should
+  not be in the drum sample. It is contaminated and not accepted as a kick.
+- Sample 2 (snare candidate) sounds like a chord rather than percussion and is
+  not recognised. Reject it as a percussion exemplar.
+- Sample 3 (hat candidate) sounds close to an instrument in the track. Retain it
+  only as a possible instrument/timbre reference, not as a confirmed hi-hat.
+
+The controlled synthetic test did not establish separation or drum identification
+in the mixed game recording. The real-song brightness clusters are still able
+to select pitched attacks/chords. Neither the candidate labels nor their 166
+hit assignments are accepted as a drum transcription. Existing private outputs
+remain available as comparison artifacts, not approved musical assets.
+
+Next change the recognition criterion before another sample-selection pass:
+inspect harmonicity, pitch stability/sweep, broadband noise and amplitude decay
+in source hits to distinguish pitched attacks from percussion. Then seek clean
+representative hits or reconstruct drum sounds from measured noise/decay/sweep
+parameters if isolated samples remain contaminated. Avoid promoting source
+chops to drum samples on spectral brightness alone. Preserve the accepted
+melody/grid, keep sample 3 separately available for instrument comparison, and
+leave vibrato repair deferred.
