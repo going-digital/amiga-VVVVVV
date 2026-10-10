@@ -2459,3 +2459,36 @@ no new Chip allocation, audible music or playback timing is claimed. Next:
 implement the driver boundary for decoded tracker register plans, including
 reserved-channel sample/period writes and DMA restarts, then connect it to an
 actual representative module for combined playback measurements.
+
+## Decoded tracker register ownership boundary — 10 October 2026
+
+`music_registers.c/h` add a transactional filter for decoded word-register plans.
+Disjoint music/SFX masks select ownership; SFX and unassigned AUDn location,
+length, period and volume writes are removed. Audio DMA/IRQ masks are reduced to
+music-owned bits, preserving set/clear direction and operation order; operations
+with no remaining channel bits are omitted. Exact in-place filtering is supported.
+The full input (including suppressed channels) is validated before output changes.
+Unsupported registers, global DMA/interrupt bits, invalid volumes, oversized
+word values and plans above 16 writes are rejected. Global DMA master ownership
+and interrupt enables remain the platform takeover layer's responsibility.
+
+This boundary assumes volume words have already passed through gain scaling. It
+does not validate Chip pointer accessibility, sample lifetimes or complete tracker
+commands. Raw LSP byte/long writes must be decoded by an adapter first; running
+upstream replay directly against Paula would bypass these guarantees. Larger
+tracker ticks require planned batching; this API is bounded to 16 writes per plan.
+No shipping channel allocation or native tracker integration is selected here.
+
+`make -C amiga_version test-music-registers` checks 41,472 partition/DMA/IRQ plans
+and exact in-place results under undefined behaviour sanitization. Independent
+register models begin with all channels enabled and all audio IRQs pending,
+confirming that reserved sample/period registers, DMA bits and IRQ bits survive.
+Tests also cover every supported channel register, full-capacity plans, mixed
+valid/malformed streams, forbidden global bits, suppressed-channel errors, NULL
+inputs and transactional rejection. The object cross-compiles and links as a
+freestanding 68000 entry point with no runtime library dependencies.
+
+No new native playback, Chip allocation or timing claim is introduced. Next:
+compose gain plans and guarded sample/restart plans in a native synthetic
+music/SFX coexistence fixture, then connect an actual converted representative
+tracker module to measure the replay adapter and combined frame budget.

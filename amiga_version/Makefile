@@ -784,3 +784,12 @@ test-music-gain: $(BUILD)/music_gain.o
 	$(CC) -nostdlib -m68000 -Wl,-e,v6_music_gain_plan $< -o $(BUILD)/music_gain-check.elf
 	python3 $(ROOT)/tools/amiga/test_music_gain.py
 test: test-music-gain
+
+$(BUILD)/music_registers.o: music_registers.c music_registers.h audio.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+-include $(BUILD)/music_registers.d
+.PHONY: test-music-registers
+test-music-registers: $(BUILD)/music_registers.o
+	$(CC) -nostdlib -m68000 -Wl,-e,v6_music_register_plan $< -o $(BUILD)/music-registers-check.elf
+	python3 $(ROOT)/tools/amiga/test_music_registers.py
+test: test-music-registers
