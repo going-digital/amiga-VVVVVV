@@ -2854,3 +2854,51 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/recovered-drums/
 Next: audition these restored attacks, inspect sustained/vibrato-related note
 gaps, and investigate percussion events absent from the candidate timestamps.
 New percussion identities and three/four-channel reduction remain later work.
+
+### Audition supported short same-pitch release gaps
+
+Continue from the accepted section improvements and latest masked-percussion
+candidate. Remaining dropped-note feedback motivates checking gaps between
+same-pitch notes, while retaining every recognized attack and the drum pattern.
+
+`tools/amiga/recover_note_gaps.py` compares adjacent same-pitch events with
+fresh Basic Pitch frame/onset/contour evidence and source CQT strength. A gap
+must be 20–200 ms, with mean/minimum note probabilities >=0.2/0.12, mean/minimum
+contour probabilities >=0.18/0.14 within one third of a semitone, and mean source
+pitch strength >=1.4 times either neighboring semitone. An internal onset >=0.5
+blocks extension; 25 ms around each edge is excluded from that onset check so
+the preserved following attack does not count as an internal attack. Extensions
+must change at least one tracker row and leave room among seven pitched voices.
+
+Five of 22 gaps pass; 15 fail continuous model evidence and two fail isolated
+source pitch evidence. Their original release times are 7.016, 10.525, 10.908,
+17.483 and 17.937 seconds, with extensions of approximately 197, 186, 128, 93
+and 58 ms. The previous note is extended to the next same-pitch attack; that
+following event remains separate and is retriggered normally. All start times,
+pitches, strengths, roles and event ordering are retained. This is an audition
+of release extensions, not confirmation of intended legato articulation or a
+transcription of vibrato effects. There are no newly inferred pitches/attacks.
+
+The MOD retains all 369 note starts, the original single omitted-note row and
+71 percussion hits. Every pitched attack cell remains on its original tracker
+row (lanes may change); every percussion cell, header and sample byte matches
+the latest percussion baseline. Sizes remain 21,314/9,990 bytes. Independent
+libxmp mix and bass/lead/harmony renders reach the first loop, last 24.2 seconds
+and do not clip (mix peak 0.583). Ignored licensed audition artifacts:
+`build/amiga-transcription/note-gaps/{arranged-eight,bass,lead,harmony}.{mod,wav}`,
+`notes.json`, model output and `arrangement.json` with gap evidence/review.
+
+Tests cover attack/input preservation, conservative release changes, silence,
+pitch changes, internal attacks, tracker quantization and voice capacity.
+Existing tracker, short-note, section and percussion-recovery checks pass.
+
+```sh
+python3 tools/amiga/test_note_gap_recovery.py
+build/amiga-transcription-env/bin/python tools/amiga/recover_note_gaps.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/note-recovery/notes.json --arrangement build/amiga-transcription/recovered-drums/arrangement.json --out build/amiga-transcription/note-gaps
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/note-gaps/notes.json --arrangement build/amiga-transcription/note-gaps/arrangement.json --out build/amiga-transcription/note-gaps
+python3 tools/amiga/render_tracker.py build/amiga-transcription/note-gaps/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/note-gaps/arranged-eight.wav
+```
+
+Next: audition articulation around the five extensions, then investigate fully
+missing pitch events and percussion onsets absent from the existing candidates.
+Actual vibrato effects and three/four-channel reduction remain later work.
