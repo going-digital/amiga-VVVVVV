@@ -2748,3 +2748,51 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/note-recovery/ar
 Next: audition the short-note additions against the accepted mix/source, then
 investigate percussion changes by section and missed hits/instruments. Vibrato
 repair and three/four-channel reduction remain subsequent work.
+
+### Restore a recurring percussion position within the later section
+
+User audition confirms the 18 short-note additions are an improvement. Keep
+that 369-note arrangement as the working baseline. The next percussion pass
+preserves those notes, the accepted groove, sparse pickups, phase and samples.
+
+`tools/amiga/section_percussion.py` examines the existing source observations
+for positions recurring in at least four distinct bars with at least 75%
+coverage between the first and last observed bars. Alignment must be within
+30% of a sixteenth-note slot. It restores only observed hits, adds at most one
+per bar and preserves every existing event. Late-bar material stays under the
+prior phrase/pickup rules. Saved base hits make regeneration idempotent.
+
+For Positive Force, one position qualifies: snare slot 9, observed in all six
+bars 8–13. Restore it at 14.676, 16.390, 18.104, 19.818, 21.532 and 23.246
+seconds. Source observations differ from these grid times by at most 3.82 ms.
+This is the sixteenth immediately after beat 3, producing a repeating later
+section change rather than assuming the same pattern throughout the excerpt.
+The source detector's snare identity remains uncertain; audition this addition
+before treating the rhythm as confirmed. No hats/new instruments, unsupported
+hits, missing-bar interpolation or late-bar fills are introduced.
+
+The new module contains 67 placed drum hits, zero collisions and the existing
+single excerpt-boundary skip. All pitched-channel cells, every existing drum
+cell, the entire MOD header and all sample bytes match the improved baseline.
+Only six previously empty percussion cells change. All 369 note starts remain;
+file/sample sizes stay 21,314/9,990 bytes. Independent libxmp mix and percussion
+renders reach the first loop and produce 24.2-second previews without clipping
+(peaks 0.583/0.244). This remains an eight-channel editing master.
+
+Artifacts: `build/amiga-transcription/section-drums/{arranged-eight,percussion}.{mod,wav}`
+and editable `arrangement.json` containing support, section bounds and added-hit
+metadata. Original/derived licensed audio remain ignored and uncommitted.
+Tests cover preservation, idempotence, distinct-bar support, sparse/roll rejection,
+absence of interpolation, late-fill exclusion and existing-event collisions.
+Existing tracker, rhythm, variation and short-note checks also pass.
+
+```sh
+python3 tools/amiga/test_section_percussion.py
+python3 tools/amiga/section_percussion.py --arrangement build/amiga-transcription/note-recovery/arrangement.json --out build/amiga-transcription/section-drums
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/note-recovery/notes.json --arrangement build/amiga-transcription/section-drums/arrangement.json --out build/amiga-transcription/section-drums
+python3 tools/amiga/render_tracker.py build/amiga-transcription/section-drums/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/section-drums/arranged-eight.wav
+```
+
+Next: audition the recurring offbeat snare, then improve source percussion
+recognition for missing hits/instruments rather than filling unsupported gaps.
+Vibrato and three/four-channel reduction remain later work.
