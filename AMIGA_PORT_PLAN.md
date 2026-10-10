@@ -3135,3 +3135,58 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/retriggered-note
 Next: audition repeated-note articulation, then investigate residual missing
 pitches, more vibrato coverage and inaccurate/missing percussion. The known
 eight-pitch overlap and native three/four-channel reduction remain pending.
+
+### Recover quieter missing notes using independent source harmonic attacks
+
+User audition finds the repeated-note recovery good, with some notes still
+missing. Continue from that 400-event baseline, preserving articulation,
+vibrato and percussion. Earlier context rules excluded isolated attacks and
+the confidence cutoff excluded quieter candidates despite strong source rises.
+
+`recover_fast_notes.py --context source-harmonics` requires onset probability
+>=0.7, mean contour support >=0.18 and source pitch strength >=1.4 times either
+adjacent semitone. A 128-sample-hop CQT independently measures rises at the
+fundamental and second harmonic: >=2x/1.5x between 45–10 ms before the candidate
+and 0–40 ms afterward. With those source gates, mean recognition confidence
+may be >=0.22 rather than >=0.3. Durations stay within 35–350 ms; accepted-pitch
+coverage, adjacent-pitch ambiguity and seven-pitched-voice capacity guards remain.
+No run/phrase is inferred or used to fabricate an unobserved attack.
+
+Reject candidate pitches 12, 19 or 24 semitones above an accepted lower attack
+starting within 40 ms. This flags possible second/third/fourth harmonics that
+otherwise satisfy the same source-rise checks; it does not establish that every
+such candidate is an overtone. Three otherwise qualifying candidates are
+excluded on that ambiguity, including proposed octave notes at 1.718/2.672 s.
+
+Seven candidates pass: A3 at 4.066, G#3 at 6.854, D#4 at 7.492, B3 at 9.212,
+F#4 at 10.177, C#4 at 12.964 and F#4 at 17.042 seconds. Four are below the
+previous 0.3 confidence cutoff; three lacked accepted fast-run/phrase support.
+All have observed model attacks and source harmonic rises. Existing provenance
+is retained, with the new evidence and decisions in `source_note_recovery`.
+These are additions to audition, not confirmation of complete note coverage.
+
+The export starts all 407 events, with no unstarted notes and exactly the same
+single delayed attack at row 273/274. All original 400 events/roles/vibrato
+annotations remain; every prior pitched attack cell stays on its original row.
+Drum cells, full MOD header and sample bytes match the baseline exactly. Eight
+vibrato rows and 71 drum hits remain. Sizes stay 21,314/9,990 bytes. Independent
+libxmp mix and bass/lead/harmony renders reach the first loop, last 24.2 seconds
+and do not clip (mix peak 0.625). Licensed assets remain ignored at
+`build/amiga-transcription/source-supported-notes/{arranged-eight,bass,lead,harmony}.{mod,wav}`,
+with `notes.json`, model output and editable `arrangement.json`.
+
+Tests cover quiet-source support without phrase context, rejection of weak
+onsets/single-harmonic rises and simultaneous lower-note overtone ambiguity,
+alongside existing duplicate/neighbor/capacity guards. Tracker, retrigger,
+vibrato, note-export audit and percussion-recovery tests also pass.
+
+```sh
+python3 tools/amiga/test_fast_note_recovery.py
+build/amiga-transcription-env/bin/python tools/amiga/recover_fast_notes.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/retriggered-notes/notes.json --arrangement build/amiga-transcription/retriggered-notes/arrangement.json --out build/amiga-transcription/source-supported-notes --context source-harmonics
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/source-supported-notes/notes.json --arrangement build/amiga-transcription/source-supported-notes/arrangement.json --out build/amiga-transcription/source-supported-notes
+python3 tools/amiga/render_tracker.py build/amiga-transcription/source-supported-notes/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/source-supported-notes/arranged-eight.wav
+```
+
+Next: audition these quieter/isolated attacks, then localize remaining missing
+pitch evidence and refine vibrato/arpeggio coverage and percussion accuracy.
+The known eight-pitch overlap and three/four-channel reduction remain pending.

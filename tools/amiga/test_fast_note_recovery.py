@@ -41,6 +41,22 @@ class FastTests(unittest.TestCase):
         shifted=evidence(e['note'][0]+.08)
         self.assertEqual(choose_fast(notes,[shifted],context='recurring-phrase',bar_seconds=period/2)[0],[])
 
+    def test_source_attack_can_support_quiet_note_without_phrase_context(self):
+        e=evidence(note=[.1,.17,64,.24],onset_probability=.8,fundamental_rise=3,harmonic_rise=2)
+        self.assertEqual(choose_fast([],[e],context='source-harmonics')[0],[e['note']])
+        self.assertEqual(choose_fast([],[e])[0],[])
+        for changes in (dict(fundamental_rise=1),dict(harmonic_rise=1),dict(onset_probability=.6)):
+            weak=dict(e,**changes)
+            self.assertEqual(choose_fast([],[weak],context='source-harmonics')[0],[])
+
+    def test_source_attack_rejects_overtone_of_lower_accepted_attack(self):
+        e=evidence(note=[.1,.17,76,.24],onset_probability=.8,fundamental_rise=3,harmonic_rise=2)
+        for distance in (12,19,24):
+            notes=[[.1,.2,76-distance,.7]]
+            added,review=choose_fast(notes,[e],context='source-harmonics')
+            self.assertEqual(added,[])
+            self.assertEqual(review[0]['decision'],'possible overtone of accepted simultaneous lower attack')
+
     def test_candidates_cannot_create_their_own_support(self):
         self.assertEqual(choose_fast([], [evidence(0,60),evidence(.1,64),evidence(.2,67)])[0],[])
 
