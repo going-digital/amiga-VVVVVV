@@ -2514,3 +2514,65 @@ parameters if isolated samples remain contaminated. Avoid promoting source
 chops to drum samples on spectral brightness alone. Preserve the accepted
 melody/grid, keep sample 3 separately available for instrument comparison, and
 leave vibrato repair deferred.
+
+### Percussion reconstruction instead of contaminated source chops
+
+`tools/amiga/reconstruct_drums.py` starts from the previous candidate timestamps
+but evaluates nearby original-audio attacks independently of their rejected
+brightness labels. It checks active-band spectral flatness, narrow-peak energy
+concentration, decay, low-frequency dominant-peak movement and high-band energy.
+A kick hypothesis requires a low-frequency downward sweep; a noise-drum
+hypothesis requires a sufficiently broadband, decaying attack. Other events are
+retained as rejected/ambiguous observations. Candidate provenance must match
+the supplied recording; analysis skips short end-of-excerpt clips.
+
+Accepted groups provide median sweep/decay parameters. Their samples contain
+no copied source waveform: kick is one exponentially swept sine oscillator;
+snare/hat paths use reproducible seeded filtered noise with decaying envelopes.
+Low-band residual decay estimates the kick envelope; noise envelopes use the
+measured decay, with bounded fallback/clamping where mixed-source estimates
+are weak. Filters and oscillator/noise models are deliberately simple timbre
+approximations, not confirmed matches to source instruments. This removes the
+previous direct route by which melodic notes/chords entered sample audio, but
+it does not establish that all retained timestamps are actual drum hits.
+
+Controlled checks recognize isolated sweep/noise drum fixtures, reject strongly
+attacked and decaying sine/chord fixtures, verify sample determinism and decay,
+check that reconstructed kick energy above 600 Hz is below 1%, and produce no
+drums from silent input. Those fixtures do not prove separation or classification
+accuracy when real drums and instruments overlap in the source recording.
+
+For Positive Force, 13 kick and 37 snare hypotheses remain, 115 attacks are
+rejected, and one short final clip is skipped. No hat passes the conservative
+criteria; do not invent a hat sequence or reuse sample 3 as a confirmed hat.
+The estimated kick sweep is approximately 151 to 86 Hz with a 62 ms amplitude
+constant. The simple snare noise envelope is clamped to 100 ms. The editable
+arrangement records all measurements/rejection reasons. Reconstructed samples
+and pitched banks total 9,990 MOD sample bytes; the MOD is 21,314 bytes. These
+are editing-file figures, not converted Amiga bank measurements.
+
+The seven pitched-channel cells across all 320 stored rows, their instrument
+headers and the 1,488-byte pitched bank remain byte-for-byte equal to the
+accepted role arrangement. The original 92 BPM grid, 351 pitched note starts,
+role levels and prior overlap delay remain unchanged. Vibrato repair is deferred.
+Independent libxmp playback accepts the new mix/percussion modules, completes
+the first loop and produces non-clipping previews (mix peak 0.486; percussion
+0.292). Both bounded previews last 24.2 seconds with rounding/padding.
+
+Private outputs: `build/amiga-transcription/reconstructed-drums/`, with mix,
+percussion stem, standalone `kick.wav`/`snare.wav`, editable measurements and
+arrangement. A copy of the old sample 3 is retained separately as
+`instrument-reference-3.wav` for instrument comparison; it is not played as a
+drum in this arrangement. No licensed audio/modules are committed.
+
+```sh
+build/amiga-transcription-env/bin/python tools/amiga/test_drum_reconstruction.py
+build/amiga-transcription-env/bin/python tools/amiga/reconstruct_drums.py build/amiga-transcription/positive-force-excerpt.wav --candidates build/amiga-transcription/drum-refinement/arrangement.json --arrangement build/amiga-transcription/role-arrangement/arrangement.json --out build/amiga-transcription/reconstructed-drums
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/eight-master/notes.json --arrangement build/amiga-transcription/reconstructed-drums/arrangement.json --out build/amiga-transcription/reconstructed-drums
+python3 tools/amiga/render_tracker.py build/amiga-transcription/reconstructed-drums/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/reconstructed-drums/arranged-eight.wav
+```
+
+Next: audition these reconstructed drum timbres and the reduced candidate hit
+sequence against the source; correct missing/wrong hits and envelope/timbre
+estimates. No subjective drum match is claimed before that review. Simultaneous
+percussion and three/four-channel reduction remain later work.
