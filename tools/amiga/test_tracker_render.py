@@ -51,6 +51,19 @@ def main():
             delayed_audio=np.frombuffer(wav.readframes(wav.getnframes()),dtype='<i2').reshape(-1,2)/32768
         assert np.max(np.abs(delayed_audio[:round(.025*48000)])) <= 2/32768
         assert np.sqrt(np.mean(delayed_audio[round(.045*48000):round(.07*48000)]**2)) > .01
+        # Twice the tick clock must preserve an accepted ED2 onset as ED4.
+        clocks=[]
+        for multiplier in (1,2):
+            clocked,_=working_module([],92,.4,roles=[],percussion=dict(
+                samples=[drum],hits=[dict(time=.054,sample=0,strength=.8)],timing='ticks'),
+                tick_multiplier=multiplier)
+            path=root/('clock-'+str(multiplier))
+            path.with_suffix('.mod').write_bytes(clocked)
+            render(args.library,path.with_suffix('.mod'),path.with_suffix('.wav'),1)
+            with wave.open(str(path.with_suffix('.wav'))) as wav:
+                samples=np.frombuffer(wav.readframes(wav.getnframes()),dtype='<i2').reshape(-1,2)
+            clocks.append(int(np.where(np.max(np.abs(samples),axis=1)>3)[0][0]))
+        assert abs(clocks[0]-clocks[1])<=1,clocks
         # Corrupt eight-channel storage must be rejected by independent loader.
         (root/'broken.mod').write_bytes(module[:1084])
         try:

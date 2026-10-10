@@ -92,7 +92,7 @@ def module(notes, bpm, duration, reduced=False):
     return result, report
 
 
-def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=None, role_levels=None):
+def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=None, role_levels=None, vibrato=None, tick_multiplier=1):
     """Eight-channel editing master: retain held notes on their assigned lane.
 
     Held events keep their lanes. Optional roles select distinct timbres and
@@ -102,10 +102,19 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
     """
     if not 32 <= bpm <= 255 or not 0 < duration <= 120:
         raise ValueError('BPM must be 32..255; duration must be 0..120 seconds')
+    if tick_multiplier not in (1,2) or bpm*tick_multiplier>255:
+        raise ValueError('invalid replay tick multiplier/tempo')
     step = 7.5 / bpm
     rows = math.ceil(duration / step)
     patterns = math.ceil(rows / 64)
     original_notes = notes
+    if vibrato is not None and (len(vibrato)!=len(notes) or any(
+            v is not None and (set(v)!={'speed','depth'} or
+                any(not isinstance(v[k],int) or not 1<=v[k]<=15 for k in ('speed','depth')))
+            for v in vibrato)):
+        raise ValueError('one optional valid vibrato speed/depth per note')
+    vibrato = vibrato or [None]*len(notes)
+    vibrato_rows=0
     arranged = roles is not None
     if arranged and (len(roles) != len(notes) or any(r not in ('bass','lead','harmony') for r in roles)):
         raise ValueError('one valid role is required per detected note')
@@ -143,6 +152,10 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
                 data[at:at+4] = cell(effect=12)
             elif i is not None:
                 assigned.add(i)
+                if vibrato[i] is not None:
+                    at=row*32+ch*4
+                    data[at:at+4]=cell(effect=4,value=(vibrato[i]['speed']<<4)|vibrato[i]['depth'])
+                    vibrato_rows+=1
         pending = sorted(active-assigned, key=lambda i: (notes[i][2], i))
         # Preserve bass and melody first on overload, then stronger inner notes.
         priority = []
@@ -186,6 +199,7 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
         if tick_timing:
             tick = max(0, math.floor(hit['time']/(step/3)+.5))
             row, delay = divmod(tick,3)
+            delay *= tick_multiplier
         else:
             row, delay = max(0, math.floor(hit['time']/step+.5)), 0
         if row >= rows or (tick_timing and row == rows-1):
@@ -207,7 +221,7 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
         else:
             data[at:at+4] = cell(16+hit['sample'], 322, 12,
                                 max(8, min(48, round(hit['strength']*48))))
-    for ch, value in enumerate((3, bpm)):
+    for ch, value in enumerate((3*tick_multiplier, bpm*tick_multiplier)):
         data[ch*4+2] = (data[ch*4+2] & 240) | 15
         data[ch*4+3] = value
     at = (rows-1)*32 + 7*4
@@ -256,8 +270,8 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
     header[1080:1084] = b'8CHN'
     result = bytes(header+data+b''.join(samples))
     return result, dict(channels=8, rows=rows, duration=rows*step,
-                        bpm=bpm, note_starts=starts, omitted_note_rows=dropped,
-                        quantized=quantize, sample_finetune=1,
+                        bpm=bpm, replay_bpm=bpm*tick_multiplier, replay_speed=3*tick_multiplier, note_starts=starts, omitted_note_rows=dropped,
+                        quantized=quantize, sample_finetune=1, vibrato_rows=vibrato_rows,
                         onset_rms_error_ms=1000*math.sqrt(sum(e*e for e in onset_errors)/max(1,len(onset_errors))),
                         onset_max_error_ms=1000*max([abs(e) for e in onset_errors], default=0),
                         sample_bytes=sum(len(wave) for wave in samples), file_bytes=len(result),

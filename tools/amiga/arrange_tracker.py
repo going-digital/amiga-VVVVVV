@@ -90,16 +90,17 @@ def main():
                            limitations='Provisional pitch-range roles and HPSS transient guesses; no vibrato repair; source transient samples may retain melodic attacks.')
     arrangement.setdefault('role_levels',dict(bass=1,lead=1.2,harmony=.5))
     data, report = working_module(notes,args.bpm,args.duration,roles=arrangement['roles'],
-                                  percussion=arrangement['percussion'],role_levels=arrangement.get('role_levels'))
+                                  percussion=arrangement['percussion'],role_levels=arrangement.get('role_levels'),vibrato=arrangement.get('vibrato'),tick_multiplier=arrangement.get('tick_multiplier',1))
     (args.out/'arranged-eight.mod').write_bytes(data)
     (args.out/'arrangement.json').write_text(json.dumps(arrangement,indent=2)+'\n')
     (args.out/'report.json').write_text(json.dumps(report,indent=2)+'\n')
     # Separate pitched stems use the same MOD player/tuning as the arrangement.
     for role in ('bass','lead','harmony'):
         subset = [note for note,r in zip(notes,arrangement['roles']) if r==role]
-        stem, _ = working_module(subset,args.bpm,args.duration,roles=[role]*len(subset),role_levels=arrangement.get('role_levels'))
+        effects = [v for v,r in zip(arrangement.get('vibrato',[None]*len(notes)),arrangement['roles']) if r==role]
+        stem, _ = working_module(subset,args.bpm,args.duration,roles=[role]*len(subset),role_levels=arrangement.get('role_levels'),vibrato=effects,tick_multiplier=arrangement.get('tick_multiplier',1))
         (args.out/(role+'.mod')).write_bytes(stem)
-    drum, _ = working_module([],args.bpm,args.duration,roles=[],percussion=arrangement['percussion'],role_levels=arrangement.get('role_levels'))
+    drum, _ = working_module([],args.bpm,args.duration,roles=[],percussion=arrangement['percussion'],role_levels=arrangement.get('role_levels'),tick_multiplier=arrangement.get('tick_multiplier',1))
     (args.out/'percussion.mod').write_bytes(drum)
     print(json.dumps(report,indent=2))
 

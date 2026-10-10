@@ -2957,3 +2957,67 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/fast-notes/arran
 Next: audition the single added attack; investigate pitch contours for vibrato
 and source-supported rapid pitch changes that event recognition still misses.
 Accurate percussion and three/four-channel reduction remain pending.
+
+### First coherent source-vibrato audition, with calibrated MOD effects
+
+Continue from the accepted note-gap improvement and the single fast-note
+candidate. Inspect sustained source notes for sinusoidal pitch modulation.
+`tools/amiga/detect_vibrato.py` fits interpolated spectral peak pitch within
++/-60 cents of each expected fundamental and its second harmonic. Use 2048-point
+STFT windows at 22,050 Hz, 128-sample hops, and exclude 45 ms at both note edges.
+Fit constant/drift plus 3–10 Hz sine/cosine components to notes >=400 ms and
+MIDI >=60. Periodic score is measured against a linear-drift baseline.
+
+Both harmonics must score >=0.75, agree within 0.3 Hz and 0.4 radians, have
+compatible depths (ratio 0.6–1.6), fundamental depth 5–35 cents, drift <=30
+cents/second and at least 2.5 observed cycles. This rejects pitch drift and many
+polyphonic/interference fits. Two notes qualify: C#5 at 9.096 seconds and E5
+at 11.349 seconds. Their estimated source rates are 7.8/7.85 Hz and depths
+7.67/9.72 cents. A third initially promising note lacks sufficient final evidence.
+
+Standard MOD vibrato on the old 92 BPM/speed-3 tick clock cannot reach the
+source rate: independent playback measures approximately 5.8 Hz at maximum
+speed 15. The exporter now optionally doubles transport tempo and speed to
+184 BPM/speed 6. Row duration and original 92 BPM editing grid remain exactly
+the same. Accepted drum EDx delay values are doubled, preserving their original
+rounded onset times rather than re-quantizing the percussion. Default export
+behavior remains at the original clock when this option is absent.
+
+The detector independently renders candidate effects using local libxmp and
+chooses speed/depth against measured playback. Each source candidate becomes
+482 (speed 8, depth 2): measured rate 7.65 Hz, depths 10.41/12.29 cents, periodic
+scores >0.97. Calibration must score >=0.6, stay within 0.5 Hz and have depth
+ratio 0.5–1.5 relative to source. Source fits, calibration WAV/MOD/render reports,
+chosen effects and calibration-library SHA remain reviewable under ignored build
+outputs. Depth is coarse and the spectral window attenuates modulation; phase
+is not source-aligned. Effects start on held rows after the original attack,
+so onset volume commands and every attack remain intact. Note releases stop
+modulation normally. This is a two-note audition, not complete vibrato recovery.
+
+`working_module` accepts per-note vibrato metadata and the optional doubled
+clock; `arrange_tracker.py` retains these effects in pitched stems. The module
+adds 482 to eight previously empty held-note cells. Original notes/roles, all
+370 attacks, 71 drum hits, header and sample data are retained; only transport
+commands and EDx delay values change alongside vibrato effects. File/sample
+sizes remain 21,314/9,990 bytes. Independent mix/lead/percussion playback reaches
+the first loop, lasts 24.2 seconds and does not clip (mix peak 0.625). Player
+waveforms may differ with the finer tick clock; a controlled impulse test
+confirms old ED2/new ED4 onsets agree within one sample (both 54.4375 ms here).
+
+Artifacts: `build/amiga-transcription/vibrato/{arranged-eight,lead,percussion}.{mod,wav}`
+and editable `arrangement.json`. Licensed assets remain ignored. Tests cover
+periodic harmonic agreement, drift/rate mismatch rejection, preservation of
+attacks/releases/sample bytes, effect/clock validation and doubled-delay timing.
+Existing tracker, rhythm and independent pitch/delay/loop checks pass.
+
+```sh
+build/amiga-transcription-env/bin/python tools/amiga/test_vibrato.py
+build/amiga-transcription-env/bin/python tools/amiga/test_tracker_render.py --library build/amiga-libxmp/build/libxmp.dylib
+build/amiga-transcription-env/bin/python tools/amiga/detect_vibrato.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/fast-notes/notes.json --arrangement build/amiga-transcription/fast-notes/arrangement.json --out build/amiga-transcription/vibrato --library build/amiga-libxmp/build/libxmp.dylib
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/fast-notes/notes.json --arrangement build/amiga-transcription/vibrato/arrangement.json --out build/amiga-transcription/vibrato
+python3 tools/amiga/render_tracker.py build/amiga-transcription/vibrato/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/vibrato/arranged-eight.wav
+```
+
+Next: audition modulation phase/depth at the two notes, then refine contour
+tracking for shorter notes and fast arpeggios. Percussion accuracy and native
+three/four-channel replay integration remain pending.
