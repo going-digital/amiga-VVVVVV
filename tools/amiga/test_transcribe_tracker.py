@@ -54,6 +54,15 @@ class TrackerTests(unittest.TestCase):
         for ch in range(7):
             self.assertEqual(data[1084+4*32+ch*4:1088+4*32+ch*4], bytes(4))
 
+    def test_nearest_grid_preserves_short_notes(self):
+        data, report = working_module([[.061,.062,60,.8]], 150, .3)
+        # A one-millisecond recognition must survive as one tracker row;
+        # nearest rounding starts at 50 ms rather than delaying to 100 ms.
+        self.assertNotEqual(data[1084+32:1088+32], bytes(4))
+        self.assertEqual(data[1084+64:1088+64], bytes([0,0,12,0]))
+        self.assertEqual(report['note_starts'], 1)
+        self.assertAlmostEqual(report['onset_max_error_ms'], 11)
+
     def test_bounds(self):
         for bpm, duration in [(0,1), (256,1), (125,0), (125,121)]:
             with self.assertRaises(ValueError):

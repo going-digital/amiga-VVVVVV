@@ -2281,3 +2281,58 @@ Next sequence:
    stealing or further measured mixing), then validate ownership-safe native
    replay, timing and memory alongside gameplay. No shipping allocation is
    selected by the eight-channel editing format.
+
+### Independent eight-channel playback and finer timing grid
+
+`tools/amiga/render_tracker.py` independently loads and renders MOD files using
+an explicitly supplied local libxmp shared library. It bounds playback at 120
+seconds, stops at the first loop, exports stereo 48 kHz WAV and records module
+and library digests. The final buffer may include up to 100 ms of silence;
+player tick rounding can also affect rendered duration. This is host tracker
+playback, not an Amiga hardware capture. No third-party library or music is
+committed. Tested libxmp revision: `5d4f6aa2c7dcdf8e9cd8129fe579d45b36a302da`.
+
+Independent playback identified a reference tuning mismatch: the sample-period
+calculation passed structural checks, but libxmp's multichannel MOD playback
+rendered test notes approximately 17 cents flat. The editing master's samples
+now use MOD finetune +1. Five independently rendered pitches spanning MIDI
+24, 48, 55, 72 and 84 measure roughly 5.2–5.9 cents flat. The optional integration
+check also verifies audible note starts, sustained silence after release, first
+loop completion and rejection of a truncated pattern stream. This validates
+those test pitches through this player; it does not establish all-player or
+native Paula tuning. Four-channel legacy exports are unchanged.
+
+Master note starts/releases now round to the nearest row, with at least one row
+for short detections, rather than always delaying a start to the next row.
+`--master-bpm` permits a finer editing grid independently of the four-channel
+baseline's tempo. For the unchanged 351 Positive Force detections:
+
+- 92 BPM: 23.51 ms RMS onset displacement, at most 40.66 ms.
+- 184 BPM: 12.56 ms RMS onset displacement, at most 20.27 ms.
+
+Both masters retain all 351 starts with no omitted note-rows. This comparison
+shows grid precision relative to recognition timestamps; it is not a source
+beat/tempo or transcription accuracy score. Doubling BPM changes the editing
+subdivision and pattern placement. The 184 BPM option is an audition candidate,
+not a confirmed musical tempo. Private tuned previews and modules are in
+`build/amiga-transcription/refined-grid/master-{92,184}.{wav,mod}`. Independent
+playback accepts both and completes their first loop; bounded WAV files last
+24.2 seconds including player rounding/final padding. The 184 BPM MOD occupies
+22,060 bytes versus 11,820 bytes for 92 BPM; sample storage remains 496 bytes.
+
+Reproduction (original/derived audio remains ignored):
+
+```sh
+git clone https://github.com/libxmp/libxmp.git build/amiga-libxmp
+cmake -S build/amiga-libxmp -B build/amiga-libxmp/build -DBUILD_SHARED=ON
+cmake --build build/amiga-libxmp/build -j 4
+build/amiga-transcription-env/bin/python tools/amiga/transcribe_tracker.py PATH_TO_POSITIVE_FORCE_RECORDING --master-bpm 184 --out build/amiga-transcription/refined
+python3 tools/amiga/render_tracker.py build/amiga-transcription/refined/eight-channel.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/refined/eight-channel.wav
+build/amiga-transcription-env/bin/python tools/amiga/test_tracker_render.py --library build/amiga-libxmp/build/libxmp.dylib
+```
+
+The shared-library filename above is for macOS; pass the corresponding library
+path on another supported little-endian host. Next: compare the audition
+candidates to the source, correct recognition errors and identify musical parts
+before separating percussion/improving timbres or baking chord samples. No
+musical part identification or subjective quality improvement is claimed yet.

@@ -92,7 +92,7 @@ def module(notes, bpm, duration, reduced=False):
     return result, report
 
 
-def working_module(notes, bpm, duration):
+def working_module(notes, bpm, duration, quantize=True):
     """Eight-channel editing master: retain held notes on their assigned lane.
 
     Chord ranks are not instrument identities. This allocator stabilizes lanes
@@ -104,6 +104,14 @@ def working_module(notes, bpm, duration):
     step = 7.5 / bpm
     rows = math.ceil(duration / step)
     patterns = math.ceil(rows / 64)
+    original_notes = notes
+    if quantize:
+        notes = []
+        for start, end, pitch, strength in original_notes:
+            first = max(0, math.floor(start/step+.5))
+            last = max(first+1, math.floor(end/step+.5))
+            notes.append([first*step, last*step, pitch, strength])
+    onset_errors = [n[0]-old[0] for n, old in zip(notes, original_notes)]
     data = bytearray(patterns * 64 * 8 * 4)
     lanes = [None] * 8
     starts = dropped = 0
@@ -159,13 +167,19 @@ def working_module(notes, bpm, duration):
         samples.append(wave)
         at = 20+i*30
         header[at:at+22] = ('Triangle '+str(cycle)).encode().ljust(22, b'\0')
-        struct.pack_into('>HBBHH', header, at+22, cycle//2, 0, 40, 0, cycle//2)
+        # Fasttracker-style MOD playback maps periods to its note table.
+        # Fine +1 offsets most of the ~17-cent reference mismatch measured
+        # by independent playback; actual pitch is tested through libxmp.
+        struct.pack_into('>HBBHH', header, at+22, cycle//2, 1, 40, 0, cycle//2)
     header[950] = patterns
     header[952:952+patterns] = bytes(range(patterns))
     header[1080:1084] = b'8CHN'
     result = bytes(header+data+b''.join(samples))
     return result, dict(channels=8, rows=rows, duration=rows*step,
                         bpm=bpm, note_starts=starts, omitted_note_rows=dropped,
+                        quantized=quantize, sample_finetune=1,
+                        onset_rms_error_ms=1000*math.sqrt(sum(e*e for e in onset_errors)/max(1,len(onset_errors))),
+                        onset_max_error_ms=1000*max([abs(e) for e in onset_errors], default=0),
                         sample_bytes=sum(cycles), file_bytes=len(result),
                         sha256=hashlib.sha256(result).hexdigest(),
                         scope='Editing master only; stable event lanes, no octave folding; not hardware replay input')
@@ -179,6 +193,7 @@ def main():
     p.add_argument('--legacy-two-channel', action='store_true',
                    help='Also export the rejected two-voice baseline for comparison')
     p.add_argument('--bpm', type=int, help='Override uncertain automatic tempo estimate')
+    p.add_argument('--master-bpm', type=int, help='Independent eight-channel timing grid BPM')
     args = p.parse_args()
     import librosa
     import numpy as np
@@ -201,7 +216,7 @@ def main():
     report = dict(source_sha256=hashlib.sha256(args.audio.read_bytes()).hexdigest(),
                   detected_notes=len(notes), estimated_bpm=float(np.asarray(tempo).reshape(-1)[0]),
                   limitations='Unreviewed mixed-audio pitch sketch; synthetic timbres; no percussion; eight-channel master uses stable lanes without octave folding; legacy reductions use row-wise ranks and octave folding; not shipping music.', modules={})
-    master, entry = working_module(notes, bpm, duration)
+    master, entry = working_module(notes, args.master_bpm or bpm, duration)
     (args.out/'eight-channel.mod').write_bytes(master)
     report['modules']['eight-channel'] = entry
     variants = [('four-channel', False)]
