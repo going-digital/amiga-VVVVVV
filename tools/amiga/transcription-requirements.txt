@@ -1,0 +1,9 @@
+# Tested in an isolated Python 3.9 environment. Install basic-pitch separately
+# with --no-deps to select ONNX without pulling TensorFlow/CoreML on macOS.
+numpy==1.26.4
+scipy==1.13.1
+librosa==0.10.2.post1
+onnxruntime==1.19.2
+pretty_midi==0.2.11.post0
+mir_eval==0.8.2
+resampy==0.4.3

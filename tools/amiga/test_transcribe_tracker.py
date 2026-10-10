@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""Structural and independent pitch checks for the experimental MOD sketch."""
+import math
+import struct
+import unittest
+from transcribe_tracker import module
+from audit_music import audit
+
+
+class TrackerTests(unittest.TestCase):
+    def test_reserved_channels_and_pitch(self):
+        data, report = module([[0, .5, 48, .8], [0, .5, 72, .9]], 150, 1, True)
+        self.assertEqual(report['active_mask'], 12)
+        self.assertEqual(report['conflicting_channels'], [])
+        self.assertEqual(report['sample_bytes'], 96)
+        for row in range(report['stored_patterns']*64):
+            self.assertEqual(data[1084+row*16:1084+row*16+8], bytes(8))
+        for ch, cycle, midi in [(2,64,48), (3,32,72)]:
+            a,b,_,_ = data[1084+ch*4:1088+ch*4]
+            period = (a & 15)*256+b
+            frequency = 3546895/(period*cycle)
+            cents = 1200*math.log2(frequency/(440*2**((midi-69)/12)))
+            self.assertLess(abs(cents), 10)
+        # Sustained voices must be explicitly silenced after note release.
+        row = math.ceil(.5/(7.5/150))
+        for ch in (2,3):
+            self.assertEqual(data[1084+row*16+ch*4:1088+row*16+ch*4], bytes([0,0,12,0]))
+
+    def test_four_voices_and_loop(self):
+        notes = [[0,1,p,.8] for p in (40,55,60,67,72)]
+        data, report = module(notes, 125, 1)
+        self.assertEqual(report['active_mask'], 15)
+        self.assertGreater(report['omitted_note_rows'], 0)
+        row = report['rows']-1
+        self.assertEqual(data[1084+row*16+14] & 15, 11)
+        self.assertEqual(audit(data)['trailing_bytes'], 0)
+
+    def test_bounds(self):
+        for bpm, duration in [(0,1), (256,1), (125,0), (125,121)]:
+            with self.assertRaises(ValueError):
+                module([], bpm, duration)
+
+
+if __name__ == '__main__':
+    unittest.main()

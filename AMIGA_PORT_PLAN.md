@@ -2189,3 +2189,52 @@ or soundtrack quality. The fixture holds its scene for capture, so full OS-exit
 restoration has not been capture-validated here. Next: adapt actual tracker
 replay to emit decoded ownership-safe plans and measure a representative module
 alongside gameplay/SFX before selecting the shipping music channel budget.
+
+### Audio-to-tracker recognition experiment
+
+`tools/amiga/transcribe_tracker.py` now makes a bounded pitch sketch from a
+recording using Basic Pitch 0.4.0 with ONNX. This is an experimental route from
+original game audio to a tracker approximation, not recovery of the original
+score. It exports detected MIDI/JSON, four-channel and two-channel ProTracker
+MODs, and a structural report. Each row selects lowest bass/highest melody,
+then strongest inner notes for the remaining voices. Triangle loops replace
+source instruments; percussion/effects are not reconstructed, octave folding
+keeps periods in range, and changing chord ranks can retrigger voices.
+
+Reproduce in an isolated Python 3.9 environment (all assets under ignored
+`build/`; do not commit original recordings or derived music):
+
+```sh
+python3.9 -m venv build/amiga-transcription-env
+build/amiga-transcription-env/bin/python -m pip install -r tools/amiga/transcription-requirements.txt
+build/amiga-transcription-env/bin/python -m pip install --no-deps basic-pitch==0.4.0
+build/amiga-transcription-env/bin/python tools/amiga/transcribe_tracker.py PATH_TO_POSITIVE_FORCE_RECORDING --duration 24 --out build/amiga-transcription/prototype
+python3 tools/amiga/test_transcribe_tracker.py
+```
+
+Supply a locally extracted `data/music/2positiveforce.ogg` from the installed
+music blob, or a WAV excerpt. `--bpm` overrides the uncertain automatic estimate.
+The prototype input was a mono 22,050 Hz first-24-second WAV, made with ffmpeg;
+its report records the input digest. Basic Pitch found 351 notes; beat tracking
+estimated 92.285 BPM, rounded to 92. Neither recognition nor beat accuracy has
+been confirmed by listening. The four-voice reduction omitted 81 note-rows;
+the two-voice reduction omitted 512, so this arrangement is intentionally lossy.
+
+Independent Lightspeedplayer converter 1.33 (`arnaud-carre/LSPlayer`, built with
+CMake in ignored `build/amiga-lsp-tools`) accepted both modules and rendered
+non-silent, 48 kHz hard-panned stereo previews using `-amigapreview`. Both last
+24.043 seconds and use 1,572-byte LSP sample banks; score sizes are 3,631 and
+2,535 bytes respectively. MOD source sample storage is 96 bytes. The reduced
+module contains events only on channels 2/3, leaving 0/1 empty; this static fact
+does not prove the replay driver avoids writing reserved channels. Playback at
+92 BPM requires variable-rate scheduling/CIA or converter `-fixed50hz` handling.
+This has not yet been integrated into native gameplay or measured on the A500.
+
+Private audition artifacts: `build/amiga-transcription/prototype/`, including
+`excerpt.wav`, `four-channel_amiga.wav`, `two-channel_amiga.wav`, both MODs,
+detected MIDI, notes and report. Structural tests check reserved-channel
+silence, pitch error, note release, loop placement and duration/tempo bounds.
+Next: listen against the source, correct beat/subdivision and stable voice
+assignment, separate bass/lead/percussion, and improve timbres before native
+replay integration. Current output is a reviewable recognition baseline, not
+shipping soundtrack quality.
