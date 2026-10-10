@@ -2,7 +2,8 @@
 """Reject pitched attack fixtures and check reconstructed percussion acoustics."""
 import numpy as np
 from scipy.signal import butter,sosfilt
-from reconstruct_drums import measure_attack,classify,synthesize,reconstruct
+from reconstruct_drums import measure_attack,classify,synthesize,reconstruct,classify_masked
+from recognize_percussion import transient_signal
 
 
 def main():
@@ -34,6 +35,13 @@ def main():
         for decay in (.04,.2):
             detected,_=classify(measure_attack(chord*np.exp(-t/decay),sr))
             assert detected is None,(pitches,decay,detected)
+            mixed=np.zeros(sr)
+            start=round(.2*sr)
+            mixed[start:start+len(chord)]=chord*np.exp(-t/decay)
+            clean,_,_,_=transient_signal(mixed,sr)
+            masked,_=classify_masked(measure_attack(mixed[start:start+len(chord)],sr),
+                                     measure_attack(clean[start:start+len(chord)],sr))
+            assert masked is None,('masked pitched attack',pitches,decay,masked)
     result=reconstruct(np.zeros(sr),sr,[dict(time=0,strength=1)])
     assert not result['hits'] and not result['samples']
     print('PASS noise/sweep classification; rejection of pitched attacks/chords; deterministic decaying samples; no upper melodic kick content; silence')

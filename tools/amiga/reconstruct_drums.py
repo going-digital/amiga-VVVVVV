@@ -74,6 +74,14 @@ def classify(metrics):
     return None,'tonal, sustained or ambiguous attack'
 
 
+def classify_masked(raw_metrics,masked_metrics):
+    # HPSS can turn sustained tones into noise-like residuals. Retain a
+    # full-mix concentration veto before trusting the residual classifier.
+    if raw_metrics['peak_concentration']>=.6:
+        return None,'full-mix tonal concentration veto'
+    return classify(masked_metrics)
+
+
 def synthesize(kind, parameters, seed=7):
     import numpy as np
     from scipy.signal import butter,sosfilt

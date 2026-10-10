@@ -2796,3 +2796,61 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/section-drums/ar
 Next: audition the recurring offbeat snare, then improve source percussion
 recognition for missing hits/instruments rather than filling unsupported gaps.
 Vibrato and three/four-channel reduction remain later work.
+
+### Recover masked percussion attacks at established positions
+
+User audition finds the section-specific version more accurate, with missing
+percussion and dropped notes still present. Keep it as the working baseline.
+This increment revisits the existing 166 source attack candidates, addressing
+classification misses rather than changing the melody or inventing new onsets.
+
+`tools/amiga/recover_percussion.py` classifies the transient signal after the
+existing HPSS/low-frequency-novelty suppression. That signal extraction is now
+a shared helper in `recognize_percussion.py`; the original detector behavior
+is retained. Noise-like residuals alone are unsafe: a sustained pure tone can
+become a false snare after masking. A full-mix spectral peak-concentration veto
+(>=0.6) in `classify_masked` excludes that case. Disagreement with a positive
+full-mix drum classification also prevents restoration.
+
+Restoration requires the same accepted instrument and grid position in at
+least four distinct accepted bars, agreement within 30% of a sixteenth-note
+slot, an empty position and at most one recovered hit per bar. Only observed
+attacks are restored; no missing-bar interpolation or new samples are added.
+Input recording hashes must match both the arrangement and candidate file.
+Review metadata retains raw/residual metrics, classifications and decisions;
+saved base hits make regeneration idempotent.
+
+Four attacks qualify: offbeat kicks at 7.499 and 9.213 seconds (slot 6, bars
+4–5) and snares at 11.248 and 12.962 seconds (slot 9, bars 6–7). These extend
+positions already supported in the accepted later rhythm. The full-mix tonal
+concentration veto retains all four. Their musical identity still needs
+subjective audition; residual classification is evidence, not ground truth.
+
+The export places 71 drum hits with zero collisions and the existing single
+boundary skip. All 369 note starts remain. Every pitched cell, existing drum
+cell, full MOD header and sample byte matches the accepted section version;
+only four previously empty percussion cells change. Sizes remain 21,314 bytes
+for the MOD and 9,990 sample bytes. Independent libxmp mix/percussion playback
+reaches its first loop and produces 24.2-second previews without clipping
+(peaks 0.583/0.244). Outputs remain ignored licensed derivatives at
+`build/amiga-transcription/recovered-drums/{arranged-eight,percussion}.{mod,wav}`
+and the editable `arrangement.json`.
+
+Regression tests cover preservation, idempotence, distinct accepted-bar support,
+existing-event collisions, new-position/instrument rejection, classification
+conflicts and off-grid rejection. Acoustic tests now check rejection of pure
+tone/chord attacks after masking as well as in the full mix. Existing synthetic
+kick/snare/hat recognition, reconstruction, tracker, rhythm, section, variation
+and short-note checks pass.
+
+```sh
+python3 tools/amiga/test_percussion_recovery.py
+build/amiga-transcription-env/bin/python tools/amiga/test_drum_reconstruction.py
+build/amiga-transcription-env/bin/python tools/amiga/recover_percussion.py build/amiga-transcription/positive-force-excerpt.wav --arrangement build/amiga-transcription/section-drums/arrangement.json --candidates build/amiga-transcription/drum-refinement/arrangement.json --out build/amiga-transcription/recovered-drums
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/note-recovery/notes.json --arrangement build/amiga-transcription/recovered-drums/arrangement.json --out build/amiga-transcription/recovered-drums
+python3 tools/amiga/render_tracker.py build/amiga-transcription/recovered-drums/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/recovered-drums/arranged-eight.wav
+```
+
+Next: audition these restored attacks, inspect sustained/vibrato-related note
+gaps, and investigate percussion events absent from the candidate timestamps.
+New percussion identities and three/four-channel reduction remain later work.

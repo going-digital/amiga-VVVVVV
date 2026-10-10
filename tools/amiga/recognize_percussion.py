@@ -10,11 +10,11 @@ import json
 from pathlib import Path
 
 
-def analyze(y, sr):
+def transient_signal(y, sr):
+    """Suppress sustained partials while retaining low-frequency novelty."""
     import librosa
     import numpy as np
     from scipy.ndimage import median_filter
-    from sklearn.cluster import KMeans
     if sr!=22050 or not len(y):
         raise ValueError('analysis requires nonempty 22,050 Hz audio')
     hop = 128
@@ -28,6 +28,17 @@ def analyze(y, sr):
     mask[low] = np.maximum(mask[low],novelty_mask[low])
     mask[frequencies < 40] = 0
     clean = librosa.istft(spectrum*mask,hop_length=hop,length=len(y))
+    return clean,spectrum,mask,frequencies
+
+
+def analyze(y, sr):
+    import librosa
+    import numpy as np
+    from sklearn.cluster import KMeans
+    if sr!=22050 or not len(y):
+        raise ValueError('analysis requires nonempty 22,050 Hz audio')
+    hop = 128
+    clean,spectrum,mask,frequencies=transient_signal(y,sr)
     cleaned_magnitude = np.abs(spectrum*mask)
     scale = np.maximum(np.percentile(cleaned_magnitude,75,axis=1),.005)
     whitened = np.minimum(cleaned_magnitude/scale[:,None],20)
