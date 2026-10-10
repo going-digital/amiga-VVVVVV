@@ -2902,3 +2902,58 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/note-gaps/arrang
 Next: audition articulation around the five extensions, then investigate fully
 missing pitch events and percussion onsets absent from the existing candidates.
 Actual vibrato effects and three/four-channel reduction remain later work.
+
+### Sensitive fast-note recheck with accepted-run support
+
+User audition confirms fewer dropped notes after release-gap recovery, while
+vibrato, arpeggios and accurate percussion remain missing. Keep the note-gap
+version as the accepted baseline. This increment checks for omitted fast pitched
+attacks without changing its note lengths or percussion.
+
+`tools/amiga/recover_fast_notes.py` reruns recognition with a 35 ms minimum,
+onset threshold 0.4 and frame threshold 0.25 (previous short-note pass used
+60 ms and the default 0.5/0.3 thresholds). Of 852 events, 189 do not overlap
+an accepted same-pitch event. Additions require duration 35–128 ms, confidence
+>=0.3, attack probability >=0.45, mean contour support >=0.18 and source CQT
+pitch strength >=1.4 times either adjacent semitone. Adjacent-pitch overlap is
+excluded as ambiguous. Quantized occupancy must preserve seven pitched voices.
+
+Fast-run context must come from two accepted attacks bracketing the candidate,
+with distinct pitches 2–12 semitones away, attack spacing 25–220 ms, durations
+35–250 ms, overlap <=25 ms and combined span <=320 ms. New candidates cannot
+provide support for each other; a simultaneous chord cannot establish a run.
+All accepted notes, lengths, roles and percussion are retained.
+
+Only one candidate passes: MIDI 73 (C#5) at 12.872–12.976 seconds. This is a
+small audition candidate, not recovery of the full missing arpeggio. Decisions
+for the remaining candidates: 57 weak isolated source pitches, 96 weak pitched
+attacks, 23 outside fast-note duration scope, two adjacent-pitch ambiguities and
+ten lacking accepted surrounding fast-run support. The remaining 663 events
+are already covered by an accepted pitch. All measurements/decisions are saved
+in `arrangement.json`; more sensitive inference alone is insufficient evidence
+to add the remaining events.
+
+The MOD starts all 370 notes with the same single omitted-note row and 71 drum
+hits. Original 369 events/roles, every drum cell, the MOD header and all sample
+bytes are preserved. Sizes remain 21,314/9,990 bytes. Independent libxmp mix
+and lead playback reaches the first loop and produces 24.2-second previews
+without clipping (peaks 0.583/0.338). Artifacts remain ignored licensed outputs:
+`build/amiga-transcription/fast-notes/{arranged-eight,lead}.{mod,wav}`,
+`notes.json`, model output and editable `arrangement.json`.
+
+Tests cover accepted-context/input preservation, duplicate suppression, rejection
+of chords and self-supporting candidate runs, weak pitch/attack evidence,
+adjacent-pitch ambiguity and voice capacity. Existing tracker, short-note and
+gap-recovery checks pass. Original 92 BPM tracker-row timing is retained; this
+pass does not recover sub-row arpeggio timing or MOD 0xy/4xy effects.
+
+```sh
+python3 tools/amiga/test_fast_note_recovery.py
+build/amiga-transcription-env/bin/python tools/amiga/recover_fast_notes.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/note-gaps/notes.json --arrangement build/amiga-transcription/note-gaps/arrangement.json --out build/amiga-transcription/fast-notes
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/fast-notes/notes.json --arrangement build/amiga-transcription/fast-notes/arrangement.json --out build/amiga-transcription/fast-notes
+python3 tools/amiga/render_tracker.py build/amiga-transcription/fast-notes/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/fast-notes/arranged-eight.wav
+```
+
+Next: audition the single added attack; investigate pitch contours for vibrato
+and source-supported rapid pitch changes that event recognition still misses.
+Accurate percussion and three/four-channel reduction remain pending.
