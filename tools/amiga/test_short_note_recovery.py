@@ -28,6 +28,13 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(additions,[])
         self.assertIn('adjacent pitch ambiguity; possible vibrato',[e['decision'] for e in review])
 
+    def test_source_disjoint_same_pitch_cannot_overlap_after_rounding(self):
+        # Trim the candidate to end exactly when the accepted note starts.
+        entry=candidate(.06);entry['note'][1]=.115
+        additions,review=choose_additions([[.115,.2,60,.7]],[entry])
+        self.assertEqual(additions,[])
+        self.assertEqual(review[0]['decision'],'same-pitch collision after tracker quantization')
+
     def test_quantized_voice_budget_protects_accepted_notes(self):
         # All seven held pitches occupy the rounded row, despite no time overlap
         # with this attack. The eighth channel remains reserved for percussion.

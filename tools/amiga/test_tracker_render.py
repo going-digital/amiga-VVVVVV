@@ -64,6 +64,16 @@ def main():
                 samples=np.frombuffer(wav.readframes(wav.getnframes()),dtype='<i2').reshape(-1,2)
             clocks.append(int(np.where(np.max(np.abs(samples),axis=1)>3)[0][0]))
         assert abs(clocks[0]-clocks[1])<=1,clocks
+        # Finer rows at the same doubled tick clock must retain drum onset time.
+        fine,_=working_module([],184,.4,roles=[],percussion=dict(samples=[drum],
+            hits=[dict(time=2*(7.5/92)/3,sample=0,strength=.8)],timing='ticks'))
+        (root/'fine.mod').write_bytes(fine)
+        render(args.library,root/'fine.mod',root/'fine.wav',1)
+        with wave.open(str(root/'fine.wav')) as wav:
+            samples=np.frombuffer(wav.readframes(wav.getnframes()),dtype='<i2').reshape(-1,2)
+        onset=int(np.where(np.max(np.abs(samples),axis=1)>3)[0][0])
+        assert abs(onset-clocks[1])<=1,(onset,clocks)
+
         # Corrupt eight-channel storage must be rejected by independent loader.
         (root/'broken.mod').write_bytes(module[:1084])
         try:

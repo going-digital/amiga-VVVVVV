@@ -137,7 +137,7 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
     data = bytearray(patterns * 64 * 8 * 4)
     lanes = [None] * 8
     starts = dropped = 0
-    started=set();delayed_attacks=[]
+    started=set();delayed_attacks=[];allocated_errors=[]
     role_spills = 0
     cycles = (16, 32, 64, 128, 256)
     preferred = dict(bass=[0,1], lead=[2,3], harmony=[4,5,6])
@@ -193,6 +193,7 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
             lanes[ch] = i
             starts += 1
             started.add(i)
+            allocated_errors.append(row*step-original_notes[i][0])
             planned=max(0,math.ceil(n[0]/step-1e-9))
             if row>planned:
                 delayed_attacks.append(dict(note_index=i,planned_row=planned,actual_row=row))
@@ -279,6 +280,8 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
                         quantized=quantize, sample_finetune=1, vibrato_rows=vibrato_rows,
                         unstarted_note_indices=[i for i,n in enumerate(notes) if n[0]<rows*step and n[1]>0 and i not in started],
                         delayed_attacks=delayed_attacks,
+                        allocated_onset_rms_error_ms=1000*math.sqrt(sum(e*e for e in allocated_errors)/max(1,len(allocated_errors))),
+                        allocated_onset_max_error_ms=1000*max([abs(e) for e in allocated_errors],default=0),
                         onset_rms_error_ms=1000*math.sqrt(sum(e*e for e in onset_errors)/max(1,len(onset_errors))),
                         onset_max_error_ms=1000*max([abs(e) for e in onset_errors], default=0),
                         sample_bytes=sum(len(wave) for wave in samples), file_bytes=len(result),

@@ -43,6 +43,8 @@ def choose_fast(notes,evidence,bpm=92,context='fast-run',bar_seconds=None):
         rows=list(note_rows(n,7.5/bpm))
         if any(o[2]==pitch and overlap(o)>0 for o in current):
             reason='already covered by accepted pitch'
+        elif any(o[2]==pitch and set(rows).intersection(note_rows(o,7.5/bpm)) for o in current):
+            reason='same-pitch collision after tracker quantization'
         elif not .035<=end-start<=(.128 if context=='fast-run' else .35):
             reason='outside fast-note scope'
         elif strength<(.22 if context=='source-harmonics' else .3) or e['onset_probability']<(.7 if context=='source-harmonics' else .45) or e['contour_mean']<.18:
@@ -74,8 +76,9 @@ def main():
     p.add_argument('--duration',type=float,default=24)
     p.add_argument('--bpm',type=int,default=92)
     p.add_argument('--context',choices=('fast-run','recurring-phrase','source-harmonics'),default='fast-run')
+    p.add_argument('--frame-threshold',type=float,default=.25,help='Recognition frame threshold; selection source gates remain unchanged')
     a=p.parse_args()
-    if not 0<a.duration<=120 or not 32<=a.bpm<=255:p.error('invalid duration/BPM')
+    if not 0<a.duration<=120 or not 32<=a.bpm<=255 or not 0<a.frame_threshold<=1:p.error('invalid duration/BPM/frame threshold')
     notes=json.loads(a.notes.read_text());arrangement=json.loads(a.arrangement.read_text())
     base_sha=hashlib.sha256(a.notes.read_bytes()).hexdigest()
     if arrangement['notes_sha256']!=base_sha or arrangement['source_sha256']!=hashlib.sha256(a.audio.read_bytes()).hexdigest():
@@ -87,7 +90,7 @@ def main():
     from basic_pitch.note_creation import model_frames_to_time,midi_pitch_to_contour_bin
     y,sr=librosa.load(a.audio,sr=22050,duration=a.duration)
     a.out.mkdir(parents=True,exist_ok=True);sf.write(a.out/'excerpt.wav',y,sr)
-    model,_,events=predict(a.out/'excerpt.wav',minimum_note_length=35,onset_threshold=.4,frame_threshold=.25)
+    model,_,events=predict(a.out/'excerpt.wav',minimum_note_length=35,onset_threshold=.4,frame_threshold=a.frame_threshold)
     np.savez_compressed(a.out/'model-output.npz',**model)
     times=model_frames_to_time(len(model['note']))
     cqt=np.abs(librosa.cqt(y,sr=sr,hop_length=256,fmin=librosa.midi_to_hz(24),n_bins=72))
@@ -123,6 +126,7 @@ def main():
     key={'fast-run':'fast_note_recovery','recurring-phrase':'phrase_note_recovery','source-harmonics':'source_note_recovery'}[a.context]
     arrangement[key]=dict(base_notes_sha256=base_sha,added_notes=additions,review=review,context=a.context,
                                            assumed_phrase_bars=2 if bar else None,
+                                           inference_parameters=dict(minimum_note_ms=35,onset_threshold=.4,frame_threshold=a.frame_threshold),
                                            source_attack_gates=dict(fundamental_rise=2,harmonic_rise=1.5,onset=.7,confidence=.22,overtone_attack_tolerance_ms=40) if a.context=='source-harmonics' else None,
                                            limitations='Candidate additions need audition; accepted notes/effects retained; original row grid; no new MOD effects')
     (a.out/'arrangement.json').write_text(json.dumps(arrangement,indent=2)+'\n')

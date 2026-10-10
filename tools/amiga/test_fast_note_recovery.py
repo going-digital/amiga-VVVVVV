@@ -57,6 +57,14 @@ class FastTests(unittest.TestCase):
             self.assertEqual(added,[])
             self.assertEqual(review[0]['decision'],'possible overtone of accepted simultaneous lower attack')
 
+    def test_nonoverlapping_source_fragment_cannot_double_a_tracker_pitch(self):
+        notes=[[10.1187,10.3045,54,.7]]
+        e=dict(note=[10.0723,10.1187,54,.71],onset_probability=.87,contour_mean=.3,
+               pitch_ratio=1.5,fundamental_rise=3,harmonic_rise=2)
+        added,review=choose_fast(notes,[e],context='source-harmonics')
+        self.assertEqual(added,[])
+        self.assertEqual(review[0]['decision'],'same-pitch collision after tracker quantization')
+
     def test_candidates_cannot_create_their_own_support(self):
         self.assertEqual(choose_fast([], [evidence(0,60),evidence(.1,64),evidence(.2,67)])[0],[])
 

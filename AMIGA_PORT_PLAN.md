@@ -3190,3 +3190,106 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/source-supported
 Next: audition these quieter/isolated attacks, then localize remaining missing
 pitch evidence and refine vibrato/arpeggio coverage and percussion accuracy.
 The known eight-pitch overlap and three/four-channel reduction remain pending.
+
+### Lower-frame sensitivity check; prevent quantized same-pitch doubling
+
+Continue from the 407-event candidate. Check whether the frame threshold still
+prevents quiet notes from appearing at all. `recover_fast_notes.py` now exposes
+`--frame-threshold` (default 0.25) and records inference thresholds in the review.
+Source attack/contour/harmonic gates remain unchanged when sensitivity changes.
+
+A 0.20 frame threshold produces 991 candidates rather than 852. It yields no
+justified distinct addition under the source gates. A particularly strong MIDI
+54 fragment at approximately 10.072–10.119 seconds precedes an accepted MIDI
+54 note starting at 10.119. Both attacks round onto the same row of the current
+editing grid. Adding the fragment as an independent voice would double that
+pitch rather than restore a separately timed attack. Other source-rising high
+candidates coincide with possible harmonics of accepted lower attacks.
+
+Both fast-note and short-note selection now reject a same-pitch collision after
+tracker quantization, even where the original continuous-time intervals do not
+overlap. This complements the existing source-time duplicate check and avoids
+minimum-one-row fragments consuming an extra voice/doubling the same pitch.
+The accepted 407-event baseline itself has no quantized same-pitch overlaps.
+
+Lower-threshold review decisions: 685 already covered, seven quantized pitch
+collisions, 32 weak isolated pitches, 250 weak attack/contour/confidence cases,
+four outside duration scope, six weak harmonic attacks, six possible lower-note
+overtone ambiguities and one adjacent-pitch ambiguity. `notes.json` remains
+identical to the baseline, and re-exported MOD bytes match the independently
+verified baseline exactly. No new audio preview replaces it. Diagnostic model
+output and editable review are ignored licensed derivatives at
+`build/amiga-transcription/lower-frame-recheck/`.
+
+Regression tests cover source-disjoint fragments that collide after rounding
+in both selection paths. Existing fast/short-note, tracker and export-audit
+checks pass. This increment improves rejection/audit rather than claiming
+additional recovered notes. Remaining omissions need independent source pitch
+tracking/localized comparison; lowering this threshold alone is insufficient.
+The user subsequently identified lead omissions near 3, 5, 9, 10, 12 and
+18 seconds; those locations now guide the next source comparison.
+
+```sh
+python3 tools/amiga/test_fast_note_recovery.py
+python3 tools/amiga/test_short_note_recovery.py
+build/amiga-transcription-env/bin/python tools/amiga/recover_fast_notes.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/source-supported-notes/notes.json --arrangement build/amiga-transcription/source-supported-notes/arrangement.json --out build/amiga-transcription/lower-frame-recheck --context source-harmonics --frame-threshold .2
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/lower-frame-recheck/notes.json --arrangement build/amiga-transcription/lower-frame-recheck/arrangement.json --out build/amiga-transcription/lower-frame-recheck
+```
+
+Next: compare specific source phrases and spectral pitch trajectories for
+missing attacks/pitches; preserve the last audible improvement as the baseline.
+Vibrato coverage, percussion accuracy, the brief overload and native voice
+reduction remain unresolved.
+
+
+### Finer-row timing audition and localized lead-gap review
+
+Keep the 407-event arrangement as the accepted baseline. Export a separate
+comparison at editing BPM 184, speed 3, rather than BPM 92, speed 6.
+`compare_tracker_timing.py` preserves the baseline drum tick times and
+independently recalibrates existing vibrato for this replay clock. The note list,
+roles, instrument samples and accepted percussion hits remain the same.
+Vibrato calibration now renders both neighboring depth choices and selects the
+closest measured depth, instead of assuming depth scales linearly.
+
+The comparison starts all 407 events and places all 71 accepted drum hits,
+with no drum row collisions and one excerpt-boundary skip. Quantization onset
+RMS improves from 22.831 ms to 12.591 ms. Including actual allocation delays,
+the comparison measures 12.818 ms RMS and 49.218 ms maximum onset error.
+One attack still waits a row near 22.28 seconds: the finer row is 40.761 ms,
+rather than 81.522 ms. This does not eliminate the underlying voice overload.
+Both existing vibrato annotations calibrate to effect 4A2; measured rate is
+7.65 Hz and depths are 12.895 and 10.947 cents. Source vibrato phase remains
+approximate. Independent libxmp rendering reaches the first loop in 24.2 s,
+with peak 0.57309 and no clipping. MOD SHA-256:
+`e52f2538f1dd1c46ceb006f67c5c6aae91fc2f2e9b9261edf013387349e76488`.
+
+Tests cover preserved drum tick placement under the finer row clock, unchanged
+input arrangement, invalid clock assumptions, and onset metrics that include
+allocation delays. Independent replay checks verify equivalent delayed drum
+attacks to within one sample. Recognition, export, vibrato and replay tests pass.
+The comparison is an audition candidate, not a replacement for the accepted
+original timing grid, and does not recover any additional notes.
+
+The user reports missing lead notes near 3, 5, 9, 10, 12 and 18 seconds.
+Localized lower-threshold review finds potential upper-pitch attacks near
+4.914 s (MIDI 78), 10.281 s (78), 11.895 s (78), and 18.204 s (71).
+These remain unaccepted: confidence, harmonic attack evidence or simultaneous
+lower-note overtone ambiguity fails the current gates. At 9 s the narrow
+window contains no uncovered strong lead candidate. Simply lowering model
+thresholds is insufficient. No channel omission explains these reported gaps.
+Further work should trace the lead instrument through these windows, including
+possible lower-register lead notes, rather than assume every high harmonic is
+a separate note.
+
+Private 1.2-second source, baseline, finer mix and finer lead clips centered on
+all six reported times are in `build/amiga-transcription/lead-gap-comparison/`.
+The full comparison is `build/amiga-transcription/finer-timing/arranged-eight.wav`.
+These licensed derivatives remain ignored and uncommitted.
+
+```sh
+build/amiga-transcription-env/bin/python tools/amiga/compare_tracker_timing.py --arrangement build/amiga-transcription/source-supported-notes/arrangement.json --out build/amiga-transcription/finer-timing --library build/amiga-libxmp/build/libxmp.dylib
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/source-supported-notes/notes.json --arrangement build/amiga-transcription/finer-timing/arrangement.json --out build/amiga-transcription/finer-timing --bpm 184
+python3 tools/amiga/render_tracker.py build/amiga-transcription/finer-timing/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/finer-timing/arranged-eight.wav
+python3 tools/amiga/test_tracker_timing_comparison.py
+```

@@ -34,6 +34,8 @@ def choose_additions(base,evidence,bpm=92):
                   max(0,min(o[1],n[1])-max(o[0],n[0]))>duration*.5]
         if same:
             reason='already covered by accepted pitch'
+        elif any(o[2]==n[2] and set(note_rows(n,step)).intersection(note_rows(o,step)) for o in base+accepted):
+            reason='same-pitch collision after tracker quantization'
         elif not .05<=duration<=.128:
             reason='outside short-note scope'
         elif n[3]<.4 or entry['onset_probability']<.5:

@@ -49,7 +49,7 @@ def coherent(first,second,span):
             span*min(first['rate'],second['rate'])>=2.5)
 
 
-def calibrate(library,out,pitch,role,target,bpm=92):
+def calibrate(library,out,pitch,role,target,bpm=92,tick_multiplier=2):
     import librosa
     import numpy as np
     import soundfile as sf
@@ -58,7 +58,7 @@ def calibrate(library,out,pitch,role,target,bpm=92):
     frequency=440*2**((pitch-69)/12)
     def measure(speed,depth):
         module,_=working_module([[0,1.5,pitch,.8]],bpm,1.8,roles=[role],
-                               vibrato=[dict(speed=speed,depth=depth)],tick_multiplier=2)
+                               vibrato=[dict(speed=speed,depth=depth)],tick_multiplier=tick_multiplier)
         path=out/f'calibration-{pitch}-{speed}-{depth}'
         path.with_suffix('.mod').write_bytes(module)
         render(library,path.with_suffix('.mod'),path.with_suffix('.wav'),3)
@@ -68,13 +68,15 @@ def calibrate(library,out,pitch,role,target,bpm=92):
         indices=np.where((times>=.25)&(times<=1.4))[0]
         trace=pitch_trace(magnitude,sr,4096,indices,frequency)
         return fit_periodic(times[indices],trace)
-    approximate=target['rate']*64/((bpm/7.5)*5)
+    approximate=target['rate']*64/((bpm/7.5)*(3*tick_multiplier-1))
     speeds=sorted({max(1,min(15,math.floor(approximate))),max(1,min(15,math.ceil(approximate)))})
     trials=[dict(speed=speed,depth=1,measured=measure(speed,1)) for speed in speeds]
     trial=min(trials,key=lambda t:abs(t['measured']['rate']-target['rate']))
-    depth=max(1,min(15,round(target['depth_cents']/max(.1,trial['measured']['depth_cents']))))
-    measured=measure(trial['speed'],depth)
-    return dict(speed=trial['speed'],depth=depth),dict(unit_depth_trials=trials,chosen=measured)
+    approximate_depth=target['depth_cents']/max(.1,trial['measured']['depth_cents'])
+    depths=sorted({max(1,min(15,math.floor(approximate_depth))),max(1,min(15,math.ceil(approximate_depth)))})
+    depth_trials=[dict(depth=depth,measured=trial['measured'] if depth==1 else measure(trial['speed'],depth)) for depth in depths]
+    chosen=min(depth_trials,key=lambda t:abs(t['measured']['depth_cents']-target['depth_cents']))
+    return dict(speed=trial['speed'],depth=chosen['depth']),dict(unit_depth_trials=trials,depth_trials=depth_trials,chosen=chosen['measured'])
 
 
 def main():
