@@ -2700,3 +2700,51 @@ python3 tools/amiga/render_tracker.py build/amiga-transcription/varied-drums/arr
 Next: compare the sparse additions to the steady baseline and source, retaining
 only musically justified variations. Vibrato repair, simultaneous percussion
 and three/four-channel reduction remain deferred.
+
+### Recover short-note candidates without changing the accepted drums
+
+User audition finds the sparse drum variations an improvement, with dropped
+notes, percussion changes and missing percussion still needing refinement.
+This increment targets omitted short attacks; the accepted drum arrangement
+and all 351 accepted note events/roles are retained.
+
+`tools/amiga/recover_short_notes.py` reruns Basic Pitch at a 60 ms minimum
+instead of the original approximately 128 ms minimum. Of 570 candidates,
+483 overlap an accepted/previously added pitch. Additions require confidence
+at least 0.4, onset probability at least 0.5, duration 50–128 ms and mean CQT
+pitch strength at least 1.25 times either neighboring semitone. Overlapping
+adjacent pitches remain excluded as possible vibrato ambiguity. Quantized
+occupancy must leave room among seven pitched voices; percussion retains its
+own channel. Source and accepted-note hashes are checked before processing.
+
+Eighteen short-note candidates pass; 54 fail note/attack evidence, 14 fail
+isolated pitch support and one has adjacent-pitch ambiguity. This is an
+editable audition candidate, not confirmation that every added note is right.
+No vibrato effects, sustained-gap merging or section-specific drum repair are
+implemented here. Original notes are preserved exactly as the output prefix.
+
+The exported eight-channel module starts all 369 notes, retaining the existing
+single omitted-note row and 61 drum hits. Drum cells, complete header and sample
+bytes match the accepted variation mix exactly. Independent libxmp rendering
+produces 24.2-second mix and bass/lead/harmony previews without clipping (mix
+peak 0.583). Module size remains 21,314 bytes; this is an editing master, not
+four-channel hardware replay input. Outputs are ignored licensed derivatives:
+`build/amiga-transcription/note-recovery/{arranged-eight,bass,lead,harmony}.{mod,wav}`,
+`notes.json`, editable `arrangement.json` and `recovery-report.json` with every
+candidate's evidence/decision. Model output and candidate notes are also saved.
+
+Regression checks cover duplicate suppression, input preservation, ambiguous
+and weak attacks, and voice capacity after tracker-row rounding. Existing
+tracker, percussion rhythm and variation checks pass. Integrated comparison
+checks preserve accepted notes/roles and every drum cell/sample byte.
+
+```sh
+python3 tools/amiga/test_short_note_recovery.py
+build/amiga-transcription-env/bin/python tools/amiga/recover_short_notes.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/eight-master/notes.json --arrangement build/amiga-transcription/varied-drums/arrangement.json --out build/amiga-transcription/note-recovery
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/note-recovery/notes.json --arrangement build/amiga-transcription/note-recovery/arrangement.json --out build/amiga-transcription/note-recovery
+python3 tools/amiga/render_tracker.py build/amiga-transcription/note-recovery/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/note-recovery/arranged-eight.wav
+```
+
+Next: audition the short-note additions against the accepted mix/source, then
+investigate percussion changes by section and missed hits/instruments. Vibrato
+repair and three/four-channel reduction remain subsequent work.
