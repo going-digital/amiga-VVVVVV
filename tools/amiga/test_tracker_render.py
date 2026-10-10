@@ -41,6 +41,16 @@ def main():
         # Note-off commands must produce sustained silence between notes.
         silent = audio[round(.6*48000):round(.7*48000)]
         assert np.max(np.abs(silent)) <= 2/32768, np.max(np.abs(silent))
+        # Independent playback must honor ED2 rather than firing at row start.
+        drum = dict(name='test hit', pcm=[0,0]+[80,0,176,0]*400, volume=40)
+        percussion = dict(samples=[drum],hits=[dict(time=.04,sample=0,strength=.8)],timing='ticks')
+        delayed,_ = working_module([],150,.4,roles=[],percussion=percussion)
+        (root/'delayed.mod').write_bytes(delayed)
+        render(args.library,root/'delayed.mod',root/'delayed.wav',1)
+        with wave.open(str(root/'delayed.wav')) as wav:
+            delayed_audio=np.frombuffer(wav.readframes(wav.getnframes()),dtype='<i2').reshape(-1,2)/32768
+        assert np.max(np.abs(delayed_audio[:round(.025*48000)])) <= 2/32768
+        assert np.sqrt(np.mean(delayed_audio[round(.045*48000):round(.07*48000)]**2)) > .01
         # Corrupt eight-channel storage must be rejected by independent loader.
         (root/'broken.mod').write_bytes(module[:1084])
         try:
@@ -49,7 +59,7 @@ def main():
             pass
         else:
             raise AssertionError('libxmp accepted a truncated pattern stream')
-        print(json.dumps(dict(pitch_checks=results, silence=True, corrupt_rejected=True), indent=2))
+        print(json.dumps(dict(pitch_checks=results, silence=True, corrupt_rejected=True, note_delay=True), indent=2))
 
 
 if __name__ == '__main__':

@@ -2576,3 +2576,69 @@ Next: audition these reconstructed drum timbres and the reduced candidate hit
 sequence against the source; correct missing/wrong hits and envelope/timbre
 estimates. No subjective drum match is claimed before that review. Simultaneous
 percussion and three/four-channel reduction remain later work.
+
+### Percussion audition accepted sounds; bias placement towards repeated bars
+
+User audition accepts the reconstructed kick/snare sounds but rejects their
+placement. Percussion keeps the track's rhythm, so recurring positions across
+bars are now preferred over independent local attack decisions. Preserve the
+accepted drum waveform bytes and the melody while changing hit placement.
+
+`tools/amiga/regularize_percussion.py` estimates a repeating period from
+normalized low/high-band onset-envelope autocorrelation. The earliest strong
+1..4-second repeat within 95% of the best peak becomes the candidate bar length,
+with local peak interpolation. This interprets repetition as a four-beat bar
+and assumes initial downbeat phase zero; neither meter nor phase is confirmed.
+Manual `--bar-seconds`/`--phase` overrides remain available.
+
+Distinct bars vote once per sample/16th-note position. A configurable backbeat
+prior (default weight four independent-bar votes) favors kick beats 1/3 and
+snare 2/4. The two strongest positions per instrument form a repeating template,
+repairing missed occurrences and suppressing isolated/off-template detections.
+Only instruments with existing hit evidence participate. This is a deliberate
+regularization hypothesis, not a recovered exact score: it can erase genuine
+syncopation, fills, rests and section changes. `--prior-weight 0` reduces the
+prior's influence; templates/evidence remain editable in the arrangement JSON.
+
+For Positive Force the candidate repeat is 1.714025 seconds (correlation 0.520),
+equivalent to 140.021 quarter-note BPM under the four-beat assumption. This is
+independent of the retained 92 BPM editing clock; the melody remains unchanged.
+The proposed template is kick on beats 1 and 3, snare on beats 2 and 4. Detected
+support for those positions spans 5/1 kick bars and 2/5 snare bars respectively,
+so the weaker positions are materially influenced by the prior. The template
+fills the excerpt with a steady backbeat and still requires source audition.
+
+The master exporter now optionally quantizes percussion to ticks (not whole
+rows), writing ED0/ED1/ED2 note delays at speed 3. At 92 BPM a tick is 27.174 ms;
+placed-hit rounding is at most 12.83 ms here instead of a half-row up to 40.76 ms.
+Delayed notes use per-instrument median template gain because one MOD cell
+cannot encode both EDx and Cxx. Sample waveforms are unchanged. The final
+percussion cell carries B00: one candidate at the excerpt boundary is skipped
+rather than overwriting its delay. Reports distinguish boundary skips from
+actual same-row collisions.
+
+There are 56 placed hits with no collisions, plus that one boundary skip.
+All seven pitched-channel cells, their headers and every waveform byte equal
+the preceding accepted arrangement. The MOD remains 21,314 bytes with 9,990
+sample bytes. Independent libxmp playback accepts the mix/stem, completes their
+first loop and produces non-clipping previews (mix peak 0.583; percussion 0.244).
+Artifacts: `build/amiga-transcription/regular-drums/{arranged-eight,percussion}.wav`
+and the corresponding modules, editable bar template and evidence report.
+
+Tests cover filling a missing bar, repeated positions, preventing a one-bar
+roll from dominating consensus, phase, no-hit input, ED2 encoding and explicit
+boundary skips. An independent waveform test verifies ED2 delays audible onset
+instead of playing at row start. Existing master structure, pitch/release/loop
+playback and four-channel intake checks also pass. This has not yet been
+validated through LSP/native gameplay. Vibrato remains deferred.
+
+```sh
+python3 tools/amiga/test_percussion_rhythm.py
+build/amiga-transcription-env/bin/python tools/amiga/regularize_percussion.py build/amiga-transcription/positive-force-excerpt.wav --arrangement build/amiga-transcription/reconstructed-drums/arrangement.json --out build/amiga-transcription/regular-drums
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/eight-master/notes.json --arrangement build/amiga-transcription/regular-drums/arrangement.json --out build/amiga-transcription/regular-drums
+python3 tools/amiga/render_tracker.py build/amiga-transcription/regular-drums/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/regular-drums/arranged-eight.wav
+```
+
+Next: audition bar phase and template positions against the source, adjusting
+syncopation/fills where necessary while preserving accepted timbres. Original
+and derived licensed audio remain ignored and uncommitted.

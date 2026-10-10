@@ -179,18 +179,34 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
             lanes[ch] = i
             starts += 1
     drum_rows = {}
+    drum_delays = {}
+    drum_boundary_skips = drum_collisions = 0
+    tick_timing = percussion.get('timing') == 'ticks'
     for hit in percussion['hits']:
-        row = max(0, math.floor(hit['time']/step+.5))
-        if row >= rows:
+        if tick_timing:
+            tick = max(0, math.floor(hit['time']/(step/3)+.5))
+            row, delay = divmod(tick,3)
+        else:
+            row, delay = max(0, math.floor(hit['time']/step+.5)), 0
+        if row >= rows or (tick_timing and row == rows-1):
+            # The last percussion cell carries B00; do not overwrite EDx.
+            drum_boundary_skips += 1
             continue
         if not 0 <= hit['sample'] < len(percussion['samples']):
             raise ValueError('invalid percussion sample index')
+        drum_collisions += row in drum_rows
         if row not in drum_rows or hit['strength'] > drum_rows[row]['strength']:
             drum_rows[row] = hit
+            drum_delays[row] = delay
     for row, hit in drum_rows.items():
         at = row*32+7*4
-        data[at:at+4] = cell(16+hit['sample'], 322, 12,
-                            max(8, min(48, round(hit['strength']*48))))
+        if tick_timing:
+            # Delayed notes use instrument header volume: one MOD cell cannot
+            # carry both Cxx volume and EDx delay. Template levels are constant.
+            data[at:at+4] = cell(16+hit['sample'],322,14,208+drum_delays[row])
+        else:
+            data[at:at+4] = cell(16+hit['sample'], 322, 12,
+                                max(8, min(48, round(hit['strength']*48))))
     for ch, value in enumerate((3, bpm)):
         data[ch*4+2] = (data[ch*4+2] & 240) | 15
         data[ch*4+3] = value
@@ -231,7 +247,10 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
         samples.append(wave)
         at = 20+(15+i)*30
         header[at:at+22] = drum['name'].encode()[:22].ljust(22,b'\0')
-        struct.pack_into('>HBBHH', header, at+22, len(wave)//2, 0, 40, 0, 1)
+        volume = drum.get('volume',40)
+        if not 0<=volume<=64:
+            raise ValueError('invalid percussion volume')
+        struct.pack_into('>HBBHH', header, at+22, len(wave)//2, 0, volume, 0, 1)
     header[950] = patterns
     header[952:952+patterns] = bytes(range(patterns))
     header[1080:1084] = b'8CHN'
@@ -244,8 +263,9 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
                         sample_bytes=sum(len(wave) for wave in samples), file_bytes=len(result),
                         role_arrangement=arranged, role_spills=role_spills,
                         role_levels=role_levels if arranged else None,
-                        percussion_hits=len(drum_rows),
-                        percussion_row_collisions=len(percussion['hits'])-len(drum_rows),
+                        percussion_hits=len(drum_rows), percussion_tick_timing=tick_timing,
+                        percussion_row_collisions=drum_collisions,
+                        percussion_boundary_skips=drum_boundary_skips,
                         sha256=hashlib.sha256(result).hexdigest(),
                         scope='Editing master only; stable event lanes, no octave folding; not hardware replay input')
 
