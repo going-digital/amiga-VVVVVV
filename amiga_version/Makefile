@@ -1051,3 +1051,11 @@ $(BUILD)/pickup_fade.o: pickup_fade.c pickup_fade.h | $(BUILD)
 test-pickup-fade: $(BUILD)/pickup_fade.o
 	python3 $(ROOT)/tools/amiga/test_pickup_fade.py
 test: test-pickup-fade
+
+.PHONY: test-prize-input tower-prize-input-capture
+test-prize-input:
+	python3 $(ROOT)/tools/amiga/test_prize_input.py
+test: test-prize-input
+tower-prize-input-capture: tower-prize-route test-prize-input
+	$(MAKE) BUILD=$(ROOT)/build/amiga-prize-input CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE" $(ROOT)/build/amiga-prize-input/tower.adf
+	python3 $(ROOT)/tools/amiga/run_prize_input.py --build $(ROOT)/build/amiga-prize-input

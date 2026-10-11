@@ -4827,3 +4827,35 @@ rejects a busy save without disk changes and peaks at 273 lines.
 
 Next: broaden normal-input campaign traversal beyond test-only placements.
 Music reconstruction remains parked awaiting original tracker files.
+
+### Input-only Shenanigan to Prize traversal
+
+Added `test-prize-input` and `tower-prize-input-capture`. This separate capture
+starts at the canonical Shenanigan checkpoint 442490 with the Yellow rescue
+already complete. Every later change comes from fixed-tick left/right/fire
+inputs and the existing room engine: no player placements, injected death,
+collection edits or forced transitions. The normal interactive candidate
+remains available through `tower-prize-route`.
+
+The 224-tick route exercises conveyor transport, gravity flips, a source spike
+death at tick 62, respawn, south entry into Prize at tick 126, all three gate
+collapses and the waiting platform's release. A second source hazard death at
+tick 193 patches tile (18,9) to 59 and remotely restores the Shenanigan
+checkpoint at tick 223. The capture start now uses the existing room-entry
+adapter after asset validation, ensuring conveyors and collision blocks are
+created as they are during live transitions.
+
+The native A500 build matches all 5,376 host integration fields, including
+player motion, checkpoint bank, gate lifecycle, mutable terrain and remote
+return. This host oracle uses the port core, not an independent desktop loop;
+existing source differential checks remain the physics evidence. Native sound
+requests occur at ticks 144, 162 and 178 on reserved Paula channels, with no
+drops. Peak work is 279 PAL lines, zero errors or missed frames, and unchanged
+296,150-byte Chip allocation. Boot/save disks remain byte-identical. The
+post-return Shenanigan screenshot was reviewed, and the ELF has no unresolved
+runtime symbols.
+
+Next: extend input-only coverage to collecting the Prize trinket and activating
+its checkpoint, then connect the approach from Frown. The current input route
+does not collect the trinket or prove a complete campaign traversal. Music
+reconstruction remains parked awaiting original tracker files.

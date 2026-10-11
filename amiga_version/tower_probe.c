@@ -538,9 +538,23 @@ static unsigned prize_drawn_patch[2];
 #ifdef V6_PRIZE_ROUTE_CAPTURE
 static volatile struct {ULONG magic,version,count,records[256][8];}
     pickup_frame_trace={0x56365058,1,0,{{0}}};
-static volatile struct {ULONG magic,version,count;LONG records[224][24];}
-    prize_route_trace={0x56365052,1,0,{{0}}};
 static unsigned prize_ui_stage,prize_pickup_release;
+#endif
+#if defined(V6_PRIZE_ROUTE_CAPTURE) || defined(V6_PRIZE_INPUT_CAPTURE)
+static volatile struct {ULONG magic,version,count;LONG records[224][24];}
+    prize_route_trace={
+#ifdef V6_PRIZE_INPUT_CAPTURE
+        0x5636504e,
+#else
+        0x56365052,
+#endif
+        1,0,{{0}}};
+#endif
+#ifdef V6_PRIZE_INPUT_CAPTURE
+#include "../tools/amiga/prize_input_replay.h"
+#if defined(V6_PRIZE_ROUTE_CAPTURE) || !defined(V6_TOWER_PRIZE)
+#error Input capture requires Prize and excludes placement capture
+#endif
 #endif
 #define PRIZE_FG(value,fallback) (route.index==8?(value):(fallback))
 #else
@@ -2085,6 +2099,13 @@ static int run(void) {
     station_save_diag.values[10]=station_story.rescue_triggered;station_save_diag.values[11]=station_story.yellow_rescued;
     station_save_diag.values[12]=station_story.companion;
 #endif
+#ifdef V6_PRIZE_INPUT_CAPTURE
+    station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
+    rescue_vm.following=1;rescue_vm.mood=0;
+    world.save=(V6CheckpointSave){140,161,0,1,111,106,442490};
+    v6_tower_session_init(&session,140,161,0,1);
+    if(!v6_tower_route_load(&route,111,106,1))return 20;
+#endif
 #ifdef V6_PRIZE_ROUTE_CAPTURE
     station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
     rescue_vm.following=1;rescue_vm.mood=0;
@@ -2379,6 +2400,9 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_STATION
        !v6_tower_pairs_validate(&stream,FG_OFFSETS,FG_WORDS,FG_COUNT,2) ||
+#endif
+#ifdef V6_PRIZE_INPUT_CAPTURE
+       !route_source() ||
 #endif
        !prepare(rings[0],lists[0],0,camera,0)) {
         FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
@@ -2757,6 +2781,9 @@ static int run(void) {
 #ifdef V6_BUILDING_SAVE
                 if(building_stage==2)input=0;
 #endif
+#endif
+#ifdef V6_PRIZE_INPUT_CAPTURE
+                input=v6_prize_input_replay(diag.logic_ticks);
 #endif
 #ifdef V6_PRIZE_ROUTE_CAPTURE
                 input=0;
@@ -3248,7 +3275,7 @@ static int run(void) {
                 if(pickup_diag.values[3] && diag.logic_ticks<pickup_diag.values[11]+3)
                     pickup_diag.values[7]=session.player.flips;
 #endif
-#ifdef V6_PRIZE_ROUTE_CAPTURE
+#if defined(V6_PRIZE_ROUTE_CAPTURE) || defined(V6_PRIZE_INPUT_CAPTURE)
                 if(prize_route_trace.count<224) {
                     volatile LONG *d=prize_route_trace.records[prize_route_trace.count++];
                     unsigned i;
