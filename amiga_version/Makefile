@@ -931,3 +931,13 @@ test: test-station-companion
 tower-station-companion-capture: tower-station
 	$(MAKE) BUILD=$(ROOT)/build/amiga-station-companion CPPFLAGS="$(STATION_FLAGS) -DV6_STATION_CAPTURE -DV6_STATION_COMPANION_CAPTURE" $(ROOT)/build/amiga-station-companion/tower.adf
 	python3 $(ROOT)/tools/amiga/run_station_companion.py
+
+STATION_MENU_FLAGS = $(STATION_FLAGS) -DV6_STATION_MENU -DV6_TOWER_UI_SAVE -DV6_TOWER_ARRIVAL -DV6_TOWER_ROUNDTRIP -DV6_TOWER_MENU_TRAVEL
+.PHONY: tower-station-menu tower-station-menu-run tower-station-menu-capture
+tower-station-menu: tower-station test-campaign-progress
+	$(MAKE) BUILD=$(ROOT)/build/amiga-station-menu-live CPPFLAGS="$(STATION_MENU_FLAGS)" $(ROOT)/build/amiga-station-menu-live/tower.adf
+tower-station-menu-run: tower-station-menu
+	python3 $(ROOT)/tools/amiga/run_interactive_save.py --build $(ROOT)/build/amiga-station-menu-live
+tower-station-menu-capture: tower-station-menu
+	$(MAKE) BUILD=$(ROOT)/build/amiga-station-menu CPPFLAGS="$(STATION_MENU_FLAGS) -DV6_STATION_CAPTURE -DV6_TOWER_UI_REPLAY" $(ROOT)/build/amiga-station-menu/tower.adf
+	python3 $(ROOT)/tools/amiga/run_station_menu.py --build $(ROOT)/build/amiga-station-menu --live $(ROOT)/build/amiga-station-menu-live

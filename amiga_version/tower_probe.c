@@ -1,3 +1,9 @@
+#if defined(V6_STATION_MENU) && (!defined(V6_TOWER_STATION) || !defined(V6_TOWER_MENU_TRAVEL) || defined(V6_STATION_SAVE))
+#error Station menu requires interactive station travel without the isolated save path
+#endif
+#if defined(V6_TOWER_STATION) && defined(V6_TOWER_UI_SAVE) && !defined(V6_STATION_MENU)
+#error Station UI saves require the V3 menu path
+#endif
 #if defined(V6_STATION_SAVE) && !defined(V6_TOWER_STATION)
 #error Station save requires the station room slice
 #endif
@@ -5,8 +11,8 @@
 #error Companion capture requires the isolated station capture without saves
 #endif
 #ifdef V6_TOWER_STATION
-#if !defined(V6_TOWER_BUILDING) || !defined(V6_TOWER_ENERGIZE) || !defined(V6_TOWER_RESCUE) || !defined(V6_TOWER_TRIGGER_REPLAY) || defined(V6_TOWER_UI_SAVE)
-#error Station slice requires room/rescue cores and its separate save path
+#if !defined(V6_TOWER_BUILDING) || !defined(V6_TOWER_ENERGIZE) || !defined(V6_TOWER_RESCUE) || !defined(V6_TOWER_TRIGGER_REPLAY)
+#error Station slice requires room/rescue cores
 #endif
 #endif
 /* Standalone PAL tower display experiment; left mouse exits. */
@@ -95,6 +101,9 @@ static V6TeleporterDestination tele_destinations[2];
 static unsigned tele_destination_count;
 #ifdef V6_TOWER_MENU_TRAVEL
 static V6Exploration ui_loaded_exploration;
+#ifdef V6_STATION_MENU
+static V6StationStory ui_loaded_yellow;
+#endif
 static const V6TeleporterDestination tele_residents[2]={{111,104},{110,105}};
 static V6TeleporterDestination menu_target;
 static unsigned menu_save_pending,menu_travel_active,menu_exit_pending;
@@ -1319,6 +1328,14 @@ static ULONG ui_game_hash(void)
 #ifdef V6_TOWER_RESCUE
     HASH(companion.body.x);HASH(companion.body.y);HASH(companion.body.vx);HASH(companion.body.vy);
     HASH(companion.follow_steps);HASH(rescue_vm.pc);HASH(rescue_vm.active);
+#ifdef V6_STATION_MENU
+    HASH(station_story.companion);HASH(station_story.rescue_triggered);HASH(station_story.yellow_rescued);
+    { unsigned i;ULONG map_hash=0;
+      for(i=0;i<sizeof(tele_exploration);++i) {
+          map_hash=(map_hash<<1)^((const UBYTE *)&tele_exploration)[i];
+      }
+      HASH(map_hash); }
+#endif
 #endif
 #ifdef V6_TOWER_BUILDING
     HASH(building_teleporter.tile);HASH(building_teleporter.state);
@@ -1338,37 +1355,62 @@ static ULONG ui_game_hash(void)
 #undef HASH
     return hash;
 }
+#ifdef V6_STATION_MENU
+static int ui_station_checkpoint_valid(const V6CheckpointSave *c,const V6HallwayStory *s)
+{
+    /* Only these three rooms run the yellow slice; red progress is retained,
+     * but its active companion requires the separate red runtime. */
+    return checkpoint_bank_valid(c) && !s->companion &&
+        ((c->room_x==111 && (c->room_y==104 || c->room_y==105)) ||
+         (c->room_x==110 && c->room_y==105));
+}
+#endif
 static int ui_load_checked(V6CheckpointSave *out,V6HallwayStory *story)
 {
     int a=v6_campaign_dos.exists(save_name),k=v6_campaign_dos.exists(save_backup),result;
     V6CheckpointSave c,b;V6HallwayStory s,bs;
 #ifdef V6_TOWER_MENU_TRAVEL
     V6Exploration map,bmap;
+#ifdef V6_STATION_MENU
+    V6StationStory yellow,byellow;
+#endif
 #endif
     if(a<0 || k<0)return V6_SAVE_IO;
-#ifdef V6_TOWER_MENU_TRAVEL
+#ifdef V6_STATION_MENU
+    result=v6_campaign_progress_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s,&yellow,&map);
+#elif defined(V6_TOWER_MENU_TRAVEL)
     result=v6_campaign_state_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s,&map);
 #else
     result=v6_campaign_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s);
 #endif
     if(result)return result;
     if(!checkpoint_bank_valid(&c))return V6_SAVE_CORRUPT;
+#ifdef V6_STATION_MENU
+    if(!ui_station_checkpoint_valid(&c,&s))return V6_SAVE_CORRUPT;
+#endif
 #if defined(V6_TOWER_BUILDING) && !defined(V6_TOWER_RESCUE)
     if(s.companion || s.rescue_triggered || s.red_rescued)return V6_SAVE_CORRUPT;
 #endif
     if(a && k) {
-#ifdef V6_TOWER_MENU_TRAVEL
+#ifdef V6_STATION_MENU
+        result=v6_campaign_progress_read(&v6_campaign_dos,save_backup,&b,&bs,&byellow,&bmap);
+#elif defined(V6_TOWER_MENU_TRAVEL)
         result=v6_campaign_state_read(&v6_campaign_dos,save_backup,&b,&bs,&bmap);
 #else
         result=v6_campaign_read(&v6_campaign_dos,save_backup,&b,&bs);
 #endif
         if(result)return result;
         if(!checkpoint_bank_valid(&b))return V6_SAVE_CORRUPT;
+#ifdef V6_STATION_MENU
+        if(!ui_station_checkpoint_valid(&b,&bs))return V6_SAVE_CORRUPT;
+#endif
 #if defined(V6_TOWER_BUILDING) && !defined(V6_TOWER_RESCUE)
         if(bs.companion || bs.rescue_triggered || bs.red_rescued)return V6_SAVE_CORRUPT;
 #endif
     }
-#ifdef V6_TOWER_MENU_TRAVEL
+#ifdef V6_STATION_MENU
+    return v6_campaign_progress_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story,&ui_loaded_yellow,&ui_loaded_exploration);
+#elif defined(V6_TOWER_MENU_TRAVEL)
     return v6_campaign_state_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story,&ui_loaded_exploration);
 #else
     return v6_campaign_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story);
@@ -1379,7 +1421,11 @@ static int ui_save_checked(void)
     V6CheckpointSave c;V6HallwayStory story;int result;
     int a,k;
     if(!checkpoint_bank_valid(&world.save))return V6_SAVE_INVALID;
-#ifdef V6_TOWER_MENU_TRAVEL
+#ifdef V6_STATION_MENU
+    if(!ui_station_checkpoint_valid(&world.save,&hallway_story))return V6_SAVE_INVALID;
+    { uint8_t bytes[V6_CAMPAIGN_STATE_BYTES];
+      if(!v6_campaign_progress_encode(bytes,sizeof(bytes),&world.save,&hallway_story,&station_story,&tele_exploration))return V6_SAVE_INVALID; }
+#elif defined(V6_TOWER_MENU_TRAVEL)
     { uint8_t bytes[V6_CAMPAIGN_STATE_BYTES];
       if(!v6_campaign_state_encode(bytes,sizeof(bytes),&world.save,&hallway_story,&tele_exploration))return V6_SAVE_INVALID; }
 #endif
@@ -1388,7 +1434,9 @@ static int ui_save_checked(void)
     /* Existing records need source-bank validation before replacement recovery
      * can discard a backup, just as an explicit load does. */
     if(a || k) {result=ui_load_checked(&c,&story);if(result)return result;}
-#ifdef V6_TOWER_MENU_TRAVEL
+#ifdef V6_STATION_MENU
+    return v6_campaign_progress_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story,&station_story,&tele_exploration);
+#elif defined(V6_TOWER_MENU_TRAVEL)
     return v6_campaign_state_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story,&tele_exploration);
 #else
     return v6_campaign_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story);
@@ -1399,6 +1447,9 @@ static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
     ui_copy(&world.save,c,sizeof(*c));
 #ifdef V6_TOWER_RESCUE
     ui_copy(&hallway_story,story,sizeof(*story));
+#ifdef V6_STATION_MENU
+    ui_copy(&station_story,&ui_loaded_yellow,sizeof(station_story));
+#endif
 #else
     (void)story;
 #endif
@@ -1409,6 +1460,9 @@ static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
 #ifdef V6_TOWER_RESCUE
     { unsigned i;for(i=0;i<sizeof(rescue_vm);++i)((volatile UBYTE *)&rescue_vm)[i]=0; }
     rescue_vm.control=1;rescue_vm.following=story->companion==9;rescue_vm.mood=story->companion==9?0:1;
+#ifdef V6_STATION_MENU
+    rescue_vm.following=station_story.companion==7;rescue_vm.mood=rescue_vm.following?0:1;
+#endif
     rescue_bars=rescue_fade=rescue_fade_mode=rescue_fire=0;rescue_flips_applied=cue_consumed=0;
     v6_companion_init(&companion);
 #endif

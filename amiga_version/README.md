@@ -2979,3 +2979,34 @@ Shared menu travel/effects, exit-pending autosave, V2/V1 return boots and the
 
 Next: connect V3 progress and yellow state to the main menu and route, then
 expand the station rooms. Music reconstruction remains parked.
+
+
+### Yellow progress connected to interactive saves — 11 October 2026
+
+Added `make -C amiga_version tower-station-menu-run`, a playable combined yellow
+rescue and interactive save/load build. Right mouse saves to DF1:campaign.v6cs;
+fire plus right mouse loads; left mouse exits. The build writes V3 checkpoint,
+red/yellow progress and the complete exploration map together, restores yellow
+companion state before re-entering the room, and resets transient dialogue,
+travel and menu state. The V3 reader also accepts older V1/V2 records where the
+checkpoint belongs to this slice. Final and backup source checkpoints are
+validated before recovery may remove either file. Active red companions and
+rooms outside Frown, Energize and Building Apport are rejected by this runtime.
+The isolated station save build and older menu builds keep their existing paths.
+
+`make -C amiga_version tower-station-menu-capture` passed on the 68000 PAL A500
+with 512K Chip/512K Slow. It checks a missing-file load, busy rejection during
+rescue dialogue, completed V3 save/load, unchanged state during save/rejection,
+frozen game ticks during DOS access, and restoration from a fresh emulator boot.
+The disk record contains yellow flags 56 and the Frown exploration bit; the
+fresh boot restores a visible, happy, following Vitellary with no new dialogue
+cues. Both runs restore the OS and leave the boot ADF unchanged. Peak work was
+246/201 PAL lines, with zero errors/missed frames and 143,094 Chip bytes. Legacy
+save codecs and transactional file regressions pass, and the older menu-effects
+build still compiles. The full station source/graphics/companion and V3 progress
+checks pass as build prerequisites.
+
+Next: verify yellow companion travel and V3 arrival autosaves through the
+teleporter menu, then expand the station rooms. This step admits interactive
+save/load; it does not yet claim combined teleporter effects/audio validation.
+Music reconstruction remains parked.
