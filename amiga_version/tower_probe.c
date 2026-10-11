@@ -496,7 +496,7 @@ static volatile struct {ULONG magic,version,count,records[128][14];}
 #ifdef V6_TOWER_SHAKE
 #include "screen_shake_dma.h"
 #include "screen_shake_display.h"
-#if !defined(V6_TOWER_ROUNDTRIP) || defined(V6_TOWER_RESCUE) || (defined(V6_TOWER_UI_SAVE) && !defined(V6_TOWER_MENU_TRAVEL))
+#if !defined(V6_TOWER_ROUNDTRIP) || (defined(V6_TOWER_RESCUE) && !defined(V6_STATION_MENU)) || (defined(V6_TOWER_UI_SAVE) && !defined(V6_TOWER_MENU_TRAVEL))
 #error Shake supports the staged roundtrip or interactive normal teleporter travel
 #endif
 static V6ScreenShake shake;
@@ -516,6 +516,9 @@ static volatile struct {ULONG magic,version,count,seed;LONG records[64][3];}
 #include "audio_policy.h"
 #ifndef V6_TRAVEL_SFX_MASK
 #define V6_TRAVEL_SFX_MASK 15
+#endif
+#if defined(V6_TOWER_AUDIO) && (V6_TRAVEL_SFX_MASK & 3)
+#error Travel effects must reserve dialogue channels zero and one
 #endif
 static unsigned travel_priority[4],travel_started[4],travel_stolen;
 static volatile struct {ULONG magic,version,mask,stolen,violations;}
@@ -767,18 +770,24 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #define CAPTION_DMA_BYTES 0
 #endif
 #ifdef V6_TOWER_AUDIO
-#define AUDIO_DMA_BYTES CUE_DMA_BYTES
-#define AUDIO_IRQ_MASK (INTF_AUD0|INTF_AUD1)
-#elif defined(V6_TOWER_TRAVEL_AUDIO)
+#define CUE_AUDIO_BYTES CUE_DMA_BYTES
+#else
+#define CUE_AUDIO_BYTES 0
+#endif
+#ifdef V6_TOWER_TRAVEL_AUDIO
 #ifdef V6_TOWER_COEXIST_AUDIO
 #define COEXIST_BYTES 64
 #else
 #define COEXIST_BYTES 0
 #endif
-#define AUDIO_DMA_BYTES (TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+2)
-#define AUDIO_IRQ_MASK (INTF_AUD0|INTF_AUD1|INTF_AUD2|INTF_AUD3)
+#define TRAVEL_AUDIO_BYTES (TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+2)
 #else
-#define AUDIO_DMA_BYTES 0
+#define TRAVEL_AUDIO_BYTES 0
+#endif
+#define AUDIO_DMA_BYTES (CUE_AUDIO_BYTES+TRAVEL_AUDIO_BYTES)
+#if defined(V6_TOWER_AUDIO) && !defined(V6_TOWER_TRAVEL_AUDIO)
+#define AUDIO_IRQ_MASK (INTF_AUD0|INTF_AUD1)
+#else
 #define AUDIO_IRQ_MASK (INTF_AUD0|INTF_AUD1|INTF_AUD2|INTF_AUD3)
 #endif
 #ifdef V6_TOWER_UI_SAVE
@@ -1941,7 +1950,7 @@ static int run(void) {
         coexist_sample=travel_audio_chip+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES;
         for(i=0;i<64;++i)coexist_sample[i]=(UBYTE)(i<32?(int)i*6-96:288-(int)i*6);
 #endif
-        for(i=0;i<4;++i)if(!v6_paula_init(&travel_voices[i],i,(ULONG)(travel_audio_chip+AUDIO_DMA_BYTES-2))) {
+        for(i=0;i<4;++i)if(!v6_paula_init(&travel_voices[i],i,(ULONG)(travel_audio_chip+TRAVEL_AUDIO_BYTES-2))) {
             FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
         }
     }
@@ -2132,8 +2141,11 @@ static int run(void) {
 #ifdef V6_TOWER_AUDIO
         {
             V6AudioPlan plan;
-            v6_audio_tick(&cue_audio,(hw->intreqr&INTF_AUD0)!=0,&plan);
-            audio_apply(&plan);audio_record();
+            if(cue_audio.state!=V6_AUDIO_IDLE) {
+                v6_audio_tick(&cue_audio,(hw->intreqr&INTF_AUD0)!=0,&plan);
+                audio_apply(&plan);
+            }
+            audio_record();
         }
 #endif
 #ifdef V6_TOWER_COEXIST_AUDIO
@@ -2142,7 +2154,7 @@ static int run(void) {
 #ifdef V6_TOWER_TRAVEL_AUDIO
         {
             unsigned i;V6AudioPlan plan;
-            for(i=0;i<4;++i)if(V6_TRAVEL_SFX_MASK&(1U<<i)) {
+            for(i=0;i<4;++i)if((V6_TRAVEL_SFX_MASK&(1U<<i)) && travel_voices[i].audio.state!=V6_AUDIO_IDLE) {
                 if(!v6_paula_tick(&travel_voices[i],(hw->intreqr&(INTF_AUD0<<i))!=0,&plan))diag.error=15;
                 travel_audio_apply(&plan);
             }

@@ -946,3 +946,15 @@ tower-station-menu-capture: tower-station-menu
 tower-station-travel-capture: tower-station-menu
 	$(MAKE) BUILD=$(ROOT)/build/amiga-station-travel CPPFLAGS="$(STATION_MENU_FLAGS) -DV6_TELE_MENU_CAPTURE -DV6_STATION_TRAVEL_CAPTURE" $(ROOT)/build/amiga-station-travel/tower.adf
 	python3 $(ROOT)/tools/amiga/run_station_travel.py --build $(ROOT)/build/amiga-station-travel --live $(ROOT)/build/amiga-station-menu-live
+
+STATION_EFFECT_FLAGS = $(STATION_MENU_FLAGS) -DV6_TOWER_SHAKE -DV6_TOWER_TRAVEL_AUDIO -DV6_TRAVEL_SFX_MASK=12
+.PHONY: tower-station-effects tower-station-effects-run tower-station-effects-capture
+tower-station-effects: tower-station-menu test-shake-caption test-audio-policy test-paula-voice
+	$(MAKE) BUILD=$(ROOT)/build/amiga-station-effects-live CPPFLAGS="$(STATION_EFFECT_FLAGS)" $(ROOT)/build/amiga-station-effects-live/tower.adf
+tower-station-effects-run: tower-station-effects
+	python3 $(ROOT)/tools/amiga/run_interactive_save.py --build $(ROOT)/build/amiga-station-effects-live
+tower-station-effects-capture: tower-station-effects
+	$(MAKE) BUILD=$(ROOT)/build/amiga-station-effects CPPFLAGS="$(STATION_EFFECT_FLAGS) -DV6_TELE_MENU_CAPTURE -DV6_STATION_TRAVEL_CAPTURE" $(ROOT)/build/amiga-station-effects/tower.adf
+	python3 $(ROOT)/tools/amiga/run_station_travel.py --build $(ROOT)/build/amiga-station-effects --live $(ROOT)/build/amiga-station-effects-live --effects
+	$(MAKE) BUILD=$(ROOT)/build/amiga-station-effects-rescue CPPFLAGS="$(STATION_EFFECT_FLAGS) -DV6_STATION_CAPTURE" $(ROOT)/build/amiga-station-effects-rescue/tower.adf
+	python3 $(ROOT)/tools/amiga/run_station_game.py --build $(ROOT)/build/amiga-station-effects-rescue --menu-effects

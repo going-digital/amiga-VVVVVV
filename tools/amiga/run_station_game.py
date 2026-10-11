@@ -81,7 +81,7 @@ def verify(data,skip):
     return fields,list(final)
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--build',type=Path,required=True);parser.add_argument('--skip',action='store_true');args=parser.parse_args();build=args.build.resolve()
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--build',type=Path,required=True);parser.add_argument('--skip',action='store_true');parser.add_argument('--menu-effects',action='store_true');args=parser.parse_args();build=args.build.resolve()
     config=build/'station.toml';config.write_text(f'''rom = {json.dumps(str(Path.home()/'amiga/KICK13.ROM'))}
 [machine]
 model = "A500"
@@ -101,15 +101,23 @@ path = {json.dumps(str(build/'tower.adf'))}
 write_protected = true
 ''')
     dump=build/'station.bin';dump.unlink(missing_ok=True);before=(build/'tower.adf').read_bytes()
-    env=dict(os.environ,COPPERLINE_DBG_AFTER='75',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{dump}')
+    end=95 if args.menu_effects else 75
+    env=dict(os.environ,COPPERLINE_DBG_AFTER=str(end),COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{dump}')
     for name in ('paula','paula-0','paula-1','paula-2','paula-3','drivesounds'):
         (build/'audio-stems'/(name+'.wav')).unlink(missing_ok=True)
     with (build/'station.log').open('w') as log:
-        subprocess.run([EMU,'--config',str(config),'--noaudio','--audio-stems',str(build/'audio-stems'),'--audio-stems-mode','source,channel','--screenshot-after','76',str(build/'station.png'),'--click-after','78','left','200'],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+        subprocess.run([EMU,'--config',str(config),'--noaudio','--audio-stems',str(build/'audio-stems'),'--audio-stems-mode','source,channel','--screenshot-after',str(end+1),str(build/'station.png'),'--click-after',str(end+3),'left','200'],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
     display=diagnostics(dump);assert display['status']==1 and display['error']==display['missed']==0 and display['max_work_lines']<=250,display
     assert display['logic_ticks']==1000,display
     audio_bytes=json.loads((ROOT/'build/amiga-feasibility/station-cue-samples.json').read_text())['chip_bytes']
-    assert display['chip_bytes']==111328+audio_bytes,display
+    expected_chip=111328+audio_bytes
+    if args.menu_effects:
+        manifest=json.loads((ROOT/'build/amiga-feasibility/teleporter-samples.json').read_text())
+        expected_chip=143094+9602+256+sum(sample['pcm_bytes'] for sample in manifest['samples'])+2
+        data=dump.read_bytes();at=data.index(b'V6TA\0\0\0\1')
+        assert struct.unpack_from('>8I',data,at+8)==(0,)*8
+        at=data.index(b'V6AP\0\0\0\1');assert struct.unpack_from('>3I',data,at+8)==(12,0,0)
+    assert display['chip_bytes']==expected_chip,display
     fields,final=verify(dump.read_bytes(),args.skip)
     assert (build/'tower.adf').read_bytes()==before
     report=dict(display=display,source_core_fields=fields,final=final,skip=args.skip,boot_disk_unchanged=True)

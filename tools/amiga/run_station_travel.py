@@ -58,6 +58,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--live', type=Path, required=True)
+    parser.add_argument('--effects', action='store_true')
     args = parser.parse_args()
     build, live = args.build.resolve(), args.live.resolve()
     disk = build/'capture-travel-disk.adf'
@@ -78,8 +79,13 @@ def main():
         inputs += ['--click-after', str(start+2.4), 'right', '200',
                    '--click-after', str(start+4.6), 'right', '200',
                    '--click-after', '74', 'left', '200']
+        stems = directory/(label+'-audio')
+        if args.effects:
+            for name in ('paula', 'paula-0', 'paula-1', 'paula-2', 'paula-3', 'drivesounds'):
+                (stems/(name+'.wav')).unlink(missing_ok=True)
         with (directory/(label+'.log')).open('w') as log:
             subprocess.run([EMU, '--config', str(cfg), '--floppy-drives', '2', '--noaudio', *inputs,
+                            *(['--audio-stems', str(stems), '--audio-stems-mode', 'source,channel'] if args.effects else []),
                             '--screenshot-after', '81', str(directory/(label+'.png'))],
                            env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
         data = dump.read_bytes()
@@ -100,7 +106,13 @@ def main():
             assert tb == ta and fa-fb <= 4 and (action == 2 or bh == ah), events
         at = data.index(b'V6ME\0\0\0\1')
         start_tick, arrival_tick, save_tick = struct.unpack_from('>3I', data, at+8)
-        assert arrival_tick == save_tick == start_tick+64, (start_tick, arrival_tick, save_tick)
+        assert arrival_tick == start_tick+64, (start_tick, arrival_tick, save_tick)
+        if args.effects:
+            assert save_tick > arrival_tick, (arrival_tick, save_tick)
+            delays, busy = struct.unpack_from('>2I', data, at+20)
+            assert delays > 0 and busy == 0, (delays, busy)
+        else:
+            assert save_tick == arrival_tick, (arrival_tick, save_tick)
         mt = data.index(b'V6MT\0\0\0\1')
         for i, event in enumerate(events[int(returning):int(returning)+2]):
             tick = event[6]-start_tick
@@ -118,15 +130,43 @@ def main():
         rescue = struct.unpack_from('>18I', data, at+8)
         assert rescue[1:3] == (0, 0) and rescue[10] == 0 and rescue[14:16] == (1, 7), rescue
         assert (directory/'tower.adf').read_bytes() == boot
-        return dict(display=display, menu=menu, ui=ui, events=events,
-                    source_travel_fields=fields, companion_fields=crew_fields, transitions=transitions)
+        report = dict(display=display, menu=menu, ui=ui, events=events,
+                      source_travel_fields=fields, companion_fields=crew_fields, transitions=transitions)
+        if args.effects:
+            from teleporter_audio_capture import verify as verify_audio
+            verify_audio(report, dump, stems, reserved=True, single=True, start_tick=start_tick, mask=12)
+            at = data.index(b'V6MH\0\0\0\1')
+            count, seed = struct.unpack_from('>2I', data, at+8)
+            assert count == 64, count
+            for tick in range(count):
+                row = struct.unpack_from('>3i', data, at+16+12*tick)
+                travel = struct.unpack_from('>36i', data, mt+104+144*tick)
+                assert row[0] == (travel[4] if travel[0] else travel[12]), (tick, row, travel)
+                expected = []
+                for _ in range(2):
+                    if row[0]:
+                        seed ^= (seed << 13) & 0xffffffff
+                        seed ^= seed >> 17
+                        seed ^= (seed << 5) & 0xffffffff
+                        numerator = (seed >> 16)*7-262144
+                        expected.append(abs(numerator)//65536*(-1 if numerator < 0 else 1))
+                    else:
+                        expected.append(0)
+                assert row[1:] == tuple(expected), (tick, row, expected)
+            manifest = json.loads((Path(__file__).resolve().parents[2]/'build/amiga-feasibility/teleporter-samples.json').read_text())
+            expected_chip = 143094+9602+256+sum(sample['pcm_bytes'] for sample in manifest['samples'])+2
+            assert display['chip_bytes'] == expected_chip, display
+            at = data.index(b'V6AU\0\0\0\1')
+            assert struct.unpack_from('>7I', data, at+8) == (0,)*7
+            report.update(shake_records=count, audio_idle_before_DOS=True)
+        return report
 
     outbound = capture(build, 'yellow-outbound')
     arrival = read_record(disk)
     returning = capture(live, 'yellow-return', True)
     assert arrival != read_record(disk)
     report = dict(outbound=outbound, returning=returning,
-                  scope='Physical teleporter selector, 64-tick travel and companion traces both ways, V3 arrival autosaves, cold return, departure/arrival busy rejection')
+                  effects=args.effects, scope='Physical teleporter selector, 64-tick travel and companion traces both ways, V3 arrival autosaves, cold return, departure/arrival busy rejection')
     (build/'station-travel-capture.json').write_text(json.dumps(report, indent=2)+'\n')
     print('PASS yellow travel:', json.dumps(report))
 

@@ -4,19 +4,19 @@ import math
 import struct
 from audio_capture import ROOT,read_wav
 
-def verify(report,ram,folder,reserved=False,coexist=False,single=False,start_tick=0):
+def verify(report,ram,folder,reserved=False,coexist=False,single=False,start_tick=0,mask=3):
     data=ram.read_bytes();at=data.index(b'V6TA\0\0\0\1')
     values=struct.unpack_from('>8I',data,at+8)
     assert values[:7]==((0,4,4,8,4,0,2) if single else (0,8,7,15,8,0,2) if reserved else (0,8,8,16,8,0,3)),values
     if reserved or b'V6AP\0\0\0\1' in data:
         policy_at=data.index(b'V6AP\0\0\0\1')
         policy=struct.unpack_from('>3I',data,policy_at+8)
-        assert policy==((3,0,0) if single else (3,1,0) if reserved else (15,0,0)),policy
+        assert policy==((mask,0,0) if single else (3,1,0) if reserved else (15,0,0)),policy
     records=[struct.unpack_from('>4I',data,at+40+16*i) for i in range(4 if single else 8)]
     expected=[(1,0),(11,1),(23,0),(38,1),(65,0),(75,1),(87,0),(102,1)]
     if single:expected=[(start_tick+tick,cue) for tick,cue in expected[:4]]
     assert [r[:2] for r in records]==expected,records
-    assert [r[2] for r in records]==([0,1,0,0] if single else [0,1,0,0,1,1,0,0] if reserved else [0,1,0,0,1,2,0,0]),records
+    assert [r[2] for r in records]==([2,3,2,2] if single and mask==12 else [0,1,0,0] if single else [0,1,0,0,1,1,0,0] if reserved else [0,1,0,0,1,2,0,0]),records
     manifest=json.loads((ROOT/'build/amiga-feasibility/teleporter-samples.json').read_text())
     payloads=[(ROOT/'build/amiga-feasibility'/('teleporter-'+cue+'.pcm')).read_bytes()
         for cue in ('flash','teleport')]
@@ -78,5 +78,5 @@ def verify(report,ram,folder,reserved=False,coexist=False,single=False,start_tic
         assert actual>.75 and actual>alternate+.3,(actual,alternate)
         panning.append(round(actual,5))
     report.update(audio_channels=[r[2] for r in records],audio_completed=values[2],audio_peak_voices=values[6],audio_replaced=1 if reserved and not single else 0,
-        audio_reserved_mask=12 if reserved else 0,audio_policy_violations=0,
+        audio_reserved_mask=(15^mask) if reserved and single else 12 if reserved else 0,audio_policy_violations=0,
         audio_panning_correlations=panning,audio_waveform_correlations=correlations,audio_burst_durations=durations)

@@ -4248,3 +4248,38 @@ Building display bank as well as the existing Frown/Energize banks.
 Next: combine yellow dialogue audio with the already proven teleporter shake
 and reserved-channel effects, then expand station room coverage. Music
 reconstruction remains parked.
+
+
+### Yellow dialogue and teleporter effects combined — 11 October 2026
+
+Added `make -C amiga_version tower-station-effects-run`, the playable station
+slice with interactive V3 saves, yellow dialogue audio, display-register shake,
+and teleporter sound effects. Dialogue retains mirrored mono on Paula 0/1;
+teleporter voices use the hardware-panned channels 2/3. A compile-time guard
+rejects overlapping masks. Cue and travel PCM banks have separate allocations
+and separate silence words, and the takeover checks include all four audio IRQs.
+Completed-arrival autosaves wait for the travel voices to drain before DOS.
+Idle audio voices now skip their no-op tick calls to preserve frame headroom.
+The existing isolated dialogue/menu builds retain their original sample layouts.
+
+`make -C amiga_version tower-station-effects-capture` passes on the PAL 68000
+A500 with 512K Chip and 512K Slow. Both physical menu journeys retain the
+2,304-field travel and 896-field companion comparisons, match 64 shake records,
+and write V3 yellow progress/map/checkpoints after the final audio tail. Each
+leg plays four complete effects on channels [2,3,2,2], with eight DMA interrupts,
+no dropped/stolen voices or policy violations, correct source waveforms and
+hardware panning, and sustained final silence. Dialogue channels remain silent
+through these captures. The cold boot loads the outbound save and completes the
+return journey; both runs restore the OS and leave their boot disks unchanged.
+Peaks are 246/237 PAL lines, with zero errors/missed frames.
+
+The same combined configuration completes the full yellow rescue at 1,000
+logic ticks, matching 4,096 integration fields. All eleven dialogue cues finish
+with 22 DMA interrupts and no replacement/error, source correlations above
+0.964 and matching stereo output; teleporter channels remain silent. Its peak
+is 205 PAL lines. All three captures use 194,682 Chip bytes. Audio register-plan,
+voice-allocation, shake/caption, source translation and sprite/DMA checks pass.
+
+Next: expand station room coverage from the original source, including the
+required entities, collision and persistence admission for each room. Music
+reconstruction remains parked while awaiting original tracker files.
