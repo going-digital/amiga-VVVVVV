@@ -1,4 +1,4 @@
-"""Private Viridian/Vermilion WAVs to signed 8-bit PAL Paula PCM."""
+"""Private crew dialogue WAVs to signed 8-bit PAL Paula PCM."""
 import hashlib
 import io
 import json
@@ -7,6 +7,7 @@ import struct
 import wave
 PAL_CLOCK=3546895
 PERIOD=161
+STATION_FILES=('crew4','crew1')
 FILES=('crew6','crew1') # Script speaker 0=red, 1=player.
 
 def convert(raw):
@@ -36,17 +37,20 @@ def convert(raw):
         source_sha256=hashlib.sha256(raw).hexdigest(),pcm_sha256=hashlib.sha256(data).hexdigest(),
         source_duration=frames/rate,pcm_duration=len(data)*PERIOD/PAL_CLOCK)
 
-def export(archive,out):
-    manifest=[];header='/* Private source cues: red then player; signed 8-bit PCM. */\n'
+def export(archive,out,station=False):
+    files=STATION_FILES if station else FILES
+    prefix='station-' if station else ''
+    manifest=[];header='/* Private source crew then player cues; signed 8-bit PCM. */\n'
     total=2 # Separate silent DMA word.
-    for speaker,name in enumerate(FILES):
+    for speaker,name in enumerate(files):
         pcm,meta=convert(archive.read('sounds/'+name+'.wav'));meta.update(speaker=speaker,file=name+'.wav')
         (out/(name+'.pcm')).write_bytes(pcm)
         header+='static const unsigned char cue_'+name+'[]={'+','.join(map(str,pcm))+'};\n'
         header+='#define CUE_'+name.upper()+'_BYTES '+str(len(pcm))+'\n'
         total+=len(pcm);manifest.append(meta)
+    header+='#define CUE_CREW_BYTES CUE_'+files[0].upper()+'_BYTES\n#define CUE_CREW cue_'+files[0]+'\n'
     header+='#define CUE_PERIOD '+str(PERIOD)+'\n#define CUE_DMA_BYTES '+str(total)+'\n'
-    (out/'cue_samples.h').write_text(header)
-    (out/'cue-samples.json').write_text(json.dumps(dict(version=1,pal_clock=PAL_CLOCK,samples=manifest,
+    (out/('station_cue_samples.h' if station else 'cue_samples.h')).write_text(header)
+    (out/(prefix+'cue-samples.json')).write_text(json.dumps(dict(version=1,pal_clock=PAL_CLOCK,samples=manifest,
         chip_bytes=total,scope='Private source WAVs, 9 kHz low-pass resampling, signed 8-bit quantization; no normalization'),indent=2)+'\n')
     return total

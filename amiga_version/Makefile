@@ -894,7 +894,7 @@ test-station-rescue: $(BUILD)/rescue_script.o $(BUILD)/dialogue.o
 	$(CC) $(CFLAGS) -I$(ROOT)/build/amiga-station-rescue -c $(ROOT)/build/amiga-station-rescue/programs.c -o $(ROOT)/build/amiga-station-rescue/programs.o
 test: test-station-rescue
 
-STATION_FLAGS = -DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_ENERGIZE -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_STATION
+STATION_FLAGS = -DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_ENERGIZE -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_STATION -DV6_TOWER_AUDIO
 .PHONY: tower-station tower-station-run
 tower-station: tower-probe test-station-rescue test-station-trigger test-station-route test-station-graphics
 	$(MAKE) BUILD=$(ROOT)/build/amiga-station-live CPPFLAGS="$(STATION_FLAGS)" $(ROOT)/build/amiga-station-live/tower.adf

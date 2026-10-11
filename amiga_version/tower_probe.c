@@ -1,6 +1,6 @@
 #ifdef V6_TOWER_STATION
-#if !defined(V6_TOWER_BUILDING) || !defined(V6_TOWER_ENERGIZE) || !defined(V6_TOWER_RESCUE) || !defined(V6_TOWER_TRIGGER_REPLAY) || defined(V6_TOWER_UI_SAVE) || defined(V6_TOWER_AUDIO)
-#error Station slice requires room/rescue cores; yellow persistence/audio are pending
+#if !defined(V6_TOWER_BUILDING) || !defined(V6_TOWER_ENERGIZE) || !defined(V6_TOWER_RESCUE) || !defined(V6_TOWER_TRIGGER_REPLAY) || defined(V6_TOWER_UI_SAVE)
+#error Station slice requires room/rescue cores; yellow persistence is pending
 #endif
 #endif
 /* Standalone PAL tower display experiment; left mouse exits. */
@@ -229,7 +229,11 @@ static V6StationTrigger station_trigger;
 #include "companion.h"
 #ifdef V6_TOWER_AUDIO
 #include "audio.h"
+#ifdef V6_TOWER_STATION
+#include "station_cue_samples.h"
+#else
 #include "cue_samples.h"
+#endif
 static V6Audio cue_audio;
 static unsigned cue_consumed;
 static UBYTE *cue_chip;
@@ -246,10 +250,12 @@ static void audio_record(void)
     cue_diag.values[4]=cue_audio.error;cue_diag.values[5]=cue_audio.interrupts;
     cue_diag.values[6]=cue_consumed;
 }
+
 #endif
 static V6Companion companion;
 static V6Terrain hallway_terrain[2];
 static V6RescueScript rescue_vm={.control=1,.mood=1};
+
 static int rescue_bars,rescue_fade,rescue_fade_mode,rescue_fire;
 static UBYTE *rescue_captions;
 static unsigned rescue_flips_applied;
@@ -827,6 +833,22 @@ static volatile struct {
     ULONG magic,version,max_logic,max_render,peak_logic,peak_render,peak_tick,peak_rows;
 } profile={0x56365046,1,0,0,0,0,0,0};
 #endif
+#if defined(V6_TOWER_AUDIO) && defined(V6_TOWER_RESCUE)
+static void rescue_audio_tick(void)
+{
+    if(rescue_vm.cues!=cue_consumed) {
+        V6AudioPlan plan;V6AudioSample sample;
+        sample.address=(ULONG)(cue_chip+(rescue_vm.cue_speaker?CUE_CREW_BYTES:0));
+        sample.bytes=rescue_vm.cue_speaker?CUE_CREW1_BYTES:CUE_CREW_BYTES;
+        sample.period=CUE_PERIOD;sample.volume=64;
+        if(!v6_audio_request(&cue_audio,&sample,&plan)) { cue_audio.error=1;diag.error=11; }
+        else audio_apply(&plan);
+        cue_consumed=rescue_vm.cues;audio_record();
+    }
+}
+
+#endif
+
 #ifdef V6_TOWER_WORLD
 static volatile struct { ULONG magic,version,values[13]; }
     world_diag={0x56365747,1,{0}};
@@ -1746,8 +1768,8 @@ static int run(void) {
     {
         unsigned i;
         cue_chip=chip+CHIP_BYTES-CUE_DMA_BYTES;
-        for(i=0;i<CUE_CREW6_BYTES;++i)cue_chip[i]=cue_crew6[i];
-        for(i=0;i<CUE_CREW1_BYTES;++i)cue_chip[CUE_CREW6_BYTES+i]=cue_crew1[i];
+        for(i=0;i<CUE_CREW_BYTES;++i)cue_chip[i]=CUE_CREW[i];
+        for(i=0;i<CUE_CREW1_BYTES;++i)cue_chip[CUE_CREW_BYTES+i]=cue_crew1[i];
         if(!v6_audio_init(&cue_audio,(ULONG)(cue_chip+CUE_DMA_BYTES-2))) {
             FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
         }
@@ -2360,6 +2382,9 @@ static int run(void) {
                 }
                 v6_station_rescue_tick(&rescue_vm,&station_story,&rescue_signals);
                 if(rescue_vm.error)diag.error=10;
+#ifdef V6_TOWER_AUDIO
+                rescue_audio_tick();
+#endif
                 companion.following=rescue_vm.following;
                 if(rescue_vm.tile_serial)companion.mood=0;
                 companion_record();rescue_record();record_trigger();
@@ -2380,15 +2405,7 @@ static int run(void) {
                 v6_rescue_tick(&rescue_vm,&hallway_story,&rescue_signals);
                 if(rescue_vm.error) diag.error=10;
 #ifdef V6_TOWER_AUDIO
-                if(rescue_vm.cues!=cue_consumed) {
-                    V6AudioPlan plan;V6AudioSample sample;
-                    sample.address=(ULONG)(cue_chip+(rescue_vm.cue_speaker?CUE_CREW6_BYTES:0));
-                    sample.bytes=rescue_vm.cue_speaker?CUE_CREW1_BYTES:CUE_CREW6_BYTES;
-                    sample.period=CUE_PERIOD;sample.volume=64;
-                    if(!v6_audio_request(&cue_audio,&sample,&plan)) { cue_audio.error=1;diag.error=11; }
-                    else audio_apply(&plan);
-                    cue_consumed=rescue_vm.cues;audio_record();
-                }
+                rescue_audio_tick();
 #endif
                 companion.mood=rescue_vm.mood;companion.following=rescue_vm.following;
                 companion_record();

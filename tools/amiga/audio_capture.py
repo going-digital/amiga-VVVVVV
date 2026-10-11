@@ -22,10 +22,10 @@ def read_wav(path):
     if sys.byteorder!='little':samples.byteswap()
     return (rate,samples[::2],samples[1::2]) if channels==2 else (rate,samples,samples)
 
-def verify(report,ram,wav,skip=False):
+def verify(report,ram,wav,skip=False,station=False):
     data=ram.read_bytes();offset=data.index(b'V6AU\0\0\0\1')
     state,starts,completed,replaced,error,interrupts,consumed=struct.unpack_from('>7I',data,offset+8)
-    expected=1 if skip else 6
+    expected=1 if skip else 11 if station else 6
     assert (state,starts,completed,replaced,error,interrupts,consumed)==(0,expected,expected,0,0,expected*2,expected)
     folder=wav if wav.is_dir() else None
     rate,left,right=read_wav(wav/"paula.wav" if folder else wav);active=[]
@@ -38,9 +38,10 @@ def verify(report,ram,wav,skip=False):
         if not bursts or at-bursts[-1][1]>rate*.02:bursts.append([at,at+256])
         else:bursts[-1][1]=at+256
     assert len(bursts)==expected,(bursts,expected)
-    manifest=json.loads((ROOT/'build/amiga-feasibility/cue-samples.json').read_text())
-    programs=json.loads((ROOT/'build/amiga-feasibility/rescue-programs.json').read_text())
-    order=[op['value'] for op in programs['programs']['skipred' if skip else 'rescuered']['ops'] if op['op']=='CUE']
+    manifest=json.loads((ROOT/'build/amiga-feasibility'/('station-cue-samples.json' if station else 'cue-samples.json')).read_text())
+    programs=json.loads((ROOT/'build/amiga-feasibility'/('station-rescue-programs.json' if station else 'rescue-programs.json')).read_text())
+    name=('skipyellow' if skip else 'rescueyellow') if station else ('skipred' if skip else 'rescuered')
+    order=[op['value'] for op in programs['programs'][name]['ops'] if op['op']=='CUE']
     assert len(order)==expected
     correlations=[];stereo=[];durations=[]
     for (begin,end),speaker in zip(bursts,order):
@@ -72,7 +73,7 @@ def verify(report,ram,wav,skip=False):
         aa=sum(left[i]**2 for i in range(begin,end,8));bb=sum(right[i]**2 for i in range(begin,end,8))
         similarity=dot/math.sqrt(aa*bb);assert similarity>.98
         stereo.append(round(similarity,5));durations.append(round((end-begin)/rate,5))
-        assert .06<(end-begin)/rate<.15,('Repeated or truncated cue',begin,end,rate)
+        assert abs((end-begin)/rate-sample['pcm_duration'])<.025,('Repeated or truncated cue',begin,end,rate,sample['pcm_duration'])
     if folder:
         for channel in (2,3):
             _,silent,_=read_wav(folder/("paula-"+str(channel)+".wav"))

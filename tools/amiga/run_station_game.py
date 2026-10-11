@@ -101,12 +101,18 @@ write_protected = true
 ''')
     dump=build/'station.bin';dump.unlink(missing_ok=True);before=(build/'tower.adf').read_bytes()
     env=dict(os.environ,COPPERLINE_DBG_AFTER='75',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{dump}')
+    for name in ('paula','paula-0','paula-1','paula-2','paula-3','drivesounds'):
+        (build/'audio-stems'/(name+'.wav')).unlink(missing_ok=True)
     with (build/'station.log').open('w') as log:
-        subprocess.run([EMU,'--config',str(config),'--noaudio','--screenshot-after','76',str(build/'station.png'),'--click-after','78','left','200'],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+        subprocess.run([EMU,'--config',str(config),'--noaudio','--audio-stems',str(build/'audio-stems'),'--audio-stems-mode','source,channel','--screenshot-after','76',str(build/'station.png'),'--click-after','78','left','200'],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
     display=diagnostics(dump);assert display['status']==1 and display['error']==display['missed']==0 and display['max_work_lines']<=250,display
     assert display['logic_ticks']==1000,display
+    audio_bytes=json.loads((ROOT/'build/amiga-feasibility/station-cue-samples.json').read_text())['chip_bytes']
+    assert display['chip_bytes']==111328+audio_bytes,display
     fields,final=verify(dump.read_bytes(),args.skip)
     assert (build/'tower.adf').read_bytes()==before
     report=dict(display=display,source_core_fields=fields,final=final,skip=args.skip,boot_disk_unchanged=True)
+    from audio_capture import verify as verify_audio
+    verify_audio(report,dump,build/'audio-stems',args.skip,station=True)
     (build/'station-capture.json').write_text(json.dumps(report,indent=2)+'\n');print('PASS native station game:',json.dumps(report))
 if __name__=='__main__':main()

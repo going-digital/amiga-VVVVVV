@@ -4018,7 +4018,7 @@ Music reconstruction remains parked.
 `make -C amiga_version tower-station-run` builds and launches the isolated
 Frown Upside Down game slice. The bootable disk is
 `build/amiga-station-live/tower.adf`. Move left from the ceiling checkpoint to
-start Victoria's rescue; fire advances dialogue and left mouse exits.
+start Vitellary's rescue; fire advances dialogue and left mouse exits.
 The live build uses joystick input, without capture autoplay.
 
 This integrates Frown's source tile graphics, collision and checkpoint, yellow
@@ -4039,3 +4039,34 @@ pixels. Existing red rescue and companion checks remain separate regressions.
 
 Next: bind yellow rescue audio cues, admit the room and yellow story flags to
 persistent saves, then extend companion behavior and the station route.
+
+## Yellow dialogue audio integrated — 11 October 2026
+
+The playable station build now binds source yellow squeaks to Vitellary's
+`crew4.wav`, and player replies to Viridian's `crew1.wav`. An extracted original
+Script.cpp handler and Music sound-load order verify that mapping independently.
+The converter exports a separate yellow cue bank, retaining the red bank and
+using the same signed 8-bit, period-161 PAL PCM conversion. No tracker/music
+reconstruction work is resumed.
+
+The existing Paula one-shot player now serves both rescue paths. It mirrors
+mono cues on channels 0/1, queues silence after each sample and stops DMA on exit.
+`make -C amiga_version tower-station-run` enables dialogue cues in live play.
+Yellow disk persistence remains deliberately unavailable in this isolated slice.
+
+Normal and skip `tower-station-capture` runs pass with eleven/one completed cues,
+22/two DMA completion interrupts, no replacements and no audio errors. Recorded
+waveform correlations exceed 0.964 in the normal path and 0.989 in the skip path;
+each selected speaker beats the alternate waveform. Both stereo sides agree,
+channels 2/3 remain silent and sustained silence follows the final cue. Existing
+4,096 gameplay/script/companion trace comparisons and final 1,000-tick states
+still match. Chip allocation is 116,214 bytes, including 4,886 cue bytes; peak
+work is 203/202 PAL lines with zero errors or missed frames.
+
+The capture runner clears only its named generated stem files before recording,
+allowing repeat runs with Copperline's empty-directory requirement. Red normal
+and skipped native audio captures also pass, including OS restoration.
+
+Next: extend the save format and room admission to retain yellow rescue flags
+and the Frown checkpoint across fresh boots, then complete source companion
+restraint in Energize and expand the station route.

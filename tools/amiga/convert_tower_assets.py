@@ -61,6 +61,7 @@ def main():
     with zipfile.ZipFile(args.data) as archive:
         from convert_audio import export as export_audio
         export_audio(archive,out)
+        export_audio(archive,out,station=True)
         from convert_teleporter_audio import export as export_teleporter_audio
         export_teleporter_audio(archive,out)
         original=archive.read('graphics/tiles3.png')

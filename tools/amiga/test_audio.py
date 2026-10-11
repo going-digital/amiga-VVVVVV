@@ -8,7 +8,7 @@ import re
 import struct
 import subprocess
 import wave
-from convert_audio import convert,FILES
+from convert_audio import convert,FILES,STATION_FILES
 from test_player import block
 ROOT=Path(__file__).resolve().parents[2]
 class Sample(C.Structure):
@@ -62,7 +62,7 @@ def main():
     # Independently derive Script -> enum index -> WAV load order.
     script=(ROOT/'desktop_version/src/Script.cpp').read_text();music=(ROOT/'desktop_version/src/Music.cpp').read_text();enums=(ROOT/'desktop_version/src/Music.h').read_text()
     loads=re.findall(r'add_builtin_sound\("(.*?)"\)',music[music.index('add_builtin_sound("jump")'):])
-    for name,file in (('VERMILION','crew6'),('VIRIDIAN','crew1')):
+    for name,file in (('VERMILION','crew6'),('VIRIDIAN','crew1'),('VITELLARY','crew4')):
         index=int(re.search('Sound_'+name+r'\s*=\s*(\d+)',enums)[1]);assert loads[index]==file
         assert 'music.playef(Sound_'+name+');' in script
     handler=block(script,script.index('else if (words[0] == "squeak")')).removeprefix('else ')
@@ -72,13 +72,14 @@ def main():
     subprocess.run(['c++','-O2','-shared','-fPIC',str(out/'cue_reference.cpp'),'-o',str(out/'cue_reference.so')],check=True)
     cue=C.CDLL(str(out/'cue_reference.so')).cue;cue.argtypes=[C.c_char_p]
     assert loads[cue(b'red')]=='crew6' and loads[cue(b'player')]=='crew1'
-    assert FILES==('crew6','crew1')
+    assert loads[cue(b'yellow')]=='crew4'
+    assert FILES==('crew6','crew1') and STATION_FILES==('crew4','crew1')
     stream=io.BytesIO()
     with wave.open(stream,'wb') as w:
         w.setnchannels(1);w.setsampwidth(2);w.setframerate(44100)
         w.writeframes(struct.pack('<4096h',*([8192]*4096)))
     pcm,meta=convert(stream.getvalue())
     assert len(pcm)%2==0 and pcm[-2:]==bytes(2) and set(pcm[100:-100])=={32}
-    report=dict(invalid_sample_cases=len(invalid),complete_one_shots=6,replacement_states=3,source_mapping=dict(red='crew6.wav',player='crew1.wav'),scope='Portable ordered register plans and guards; stereo Paula output checked in native captures')
+    report=dict(invalid_sample_cases=len(invalid),complete_one_shots=6,replacement_states=3,source_mapping=dict(red='crew6.wav',yellow='crew4.wav',player='crew1.wav'),scope='Portable ordered register plans and guards; stereo Paula output checked in native captures')
     (out/'tests.json').write_text(json.dumps(report,indent=2)+'\n');print('PASS',report)
 if __name__=='__main__':main()
