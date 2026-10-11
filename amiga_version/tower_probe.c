@@ -1,5 +1,34 @@
 /* Standalone PAL tower display experiment; left mouse exits. */
 #include <proto/exec.h>
+#ifdef V6_TOWER_ARRIVAL_SAVE
+#if !defined(V6_BUILDING_SAVE) || !defined(V6_TOWER_ROUNDTRIP) || !defined(V6_TOWER_ENERGIZE) || !defined(V6_ENERGIZE_CAPTURE) || !defined(V6_TOWER_ARRIVAL)
+#error Arrival save requires the Building save and staged roundtrip fixtures
+#endif
+#if V6_ENERGIZE_CAPTURE_TICKS == 64
+#define V6_SAVE_ROOM_X 110
+#define V6_SAVE_ROOM_Y 105
+#elif V6_ENERGIZE_CAPTURE_TICKS == 128
+#define V6_SAVE_ROOM_X 111
+#define V6_SAVE_ROOM_Y 104
+#else
+#error Arrival save must stop at a completed arrival (64 or 128 ticks)
+#endif
+#define V6_SAVE_TICKS V6_ENERGIZE_CAPTURE_TICKS
+#define V6_SAVE_DIAG_VALUES 20
+#else
+#define V6_SAVE_ROOM_X 111
+#define V6_SAVE_ROOM_Y 104
+#define V6_SAVE_TICKS 128
+#define V6_SAVE_DIAG_VALUES 12
+#endif
+#ifdef V6_TOWER_ARRIVAL_SAVE_EARLY
+#ifndef V6_TOWER_ARRIVAL_SAVE
+#error Early save rejection is only an arrival persistence test
+#endif
+#define V6_SAVE_STOP_TICKS 23
+#else
+#define V6_SAVE_STOP_TICKS V6_SAVE_TICKS
+#endif
 #if defined(V6_TOWER_PERSIST) || defined(V6_TOWER_UI_SAVE) || defined(V6_BUILDING_SAVE)
 #include <proto/dos.h>
 #include "campaign_dos.h"
@@ -8,7 +37,7 @@ struct DosLibrary *DOSBase;
 #ifdef V6_BUILDING_SAVE
 static V6CheckpointSave building_saved;
 static unsigned building_stage;
-static volatile struct {ULONG magic,version,values[12];} building_save_diag={0x56364253,1,{0}};
+static volatile struct {ULONG magic,version,values[V6_SAVE_DIAG_VALUES];} building_save_diag={0x56364253,1,{0}};
 static int checkpoint_bank_valid(const V6CheckpointSave *);
 #endif
 #ifdef V6_TOWER_PERSIST
@@ -1213,6 +1242,9 @@ static int run(void) {
     v6_player_init(&session.player,156,92,0);
     if(!v6_tower_route_step(&route,0) || !v6_tower_route_step(&route,0))return 20;
     v6_teleporter_departure_init(&departure);
+#ifdef V6_TOWER_ARRIVAL_SAVE
+    if(building_stage==1)
+#endif
     if(!v6_teleporter_departure_start(&departure,&building_teleporter,&route.tele_region))return 20;
 #else
     if(!v6_tower_route_load(&route,111,104,0) || !v6_tower_route_teleport(&route,110,105))return 20;
@@ -1232,7 +1264,17 @@ static int run(void) {
         world.save.gravity=building_saved.gravity;world.save.dir=building_saved.dir;
         world.save.room_x=building_saved.room_x;world.save.room_y=building_saved.room_y;world.save.id=building_saved.id;
         if(!v6_tower_route_load(&route,building_saved.room_x,building_saved.room_y,1))return 20;
+#ifdef V6_TOWER_ARRIVAL_SAVE
+        /* Fresh boot has no previous scene to interpolate from. */
+        session.player.old_x=session.player.x;session.player.old_y=session.player.y;
+#endif
         building_save_diag.values[9]=session.player.x;building_save_diag.values[10]=session.player.y;
+#ifdef V6_TOWER_ARRIVAL_SAVE
+        building_save_diag.values[12]=session.player.old_x;building_save_diag.values[13]=session.player.old_y;
+        building_save_diag.values[14]=session.player.vx;building_save_diag.values[15]=session.player.vy;
+        building_save_diag.values[16]=session.player.gravity;building_save_diag.values[17]=session.player.dir;
+        building_save_diag.values[18]=departure.state;building_save_diag.values[19]=arrival.state;
+#endif
         building_animation.frame=1;
     }
 #endif
@@ -1435,7 +1477,11 @@ static int run(void) {
 #ifdef V6_TOWER_BUILDING
        !v6_tower_open(&stream,
 #ifdef V6_BUILDING_SAVE
+#ifdef V6_TOWER_ARRIVAL_SAVE
+           building_stage==2?(building_saved.room_x==110?energize_display:building_display):
+#else
            building_stage==2?building_display:
+#endif
 #endif
 
 #ifdef V6_TOWER_ROUNDTRIP
@@ -1446,7 +1492,11 @@ static int run(void) {
            hallway1_display,
 #endif
 #ifdef V6_BUILDING_SAVE
+#ifdef V6_TOWER_ARRIVAL_SAVE
+           building_stage==2?(building_saved.room_x==110?sizeof(energize_display):sizeof(building_display)):
+#else
            building_stage==2?sizeof(building_display):
+#endif
 #endif
 
 #ifdef V6_TOWER_ROUNDTRIP
@@ -1533,7 +1583,7 @@ static int run(void) {
           && (ui_test_phase<4 || diag.logic_ticks<ui_test_tick+32)
 #endif
 #ifdef V6_BUILDING_SAVE
-          && diag.logic_ticks<128
+          && diag.logic_ticks<V6_SAVE_STOP_TICKS
 #endif
           ) {
         start=clock_lines();
@@ -2120,11 +2170,11 @@ int __attribute__((used,section(".text.unlikely"))) _start(void) {
     if(a<0 || k<0)result=V6_SAVE_IO;
     if(!result && building_stage==2) {
         result=v6_campaign_read(&v6_campaign_dos,a?save_name:save_backup,&building_saved,&story);
-        if(!result && (!checkpoint_bank_valid(&building_saved) || building_saved.room_x!=111 || building_saved.room_y!=104 || story.companion || story.rescue_triggered || story.red_rescued))result=V6_SAVE_CORRUPT;
+        if(!result && (!checkpoint_bank_valid(&building_saved) || building_saved.room_x!=V6_SAVE_ROOM_X || building_saved.room_y!=V6_SAVE_ROOM_Y || story.companion || story.rescue_triggered || story.red_rescued))result=V6_SAVE_CORRUPT;
         if(!result && a && k) {
             V6CheckpointSave backup;V6HallwayStory bs;
             result=v6_campaign_read(&v6_campaign_dos,save_backup,&backup,&bs);
-            if(!result && (!checkpoint_bank_valid(&backup) || backup.room_x!=111 || backup.room_y!=104 || bs.companion || bs.rescue_triggered || bs.red_rescued))result=V6_SAVE_CORRUPT;
+            if(!result && (!checkpoint_bank_valid(&backup) || backup.room_x!=V6_SAVE_ROOM_X || backup.room_y!=V6_SAVE_ROOM_Y || bs.companion || bs.rescue_triggered || bs.red_rescued))result=V6_SAVE_CORRUPT;
         }
         if(!result)result=v6_campaign_recover(&v6_campaign_dos,save_name,save_temp,save_backup,&building_saved,&story);
         if(!result && !v6_campaign_dos_flush("DF1:"))result=V6_SAVE_IO;
@@ -2132,6 +2182,13 @@ int __attribute__((used,section(".text.unlikely"))) _start(void) {
     if(result) {building_save_diag.values[1]=result;building_save_diag.values[2]=1;CloseLibrary((struct Library *)DOSBase);return 20;}
     result=run();
     if(!result && building_stage==1) {
+#ifdef V6_TOWER_ARRIVAL_SAVE
+        /* A handoff already updates the in-memory centre. Admit disk writes
+         * only after the final source arrival SAVE event, with control back. */
+        if(arrival.state || !arrival.control || !(arrival.events&V6_ARRIVAL_SAVE) ||
+           departure.state || travel_leg!=(V6_SAVE_TICKS==64?1:2))result=V6_SAVE_INVALID;
+        else
+#endif
         if(!checkpoint_bank_valid(&world.save))result=V6_SAVE_INVALID;
         else result=v6_campaign_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story);
         if(!v6_campaign_dos_flush("DF1:"))result=V6_SAVE_IO;

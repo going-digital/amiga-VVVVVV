@@ -2556,7 +2556,8 @@ scene; the no-audio peak is now 225 lines. Interactive captions and final
 vertical flip remain outside this fixture.
 Captures and reports stay in ignored `build/amiga-teleporter-shake/` and
 `build/amiga-shake-pixels-*` directories. Music work is paused pending tracker
-files; the next engine work is arrival persistence and destination admission.
+files; completed arrival persistence is verified below, with destination
+admission next.
 
 
 `make -C amiga_version tower-shake-audio-capture` verifies shake alongside two
@@ -2567,3 +2568,25 @@ one is replaced according to priority. Captured waveform, duration, overlap,
 silence and hard-panning checks pass; reserved music channels stay idle. Gameplay
 and shake counter/RNG traces also match. Artifacts are in
 `build/amiga-shake-audio/`. Actual tracker music is still outside this fixture.
+
+
+## Completed teleporter arrival disk checks
+
+`make -C amiga_version tower-arrival-save-capture` verifies outbound Energize and
+return Building Apport arrivals, DF1 campaign writes and fresh boots. Disk writes
+require the final arrival SAVE event and restored control, and happen after
+native hardware restoration. Each cold boot restores the saved room, centre,
+direction, gravity and zero velocity without restarting travel; fresh-boot
+interpolation history starts at the saved centre.
+
+The two warm/cold cases match 9,216 model trace fields. Arrival runs peak at 226
+PAL lines; cold runs at 223/220, with zero missed fields/errors. Wrong-centre
+records with valid CRCs are rejected before display takeover. A native tick-23
+stop also rejects an attempted save of the valid handoff centre while arrival
+is incomplete, leaving both disk images unchanged. The earlier Building Apport
+save fixture continues to pass.
+
+Artifacts stay in `build/amiga-arrival-save-{64,128,early}/`; the summary is
+`build/amiga-arrival-save-capture.json`. These bounded fixtures end gameplay
+before DOS I/O and admit zero story flags. A live autosave pause/resume path and
+explored-destination menu admission remain pending. Music work remains paused.

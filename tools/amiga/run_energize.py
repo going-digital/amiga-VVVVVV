@@ -28,6 +28,7 @@ def main():
     parser.add_argument('--shake',action='store_true')
     parser.add_argument('--capture-ticks',type=int)
     parser.add_argument('--build-dir',type=Path)
+    parser.add_argument('--save-disk',type=Path)
     parser.add_argument('--audio',action='store_true')
     parser.add_argument('--reserved-audio',action='store_true')
     parser.add_argument('--music',action='store_true')
@@ -73,6 +74,10 @@ pacing_budget = "cycles"
 path = {json.dumps(str(BUILD/'tower.adf'))}
 write_protected = true
 ''')
+    if args.save_disk:
+        assert args.roundtrip
+        with config.open('a') as f:
+            f.write(f'\n[floppy.df1]\npath = {json.dumps(str(args.save_disk.resolve()))}\nwrite_protected = false\n')
     dump=BUILD/'energize.bin';dump.unlink(missing_ok=True)
     env=dict(os.environ,COPPERLINE_DBG_AFTER='38',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{dump}')
     if args.audio:
@@ -80,10 +85,10 @@ write_protected = true
             (BUILD/'audio-stems'/(name+'.wav')).unlink(missing_ok=True)
     before=(BUILD/'tower.adf').read_bytes()
     with (BUILD/'energize.log').open('w') as log:
-        subprocess.run([EMU,'--config',str(config),'--noaudio',*(['--audio-stems',str(BUILD/'audio-stems'),'--audio-stems-mode','source,channel'] if args.audio else []),'--screenshot-after','39',str(BUILD/'energize.png')],
+        subprocess.run([EMU,'--config',str(config),*(['--floppy-drives','2'] if args.save_disk else []),'--noaudio',*(['--audio-stems',str(BUILD/'audio-stems'),'--audio-stems-mode','source,channel'] if args.audio else []),'--screenshot-after','39',str(BUILD/'energize.png')],
             env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
     display=diagnostics(dump)
-    assert display['status']==1 and not display['error'] and not display['missed'],display
+    assert display['status']==(2 if args.save_disk else 1) and not display['error'] and not display['missed'],display
     chip_bytes=69088+(9602 if args.shake else 0)
     if args.audio:
         manifest=json.loads((ROOT/'build/amiga-feasibility/teleporter-samples.json').read_text())

@@ -19,12 +19,12 @@ def capture(name):
     data=dump.read_bytes();offset=data.index(b'V6BS\0\0\0\1')
     return struct.unpack_from('>12I',data,offset+8),dump
 
-def corrupt_centre(path):
+def corrupt_centre(path,x=157):
     image=bytearray(path.read_bytes());record=read_record(path)
     offsets=[i for i in range(24,len(image)-44,512) if image[i:i+44]==record]
     assert len(offsets)==1,offsets
     at=offsets[0];block=at-24
-    struct.pack_into('>I',image,at+8,157)
+    struct.pack_into('>I',image,at+8,x)
     struct.pack_into('>I',image,at+40,zlib.crc32(image[at:at+40]))
     struct.pack_into('>I',image,block+20,0)
     struct.pack_into('>I',image,block+20,(-sum(struct.unpack_from('>128I',image,block)))&0xffffffff)

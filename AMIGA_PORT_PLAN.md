@@ -5,8 +5,8 @@ Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: 
 Current direction (11 October 2026): pause automatic music reconstruction while
 the user seeks original tracker files from Magnus Palsson. Preserve the editing
 assets and return to engine work. The screen-shake core and native register-based teleporter fixture now pass
-source, sprite, pixel-capture and A500 timing checks. Shake/SFX coexistence now also passes within the timing budget. Next, complete
-arrival checkpoint disk validation and explored-destination admission. See "Native register-based screen shake" below.
+source, sprite, pixel-capture and A500 timing checks. Shake/SFX coexistence now also passes within the timing budget. Completed arrivals now also pass disk/fresh-boot validation. Next, add
+explored-destination admission and enable the validated Energize menu route. See "Native register-based screen shake" below.
 
 Latest milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
@@ -3753,3 +3753,40 @@ screenshot and audio stems are in `build/amiga-shake-audio/`. This admits the
 bounded shake/SFX combination, not tracker music or interactive captions/flip.
 Next: final teleporter arrival checkpoint disk/fresh-boot validation, then
 explored-destination menu admission. Music reconstruction remains parked.
+
+
+## Completed arrival disk persistence — 11 October 2026
+
+The staged teleporter/save fixture now admits a DF1 write only after the final
+source arrival SAVE event, with the arrival script inactive, control restored,
+departure inactive and the expected travel leg completed. A valid in-memory
+centre set at the handoff is insufficient. DOS replacement/flush runs after
+normal native display/interrupt/DMA restoration; this fixture ends gameplay
+rather than adding a live autosave pause/resume path.
+
+Two native cases complete the outbound Energize arrival (64 ticks) and the
+return Building Apport arrival (128 ticks), write the existing 44-byte campaign
+record, then boot a new emulator process against the same private DF1 disk.
+Cold boot selects the saved foreground/collision bank, restores the source
+centre, gravity and direction with zero velocity, and starts with inactive
+travel states. Fresh-boot interpolation history is explicitly initialised to
+that centre. Both subsequent cold-room replays match the host route/physics,
+teleporter, checkpoint and animation model. Main-record bytes remain unchanged.
+
+All 9,216 warm/cold trace fields match across the two cases. Completed-arrival
+runs peak at 226 PAL work lines; cold runs peak at 223/220, with zero missed
+fields/errors and 78,690 Chip bytes. CRC-valid records shifted one pixel from
+each teleporter centre are rejected before display takeover without changing
+the disk. A separate native stop at tick 23 proves that the valid Energize
+handoff centre cannot be committed while state 4011 still owns control: the
+save is refused and both private DF1 and boot image remain byte-identical.
+The original resident Building Apport disk/fresh-boot/rejection fixture still
+passes. Campaign encoding, replacement fault/recovery and coupled travel host
+checks also pass.
+
+Run `make -C amiga_version tower-arrival-save-capture`. Reports, private disks,
+RAM dumps and screenshots are in `build/amiga-arrival-save-{64,128,early}/`, with
+summary `build/amiga-arrival-save-capture.json`. The fixture accepts its selected
+terminal teleporter and zero story flags only. Automatic in-game DOS pause/
+resume, broader story saves, explored-destination admission and live Energize
+menu travel remain pending. Music reconstruction remains parked.
