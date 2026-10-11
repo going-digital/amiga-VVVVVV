@@ -2685,3 +2685,24 @@ and `build/amiga-menu-pixels-{reference,shifted}/`. The standalone staged
 shake/audio regression remains available as `tower-shake-audio-capture`.
 Exploration disk persistence and broader resident/story support remain pending.
 Music reconstruction is parked.
+
+## Explored-room save codec — 11 October 2026
+
+The campaign codec now offers a 96-byte version 2 record containing the
+checkpoint/story fields and all 400 explored-room bits in a single CRC-covered
+payload. Two reserved bytes must be zero, and the saved checkpoint room must
+be visited. Decode publishes checkpoint, story and map together only after
+validation. It also reads existing 44-byte version 1 saves, marking only their
+checkpoint room as visited. The legacy APIs retain their exact version 1
+contract and reject version 2 instead of silently discarding exploration.
+
+`make -C amiga_version test-campaign-state` checks independent big-endian/CRC
+vectors, every map bit, 768 single-bit corruptions, 97 length guards, semantic
+and reserved-byte corruption with recomputed CRCs, transactional rejection,
+and migration from all six supported room banks. Existing codec, file and
+replacement/recovery fault tests remain passing.
+
+This is the format foundation; the live DOS file adapter still writes version
+1. Next: carry the map through transactional file replacement/recovery, then
+restore it on menu load and verify destination admission after a fresh boot.
+Music work remains parked.

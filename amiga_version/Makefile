@@ -500,12 +500,17 @@ test-audio:
 	python3 $(ROOT)/tools/amiga/test_audio.py
 test: test-audio
 
-$(BUILD)/campaign_save.o: campaign_save.c campaign_save.h | $(BUILD)
+$(BUILD)/campaign_save.o: campaign_save.c campaign_save.h teleporter_admission.h teleporter_menu.h | $(BUILD)
 	$(CC) $(CFLAGS) -O2 -c $< -o $@
 .PHONY: test-campaign-save
 test-campaign-save: $(BUILD)/campaign_save.o
 	python3 $(ROOT)/tools/amiga/test_campaign_save.py
 test: test-campaign-save
+
+.PHONY: test-campaign-state
+test-campaign-state: $(BUILD)/campaign_save.o
+	python3 $(ROOT)/tools/amiga/test_campaign_state.py
+test: test-campaign-state
 
 $(BUILD)/campaign_file.o: campaign_file.c campaign_file.h | $(BUILD)
 	$(CC) $(CFLAGS) -O2 -c $< -o $@

@@ -61,3 +61,43 @@ int v6_campaign_checkpoint_valid(const V6CheckpointSave *s,const V6Checkpoint *b
     }
     return 0;
 }
+
+int v6_campaign_state_encode(uint8_t *out,size_t n,const V6CheckpointSave *c,
+    const V6HallwayStory *s,const V6Exploration *e)
+{
+    uint8_t p[V6_CAMPAIGN_STATE_BYTES];unsigned i;
+    if(!out || !e || n!=sizeof(p) || !c || !s || !valid(c,s))return 0;
+    /* Keep the codec standalone: no dependency on menu admission at link time. */
+    { unsigned room=(unsigned)(c->room_y-100)*20+(unsigned)(c->room_x-100);
+      if(!(e->rooms[room>>3] & (1U<<(room&7))))return 0; }
+    if(!v6_campaign_encode(p,V6_CAMPAIGN_SAVE_BYTES,c,s))return 0;
+    p[5]=2;p[7]=sizeof(p);
+    for(i=0;i<V6_EXPLORED_BYTES;++i)p[40+i]=e->rooms[i];
+    p[90]=p[91]=0;put(p+92,crc(p,92));
+    for(i=0;i<sizeof(p);++i)out[i]=p[i];
+    return 1;
+}
+int v6_campaign_state_decode(V6CheckpointSave *out,V6HallwayStory *story,
+    V6Exploration *explored,const uint8_t *p,size_t n)
+{
+    V6CheckpointSave c;V6HallwayStory s;V6Exploration e;
+    uint8_t legacy[V6_CAMPAIGN_SAVE_BYTES];unsigned i,room;
+    if(!out || !story || !explored || !p)return 0;
+    if(n==V6_CAMPAIGN_SAVE_BYTES) {
+        if(!v6_campaign_decode(&c,&s,p,n))return 0;
+        for(i=0;i<V6_EXPLORED_BYTES;++i)e.rooms[i]=0;
+        room=(unsigned)(c.room_y-100)*20+(unsigned)(c.room_x-100);
+        e.rooms[room>>3]=(uint8_t)(1U<<(room&7));
+    } else {
+        if(n!=V6_CAMPAIGN_STATE_BYTES || p[4] || p[5]!=2 || p[6] || p[7]!=n
+           || p[90] || p[91] || get(p+92)!=crc(p,92))return 0;
+        /* Reuse all legacy semantic guards, without weakening its version check. */
+        for(i=0;i<40;++i)legacy[i]=p[i];
+        legacy[5]=1;legacy[7]=sizeof(legacy);put(legacy+40,crc(legacy,40));
+        if(!v6_campaign_decode(&c,&s,legacy,sizeof(legacy)))return 0;
+        for(i=0;i<V6_EXPLORED_BYTES;++i)e.rooms[i]=p[40+i];
+        room=(unsigned)(c.room_y-100)*20+(unsigned)(c.room_x-100);
+        if(!(e.rooms[room>>3] & (1U<<(room&7))))return 0;
+    }
+    *out=c;*story=s;*explored=e;return 1;
+}
