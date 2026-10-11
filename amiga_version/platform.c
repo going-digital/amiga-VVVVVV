@@ -4,12 +4,25 @@ int v6_platform_init(V6Platform *p, int x, int y, int behavior, int speed,
 {
     return v6_enemy_init(p,x,y,behavior,speed,x1,y1,x2,y2,0,0,32,8);
 }
+int v6_conveyor_init(V6Platform *p, int x, int y, int behavior, int speed, int width)
+{
+    V6Platform candidate;
+    if ((behavior!=8 && behavior!=9) || (width!=32 && width!=64) ||
+        !v6_platform_init(&candidate,x,y,0,speed,-64,-64,384,304)) return 0;
+    candidate.behavior=behavior; candidate.w=width;
+    candidate.vx=candidate.vy=0; candidate.state=1; candidate.onwall=0;
+    *p=candidate;
+    return 1;
+}
 void v6_platform_step(V6Platform *p, const V6Room *room, V6Block *blocks, unsigned count)
 {
     int x=p->x,y=p->y;
     v6_blocks_disable_at(blocks,count,x,y);
     /* Original rule 2 tests map tiles but skips checkblocks entirely. */
-    v6_enemy_step(p,room,0,0);
+    if(p->behavior==8 || p->behavior==9) {
+        p->old_x=p->x; p->old_y=p->y;
+        if(!p->state) { p->vx=0; p->state=1; p->onwall=0; }
+    } else v6_enemy_step(p,room,0,0);
     v6_blocks_move(blocks,count,x,y,p->x,p->y,p->w,p->h);
 }
 
@@ -22,6 +35,8 @@ int v6_platform_contact_speed(const V6Player *p, const V6Block *blocks, unsigned
         if(b->type!=V6_BLOCK || !v6_block_hit(b,p->x+6,p->y+2+(roof?-1:1),12,21,0,0,0)) continue;
         for(j=0;j<platform_count;++j) {
             const V6Platform *e=&platforms[j];
+            if(e->x==b->x && e->y==b->y && (e->behavior==8 || e->behavior==9))
+                return e->behavior==8 ? e->speed : -e->speed;
             if(((e->behavior>=2 && e->behavior<=3) || e->behavior==14 || e->behavior==15) && e->x==b->x && e->y==b->y) return e->vx;
         }
         return -1000;
@@ -67,6 +82,7 @@ void v6_platform_disable_overlaps(const V6Player *p,const V6Platform *platforms,
     unsigned i;
     for(i=0;i<count;++i) {
         const V6Platform *e=&platforms[i];
+        if(e->behavior==8 || e->behavior==9) continue;
         if(v6_player_overlaps(p,e->x+e->cx,e->y+e->cy,e->w,e->h))
             v6_blocks_disable_at(blocks,block_count,e->x,e->y);
     }

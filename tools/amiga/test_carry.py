@@ -45,7 +45,7 @@ extern "C" void carry_init(const V6Player *p,const uint16_t *tiles,int set,int e
         entclass e;
         e.rule=2;e.behave=platforms[j].behavior;e.xp=platforms[j].x;e.yp=platforms[j].y;e.vx=platforms[j].vx;e.vy=platforms[j].vy;
         e.cx=platforms[j].cx;e.cy=platforms[j].cy;e.w=platforms[j].w;e.h=platforms[j].h;
-        e.state=platforms[j].state;e.onwall=platforms[j].onwall;
+        e.state=platforms[j].state;e.onwall=platforms[j].onwall;e.para=platforms[j].speed;
         obj.entities.push_back(e);
     }
 }
@@ -92,6 +92,8 @@ def main():
     core.v6_terrain_build.argtypes=[C.POINTER(Terrain),rp]
     core.v6_player_map_move.argtypes=[pp,rp,C.c_int,C.c_int]
     core.v6_platform_carry_horizontal.argtypes=[pp,rp,ep,C.c_uint,C.c_int,C.c_int]
+    core.v6_conveyor_init.argtypes=[ep]+[C.c_int]*5
+    core.v6_platform_step.argtypes=[ep,rp,bp,C.c_uint]
     ref.carry_init.argtypes=[pp,C.POINTER(C.c_uint16),C.c_int,C.c_int,bp,C.c_uint,ep,C.c_uint]
     ref.carry_reference.argtypes=[C.c_int,C.c_int]
     ref.map_move_reference.argtypes=[C.c_int,C.c_int];ref.reference_read.argtypes=[pp]
@@ -103,6 +105,25 @@ def main():
     core.v6_player_unstick.argtypes=[pp,rp]
     core.v6_platform_disable_overlaps.argtypes=[pp,ep,C.c_uint,bp,C.c_uint]
     ref.post_reference.argtypes=[bp,C.c_uint]
+    conveyor_updates=0
+    empty_tiles=(C.c_uint16*1200)();empty_room=Room(empty_tiles,0,1)
+    for behavior in (8,9):
+        for width in (32,64):
+            for speed in range(-16,17):
+                e=Enemy()
+                assert core.v6_conveyor_init(C.byref(e),16,104,behavior,speed,width)
+                assert (e.x,e.y,e.w,e.h,e.vx,e.vy,e.state,e.onwall)==(16,104,width,8,0,0,1,0)
+                blocks=(DynamicBlock*1)(DynamicBlock(16,104,32,8,0,0))
+                for tick in range(16):
+                    if tick%2:blocks[0].w=blocks[0].h=0
+                    core.v6_platform_step(C.byref(e),C.byref(empty_room),blocks,1)
+                    assert (e.x,e.y,e.old_x,e.old_y,e.vx,e.vy)==(16,104,16,104,0,0)
+                    assert (blocks[0].x,blocks[0].y,blocks[0].w,blocks[0].h)==(16,104,width,8)
+                    conveyor_updates+=1
+    unchanged=Enemy.from_buffer_copy(e)
+    for args in ((16,104,7,4,64),(16,104,8,17,64),(16,104,9,4,48),(385,104,8,4,64)):
+        assert not core.v6_conveyor_init(C.byref(e),*args)
+        assert bytes(e)==bytes(unchanged)
     rng=random.Random(680008)
     counts={'map_move':0,'horizontal_carry':0}; modes=tuple(counts);attempts=moved=0
     for scenario in range(120):
@@ -122,8 +143,10 @@ def main():
             actors=(Enemy*3)();blocks=(DynamicBlock*4)()
             for i in range(3):
                 actors[i].x=80+16*(i%2);actors[i].y=80+24*(i%2)
-                actors[i].behavior=rng.randrange(4);actors[i].vx=rng.randrange(-16,17)
-                blocks[i]=DynamicBlock(actors[i].x,actors[i].y,32 if trial%7 else 0,8,0,0)
+                actors[i].behavior=rng.choice((0,1,2,3,8,9));actors[i].vx=rng.randrange(-16,17)
+                actors[i].speed=rng.randrange(-16,17)
+                actors[i].w=rng.choice((32,64)) if actors[i].behavior in (8,9) else 32
+                blocks[i]=DynamicBlock(actors[i].x,actors[i].y,actors[i].w if trial%7 else 0,8,0,0)
             blocks[3]=DynamicBlock(136,80,8,64,trial%3,trial%4)
             room.blocks=blocks;room.block_count=4
             for mode in modes:
@@ -229,7 +252,8 @@ def main():
         blocks=(DynamicBlock*5)()
         for i in range(2):
             actors[i].x=88+i*16;actors[i].y=88+i*8
-            actors[i].w=32;actors[i].h=8;actors[i].behavior=trial%4
+            actors[i].w=64 if trial%6>=4 else 32;actors[i].h=8
+            actors[i].behavior=(0,1,2,3,8,9)[trial%6]
             blocks[i]=DynamicBlock(actors[i].x,actors[i].y,32,8,0,0)
         blocks[2]=DynamicBlock(88,88,0 if trial%7==0 else 32,8,0,0)
         blocks[3]=DynamicBlock(104,80,8,48,2,trial%4)
@@ -254,7 +278,7 @@ def main():
     assert corrected and retried and disabled
     counts.update(post_physics=12000,stuck_corrections=corrected,stuck_retries=retried,overlap_disables=disabled)
     assert attempts>100 and moved>100
-    report=dict(**counts,cached_and_uncached=True,transport_attempts=attempts,position_changes=moved,
+    report=dict(**counts,conveyor_updates=conveyor_updates,cached_and_uncached=True,transport_attempts=attempts,position_changes=moved,
         reference_sha256=hashlib.sha256(source.encode()).hexdigest(),
         scope='Isolated explicit-target collision, horizontal carry, movingplatformfix and post-physics overlap/stuck correction; ordered input/push/carry/physics with prescribed platform positions; no complete platform loop, crush-death equivalence or native scene.')
     (BUILD/'carry-test-report.json').write_text(json.dumps(report,indent=2)+'\n')

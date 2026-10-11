@@ -8,12 +8,17 @@
 typedef V6Enemy V6Platform;
 int v6_platform_init(V6Platform *, int x, int y, int behavior, int speed,
                      int x1, int y1, int x2, int y2);
+/* Stationary 32/64x8 conveyors, source behaviours 8/9 and signed parameter
+ * speed -16..16. Failure leaves the destination unchanged. Creation uses a
+ * 32x8 block; the first platform update expands it to the actor width. */
+int v6_conveyor_init(V6Platform *, int x, int y, int behavior, int speed, int width);
 /* Caller must supply the platform's block at its current origin. Preserve
  * entity order at the caller; this updates one platform and its block. */
 void v6_platform_step(V6Platform *, const V6Room *, V6Block *, unsigned count);
 /* First BLOCK contact, then first horizontal platform at that origin, as in
  * checkplatform/hplatformat. Supports horizontal behaviours 2/3 and waiting
- * behaviours 14/15 (initialized/updated through platform_gate.h).
+ * behaviours 14/15 (initialized/updated through platform_gate.h), and
+ * conveyors 8/9 (returning the signed speed parameter).
  * Returns velocity in integer pixels/tick, or -1000 for no eligible platform.
  * This selects a transport velocity; it does not move the player. */
 int v6_platform_contact_speed(const V6Player *, const V6Block *, unsigned,
@@ -36,7 +41,7 @@ enum { V6_PLATFORMS_VERTICAL=1, V6_PLATFORMS_HORIZONTAL=2 };
  * order; blocks must be the mutable list referenced by room. Flags are room
  * creation flags, not inferred from current velocities. push.pending_y retains
  * the player's previous pending Y. Skipped passes leave their state untouched.
- * Only ordinary platforms (behaviours 0..3); caller handles complete-stop. */
+ * Ordinary platforms and conveyors; caller handles complete-stop. */
 void v6_platform_transport(V6Player *, const V6Room *, V6Platform *, unsigned,
                             V6Block *, unsigned, unsigned flags, int life_timer,
                             V6PlatformPush *);

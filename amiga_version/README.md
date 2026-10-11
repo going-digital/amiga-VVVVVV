@@ -3084,3 +3084,25 @@ voice-allocation, shake/caption, source translation and sprite/DMA checks pass.
 Next: expand station room coverage from the original source, including the
 required entities, collision and persistence admission for each room. Music
 reconstruction remains parked while awaiting original tracker files.
+
+
+### Shenanigan conveyor prerequisite — 11 October 2026
+
+The next connected station room is Shenanigan (111,106), below Frown Upside
+Down. Its original entities are two 64x8 conveyors (behaviours 8/9, speed 4)
+and two checkpoints. The shared platform core now supports stationary 32/64x8
+conveyors, signed transport speed, floor/ceiling carrying, and the source
+exclusion from post-physics overlap disabling. Creation retains the original
+32x8 collision block, which expands to the actor width on its first update.
+Invalid conveyor initialization leaves the actor unchanged.
+
+The original-source carry comparison now includes conveyors: 24,000 carry
+cases and 12,000 post-physics cases pass with cached and uncached terrain.
+There are also 2,112 stationary update/block-restoration checks across both
+widths, directions and all supported speeds. The existing platform and combined
+station-effects boot disks build successfully for the 68000.
+
+Shenanigan is not yet admitted to the live route. Next: export its room and
+conveyor animation, render both conveyors within the A500 sprite/bitplane
+budget, verify a native room scene, then add both checkpoints and V3 save/load
+admission to the connected route. Music remains parked.
