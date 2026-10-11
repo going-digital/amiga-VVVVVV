@@ -38,8 +38,21 @@ void v6_prize_return_platforms(V6PrizeReturn *s,V6Room *r,V6Player *p,int life,i
 void v6_prize_return_entities(V6PrizeReturn *s,const V6Room *r)
 {
     unsigned i;
-    for(i=s->enemy_count;i>0;--i)
-        v6_enemy_step(&s->enemies[i-1],r,r->blocks,r->block_count);
+    for(i=s->enemy_count;i>0;--i) {
+        V6Enemy *e=&s->enemies[i-1];
+        V6Block candidates[6];unsigned j,count=0;
+        /* These two source enemies move horizontally. A block outside their
+         * fixed vertical span cannot affect either axis of checkwall, even
+         * during its speed-reduction retries. Keep the original block order. */
+        if(e->behavior>=2 && !e->vy && r->block_count<=6) {
+            int top=e->y+e->cy,bottom=top+e->h;
+            for(j=0;j<r->block_count;++j) {
+                const V6Block *b=&r->blocks[j];
+                if(b->y<bottom && b->y+b->h>top)candidates[count++]=*b;
+            }
+            v6_enemy_step(e,r,candidates,count);
+        } else v6_enemy_step(e,r,r->blocks,r->block_count);
+    }
 }
 unsigned v6_prize_return_contacts(V6PrizeReturn *s,const V6Player *p)
 {

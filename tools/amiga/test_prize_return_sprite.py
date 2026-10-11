@@ -16,6 +16,8 @@ def main():
     player=masks('return_player_collision');enemy=masks('return_enemy_collision');visible=masks('return_enemy_visible')
     assert len(player)==16 and len(enemy)==len(visible)==4
     assert all(len(row)==32 for row in player+enemy+visible)
+    assert all(not (row&65535) for frame in visible for row in frame)
+    assert all(not row for frame in visible for row in frame[16:])
     dimensions,rgba=subprocess.check_output([str(out/'png_rgba'),str(out/'tower_sprites.png')]).split(b'\n',1)
     width,height=map(int,dimensions.split());pixels=0
     for tiles,rows,collision in ((range(16),player,True),(range(92,96),enemy,True),(range(92,96),visible,False)):

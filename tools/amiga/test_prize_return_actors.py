@@ -139,6 +139,16 @@ extern "C" unsigned bank_candidates(const V6Player *p,const V6Enemy *a,unsigned 
                 p.x=e.x+dx;p.y=e.y+dy
                 assert core.v6_prize_return_contacts(C.byref(bank),C.byref(p))==ref.bank_candidates(C.byref(p),bank.enemies,2)
         enemy_ticks+=2
+    # Filtering must also retain colliding blocks and exact vertical edges.
+    for tick in range(1024):
+        for i in range(6):
+            b=bank.blocks[i];e=bank.enemies[i%2]
+            b.x=e.x+rng.randrange(-24,25);b.y=e.y+rng.choice((-9,-8,-1,0,15,16,17))
+            b.w=rng.choice((0,8,32,64));b.h=rng.choice((0,8,16))
+        ref.bank_enemy_step(tiles,wanted_a,2,bank.blocks,6)
+        core.v6_prize_return_entities(C.byref(bank),C.byref(room))
+        assert bytes(bank.enemies)==bytes(wanted_a),(tick,'filtered enemy blocks')
+        enemy_ticks+=2
     # Invalid rooms must leave both bank and binding unchanged.
     before=bytes(bank),bytes(room)
     assert not core.v6_prize_return_init(C.byref(bank),C.byref(room),111,107,0)
