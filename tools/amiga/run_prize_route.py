@@ -16,12 +16,12 @@ def check_legacy_migration(build,live,disk,record):
     replace_record_fixture(migration,bytes(legacy))
     migration_cfg=config(live,migration);migration_dump=build/'prize-v3-migration.bin'
     migration_dump.unlink(missing_ok=True)
-    env=dict(os.environ,COPPERLINE_DBG_AFTER='90',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{migration_dump}')
+    env=dict(os.environ,COPPERLINE_DBG_AFTER='105',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{migration_dump}')
     with (build/'prize-v3-migration.log').open('w') as log:
         subprocess.run([EMU,'--config',str(migration_cfg),'--floppy-drives','2','--noaudio',
-                        '--joy-after','45','fire','600','--click-after','45','right','600',
-                        '--click-after','65','right','600','--click-after','75','left','200',
-                        '--screenshot-after','91',str(build/'prize-v3-migration.png')],
+                        '--joy-after','55','fire','600','--click-after','55','right','600',
+                        '--click-after','75','right','600','--click-after','90','left','200',
+                        '--screenshot-after','106',str(build/'prize-v3-migration.png')],
                         env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
     migration_display=diagnostics(migration_dump);migration_data=migration_dump.read_bytes()
     assert migration_display['status']==2 and migration_display['error']==migration_display['missed']==0,migration_display
@@ -48,10 +48,15 @@ def main():
     create_save_disk(build/'tower.adf',disk)
     cfg=config(build,disk);boot=(build/'tower.adf').read_bytes();before=disk.read_bytes()
     dump=build/'prize-route.bin';dump.unlink(missing_ok=True)
-    env=dict(os.environ,COPPERLINE_DBG_AFTER='60',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{dump}')
+    env=dict(os.environ,COPPERLINE_DBG_AFTER='90',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{dump}')
+    stems=build/'prize-audio-stems'
+    if args.v4:
+        stems.mkdir(exist_ok=True)
+        for wav in stems.glob('*.wav'):wav.unlink()
     with (build/'prize-route.log').open('w') as log:
         subprocess.run([EMU,'--config',str(cfg),'--floppy-drives','2','--noaudio',
-                        '--screenshot-after','61',str(build/'prize-route.png')],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+                        *(['--audio-stems',str(stems),'--audio-stems-mode','source,channel'] if args.v4 else []),
+                        '--screenshot-after','91',str(build/'prize-route.png')],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
     assert (build/'tower.adf').read_bytes()==boot
     if not args.v4:assert disk.read_bytes()==before
     display=diagnostics(dump);data=dump.read_bytes()
@@ -65,15 +70,17 @@ def main():
     if args.v4:
         at=data.index(b'V6PS\0\0\0\1')
         pickup=struct.unpack_from('>12I',data,at+8)
-        assert pickup[:6]==(1,20,1,1,15,20),pickup
+        assert pickup[0]==pickup[2]==pickup[3]==1 and pickup[4]==15 and pickup[1]==pickup[5]>=20,pickup
         assert pickup[6]==pickup[7] and pickup[8:]==(0,0,1,152),pickup
         at=data.index(b'V6PB\0\0\0\1')
         total=struct.unpack_from('>I',data,at+8)[0]
         presentation=[struct.unpack_from('>5I',data,at+44+i*20) for i in range(total)]
-        assert total==35,(total,presentation)
-        positions=[min(25*(i+1),361) for i in range(20)]+[max(361-25*(i+1),0) for i in range(15)]
+        assert total==pickup[1]+15,(total,presentation)
+        positions=[min(25*(i+1),361) for i in range(pickup[1])]+[max(361-25*(i+1),0) for i in range(15)]
         assert [r[1] for r in presentation]==positions,presentation
-        assert presentation[15][3]==1 and presentation[20][3]==0,presentation
+        assert presentation[15][3]==1 and presentation[pickup[1]][3]==0,presentation
+        from prize_audio_capture import verify
+        verify(data,stems)
     assert any(row[0]==7 for row in rows[:20]) and any(row[0]==8 for row in rows[20:30])
     assert all(row[11]==0 for row in rows if row[0]==8)
     assert any(row[0]==8 and row[14]==1 and row[13]>88 for row in rows)
@@ -133,12 +140,12 @@ def main():
         live=build.parent/'amiga-prize-route'
         cold_boot=(live/'tower.adf').read_bytes()
         cold_cfg=config(live,disk);cold_dump=build/'prize-v4-cold.bin';cold_dump.unlink(missing_ok=True)
-        env=dict(os.environ,COPPERLINE_DBG_AFTER='85',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{cold_dump}')
+        env=dict(os.environ,COPPERLINE_DBG_AFTER='100',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{cold_dump}')
         before=disk.read_bytes()
         with (build/'prize-v4-cold.log').open('w') as log:
             subprocess.run([EMU,'--config',str(cold_cfg),'--floppy-drives','2','--noaudio',
-                            '--joy-after','45','fire','600','--click-after','45','right','600',
-                            '--click-after','70','left','200','--screenshot-after','86',str(build/'prize-v4-cold.png')],
+                            '--joy-after','55','fire','600','--click-after','55','right','600',
+                            '--click-after','85','left','200','--screenshot-after','101',str(build/'prize-v4-cold.png')],
                             env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
         cold_display=diagnostics(cold_dump);cold_data=cold_dump.read_bytes()
         assert cold_display['status']==2 and cold_display['error']==cold_display['missed']==0,cold_display
@@ -160,5 +167,5 @@ def main():
                 scope='Connected route with test-only placements; pickup caption, frozen player/actors, held action dismissal, collection/terrain retention, optional V4 save/load and fresh physical-input disk load. No room audio or complete normal-input traversal.')
     (build/'prize-route-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native Prize route:',json.dumps(dict(display=display,trace_ticks=count,
-        pickup=pickup,scope='Source boundary handling with test-only checkpoint/gate/pickup placements; pickup pause/caption/dismissal and retained death terrain/collection. V4 disk persistence checked when requested; room audio and full normal-input traversal excluded.')))
+        pickup=pickup,scope='Source boundary handling with test-only checkpoint/gate/pickup placements; pickup pause/caption/dismissal and retained death terrain/collection. V4 disk persistence checked when requested; textbox fades/interpolation and full normal-input traversal excluded; source Prize effects verified with captured PCM.')))
 if __name__=='__main__':main()

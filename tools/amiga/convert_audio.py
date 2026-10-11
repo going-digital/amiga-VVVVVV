@@ -12,9 +12,11 @@ FILES=('crew6','crew1') # Script speaker 0=red, 1=player.
 
 def convert(raw):
     with wave.open(io.BytesIO(raw)) as w:
-        assert w.getnchannels()==1 and w.getsampwidth()==2 and w.getcomptype()=='NONE'
-        rate=w.getframerate();frames=w.getnframes()
-        source=struct.unpack('<'+str(frames)+'h',w.readframes(frames))
+        channels=w.getnchannels();width=w.getsampwidth()
+        assert channels in (1,2) and width in (1,2) and w.getcomptype()=='NONE'
+        rate=w.getframerate();frames=w.getnframes();pcm=w.readframes(frames)
+        values=[(v-128)*256 for v in pcm] if width==1 else struct.unpack('<'+str(frames*channels)+'h',pcm)
+        source=values if channels==1 else [(values[i]+values[i+1])/2 for i in range(0,len(values),2)]
     count=math.ceil(frames*PAL_CLOCK/(rate*PERIOD));pcm=[]
     # Offline 63-tap Blackman-windowed sinc, cutoff 9 kHz. Normalize each
     # phase's weights; zero extension at the source boundaries.
@@ -33,7 +35,7 @@ def convert(raw):
     if len(pcm)&1:pcm.append(0)
     pcm.extend((0,0))
     data=bytes(v&255 for v in pcm)
-    return data,dict(source_frames=frames,source_rate=rate,pcm_bytes=len(data),period=PERIOD,
+    return data,dict(source_frames=frames,source_rate=rate,source_channels=channels,source_width=width,pcm_bytes=len(data),period=PERIOD,
         source_sha256=hashlib.sha256(raw).hexdigest(),pcm_sha256=hashlib.sha256(data).hexdigest(),
         source_duration=frames/rate,pcm_duration=len(data)*PERIOD/PAL_CLOCK)
 

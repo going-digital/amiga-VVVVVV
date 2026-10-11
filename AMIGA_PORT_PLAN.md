@@ -4687,3 +4687,45 @@ Textbox fades and subframe interpolation remain outstanding. Next are the
 source vanish/trinket audio cues and integrated presentation/audio checks.
 Prize remains a separate candidate; normal-input traversal is still unverified.
 Music reconstruction remains parked.
+
+
+### Connected Prize audio
+
+The Prize candidate now binds disappearing-platform events to `Sound_DISAPPEAR`
+and collection to `Sound_TRINKET`, using source enum/load order. This identifies
+`vanish.wav` and `souleyeminijingle.wav`; the latter is the 3.1-second source
+jingle, correcting the isolated prototype's `trinket.wav` assumption. Private
+asset export records WAV/PCM hashes, format, duration and sample period. Its
+shared converter now decodes 8/16-bit mono/stereo PCM and averages stereo
+channels before the existing 9 kHz low-pass resampling; it adds no normalization.
+
+These mono samples share the existing effects allocator on Paula channels 2/3,
+with vanish priority 3 and trinket priority 4. Dialogue channels 0/1 remain
+reserved. Effects are polled once per field during the frozen pickup screen and
+continue after dismissal. DOS actions retain the existing audio-idle guard.
+The route fixture holds through the full jingle, releases action, then presses
+to dismiss before exercising persistence. This changes the fixture's pause
+length; it preserves the source 15-tick reveal and prevents a resumed flip.
+Fresh-boot input windows are later to account for the larger floppy payload.
+
+`test-prize-audio` checks source cue bindings, equivalent decoding across all
+four PCM format combinations, stereo downmix amplitude and silent DMA tails.
+Existing audio-state, voice and allocator tests pass. Native captured channel
+stems identify both vanish cues and the trinket jingle, with correlations above
+0.997, no dropped requests/replacements or protected-channel writes, and full
+jingle completion while gameplay is paused. The jingle's trailing silence is
+preserved; captured audible duration is compared with the nonzero PCM interval.
+
+Native PAL work peaks are 277 lines for the connected replay, 234 for fresh
+V4 loading and 200 for V3 migration, with zero errors or missed frames. Chip
+allocation is 296,150 bytes, including 71,996 bytes for the new PCM payloads.
+The replay holds pickup for 93 UI ticks, reveals at tick 15, then dismisses
+without an extra flip. V4 persistence, V3 migration and physical quit pass.
+The held-screen capture peaks at 270 lines and verifies jingle completion with
+gameplay fixed at tick 152 for 955 UI ticks, a busy save rejection, and unchanged
+disks.
+
+Next: pickup textbox fades and subframe bar interpolation, followed by broader
+normal-input campaign coverage. The connected Prize route remains a candidate,
+and soundtrack reconstruction remains parked. Simultaneous collapses still
+share the existing room event bit; per-entity cue multiplicity is outstanding.

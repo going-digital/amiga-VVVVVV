@@ -18,10 +18,10 @@ def main():
     create_save_disk(build/'tower.adf',disk)
     cfg=config(build,disk);boot=(build/'tower.adf').read_bytes();before=disk.read_bytes()
     dump=build/'pickup.bin';dump.unlink(missing_ok=True)
-    env=dict(os.environ,COPPERLINE_DBG_AFTER='60',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{dump}')
+    env=dict(os.environ,COPPERLINE_DBG_AFTER='90',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{dump}')
     with (build/'pickup.log').open('w') as log:
         subprocess.run([EMU,'--config',str(cfg),'--floppy-drives','2','--noaudio',
-                        '--screenshot-after','61',str(build/'pickup.png')],
+                        '--screenshot-after','91',str(build/'pickup.png')],
                        env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
     display=diagnostics(dump);data=dump.read_bytes()
     assert display['status']==1 and display['error']==display['missed']==0,display
@@ -33,12 +33,15 @@ def main():
     at=data.index(b'V6PB\0\0\0\1')
     presentation=struct.unpack_from('>8I',data,at+12)
     assert presentation==(361,361,76,76,32,32,1,17),presentation
+    at=data.index(b'V6PA\0\0\0\1')
+    audio=struct.unpack_from('>5I',data,at+8)
+    assert audio==(2,1,0,1,0),audio
     at=data.index(b'V6UI\0\0\0\1');ui=dict(zip(KEYS,struct.unpack_from('>18I',data,at+8)))
     assert ui['actions']==1 and ui['busy']==1 and ui['saves']==ui['loads']==ui['errors']==0,ui
     assert ui['before_hash']==ui['after_hash'] and ui['ticks_before']==ui['ticks_after'],ui
     assert disk.read_bytes()==before and (build/'tower.adf').read_bytes()==boot
     report=dict(display=display,pickup=pickup,ui=ui,
-                scope='Held action through pickup reveal; world and Prize actors frozen, save rejected as busy, disks unchanged. Source-positioned bordered textboxes, wordy count and fully extended bars; textbox fading, interpolation and room audio remain outstanding.')
+                scope='Held action through pickup reveal; world and Prize actors frozen, save rejected as busy, disks unchanged. Source-positioned bordered textboxes, wordy count and fully extended bars; textbox fading, interpolation remain outstanding. Source Prize effects complete while gameplay stays paused.')
     (build/'pickup-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native Prize pickup:',json.dumps(report))
 

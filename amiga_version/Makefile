@@ -1039,3 +1039,8 @@ tower-prize-pickup-capture: tower-prize-route
 test-prize-route:
 	python3 $(ROOT)/tools/amiga/test_prize_route.py
 test: test-prize-route
+
+.PHONY: test-prize-audio
+test-prize-audio:
+	python3 $(ROOT)/tools/amiga/test_prize_audio.py
+test: test-prize-audio

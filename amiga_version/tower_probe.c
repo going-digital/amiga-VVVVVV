@@ -512,7 +512,7 @@ static unsigned pickup_copper_key[2],pickup_copper_words[2];
 static const UWORD pickup_blank[20] __attribute__((aligned(4)))={0};
 static ULONG pickup_world_hash,pickup_actor_snapshot[sizeof(V6Prize)/sizeof(ULONG)];
 static unsigned pickup_hash_valid;
-static volatile struct {ULONG magic,version,count,values[8],records[48][5];}
+static volatile struct {ULONG magic,version,count,values[8],records[256][5];}
     pickup_presentation={0x56365042,1,0,{0},{{0}}};
 static unsigned pickup_held,pickup_pause_ticks;
 static volatile struct {ULONG magic,version,values[12];}
@@ -521,6 +521,7 @@ static volatile struct {ULONG magic,version,values[12];}
 static volatile struct {ULONG magic,version,room_index,pickups,visible;UBYTE bits[16];}
     collection_diag={0x56364342,1,0,0,0,{0}};
 static unsigned prize_pickups,prize_patches,prize_sounds;
+static unsigned prize_audio_pending;
 static int prize_gate_drawn[2][3];
 static unsigned prize_drawn_patch[2];
 #ifdef V6_PRIZE_ROUTE_CAPTURE
@@ -528,7 +529,7 @@ static volatile struct {ULONG magic,version,count,records[128][8];}
     pickup_frame_trace={0x56365058,1,0,{{0}}};
 static volatile struct {ULONG magic,version,count;LONG records[224][24];}
     prize_route_trace={0x56365052,1,0,{{0}}};
-static unsigned prize_ui_stage;
+static unsigned prize_ui_stage,prize_pickup_release;
 #endif
 #define PRIZE_FG(value,fallback) (route.index==8?(value):(fallback))
 #else
@@ -580,9 +581,9 @@ static int prize_events(V6TowerRoute *r,unsigned events)
 {
     if(events&V6_PRIZE_FULL)return 0;
     if(events&V6_PRIZE_PICKUP) {
-        ++prize_pickups;
+        ++prize_pickups;prize_audio_pending|=8;
 #ifdef V6_TOWER_PICKUP_SCREEN
-        /* No tracker is playing yet; audio adapter events are connected next. */
+        /* No tracker is playing yet; only the source effect is requested. */
         v6_trinket_screen_begin(&pickup_screen,&station_collected,0);
         /* The candidate's sole pending trinket is known before gameplay.
          * Prepare its template at boot/load while the OS owns the display. */
@@ -594,7 +595,7 @@ static int prize_events(V6TowerRoute *r,unsigned events)
         pickup_diag.values[6]=r->session->player.flips;
 #endif
     }
-    if(events&V6_PRIZE_SOUND)++prize_sounds;
+    if(events&V6_PRIZE_SOUND){++prize_sounds;prize_audio_pending|=4;}
     if(events&V6_PRIZE_TILE) {
         int changed=v6_terrain_set_tile(&prize_terrain,prize_tiles,0,0,18,9,59);
         if(changed<0)return 0;
@@ -670,6 +671,14 @@ static unsigned travel_priority[4],travel_started[4],travel_stolen;
 static volatile struct {ULONG magic,version,mask,stolen,violations;}
     travel_policy_diag={0x56364150,1,V6_TRAVEL_SFX_MASK,0,0};
 #include "teleporter_samples.h"
+#ifdef V6_TOWER_PRIZE
+#include "prize_samples.h"
+#define PRIZE_AUDIO_BYTES (PRIZE_VANISH_BYTES+PRIZE_TRINKET_BYTES)
+static volatile struct {ULONG magic,version,values[5],records[32][4];}
+    prize_audio_diag={0x56365041,1,{0},{{0}}};
+#else
+#define PRIZE_AUDIO_BYTES 0
+#endif
 static V6PaulaVoice travel_voices[4];
 static UBYTE *travel_audio_chip;
 static unsigned travel_audio_requests,travel_audio_dropped,travel_audio_peak;
@@ -933,7 +942,7 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #else
 #define COEXIST_BYTES 0
 #endif
-#define TRAVEL_AUDIO_BYTES (TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+2)
+#define TRAVEL_AUDIO_BYTES (TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+PRIZE_AUDIO_BYTES+2)
 #else
 #define TRAVEL_AUDIO_BYTES 0
 #endif
@@ -1239,7 +1248,7 @@ static unsigned background_camera(unsigned camera)
 static void pickup_draw_tick(void)
 {
     v6_pickup_draw_tick(&pickup_draw,pickup_screen.bars);
-    if((pickup_draw.bars || pickup_draw.old_bars) && pickup_presentation.count<48) {
+    if((pickup_draw.bars || pickup_draw.old_bars) && pickup_presentation.count<256) {
         volatile ULONG *r=pickup_presentation.records[pickup_presentation.count++];
         r[0]=pickup_screen.state;r[1]=pickup_draw.bars;r[2]=pickup_draw.old_bars;
         r[3]=pickup_screen.visible;r[4]=diag.logic_ticks;
@@ -2357,6 +2366,10 @@ static int run(void) {
         coexist_sample=travel_audio_chip+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES;
         for(i=0;i<64;++i)coexist_sample[i]=(UBYTE)(i<32?(int)i*6-96:288-(int)i*6);
 #endif
+#ifdef V6_TOWER_PRIZE
+        for(i=0;i<PRIZE_VANISH_BYTES;++i)travel_audio_chip[TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+i]=prize_vanish[i];
+        for(i=0;i<PRIZE_TRINKET_BYTES;++i)travel_audio_chip[TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+PRIZE_VANISH_BYTES+i]=prize_trinket[i];
+#endif
         for(i=0;i<4;++i)if(!v6_paula_init(&travel_voices[i],i,(ULONG)(travel_audio_chip+TRAVEL_AUDIO_BYTES-2))) {
             FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
         }
@@ -2588,8 +2601,14 @@ static int run(void) {
         {
             unsigned i;V6AudioPlan plan;
             for(i=0;i<4;++i)if((V6_TRAVEL_SFX_MASK&(1U<<i)) && travel_voices[i].audio.state!=V6_AUDIO_IDLE) {
+#ifdef V6_TOWER_PICKUP_SCREEN
+                unsigned before=travel_voices[i].audio.completed;
+#endif
                 if(!v6_paula_tick(&travel_voices[i],(hw->intreqr&(INTF_AUD0<<i))!=0,&plan))diag.error=15;
                 travel_audio_apply(&plan);
+#ifdef V6_TOWER_PICKUP_SCREEN
+                if(pickup_screen.stopped)prize_audio_diag.values[3]+=travel_voices[i].audio.completed-before;
+#endif
             }
             travel_audio_record();
         }
@@ -2739,7 +2758,13 @@ static int run(void) {
 #ifdef V6_PRIZE_ROUTE_CAPTURE
                     /* Hold through the reveal, then release and press. */
                     if(!pickup_pause_ticks)pickup_held=1;
-                    action=pickup_pause_ticks!=18;
+                    /* Hold through the source jingle before attempting DOS
+                     * persistence. Release once, then press to dismiss. */
+                    action=1;
+                    if(pickup_pause_ticks>=18 && !travel_audio_busy()) {
+                        if(!prize_pickup_release)prize_pickup_release=pickup_pause_ticks;
+                        action=pickup_pause_ticks!=prize_pickup_release;
+                    }
 #ifdef V6_PICKUP_CAPTURE_HOLD
                     action=1;
 #endif
@@ -2915,21 +2940,40 @@ static int run(void) {
                 }
 #ifdef V6_TOWER_TRAVEL_AUDIO
                 {
-                    unsigned events=departure.events|arrival.events,cue;
-                    for(cue=0;cue<2;++cue)if(events&(1U<<cue)) {
+                    unsigned events=departure.events|arrival.events,cue,limit=2;
+#ifdef V6_TOWER_PRIZE
+                    events|=prize_audio_pending;prize_audio_pending=0;limit=4;
+#endif
+                    for(cue=0;cue<limit;++cue)if(events&(1U<<cue)) {
                         unsigned i,busy=0,age[4];int chosen;V6AudioSample sample;V6AudioPlan plan;
                         for(i=0;i<4;++i) {
                             if(travel_voices[i].audio.state!=V6_AUDIO_IDLE)busy|=1U<<i;
                             age[i]=frames-travel_started[i];
                         }
                         chosen=v6_audio_choose(V6_TRAVEL_SFX_MASK,busy,travel_priority,age,cue+1);
-                        if(chosen<0){++travel_audio_dropped;if(chosen==-2)diag.error=15;}
+                        if(chosen<0){++travel_audio_dropped;if(chosen==-2)diag.error=15;
+#ifdef V6_TOWER_PRIZE
+                            if(cue>=2)++prize_audio_diag.values[2];
+#endif
+                        }
                         else {
                             i=(unsigned)chosen;
                             sample.address=(ULONG)(travel_audio_chip+(cue?TELEPORTER_FLASH_BYTES:0));
                             sample.bytes=cue?TELEPORTER_TELEPORT_BYTES:TELEPORTER_FLASH_BYTES;
                             sample.period=TELEPORTER_PERIOD;sample.volume=64;
-                            if(!v6_paula_request(&travel_voices[i],&sample,&plan))diag.error=15;
+#ifdef V6_TOWER_PRIZE
+                            if(cue>=2) {
+                                sample.address=(ULONG)(travel_audio_chip+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+(cue==3?PRIZE_VANISH_BYTES:0));
+                                sample.bytes=cue==3?PRIZE_TRINKET_BYTES:PRIZE_VANISH_BYTES;
+                                sample.period=PRIZE_PERIOD;
+                            }
+#endif
+                            if(!v6_paula_request(&travel_voices[i],&sample,&plan)) {
+                                diag.error=15;
+#ifdef V6_TOWER_PRIZE
+                                if(cue>=2)++prize_audio_diag.values[4];
+#endif
+                            }
                             else {
                                 if(busy&(1U<<i))++travel_stolen;
                                 travel_started[i]=frames;travel_priority[i]=cue+1;
@@ -2937,6 +2981,16 @@ static int run(void) {
                                     volatile ULONG *a=travel_audio_diag.records[travel_audio_requests];
                                     a[0]=diag.logic_ticks+1;a[1]=cue;a[2]=i;a[3]=frames;
                                 }
+#ifdef V6_TOWER_PRIZE
+                                if(cue>=2) {
+                                    unsigned n=prize_audio_diag.values[0]+prize_audio_diag.values[1];
+                                    if(n<32) {
+                                        volatile ULONG *a=prize_audio_diag.records[n];
+                                        a[0]=diag.logic_ticks+1;a[1]=cue;a[2]=i;a[3]=frames;
+                                    }
+                                    ++prize_audio_diag.values[cue-2];
+                                }
+#endif
                                 ++travel_audio_requests;travel_audio_apply(&plan);
                             }
                         }

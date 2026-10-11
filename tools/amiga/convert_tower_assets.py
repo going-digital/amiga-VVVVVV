@@ -64,6 +64,8 @@ def main():
         export_audio(archive,out,station=True)
         from convert_teleporter_audio import export as export_teleporter_audio
         export_teleporter_audio(archive,out)
+        from convert_teleporter_audio import export_prize
+        export_prize(archive,out)
         original=archive.read('graphics/tiles3.png')
         sprite_png=archive.read('graphics/sprites.png')
         font_png=archive.read('graphics/font.png')
