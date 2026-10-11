@@ -1,3 +1,6 @@
+#if defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE) && (!defined(V6_PRIZE_INPUT_CAPTURE) || !defined(V6_TOWER_PICKUP_SCREEN) || defined(V6_VSTITCH_INPUT_CAPTURE))
+#error Collection input capture requires the pickup screen and excludes V Stitch input capture
+#endif
 #if defined(V6_VSTITCH_INPUT_CAPTURE) && (!defined(V6_PRIZE_INPUT_CAPTURE) || !defined(V6_TOWER_PRIZE))
 #error V Stitch lower-passage admission is only for the Prize input capture
 #endif
@@ -543,7 +546,9 @@ static volatile struct {ULONG magic,version,count,records[256][8];}
     pickup_frame_trace={0x56365058,1,0,{{0}}};
 static unsigned prize_ui_stage,prize_pickup_release;
 #endif
-#ifdef V6_VSTITCH_INPUT_CAPTURE
+#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+#define PRIZE_INPUT_TICKS 180
+#elif defined(V6_VSTITCH_INPUT_CAPTURE)
 #define PRIZE_INPUT_TICKS 302
 #else
 #define PRIZE_INPUT_TICKS 224
@@ -559,7 +564,9 @@ static volatile struct {ULONG magic,version,count;LONG records[PRIZE_INPUT_TICKS
         1,0,{{0}}};
 #endif
 #ifdef V6_PRIZE_INPUT_CAPTURE
-#ifdef V6_VSTITCH_INPUT_CAPTURE
+#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+#include "../tools/amiga/prize_collection_replay.h"
+#elif defined(V6_VSTITCH_INPUT_CAPTURE)
 #include "../tools/amiga/prize_checkpoint_replay.h"
 #else
 #include "../tools/amiga/prize_input_replay.h"
@@ -1181,7 +1188,13 @@ static void record_world(void)
     { unsigned i;
       collection_diag.room_index=route.index;collection_diag.pickups=prize_pickups;
       collection_diag.visible=route.index==8?station_prize.trinket.visible:0;
-      for(i=0;i<V6_COLLECT_BYTES;++i)collection_diag.bits[i]=station_collected.bits[i]; }
+      for(i=0;i+3<V6_COLLECT_BYTES;i+=4) {
+          collection_diag.bits[i]=station_collected.bits[i];
+          collection_diag.bits[i+1]=station_collected.bits[i+1];
+          collection_diag.bits[i+2]=station_collected.bits[i+2];
+          collection_diag.bits[i+3]=station_collected.bits[i+3];
+      }
+      for(;i<V6_COLLECT_BYTES;++i)collection_diag.bits[i]=station_collected.bits[i]; }
 #endif
 
     unsigned i;
@@ -1208,6 +1221,8 @@ static void record_world(void)
 }
 #endif
 #ifdef V6_TOWER_RECOVERY
+#ifndef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+/* The pickup input capture has its own world trace and a fixed-zero camera. */
 /* Test-only bounded trace: all camera fields plus callback state. Stored
  * outside the Chip allocation; count is published after a complete record. */
 #define CAMERA_TRACE_TICKS 128
@@ -1227,6 +1242,7 @@ static void trace_camera(const V6TowerCamera *c,int life,int delay)
     r[10]=life;r[11]=delay;r[12]=(int16_t)diag.recovery_calls;
     ++camera_trace.count;
 }
+#endif
 static V6TowerSession session;
 #endif
 static UWORD beam(void) { return (*(volatile ULONG *)0xdff004>>8)&511; }
@@ -1560,8 +1576,14 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     }
 #endif
     if(!session.invisible)
-        v6_sprites_add(&player_sprites[index],tower_player_rows[player_frame],
-                      session.player.x,session.player.y-(int)camera,6,
+        v6_sprites_add(&player_sprites[index],
+#ifdef V6_TOWER_PRIZE
+                      tower_player_cropped_rows[player_frame],session.player.x+6,
+                      session.player.y-(int)camera,0,
+#else
+                      tower_player_rows[player_frame],session.player.x,
+                      session.player.y-(int)camera,6,
+#endif
 #ifdef V6_TOWER_ROUNDTRIP
                       player_tint);
 #else
@@ -2126,13 +2148,23 @@ static int run(void) {
 #ifdef V6_PRIZE_INPUT_CAPTURE
     station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
     rescue_vm.following=1;rescue_vm.mood=0;
-#ifdef V6_VSTITCH_INPUT_CAPTURE
+#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+    world.save=(V6CheckpointSave){236,134,1,1,111,107,443490};
+#elif defined(V6_VSTITCH_INPUT_CAPTURE)
     world.save=(V6CheckpointSave){276,185,0,1,112,107,443500};
 #else
     world.save=(V6CheckpointSave){140,161,0,1,111,106,442490};
 #endif
+#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+    /* Bounded shaft entry; the earlier checkpoint approach is tested separately. */
+    v6_tower_session_init(&session,10,6,0,1);
+    session.save_x=world.save.x;session.save_y=world.save.y;
+    session.save_gravity=world.save.gravity;session.save_dir=world.save.dir;
+    if(!v6_tower_route_load(&route,world.save.room_x,world.save.room_y,0))return 20;
+#else
     v6_tower_session_init(&session,world.save.x,world.save.y,world.save.gravity,1);
     if(!v6_tower_route_load(&route,world.save.room_x,world.save.room_y,1))return 20;
+#endif
 #endif
 #ifdef V6_PRIZE_ROUTE_CAPTURE
     station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
@@ -2411,6 +2443,9 @@ static int run(void) {
 #ifdef V6_VSTITCH_INPUT_CAPTURE
            route.index==9?vstitch_display:
 #endif
+#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+           route.index==8?prize_display:
+#endif
            route.index==7?shenanigan_display:route.index==6?frown_display:route.index==5?energize_display:building_display,
 #elif defined(V6_TOWER_ROUNDTRIP)
            building_display,
@@ -2430,6 +2465,9 @@ static int run(void) {
 #ifdef V6_TOWER_STATION
 #ifdef V6_VSTITCH_INPUT_CAPTURE
            route.index==9?sizeof(vstitch_display):
+#endif
+#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+           route.index==8?sizeof(prize_display):
 #endif
            route.index==7?sizeof(shenanigan_display):route.index==6?sizeof(frown_display):route.index==5?sizeof(energize_display):sizeof(building_display)) ||
 #elif defined(V6_TOWER_ROUNDTRIP)
@@ -2825,7 +2863,9 @@ static int run(void) {
 #endif
 #endif
 #ifdef V6_PRIZE_INPUT_CAPTURE
-#ifdef V6_VSTITCH_INPUT_CAPTURE
+#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+                input=v6_prize_collection_replay(diag.logic_ticks);
+#elif defined(V6_VSTITCH_INPUT_CAPTURE)
                 input=v6_prize_checkpoint_replay(diag.logic_ticks);
 #else
                 input=v6_prize_input_replay(diag.logic_ticks);
@@ -2901,6 +2941,10 @@ static int run(void) {
 #ifdef V6_PICKUP_CAPTURE_HOLD
                     action=1;
 #endif
+#endif
+#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+                    /* Ordinary released fire, then one fresh press after the jingle. */
+                    action=pickup_pause_ticks==94;
 #endif
                     if(!pickup_hash_valid) {
                         pickup_world_hash=ui_game_hash();
@@ -3359,6 +3403,7 @@ static int run(void) {
                 diag.recovery_calls=session.life_calls;
                 diag.recovery_life=session.life_timer;diag.recovery_delay=session.resume_delay;
                 diag.recovery_seek_frames=session.camera.seek_frames;
+#ifndef V6_PRIZE_COLLECTION_INPUT_CAPTURE
                 if(camera_trace.count<CAMERA_TRACE_TICKS) {
                     volatile int32_t *r=camera_trace.players[camera_trace.count];
                     r[0]=session.player.x;r[1]=session.player.y;r[2]=session.player.vx;r[3]=session.player.vy;
@@ -3367,6 +3412,7 @@ static int run(void) {
                     r[10]=session.player.old_x;r[11]=session.player.old_y;
                 }
                 trace_camera(&session.camera,session.life_timer,session.resume_delay);
+#endif
                 /* Trace owns real player state; no externally supplied life count. */
                 controller.y=session.camera.y;controller.mode=session.camera.mode;
 #else

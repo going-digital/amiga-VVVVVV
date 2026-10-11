@@ -3,6 +3,7 @@
 #include "tower_route.h"
 #include "prize_input_replay.h"
 #include "prize_checkpoint_replay.h"
+#include "prize_collection_replay.h"
 typedef struct {
     V6Prize prize;V6Collect collected;V6TowerRoute route;V6TowerSession session;
     V6TowerGameplay world;V6Terrain terrain[3];uint16_t tiles[3][1200];
@@ -60,7 +61,7 @@ static void enter(Fixture *f)
         r->room.blocks=f->blocks;r->room.block_count=2;
     }
 }
-static int fixture(const uint16_t *north,const uint16_t *south,const uint16_t *east,int32_t *trace,unsigned count)
+static int fixture(const uint16_t *north,const uint16_t *south,const uint16_t *east,int32_t *trace,unsigned count,unsigned collection)
 {
     Fixture f={0};V6TowerRoute *r=&f.route;V6TowerSession *s=&f.session;
     V6TowerGameplay *w=&f.world;
@@ -84,16 +85,19 @@ static int fixture(const uint16_t *north,const uint16_t *south,const uint16_t *e
             &f.checkpoint[3],2,f.tiles[2],0,0};
         V6Room room={f.tiles[2],0,0,0,0,0};v6_terrain_build(&f.terrain[2],&room);
     }
-    w->save=east?(V6CheckpointSave){276,185,0,1,112,107,443500}:
+    w->save=collection?(V6CheckpointSave){236,134,1,1,111,107,443490}:east?(V6CheckpointSave){276,185,0,1,112,107,443500}:
         (V6CheckpointSave){140,161,0,1,111,106,442490};
-    v6_tower_session_init(s,w->save.x,w->save.y,w->save.gravity,1);
+    v6_tower_session_init(s,collection?10:w->save.x,collection?6:w->save.y,
+        collection?0:w->save.gravity,1);
+    s->save_x=w->save.x;s->save_y=w->save.y;
+    s->save_gravity=w->save.gravity;s->save_dir=w->save.dir;
     /* Only ordinary rooms are needed by this bounded checkpoint fixture. */
     r->session=s;r->world=w;r->rooms=f.rooms;r->count=east?3:2;
-    if(!v6_tower_route_load(r,w->save.room_x,w->save.room_y,1))return 0;
+    if(!v6_tower_route_load(r,w->save.room_x,w->save.room_y,!collection))return 0;
     enter(&f);
     for(unsigned tick=0;tick<count;++tick) {
         unsigned previous=r->index;
-        if(!v6_tower_route_step_hooks(r,east?v6_prize_checkpoint_replay(tick):v6_prize_input_replay(tick),&hooks,&f))return 0;
+        if(!v6_tower_route_step_hooks(r,collection?v6_prize_collection_replay(tick):east?v6_prize_checkpoint_replay(tick):v6_prize_input_replay(tick),&hooks,&f))return 0;
         if(previous!=r->index)enter(&f);
         int32_t *d=trace+tick*24;
         d[0]=7+r->index;d[1]=s->player.x;d[2]=s->player.y;d[3]=s->player.gravity;
@@ -110,9 +114,14 @@ static int fixture(const uint16_t *north,const uint16_t *south,const uint16_t *e
 
 int prize_input_fixture(const uint16_t *north,const uint16_t *south,int32_t *trace,unsigned count)
 {
-    return fixture(north,south,0,trace,count);
+    return fixture(north,south,0,trace,count,0);
 }
 int prize_checkpoint_fixture(const uint16_t *north,const uint16_t *south,const uint16_t *east,int32_t *trace,unsigned count)
 {
-    return fixture(north,south,east,trace,count);
+    return fixture(north,south,east,trace,count,0);
+}
+
+int prize_collection_fixture(const uint16_t *north,const uint16_t *south,int32_t *trace,unsigned count)
+{
+    return fixture(north,south,0,trace,count,1);
 }

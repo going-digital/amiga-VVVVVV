@@ -1074,3 +1074,20 @@ test-vstitch-graphics: tower-assets
 tower-prize-checkpoint-capture: test-vstitch-graphics test-prize-checkpoint
 	$(MAKE) BUILD=$(ROOT)/build/amiga-prize-checkpoint CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_VSTITCH_INPUT_CAPTURE" $(ROOT)/build/amiga-prize-checkpoint/tower.adf
 	python3 $(ROOT)/tools/amiga/run_prize_checkpoint.py --build $(ROOT)/build/amiga-prize-checkpoint
+
+.PHONY: test-prize-collection-input tower-prize-collection-input-capture
+test-prize-collection-input:
+	python3 $(ROOT)/tools/amiga/test_prize_collection_input.py
+test: test-prize-collection-input
+tower-prize-collection-input-capture: test-player-crop test-prize-collection-input
+	$(MAKE) BUILD=$(ROOT)/build/amiga-prize-collection-input CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_PRIZE_COLLECTION_INPUT_CAPTURE" $(ROOT)/build/amiga-prize-collection-input/tower.adf
+	python3 $(ROOT)/tools/amiga/run_prize_collection_input.py --build $(ROOT)/build/amiga-prize-collection-input
+
+.PHONY: test-floor-retry
+test-floor-retry:
+	python3 $(ROOT)/tools/amiga/test_floor_retry.py
+test: test-floor-retry
+
+.PHONY: test-player-crop
+test-player-crop: tower-assets
+	python3 $(ROOT)/tools/amiga/test_player_crop.py

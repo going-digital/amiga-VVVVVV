@@ -309,6 +309,37 @@ int v6_player_map_move(V6Player *p,const V6Room *room,int target_x,int target_y)
 int v6_player_test_y(V6Player *p,const V6Room *room,int *target_y)
 {
     int next=*target_y;
+    /* For a downward move, a cached solid tile below either body edge
+     * blocks every retry until the bottom clears its top. A solid rectangle
+     * below the body provides the same guarantee. The bottom and +12
+     * edge samples cover that tile continuously over the ten-pixel speed cap.
+     * Keep the source decrements and pending Y, then use the ordinary query
+     * below the tile to check other geometry/blocks (including embedded starts).
+     * Interior-only tiles, arbitrary targets and streamed walls use the loop. */
+    if(p->vy>V6_ONE && p->y>=0 && p->vy<=10*V6_ONE &&
+       next>p->y && next<=p->y+10 && room->terrain &&
+       room->tileset!=V6_TILE_SOURCE_TOWER && next==position(p->y,p->vy)) {
+        int row=(p->y+22)/8+1,blocked_y=row*8-22;
+        if(!(next>=blocked_y &&
+             (v6_terrain_solid(room->terrain,(p->x+6)/8,row) ||
+              v6_terrain_solid(room->terrain,(p->x+17)/8,row)))) {
+            unsigned i;blocked_y=p->y+11;
+            for(i=0;p->ground>0 && i<room->block_count;++i) {
+                const V6Block *b=&room->blocks[i];
+                if(b->type==V6_BLOCK && b->w>0 && b->h>0 && b->y>=p->y+23 &&
+                   next>=b->y-22 && p->x+6<b->x+b->w && p->x+18>b->x) {
+                    blocked_y=b->y-22;break;
+                }
+            }
+        }
+        if(next>=blocked_y) {
+            do {
+                if(p->vy>V6_ONE)p->vy-=V6_ONE;
+                else {p->vy=0;return 0;}
+                next=position(p->y,p->vy);*target_y=next;
+            } while(next>=blocked_y);
+        }
+    }
     while (wall(room, p->x, next, 0, p->vy)) {
         if (p->vy > V6_ONE) p->vy -= V6_ONE;
         else if (p->vy < -V6_ONE) p->vy += V6_ONE;

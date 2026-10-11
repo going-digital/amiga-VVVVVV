@@ -117,7 +117,11 @@ def main():
             max(sprite_rgba[((oy+y)*sw+ox+x)*4:((oy+y)*sw+ox+x)*4+3])>0)<<(31-x)
             for x in range(32)) for y in range(32)])
     (out/'tower_player_assets.h').write_text('static const uint32_t tower_player_rows[23][32]={\n'+
-        ',\n'.join('{'+','.join(hex(v)+'UL' for v in frame)+'}' for frame in frames)+'};\n')
+        ',\n'.join('{'+','.join(hex(v)+'UL' for v in frame)+'}' for frame in frames)+'};\n'+
+        '/* Player animation frames 0..15, existing columns 6..21 in the high halfword. */\n'+
+        'static const uint32_t tower_player_cropped_rows[16][32]={\n'+
+        ',\n'.join('{'+','.join(hex(((v>>10)&65535)<<16)+'UL' for v in frame)+'}'
+                    for frame in frames[:16])+'};\n')
     # AI 17 remains still, tile 144 (sad), facing left: visual frame 147.
     # Export just this required frame rather than a full crew sprite sheet.
     tile=147;ox=(tile%(sw//32))*32;oy=(tile//(sw//32))*32

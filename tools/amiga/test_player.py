@@ -96,6 +96,19 @@ def original_reference():
         blockclass b = {DAMAGE, 0, {x,y,w,h}}; obj.blocks.push_back(b);
     }
     ''')
+    chunks.append('''extern "C" int reference_vertical(int *target) {
+        obj.entities[0].newyp=*target;
+        int allowed=obj.testwallsy(0,obj.entities[0].xp,*target);
+        *target=obj.entities[0].newyp;return allowed;
+    }
+    extern "C" void reference_vertical_blocks(const V6Block *p,unsigned count) {
+        for(unsigned i=0;i<count;++i) {
+            int type=p[i].type==V6_BLOCK?BLOCK:p[i].type==V6_SAFE?SAFE:DIRECTIONAL;
+            blockclass b={type,p[i].trigger,{p[i].x,p[i].y,p[i].w,p[i].h},0,0,0,0};
+            obj.blocks.push_back(b);
+        }
+    }
+    ''')
     code = '\n'.join(chunks)
     (BUILD / 'player_reference.cpp').write_text(code)
     return hashlib.sha256(code.encode()).hexdigest()

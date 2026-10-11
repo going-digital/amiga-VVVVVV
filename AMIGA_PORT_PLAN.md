@@ -2,13 +2,15 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
-Current direction (11 October 2026): pause automatic music reconstruction while
-the user seeks original tracker files from Magnus Palsson. Preserve the editing
-assets and return to engine work. The screen-shake core and native register-based teleporter fixture now pass
-source, sprite, pixel-capture and A500 timing checks. Shake/SFX coexistence now also passes within the timing budget. Completed arrivals now also pass disk/fresh-boot validation. Next, add
-explored-destination admission and enable the validated Energize menu route. See "Native register-based screen shake" below.
+Current direction (11 October 2026): music reconstruction remains paused while
+waiting for original tracker files from Magnus Palsson. Continue engine and
+campaign-route work. The native Prize checkpoint approach and bounded input-only
+trinket pickup now pass, including the pickup pause, caption, jingle and dismissal.
+Next, connect the return journey to the disappearing-platform shaft and implement
+V Stitch's upper timed trigger before broader room admission. See the latest
+"Input-only Prize puzzle and trinket pickup" milestone below.
 
-Latest milestone (7 October 2026): Building Apport's resident route is
+Earlier milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
 validation and a native DF1 save/fresh-boot fixture, including malformed-centre
 rejection before takeover. See "Teleporter checkpoint disk persistence" below.
@@ -4926,3 +4928,71 @@ in this capture. Next: extend input-only traversal from the established Prize
 checkpoint through the disappearing-platform puzzle to trinket collection,
 then cover the upper V Stitch script before general room admission. Music
 reconstruction remains parked.
+
+### Input-only Prize puzzle and trinket pickup — 11 October 2026
+
+A bounded native input replay now completes the Prize puzzle and collects
+trinket 6. Its explicit starting precondition is a stationary player at the
+previously verified north-entry coordinates (10,6), normal gravity, with the
+Prize checkpoint 443490 already saved and an empty collection bank. Yellow's
+rescue is complete. The earlier V Stitch capture proves checkpoint acquisition
+separately; this fixture does not walk the campaign return journey from that
+checkpoint back to the shaft. No placements, forced deaths, gate assignments
+or collection edits occur after this initial setup.
+
+Ordinary left/right/fire inputs collapse all three gates, cause the source
+spike death at world tick 67 and patch tile (18,9) to 59 at tick 68. The waiting
+platform is already at x=236, so the source death rule preserves that position.
+Tick 97 respawns at (236,134), inverted. The player catches the moving
+platform underneath at tick 115, reaches (196,78) at tick 125 and flips down
+into the alcove. Tick 130 collects the trinket at (192,124). Subsequent movement
+settles on the alcove floor at (192,129), without a second death or pickup.
+
+The connected pickup controller freezes the world and actor snapshot for
+95 UI timesteps, reveals the caption after 15, completes the source jingle,
+and accepts one fresh fire press after 94 released timesteps. Dismissal adds
+no player flip. The native capture checks the source bar positions for all
+110 reveal/retreat updates, the full collection diagnostic bank and four
+protected-channel sound requests: vanish at ticks 18, 36 and 52; trinket at
+130. Boot and save disks remain unchanged.
+
+`make -C amiga_version tower-prize-collection-input-capture` builds
+`build/amiga-prize-collection-input/tower.adf` and writes its PNG, RAM trace and
+JSON report. All 4,320 fields across 180 world ticks match the sanitized host
+integration oracle. That oracle shares the port's cores; it is not an
+independent complete desktop-game replay. The initial camera is fixed at zero,
+so this fixture keeps its dedicated world trace and omits the duplicate generic
+camera trace. Timing and recovery diagnostics remain enabled.
+
+The replay exposed a 311-line movement frame and one missed field. Downward
+collision retries now skip repeated wall queries while a cached edge floor or
+solid platform rectangle guarantees collision, retaining each source velocity
+decrement and pending Y. The normal query still checks the first position below
+that blocking surface. Streamed walls, interior-only tiles and other targets
+retain the ordinary path. A source-extracted C++ comparison passes 2,735,568
+cases, including 209,088 dynamic-floor cases; it checks the allowed move,
+pending Y and exact velocity. The existing static-player 36,746-tick and dynamic
+block 43,200-tick comparisons also pass, with zero velocity error.
+
+Prize player sprite columns 6..21 are now prepared in the private asset export
+for animation frames 0..15. Rendering uses their high halfwords at the same
+screen position, reducing per-row shifts without changing pixels. All 24,480
+DMA/colour/allocation comparisons pass across clipping edges, channel parity
+and full allocation. The collection diagnostic copy is unrolled with a safe
+remainder for its 13-byte bank.
+
+The final pickup replay peaks at 280 PAL lines with zero errors or missed
+frames and 296,150 Chip bytes. The retained Shenanigan input capture still
+matches all 5,376 fields and now peaks at 263 lines (previously 279); the
+V Stitch checkpoint capture matches all 7,248 fields and peaks at 252
+(previously 255).
+
+The retained placement-based route, pickup PCM, interpolation and fade checks
+also pass. Its peak is 275 lines; cold V4 loading peaks at 231 and V3-to-V4
+migration at 198, all with zero errors or missed frames. Native save/load and
+physical quit remain verified. The new pickup ELF has no unresolved symbols.
+
+Next: implement and verify the connected campaign return to the shaft while
+retaining the Prize checkpoint, then cover V Stitch's upper timed trigger
+before general room admission. The bounded pickup fixture does not complete
+that campaign connection. Music reconstruction remains parked.
