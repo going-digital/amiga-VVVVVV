@@ -3808,3 +3808,36 @@ refresh available destinations, connect confirmation to departure/arrival, and
 queue DOS autosave only after the final arrival SAVE event. Verify physical menu
 input, unexplored exclusion and save pause/resume before admitting live travel.
 Music reconstruction remains parked.
+
+## Native explored menu travel and arrival autosave — 11 October 2026
+
+The Building/Energize interactive slice now records room entry in the session
+exploration map, filters menu destinations through validated residents, and
+uses source ordering. Menu confirmation starts normal departure, latches the
+selected destination, loads its resident scene and runs arrival. The final
+arrival SAVE event queues DOS replacement/flush through the existing live
+pause/resume path; locked-script save/load requests report busy. Loading resets
+travel state/effects and marks the loaded room explored.
+
+Physical native captures cover admitted outbound travel, unvisited Energize
+exclusion, and a fresh unseeded process loading the actual outbound record and
+travelling back. Both journeys compare all 64 ticks, 4,608 model fields total;
+checkpoint records are Energize (80,112) and Building (156,92), with source saved
+direction/gravity. Menu input causes no extra flip, menu-paused hashes retain
+state, and each DOS pause preserves logic ticks/state and excludes disk wall
+time from the accumulator. Saving during departure and arrival is rejected
+before the final event. The unvisited case changes neither disk. The original
+Building-only physical menu regression passes.
+
+Run `make -C amiga_version tower-menu-travel-capture`; reports/RAM/screenshots
+are in `build/amiga-menu-travel/` and `build/amiga-menu-unexplored/`. All three
+cases use 95,968 Chip bytes, peak at 236 PAL work lines and have zero errors or
+missed fields. `tower-menu-travel-run` provides the live controls with separate
+retained DF1 storage. The visited-room seed, source movement replay and stable
+600-tick RAM-capture hold are absent from that live executable.
+
+Session exploration remains outside the 44-byte campaign disk format. Next:
+combine the independently verified register shake/Paula cues with interactive
+captions and DOS pauses, then persist exploration with compatible record
+validation/recovery. Broader story progress and unsupported teleporters remain
+outside this slice. Music reconstruction remains parked.

@@ -1,5 +1,15 @@
 /* Standalone PAL tower display experiment; left mouse exits. */
 #include <proto/exec.h>
+#ifdef V6_TOWER_MENU_TRAVEL
+#if !defined(V6_TOWER_BUILDING) || !defined(V6_TOWER_UI_SAVE) || !defined(V6_TOWER_ENERGIZE) || !defined(V6_TOWER_ARRIVAL) || !defined(V6_TOWER_ROUNDTRIP) || defined(V6_ENERGIZE_CAPTURE)
+#error Menu travel requires interactive Building/Energize and normal travel cores
+#endif
+#endif
+#ifdef V6_MENU_EXPLORED_CAPTURE
+#if !defined(V6_TOWER_MENU_TRAVEL) || !defined(V6_TELE_MENU_CAPTURE)
+#error Exploration seeding is only for the bounded physical menu capture
+#endif
+#endif
 #ifdef V6_TOWER_ARRIVAL_SAVE
 #if !defined(V6_BUILDING_SAVE) || !defined(V6_TOWER_ROUNDTRIP) || !defined(V6_TOWER_ENERGIZE) || !defined(V6_ENERGIZE_CAPTURE) || !defined(V6_TOWER_ARRIVAL)
 #error Arrival save requires the Building save and staged roundtrip fixtures
@@ -49,9 +59,27 @@ static volatile struct { ULONG magic,version,values[18]; } persist_diag={0x56365
 #if defined(V6_TOWER_BUILDING) && defined(V6_TOWER_UI_SAVE)
 #define V6_TOWER_TELE_MENU
 #include "teleporter_menu.h"
+#include "teleporter_admission.h"
 static V6TeleporterMenu tele_menu;
 static unsigned tele_menu_fire;
-static const V6TeleporterDestination tele_destinations[1]={{111,104}};
+static V6Exploration tele_exploration;
+static V6TeleporterDestination tele_destinations[2];
+static unsigned tele_destination_count;
+#ifdef V6_TOWER_MENU_TRAVEL
+static const V6TeleporterDestination tele_residents[2]={{111,104},{110,105}};
+static V6TeleporterDestination menu_target;
+static unsigned menu_save_pending,menu_travel_active;
+static volatile struct {ULONG magic,version,count;LONG snapshot[23],records[128][36];}
+    menu_travel_trace={0x56364d54,1,0,{0},{{0}}};
+#else
+static const V6TeleporterDestination tele_residents[1]={{111,104}};
+#endif
+static int tele_note_room(int x,int y)
+{
+    return v6_exploration_visit(&tele_exploration,x,y) &&
+        v6_teleporter_admit(&tele_exploration,tele_residents,
+            sizeof(tele_residents)/sizeof(tele_residents[0]),tele_destinations,2,&tele_destination_count);
+}
 static volatile struct {ULONG magic,version,values[10];} tele_menu_diag={0x5636544d,1,{0}};
 #endif
 #ifdef V6_TOWER_UI_SAVE
@@ -69,7 +97,11 @@ static unsigned ui_status,ui_fields;
 static UBYTE *ui_captions;
 static volatile struct { ULONG magic,version,values[18]; } ui_diag={0x56365549,1,{0}};
 #ifdef V6_TOWER_TELE_MENU
+#ifdef V6_TOWER_MENU_TRAVEL
+#define UI_MESSAGE_COUNT 7
+#else
 #define UI_MESSAGE_COUNT 6
+#endif
 #else
 #define UI_MESSAGE_COUNT 5
 #endif
@@ -89,6 +121,9 @@ static const V6RescueSpeech ui_messages[UI_MESSAGE_COUNT]={
 #endif
 #ifdef V6_TOWER_TELE_MENU
     ,{5,1,3,{"Building Apport","Left/right: select; fire: confirm","Down + fire: cancel"}}
+#ifdef V6_TOWER_MENU_TRAVEL
+    ,{6,1,3,{"Energize","Left/right: select; fire: confirm","Down + fire: cancel"}}
+#endif
 #endif
 };
 static volatile struct { ULONG magic,version,count,capacity,records[8][10]; } ui_trace={0x56364954,1,0,8,{{0}}};
@@ -353,7 +388,7 @@ static UWORD energize_prepared[10][6*V6_TELEPORTER_DMA_WORDS];
 #define FG_PALETTE tower_palette
 #endif
 #ifdef V6_TOWER_ARRIVAL
-#ifndef V6_ENERGIZE_CAPTURE
+#if !defined(V6_ENERGIZE_CAPTURE) && !defined(V6_TOWER_MENU_TRAVEL)
 #error Arrival fixture requires Energize capture
 #endif
 #include "teleporter_arrival.h"
@@ -634,6 +669,7 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #define AUDIO_IRQ_MASK (INTF_AUD0|INTF_AUD1|INTF_AUD2|INTF_AUD3)
 #else
 #define AUDIO_DMA_BYTES 0
+#define AUDIO_IRQ_MASK (INTF_AUD0|INTF_AUD1|INTF_AUD2|INTF_AUD3)
 #endif
 #ifdef V6_TOWER_UI_SAVE
 #define UI_DMA_BYTES (UI_MESSAGE_COUNT*V6_DIALOGUE_BYTES)
@@ -692,7 +728,11 @@ static int route_source(void)
 #ifdef V6_TOWER_MUSIC_TRACE
     if(!music_trace_enter())return 0;
 #endif
-    route_loading=2;route_budget=1;return 1;
+    route_loading=2;route_budget=1;
+#ifdef V6_TOWER_TELE_MENU
+    if(!tele_note_room(route.rooms[route.index].x,route.rooms[route.index].y))return 0;
+#endif
+    return 1;
 }
 static volatile struct { ULONG magic,version,count,records[128][3]; }
     route_trace={0x56365252,1,0,{{0}}};
@@ -1069,7 +1109,13 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
       )return v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
         camera&255,bg_camera&255,(ULONG)(ui_captions+
 #ifdef V6_TOWER_TELE_MENU
-        (tele_menu.open?5:ui_status)*V6_DIALOGUE_BYTES
+        (tele_menu.open?
+#ifdef V6_TOWER_MENU_TRAVEL
+          (tele_destinations[tele_menu.selected].room_x==110?6:5):
+#else
+          5:
+#endif
+          ui_status)*V6_DIALOGUE_BYTES
 #else
         ui_status*V6_DIALOGUE_BYTES
 #endif
@@ -1110,6 +1156,13 @@ static ULONG ui_game_hash(void)
     HASH(building_teleporter.tile);HASH(building_teleporter.state);
     HASH(route.tele_region.active);HASH(building_animation.frame);
     HASH(building_animation.delay);HASH(building_animation.walking);
+#ifdef V6_TOWER_MENU_TRAVEL
+    HASH(energize_teleporter.tile);HASH(energize_teleporter.state);HASH(route.index);
+    HASH(departure.state);HASH(departure.delay);HASH(departure.flash);HASH(departure.shake);
+    HASH(arrival.state);HASH(arrival.delay);HASH(arrival.control);HASH(arrival.flash);HASH(arrival.shake);
+    HASH(session.invisible);HASH(session.motion.ax);HASH(session.motion.pending_y);
+    HASH(building_random);HASH(colour_random);
+#endif
 #endif
 #undef HASH
     return hash;
@@ -1168,6 +1221,10 @@ static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
     player_animation.delay=player_animation.walk=0;player_frame=c->dir?0:3;
 #ifdef V6_TOWER_TELE_MENU
     v6_teleporter_menu_init(&tele_menu);tele_menu_fire=0;
+#ifdef V6_TOWER_MENU_TRAVEL
+    v6_teleporter_departure_init(&departure);v6_teleporter_arrival_init(&arrival);
+    menu_save_pending=menu_travel_active=0;arrival_flash=0;session.invisible=0;
+#endif
 #endif
     return route_source();
 }
@@ -1352,6 +1409,18 @@ static int run(void) {
 #ifdef V6_TOWER_PLAY
     camera=session.camera.y;
     controller.y=session.camera.y;controller.old_y=session.camera.old_y;
+#endif
+#ifdef V6_TOWER_TELE_MENU
+    v6_exploration_init(&tele_exploration);
+#ifdef V6_MENU_EXPLORED_CAPTURE
+    /* Capture setup represents a previously visited resident room. The normal
+     * executable starts with current-room exploration only. */
+    if(!v6_exploration_visit(&tele_exploration,110,105))return 20;
+#endif
+    if(!tele_note_room(route.rooms[route.index].x,route.rooms[route.index].y))return 20;
+#endif
+#ifdef V6_TOWER_MENU_TRAVEL
+    v6_teleporter_departure_init(&departure);v6_teleporter_arrival_init(&arrival);
 #endif
     diag.step=0;diag.route_min=0;diag.route_max=5368;
     (void)direction;
@@ -1603,6 +1672,9 @@ static int run(void) {
             ui_diag.values[17]=ui_test_phase;
 #endif
             action=v6_save_controls_tick(&save_controls,right,fire);
+#ifdef V6_TOWER_MENU_TRAVEL
+            if(menu_save_pending){action=V6_SAVE_ACTION_SAVE;menu_save_pending=0;}
+#endif
             if(ui_fields)--ui_fields;
             if(action) {
                 ULONG before_hash=ui_game_hash(),before_frames=frames,before_ticks=diag.logic_ticks;
@@ -1611,6 +1683,9 @@ static int run(void) {
                 if(route_loading || session.death_timer!=-1
 #ifdef V6_TOWER_TELE_MENU
                    || tele_menu.open
+#ifdef V6_TOWER_MENU_TRAVEL
+                   || departure.state || arrival.state
+#endif
 #endif
 #ifdef V6_TOWER_RESCUE
                    || rescue_vm.active
@@ -1715,6 +1790,11 @@ static int run(void) {
 #endif
             if(diag.logic_ticks>=V6_ENERGIZE_CAPTURE_TICKS)delta=0; /* Hold the verified scene for capture. */
 #endif
+#if defined(V6_TOWER_MENU_TRAVEL) && defined(V6_TELE_MENU_CAPTURE)
+            /* Hold after a completed physical-input journey. A live RAM dump
+             * can otherwise land between diagnostic counter publications. */
+            if(diag.logic_ticks>=600)delta=0;
+#endif
             elapsed+=delta*19968UL;diag.logic_frames+=delta;
             while(elapsed>=34000) {
                 elapsed-=34000;
@@ -1805,8 +1885,12 @@ static int run(void) {
                         buttons=V6_TELE_MENU_CONFIRM;tele_menu_fire=1;
                     }
                     v6_teleporter_menu_ready(&tele_menu,&route.tele_region,&session.player,
-                        route.index==4 && session.death_timer==-1 && !route_loading);
-                    event=v6_teleporter_menu_tick(&tele_menu,tele_destinations,1,
+                        route.rooms[route.index].teleporter && session.death_timer==-1 && !route_loading
+#ifdef V6_TOWER_MENU_TRAVEL
+                        && !departure.state && arrival.control
+#endif
+                        );
+                    event=v6_teleporter_menu_tick(&tele_menu,tele_destinations,tele_destination_count,
                         route.rooms[route.index].x,route.rooms[route.index].y,&session.player,buttons,&target);
                     if(event==V6_TELE_MENU_OPENED){
                         if(!tele_menu_diag.values[0])tele_menu_diag.values[8]=session.player.flips;
@@ -1815,12 +1899,26 @@ static int run(void) {
                     tele_menu_diag.values[9]=session.player.flips;
                     if(event==V6_TELE_MENU_CHANGED)++tele_menu_diag.values[1];
                     if(event==V6_TELE_MENU_CLOSED){++tele_menu_diag.values[2];ui_fields=0;}
-                    /* Only the current resident teleporter is offered. A future
-                     * destination must add a validated arrival path first. */
-                    if(event==V6_TELE_MENU_TRAVEL){++tele_menu_diag.values[3];diag.error=13;}
+                    if(event==V6_TELE_MENU_TRAVEL) {
+#ifdef V6_TOWER_MENU_TRAVEL
+                        if(!v6_teleporter_departure_start(&departure,route.rooms[route.index].teleporter,&route.tele_region))diag.error=13;
+                        else {
+                            unsigned j;const LONG *body=(const LONG *)&session.player;
+                            menu_target=target;ui_fields=0;tele_menu.ready=0;++tele_menu_diag.values[3];
+                            menu_travel_active=1;menu_travel_trace.count=0;
+                            for(j=0;j<16;++j)menu_travel_trace.snapshot[j]=body[j];
+                            menu_travel_trace.snapshot[16]=session.motion.ax;menu_travel_trace.snapshot[17]=session.motion.pending_y;
+                            menu_travel_trace.snapshot[18]=building_animation.frame;menu_travel_trace.snapshot[19]=building_animation.delay;
+                            menu_travel_trace.snapshot[20]=building_animation.walking;menu_travel_trace.snapshot[21]=building_random;
+                            menu_travel_trace.snapshot[22]=colour_random;
+                        }
+#else
+                        ++tele_menu_diag.values[3];diag.error=13;
+#endif
+                    }
                     tele_menu_diag.values[4]=tele_menu.selected;
                     if(tele_menu_fire || was_open || tele_menu.open)input&=~V6_FLIP;
-                    if(was_open || tele_menu.open) {
+                    if((was_open || tele_menu.open) && event!=V6_TELE_MENU_TRAVEL) {
                         ++tele_menu_diag.values[5];tele_menu_diag.values[7]=ui_game_hash();
                         if(tele_menu_diag.values[6]!=tele_menu_diag.values[7])diag.error=13;
                         goto tele_menu_paused;
@@ -1851,13 +1949,24 @@ static int run(void) {
 #ifdef V6_TOWER_ARRIVAL
 #ifdef V6_TOWER_ROUNDTRIP
                 departure.events=arrival.events=0;
+#ifndef V6_TOWER_MENU_TRAVEL
                 if(travel_leg==1 && !arrival.state && !departure.state) {
                     if(!v6_teleporter_departure_start(&departure,route.rooms[route.index].teleporter,&route.tele_region))diag.error=14;
                 }
+#endif
                 if(departure.state || !arrival.control)input|=V6_NO_CONTROL;
+#ifdef V6_TOWER_MENU_TRAVEL
+                if(!departure.state && !arrival.state) {
+                    if(!v6_tower_route_step(&route,input))diag.error=6;
+                } else
+#endif
                 if(!v6_tower_route_step_phase(&route,input,travel_phase,0))diag.error=6;
                 if(departure.travel) {
+#ifdef V6_TOWER_MENU_TRAVEL
+                    int x=menu_target.room_x,y=menu_target.room_y;
+#else
                     int x=travel_leg==0?110:111,y=travel_leg==0?105:104;
+#endif
                     if(!v6_tower_route_teleport(&route,x,y))diag.error=14;
                     else {
                         departure.travel=0;++travel_leg;
@@ -1915,6 +2024,13 @@ static int run(void) {
                     }
                 }
 #endif
+#ifdef V6_TOWER_MENU_TRAVEL
+                if(menu_travel_active && menu_travel_trace.count<128) {
+                    volatile LONG *d=menu_travel_trace.records[menu_travel_trace.count];
+                    d[0]=departure.state;d[1]=departure.delay;d[2]=departure.control;d[3]=departure.flash;
+                    d[4]=departure.shake;d[5]=departure.events;d[6]=departure.travel;d[7]=travel_leg;
+                }
+#endif
                 if(departure_trace.count<128) {
                     volatile ULONG *d=departure_trace.records[departure_trace.count++];
                     d[0]=departure.state;d[1]=departure.delay;d[2]=departure.control;
@@ -1936,6 +2052,16 @@ static int run(void) {
                     a[9]=session.player.ay;a[10]=session.player.old_x;a[11]=session.player.old_y;
                     a[12]=session.player.dir;a[13]=session.death_timer;
                 }
+#ifdef V6_TOWER_MENU_TRAVEL
+                if(menu_travel_active && menu_travel_trace.count<128) {
+                    volatile LONG *a=menu_travel_trace.records[menu_travel_trace.count]+8;
+                    a[0]=arrival.state;a[1]=arrival.delay;a[2]=arrival.control;a[3]=arrival.flash;
+                    a[4]=arrival.shake;a[5]=arrival.events;a[6]=session.invisible;a[7]=session.player.vx;
+                    a[8]=session.player.vy;a[9]=session.player.ay;a[10]=session.player.old_x;
+                    a[11]=session.player.old_y;a[12]=session.player.dir;a[13]=session.death_timer;
+                }
+                if(arrival.events&V6_ARRIVAL_SAVE)menu_save_pending=1;
+#endif
                 /* Graphics::renderfixedpost effect counters decay once per tick. */
                 if(arrival.flash>0)--arrival.flash;
                 if(arrival.shake>0)--arrival.shake;
@@ -1953,7 +2079,7 @@ static int run(void) {
                 }
 #ifdef V6_TOWER_ROUNDTRIP
                 {
-                    int tile=route.rooms[route.index].teleporter->tile;
+                    int tile=route.rooms[route.index].teleporter?route.rooms[route.index].teleporter->tile:1;
                     teleporter_tint=tile==6?flashing_colour(session.noflashing):tile==1?0x444:0xaaf;
                     player_tint=departure.state>=4000 && departure.state<=4002 && !session.invisible?
                         flashing_colour(session.noflashing):0x6ff;
@@ -1961,6 +2087,17 @@ static int run(void) {
                         volatile ULONG *c=colour_trace.records[colour_trace.count++];
                         c[0]=teleporter_tint;c[1]=player_tint;
                     }
+                }
+#endif
+#ifdef V6_TOWER_MENU_TRAVEL
+                if(menu_travel_active && menu_travel_trace.count<128) {
+                    volatile LONG *r=menu_travel_trace.records[menu_travel_trace.count]+22;
+                    V6Teleporter *t=route.rooms[route.index].teleporter;
+                    r[0]=route.index;r[1]=session.player.x;r[2]=session.player.y;r[3]=t->tile;r[4]=t->state;
+                    r[5]=route.tele_events;r[6]=building_animation.frame;r[7]=world.save.x;r[8]=world.save.y;
+                    r[9]=world.save.room_x;r[10]=world.save.room_y;r[11]=route.tele_region.active;
+                    r[12]=teleporter_tint;r[13]=player_tint;++menu_travel_trace.count;
+                    if(arrival.events&V6_ARRIVAL_SAVE)menu_travel_active=0;
                 }
 #endif
                 if(building_trace.count<128) {

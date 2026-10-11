@@ -2590,3 +2590,51 @@ Artifacts stay in `build/amiga-arrival-save-{64,128,early}/`; the summary is
 `build/amiga-arrival-save-capture.json`. These bounded fixtures end gameplay
 before DOS I/O and admit zero story flags. A live autosave pause/resume path and
 explored-destination menu admission remain pending. Music work remains paused.
+
+## Explored menu travel and live arrival autosave
+
+`make -C amiga_version tower-menu-travel-run` launches the six-room slice with
+normal keyboard joystick controls and a retained separate DF1 save disk at
+`build/amiga-menu-live/save-disk.adf`. Down + fire opens the selector while ready
+and stationary in an active teleporter region; left/right selects, fire confirms,
+and down + fire cancels. Right mouse saves; fire + right mouse loads. Confirming
+another admitted room now runs normal departure, cold scene loading and arrival.
+The final arrival SAVE event queues the existing OS-safe DOS pause/flush/resume
+path. Save/load requests during departure or arrival report busy. Loading resets
+travel effects and control state before play resumes.
+
+Room entry marks a 400-room session exploration map. The menu includes only
+explored validated residents, in the original source order: Energize precedes
+Building Apport. The live build starts with current-room exploration; it does
+not seed Energize. Loading a valid Energize checkpoint marks that entered room
+and permits a return to Building once both have been visited in this session.
+The 44-byte campaign record still does not persist the exploration map, so a
+new process must visit/load rooms again. Other source teleporter destinations
+remain excluded until their full resident routes are validated.
+
+`make -C amiga_version tower-menu-travel-capture` checks three native cases with
+physical joystick/mouse events and bounded source movement:
+
+- A previously visited Energize fixture selects it from Building, compares all
+  64 travel ticks (2,304 model fields), rejects saves during both locked scripts,
+  and verifies the final Energize campaign bytes after live save/resume.
+- An unseeded fixture offers only Building; navigation/current-room confirmation
+  performs no travel or DOS pause and leaves both disk images unchanged.
+- A fresh unseeded process loads the first case's actual Energize disk, admits
+  the entered destination, travels back to Building, compares another 2,304
+  fields and verifies its completed-arrival replacement record. The input disk
+  from the first case stays unchanged.
+
+All cases preserve menu-paused gameplay and consume menu fire without an extra
+flip. DOS pauses preserve gameplay ticks and state; their wall time is excluded
+from the fixed-step accumulator. Captures hold after 600 logic ticks so RAM
+snapshots cannot catch diagnostic counters between publications. Exploration
+seeding, movement replay and this hold exist only in the capture builds.
+
+Artifacts are `build/amiga-menu-travel/menu-travel-*` and
+`build/amiga-menu-unexplored/menu-{unexplored,return}-*`, with separate private
+capture disks. These builds use 95,968 Chip bytes, peak at 236 PAL work lines,
+and report zero missed fields/errors. The original Building-only menu capture
+also passes. Register shake and Paula SFX remain verified in their staged
+fixture; combining them with interactive captions and DOS pauses is next.
+Music reconstruction remains parked.

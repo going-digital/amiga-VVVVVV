@@ -837,3 +837,16 @@ $(BUILD)/teleporter_admission.o: teleporter_admission.c teleporter_admission.h t
 test-teleporter-admission: $(BUILD)/teleporter_admission.o
 	python3 $(ROOT)/tools/amiga/test_teleporter_admission.py
 test: test-teleporter-admission
+
+MENU_TRAVEL_FLAGS = -DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_UI_SAVE -DV6_TOWER_ENERGIZE -DV6_TOWER_ARRIVAL -DV6_TOWER_ROUNDTRIP -DV6_TOWER_MENU_TRAVEL
+.PHONY: tower-menu-travel tower-menu-travel-run tower-menu-travel-capture
+tower-menu-travel: tower-probe test-teleporter-admission
+	$(MAKE) BUILD=$(ROOT)/build/amiga-menu-live CPPFLAGS="$(MENU_TRAVEL_FLAGS)" $(ROOT)/build/amiga-menu-live/tower.adf
+tower-menu-travel-run: tower-menu-travel
+	python3 $(ROOT)/tools/amiga/run_interactive_save.py --build $(ROOT)/build/amiga-menu-live --building
+tower-menu-travel-capture: tower-probe test-teleporter-admission test-teleporter-menu test-departure-route test-interactive-save
+	$(MAKE) BUILD=$(ROOT)/build/amiga-menu-travel CPPFLAGS="$(MENU_TRAVEL_FLAGS) -DV6_TOWER_BUILDING_REPLAY -DV6_TELE_MENU_CAPTURE -DV6_MENU_EXPLORED_CAPTURE" $(ROOT)/build/amiga-menu-travel/tower.adf
+	python3 $(ROOT)/tools/amiga/run_menu_travel.py
+	$(MAKE) BUILD=$(ROOT)/build/amiga-menu-unexplored CPPFLAGS="$(MENU_TRAVEL_FLAGS) -DV6_TOWER_BUILDING_REPLAY -DV6_TELE_MENU_CAPTURE" $(ROOT)/build/amiga-menu-unexplored/tower.adf
+	python3 $(ROOT)/tools/amiga/run_menu_travel.py --build $(ROOT)/build/amiga-menu-unexplored --unexplored
+	python3 $(ROOT)/tools/amiga/run_menu_travel.py --build $(ROOT)/build/amiga-menu-unexplored --load-return $(ROOT)/build/amiga-menu-travel/capture-menu-disk.adf
