@@ -474,12 +474,33 @@ static volatile struct {ULONG magic,version,count;LONG records[160][14];}
 static unsigned shenanigan_ui_stage;
 #endif
 #endif
+#ifdef V6_TOWER_PRIZE
+#if !defined(V6_TOWER_STATION) || !defined(V6_TOWER_SHENANIGAN)
+#error Prize route requires the resident station and Shenanigan rooms
+#endif
+#include "prize.h"
+#include "prize_assets.h"
+static V6Terrain prize_terrain;
+static V6Prize station_prize;
+static V6Collect station_collected;
+static unsigned prize_pickups,prize_patches,prize_sounds;
+static int prize_gate_drawn[2][3];
+static unsigned prize_drawn_patch[2];
+#ifdef V6_PRIZE_ROUTE_CAPTURE
+static volatile struct {ULONG magic,version,count;LONG records[224][24];}
+    prize_route_trace={0x56365052,1,0,{{0}}};
+static unsigned prize_ui_stage;
+#endif
+#define PRIZE_FG(value,fallback) (route.index==8?(value):(fallback))
+#else
+#define PRIZE_FG(value,fallback) (fallback)
+#endif
 static V6Terrain frown_terrain;
-#define FG_OFFSETS (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)
-#define FG_PAIRS (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)
-#define FG_WORDS (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)
-#define FG_COUNT (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)
-#define FG_PALETTE (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)
+#define FG_OFFSETS PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets))
+#define FG_PAIRS PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs))
+#define FG_WORDS PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS))
+#define FG_COUNT PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT))
+#define FG_PALETTE PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette))
 #else
 #define FG_OFFSETS (route.index==5?energize_pair_offsets:tower_pair_offsets)
 #define FG_PAIRS (route.index==5?energize_pairs:tower_pairs)
@@ -499,6 +520,13 @@ static int station_conveyor_tick(V6TowerRoute *r,void *context)
 {
     V6PlatformPush push;
     (void)context;
+#ifdef V6_TOWER_PRIZE
+    if(r->index==8) {
+        v6_prize_platform(&station_prize,&r->room,&r->session->player,
+                         r->session->life_timer,r->session->motion.pending_y);
+        return 1;
+    }
+#endif
     if(r->index!=7)return 1;
     push.pending_y=r->session->motion.pending_y;push.visual_ground=push.visual_roof=0;
     v6_platform_transport(&r->session->player,&r->room,station_conveyors,2,
@@ -507,6 +535,44 @@ static int station_conveyor_tick(V6TowerRoute *r,void *context)
     --station_conveyor_delay;
     return 1;
 }
+#endif
+#ifdef V6_TOWER_PRIZE
+static int prize_events(V6TowerRoute *r,unsigned events)
+{
+    if(events&V6_PRIZE_FULL)return 0;
+    if(events&V6_PRIZE_PICKUP)++prize_pickups;
+    if(events&V6_PRIZE_SOUND)++prize_sounds;
+    if(events&V6_PRIZE_TILE) {
+        int changed=v6_terrain_set_tile(&prize_terrain,prize_tiles,0,0,18,9,59);
+        if(changed<0)return 0;
+        if(changed)++prize_patches;
+    }
+    (void)r;
+    return 1;
+}
+static int prize_entities(V6TowerRoute *r,void *context)
+{
+    (void)context;
+    return r->index!=8 || prize_events(r,v6_prize_entities(&station_prize,&r->room,&station_collected));
+}
+static int prize_contacts(V6TowerRoute *r,void *context)
+{
+    (void)context;
+    if(r->index==8)v6_prize_collide(&station_prize,&r->session->player);
+    return 1;
+}
+static int prize_death(V6TowerRoute *r,void *context)
+{
+    (void)context;
+    return r->index!=8 || prize_events(r,v6_prize_death(&station_prize,&r->room));
+}
+static int station_route_step(V6TowerRoute *r,unsigned input,V6TowerRoutePhase phase,void *context)
+{
+    V6TowerRouteHooks hooks={phase,prize_entities,prize_contacts,prize_death};
+    return v6_tower_route_step_hooks(r,input,&hooks,context);
+}
+#else
+#define station_route_step v6_tower_route_step_phase
 #endif
 #ifdef V6_TOWER_ARRIVAL
 #if !defined(V6_ENERGIZE_CAPTURE) && !defined(V6_TOWER_MENU_TRAVEL)
@@ -873,6 +939,15 @@ static int route_source(void)
     }
 #endif
 #endif
+#ifdef V6_TOWER_PRIZE
+    if(route.index==8) {
+        data=prize_display;bytes=sizeof(prize_display);
+        route.room.terrain=&prize_terrain;
+        v6_prize_init(&station_prize,&route.room,&station_collected,world.save.id,route.session->player.y);
+        for(i=0;i<3;++i)prize_gate_drawn[0][i]=prize_gate_drawn[1][i]=-2;
+        prize_drawn_patch[0]=prize_drawn_patch[1]=~prize_patches;
+    }
+#endif
     /* Resident maps were opened and fully pair-validated before
      * takeover. Rebind only these identical immutable bytes; a repeated
      * 700-entry directory scan would consume the transition frame. */
@@ -1128,6 +1203,27 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         }
     }
 #endif
+#ifdef V6_TOWER_PRIZE
+    if(route.index==8) {
+        unsigned n,row,plane;
+        for(n=0;n<3;++n) {
+            int y=n==0?72:n==1?112:128;
+            int frame=station_prize.disappearing[n].walking_frame;
+            const UBYTE *patch=(n==0 && prize_tiles[9*40+18]==59)?prize_death_tile:0;
+            if(station_prize.disappearing[n].invisible || frame<0 || frame>=PRIZE_GATE_FRAMES)frame=-1;
+            if(prize_gate_drawn[index][n]==frame && prize_drawn_patch[index]==prize_patches)continue;
+            for(plane=0;plane<2;++plane)for(row=0;row<8;++row) {
+                UBYTE mask=frame>=0?prize_gate_masks[frame][row]:0;
+                UBYTE bits=frame>=0?prize_gate_planes[frame][plane*8+row]:0;
+                UBYTE *dest=ring+plane*V6_TOWER_PLANE_BYTES+(y+row)*40+15;
+                dest[0]=dest[1]=dest[2]=bits;
+                dest[3]=patch?(patch[plane*8+row]&~mask)|bits:bits;
+            }
+            prize_gate_drawn[index][n]=frame;
+        }
+        prize_drawn_patch[index]=prize_patches;
+    }
+#endif
     if(drawn) *drawn+=background_rows;
     p=move(p,0x100,0x3600);p=move(p,0x102,0);p=move(p,0x104,0x24);
     p=move(p,0x108,0);p=move(p,0x10a,0);
@@ -1296,6 +1392,14 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
             264,185,6,0xf44)<V6_SPRITE_CLIPPED) return 0;
 #endif
 #endif
+#ifdef V6_TOWER_PRIZE
+    if(route.index==8) {
+        if(v6_sprites_add_rect(&player_sprites[index],prize_waiting_rows,
+            station_prize.waiting.x,station_prize.waiting.y,0,32,8,0xfff)<V6_SPRITE_CLIPPED)return 0;
+        if(station_prize.trinket.visible &&
+           v6_sprites_add_rect(&player_sprites[index],tower_player_rows[22],192,128,0,16,16,0xfff)<V6_SPRITE_CLIPPED)return 0;
+    }
+#endif
     if(player_sprites[index].count>world_diag.values[12]) world_diag.values[12]=player_sprites[index].count;
 #endif
     for(i=0;i<8;++i) {
@@ -1429,6 +1533,9 @@ static ULONG ui_game_hash(void)
 #endif
 #endif
 #endif
+#ifdef V6_TOWER_PRIZE
+    { unsigned i;for(i=0;i<V6_COLLECT_BYTES;++i)HASH(station_collected.bits[i]); }
+#endif
 #undef HASH
     return hash;
 }
@@ -1497,6 +1604,12 @@ static int ui_save_checked(void)
 {
     V6CheckpointSave c;V6HallwayStory story;int result;
     int a,k;
+#ifdef V6_TOWER_PRIZE
+    /* The legacy menu cannot represent collected flags. Retain the existing
+     * disk until V4 is wired, including when the checkpoint is in another room. */
+    { unsigned i;for(i=0;i<V6_COLLECT_BYTES;++i)
+        if(station_collected.bits[i])return V6_SAVE_INVALID; }
+#endif
     if(!checkpoint_bank_valid(&world.save))return V6_SAVE_INVALID;
 #ifdef V6_STATION_MENU
     if(!ui_station_checkpoint_valid(&world.save,&hallway_story))return V6_SAVE_INVALID;
@@ -1521,6 +1634,10 @@ static int ui_save_checked(void)
 }
 static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
 {
+#ifdef V6_TOWER_PRIZE
+    /* Accepted V1..V3 records migrate with an empty collection bank. */
+    v6_collect_clear(&station_collected);
+#endif
     ui_copy(&world.save,c,sizeof(*c));
 #ifdef V6_TOWER_RESCUE
     ui_copy(&hallway_story,story,sizeof(*story));
@@ -1703,6 +1820,11 @@ static int run(void) {
     station_save_diag.values[10]=station_story.rescue_triggered;station_save_diag.values[11]=station_story.yellow_rescued;
     station_save_diag.values[12]=station_story.companion;
 #endif
+#ifdef V6_PRIZE_ROUTE_CAPTURE
+    station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
+    rescue_vm.following=1;rescue_vm.mood=0;
+    v6_player_init(&session.player,234,219,0);
+#endif
 #ifdef V6_SHENANIGAN_CAPTURE
     station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
     rescue_vm.following=1;rescue_vm.mood=0;
@@ -1864,6 +1986,9 @@ static int run(void) {
         collision.tiles=shenanigan_tiles;v6_terrain_build(&shenanigan_terrain,&collision);
         if(route.index==7)route.room.terrain=&shenanigan_terrain;
 #endif
+#ifdef V6_TOWER_PRIZE
+        collision.tiles=prize_tiles;v6_terrain_build(&prize_terrain,&collision);
+#endif
         if(route.index==6)route.room.terrain=&frown_terrain;
 #endif
         for(frame=1;frame<10;++frame)
@@ -1907,6 +2032,10 @@ static int run(void) {
 #endif
 #endif
     if(
+#ifdef V6_TOWER_PRIZE
+       !v6_tower_open(&stream,prize_display,sizeof(prize_display)) ||
+       !v6_tower_pairs_validate(&stream,prize_pair_offsets,PRIZE_PAIR_WORDS,PRIZE_TILE_COUNT,2) ||
+#endif
 #ifdef V6_TOWER_SHENANIGAN
        !v6_tower_open(&stream,shenanigan_display,sizeof(shenanigan_display)) ||
        !v6_tower_pairs_validate(&stream,shenanigan_pair_offsets,SHENANIGAN_PAIR_WORDS,SHENANIGAN_TILE_COUNT,2) ||
@@ -2095,6 +2224,10 @@ static int run(void) {
                 right=fire=1;ui_test_phase=4;ui_test_tick=diag.logic_ticks;
             }
             ui_diag.values[17]=ui_test_phase;
+#endif
+#ifdef V6_PRIZE_ROUTE_CAPTURE
+            right=fire=0;
+            if(!prize_ui_stage && diag.logic_ticks>=188) {right=1;prize_ui_stage=1;}
 #endif
 #ifdef V6_SHENANIGAN_CAPTURE
             right=fire=0;
@@ -2322,6 +2455,21 @@ static int run(void) {
                 if(building_stage==2)input=0;
 #endif
 #endif
+#ifdef V6_PRIZE_ROUTE_CAPTURE
+                input=0;
+                if(diag.logic_ticks==20 || diag.logic_ticks==25 || diag.logic_ticks==40 ||
+                   diag.logic_ticks==95 || diag.logic_ticks==150 || diag.logic_ticks==175 ||
+                   diag.logic_ticks==185 || diag.logic_ticks==190) {
+                    unsigned tick=diag.logic_ticks;
+                    int x=tick==40 || tick==95?124:tick==25?236:tick==150?192:tick==185?140:234;
+                    int y=tick==20 || tick==190?219:tick==40?70:tick==95?110:
+                          tick==25?134:tick==150?128:tick==185?161:-3;
+                    v6_player_init(&session.player,x,y,tick==20 || tick==185 || tick==190?0:1);
+                    session.death_timer=-1;session.life_timer=0;session.invisible=0;
+                    session.motion.ax=0;session.motion.pending_y=y;
+                }
+                if(diag.logic_ticks==60 || diag.logic_ticks==115)v6_tower_session_die(&session);
+#endif
 #ifdef V6_SHENANIGAN_CAPTURE
                 input=0;
                 if(diag.logic_ticks==20 || diag.logic_ticks==35 || diag.logic_ticks==50) {
@@ -2460,13 +2608,13 @@ static int run(void) {
 #ifdef V6_TOWER_MENU_TRAVEL
                 if(!departure.state && !arrival.state) {
 #ifdef V6_TOWER_SHENANIGAN
-                    if(!v6_tower_route_step_phase(&route,input,station_conveyor_tick,0))diag.error=6;
+                    if(!station_route_step(&route,input,station_conveyor_tick,0))diag.error=6;
 #else
                     if(!v6_tower_route_step(&route,input))diag.error=6;
 #endif
                 } else
 #endif
-                if(!v6_tower_route_step_phase(&route,input,travel_phase,0))diag.error=6;
+                if(!station_route_step(&route,input,travel_phase,0))diag.error=6;
                 if(departure.travel) {
 #ifdef V6_TOWER_MENU_TRAVEL
                     int x=menu_target.room_x,y=menu_target.room_y;
@@ -2556,7 +2704,7 @@ static int run(void) {
                 if(departure.shake>0)--departure.shake;
 #else
                 if(!arrival.control)input|=V6_NO_CONTROL;
-                if(!v6_tower_route_step_phase(&route,input,arrival_phase,&arrival))diag.error=6;
+                if(!station_route_step(&route,input,arrival_phase,&arrival))diag.error=6;
                 arrival_flash=arrival.flash;
 #endif
                 if(arrival_trace.count<128) {
@@ -2584,7 +2732,7 @@ static int run(void) {
                 if(arrival.shake>0)--arrival.shake;
 #else
 #ifdef V6_TOWER_SHENANIGAN
-                if(!v6_tower_route_step_phase(&route,input,station_conveyor_tick,0))diag.error=6;
+                if(!station_route_step(&route,input,station_conveyor_tick,0))diag.error=6;
 #else
                 if(!v6_tower_route_step(&route,input)) diag.error=6;
 #endif
@@ -2683,6 +2831,21 @@ static int run(void) {
 #else
                 v6_tower_session_play_world(&session,&player_room,input,&world);
 #endif
+#ifdef V6_PRIZE_ROUTE_CAPTURE
+                if(prize_route_trace.count<224) {
+                    volatile LONG *d=prize_route_trace.records[prize_route_trace.count++];
+                    unsigned i;
+                    d[0]=route.index;d[1]=session.player.x;d[2]=session.player.y;
+                    d[3]=session.player.gravity;d[4]=session.death_timer;d[5]=world.save.id;
+                    d[6]=world.save.x;d[7]=world.save.y;d[8]=world.save.gravity;
+                    d[9]=world.save.room_x;d[10]=world.save.room_y;d[11]=companion.visible;
+                    d[12]=route.room.block_count;d[13]=station_prize.waiting.x;d[14]=station_prize.waiting.state;
+                    d[15]=prize_pickups;d[16]=prize_patches;d[17]=v6_collect_has(&station_collected,6);
+                    d[18]=station_prize.trinket.visible;d[19]=prize_tiles[9*40+18];
+                    for(i=0;i<3;++i)d[20+i]=station_prize.disappearing[i].state;
+                    d[23]=session.respawns;
+                }
+#endif
 #ifdef V6_SHENANIGAN_CAPTURE
                 if(shenanigan_trace.count<160) {
                     volatile LONG *d=shenanigan_trace.records[shenanigan_trace.count++];
@@ -2767,7 +2930,7 @@ tele_menu_paused:
             drawn=fg_rows+bg_rows;++route_diag.loading_frames;
 #ifdef V6_TOWER_BUILDING
             /* Leave room for the six-channel DMA copy on final cold fields. */
-            route_budget=(route.rooms[route.index].teleporter || route.index==7)?1:2;
+            route_budget=(route.rooms[route.index].teleporter || route.index==7 || route.index==8)?1:2;
 #else
             route_budget=2;
 #endif

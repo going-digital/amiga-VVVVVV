@@ -4496,3 +4496,50 @@ Next: export Prize's paired campaign graphics, bind its mutable terrain and
 actors below Shenanigan using the new stages, then add pickup UI and connect
 V4 collection persistence to the menu. Prize is still isolated; the current
 campaign menu still writes V3. Music reconstruction remains parked.
+
+
+### Prize connected route candidate — 11 October 2026
+
+`make -C amiga_version tower-prize-route-run` builds the combined station effects
+configuration with Prize for the Reckless (111,107) below Shenanigan. This is a
+separate candidate build while pickup UI and V4 menu persistence are pending;
+the existing station command retains its verified V3 route.
+
+The resident room uses the reviewed normal-mode source tiles and checkpoint
+443490 at (236,134), gravity 1. Its tile view is mutable: the death patch at
+(18,9)=59 updates cached collision and survives room recreation. Three fixed
+platforms use cached two-plane graphics; the waiting platform uses two sprite
+channels, and trinket 6 uses one. Together with player and checkpoint, the peak
+is five sprite channels. Collection survives death and reentry, hiding the
+trinket when its actor is recreated. Yellow remains hidden in this room.
+
+The compact campaign export has 25 terrain IDs, including the death tile, and
+40 tile pairs. Independent source-PNG checks pass for 79,360 paired-ring pixels,
+28,992 gate pixels, the repeated waiting mask, death tile and trinket crop.
+Host checks compare 512 static Prize physics ticks against original methods and
+verify south/north history transforms, the canonical checkpoint, remote death
+restore and retention of the mutable tile view. Actor behavior is covered by
+the existing disappearing-platform, waiting-platform and Prize composition tests.
+
+`tower-prize-route-capture` passes on the PAL 68000 A500 with 512K Chip and 512K
+Slow. Its 224-tick fixture exercises source boundaries between Frown, Shenanigan
+and Prize, releases the waiting platform, activates the checkpoint, pauses gates
+during death, collects the trinket and leaves/reenters the room. Player placements
+are injected; this does not prove a complete normal-input traversal. The peak is
+263 PAL lines, with zero errors/missed frames and 194,682 Chip bytes. Caching
+unchanged gate graphics reduced the initial 296-line peak. Physical mouse quit
+restores AmigaOS; boot and save disks remain unchanged. Scene and exit captures
+have been visually reviewed.
+
+Until V4 is connected, the candidate menu rejects saves with any collected flag,
+even at a V3-supported Shenanigan checkpoint. The native fixture verifies this
+rejection preserves the disk, game hash and logic tick. Accepted legacy loads
+migrate to an empty collection bank. The existing Shenanigan save/load and fresh
+physical-input cold-load regression still passes at 236/200 PAL lines, with zero
+errors/missed frames. The target also constructs the generated tower header so
+it does not depend on a previous tower build.
+
+Next: implement the source pickup screen and room sound cues, connect V4 collection
+persistence to the menu, admit Prize's canonical save identity to V4, and verify
+pickup/save/load plus a fresh disk load before promoting this candidate into the
+regular station build. Music reconstruction remains parked.

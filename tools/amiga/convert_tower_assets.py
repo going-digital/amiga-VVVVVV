@@ -70,9 +70,10 @@ def main():
         teleporter_png=archive.read('graphics/teleporter.png')
         from energize_assets import export as export_energize_assets
         export_energize_assets(archive,out,decoder)
-        from tower_gameplay_data import frown_room,shenanigan_room
+        from tower_gameplay_data import frown_room,shenanigan_room,prize_room
         export_energize_assets(archive,out,decoder,frown_room(),"frown")
         export_energize_assets(archive,out,decoder,shenanigan_room(),"shenanigan")
+        export_energize_assets(archive,out,decoder,prize_room(),"prize")
     tele_path=out/'teleporter.png';tele_path.write_bytes(teleporter_png)
     dimensions,tele_rgba=subprocess.check_output([str(decoder),str(tele_path)]).split(b'\n',1)
     tw,th=map(int,dimensions.split());assert (tw,th)==(960,96)
@@ -95,13 +96,13 @@ def main():
     sprite_path=out/'tower_sprites.png';sprite_path.write_bytes(sprite_png)
     sprite_header,sprite_rgba=subprocess.check_output([str(decoder),str(sprite_path)]).split(b'\n',1)
     sw,sh=map(int,sprite_header.split());frames=[]
-    for tile in range(22):
+    for tile in range(23):
         ox=(tile%(sw//32))*32;oy=(tile//(sw//32))*32
         assert oy+32<=sh
         frames.append([sum((sprite_rgba[((oy+y)*sw+ox+x)*4+3]>127 and
             max(sprite_rgba[((oy+y)*sw+ox+x)*4:((oy+y)*sw+ox+x)*4+3])>0)<<(31-x)
             for x in range(32)) for y in range(32)])
-    (out/'tower_player_assets.h').write_text('static const uint32_t tower_player_rows[22][32]={\n'+
+    (out/'tower_player_assets.h').write_text('static const uint32_t tower_player_rows[23][32]={\n'+
         ',\n'.join('{'+','.join(hex(v)+'UL' for v in frame)+'}' for frame in frames)+'};\n')
     # AI 17 remains still, tile 144 (sad), facing left: visual frame 147.
     # Export just this required frame rather than a full crew sprite sheet.

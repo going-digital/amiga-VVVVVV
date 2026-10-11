@@ -7,7 +7,7 @@ from tower_gameplay_data import energize_room
 from pack_rooms import encode
 
 def export(archive,out,decoder,room=None,name="energize"):
-    room=energize_room() if room is None else room;ids=sorted(set(room['tiles']));assert len(ids)<=32
+    room=energize_room() if room is None else room;ids=sorted(set(room['tiles']) | ({59} if name=='prize' else set()));assert len(ids)<=32
     path=out/(name+'-tiles.png');path.write_bytes(archive.read('graphics/tiles.png'))
     header,rgba=subprocess.check_output([str(decoder),str(path)]).split(b'\n',1)
     width,height=map(int,header.split());assert width%8==height%8==0
@@ -55,6 +55,31 @@ def export(archive,out,decoder,room=None,name="energize"):
             frames.append([sum(((frame[y*8+x]>>p)&1)<<(7-x) for x in range(8)) for p in range(2) for y in range(8)])
         assert len(set(tuple(f) for f in frames[:4]))==4
         header+='static const uint8_t shenanigan_treads[8][16]={'+','.join('{'+','.join(map(str,f))+'}' for f in frames)+'};\n'
+    if name=='prize':
+        frames=[];masks=[];waiting=[]
+        for tile in range(747,1200):
+            ox=tile%(width//8)*8;oy=tile//(width//8)*8
+            frame=[];mask=[]
+            for y in range(8):
+                colours=[];alpha=[]
+                for x in range(8):
+                    r,g,b,a=rgba[((oy+y)*width+ox+x)*4:((oy+y)*width+ox+x)*4+4]
+                    assert a in (0,255)
+                    colour=tuple(round(v/17) for v in (r,g,b)) if a else (0,0,0)
+                    colours.append(min(range(4),key=lambda i:sum((palette[i][j]-colour[j])**2 for j in range(3))))
+                    alpha.append(a!=0)
+                frame.append(colours);mask.append(sum(alpha[x]<<(7-x) for x in range(8)))
+            frames.append([sum(((frame[y][x]>>p)&1)<<(7-x) for x in range(8)) for p in range(2) for y in range(8)])
+            masks.append(mask)
+        ox=747%(width//8)*8;oy=747//(width//8)*8
+        waiting=[sum((rgba[((oy+y)*width+ox+x)*4+3]!=0 and
+                      max(rgba[((oy+y)*width+ox+x)*4:((oy+y)*width+ox+x)*4+3])>0)<<(7-x)
+                     for x in range(8))*0x01010101 for y in range(8)]+[0]*24
+        header+='#define PRIZE_GATE_FRAMES 453\n'
+        for symbol,values in [('prize_gate_planes',frames),('prize_gate_masks',masks)]:
+            header+='static const uint8_t '+symbol+'['+str(len(values))+']['+str(len(values[0]))+']={'+','.join('{'+','.join(map(str,f))+'}' for f in values)+'};\n'
+        header+='static const uint32_t prize_waiting_rows[32]={'+','.join(hex(v)+'UL' for v in waiting)+'};\n'
+        header+='static const uint8_t prize_death_tile[16]={'+','.join(map(str,atlas[mapping[59]*16:mapping[59]*16+16]))+'};\n'
     (out/(name+'_assets.h')).write_text(header)
     for filename,blob in [(name+'.v6tr',display),(name+'-atlas.bin',atlas)]: (out/filename).write_bytes(blob)
     (out/(name+'-graphics.json')).write_text(json.dumps(dict(source_ids=ids,palette=colors,pairs=len(words)//16,quantized_pixels=indices,display_tiles=tiles),indent=2)+'\n')

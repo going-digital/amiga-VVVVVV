@@ -9,11 +9,11 @@ from test_tower_draw import Draw
 from test_tower_stream import Stream
 from tower_gameplay_data import ROOT,energize_room
 
-def main(name="energize",room_fn=energize_room):
+def main(name="energize",room_fn=energize_room,extra_ids=()):
     out=ROOT/'build/amiga-feasibility';meta=json.loads((out/(name+'-graphics.json')).read_text())
     header=(out/(name+'_assets.h')).read_text()
     def vals(name):return [int(v) for v in re.search(name+r'\[\]=\{([^}]+)\}',header)[1].split(',')]
-    source=room_fn()['tiles'];ids=sorted(set(source));assert ids==meta['source_ids']
+    source=room_fn()['tiles'];ids=sorted(set(source)|set(extra_ids));assert ids==meta['source_ids']
     if name=='energize':assert len(ids)==16
     mapping={tile:i for i,tile in enumerate(ids)}
     assert meta['display_tiles']==[mapping[tile] for tile in source]

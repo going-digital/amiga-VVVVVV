@@ -25,6 +25,7 @@ def export(out):
     export_energize(out)
     export_frown(out)
     export_shenanigan(out)
+    export_prize(out)
     from hallway_scripts import export as export_scripts
     export_scripts(out)
     from station_scripts import export as export_station_scripts
@@ -64,13 +65,13 @@ def export_route(out):
             '{'+','.join(map(str,(*r['checkpoint'],0,0)))+'}};\n')
     header+='#ifdef V6_TOWER_BUILDING\n#include "building_display.h"\nstatic V6Teleporter building_teleporter={112,48,0,1,1,0};\n#endif\n'
     header+='#ifdef V6_TOWER_ENERGIZE\n#include "energize_collision.h"\nstatic V6Teleporter energize_teleporter={36,68,0,1,1,0};\n#endif\n'
-    header+='#ifdef V6_TOWER_STATION\n#include "frown_collision.h"\n#ifdef V6_TOWER_SHENANIGAN\n#include "shenanigan_collision.h"\n#endif\n#endif\n'
+    header+='#ifdef V6_TOWER_STATION\n#include "frown_collision.h"\n#ifdef V6_TOWER_SHENANIGAN\n#include "shenanigan_collision.h"\n#ifdef V6_TOWER_PRIZE\n#include "prize_collision.h"\n#endif\n#endif\n#endif\n'
     header+='static const V6TowerRouteRoom tower_route_rooms[]={\n'
     header+='{109,109,0,0,tower_checkpoints,TOWER_CHECKPOINT_COUNT,0,0,2},\n'
     header+='{109,104,0,0,tower_checkpoints,TOWER_CHECKPOINT_COUNT,0,0,2},\n'
     for i,r in enumerate(hallway_rooms()):
         header+='{'+f'{r["x"]},{r["y"]},hallway{i}_packed,sizeof(hallway{i}_packed),hallway{i}_checkpoint,1,hallway{i}_tiles,0,2'+'},\n'
-    header+='#ifdef V6_TOWER_BUILDING\n{111,104,building_packed,sizeof(building_packed),0,0,building_tiles,&building_teleporter,2},\n#endif\n#ifdef V6_TOWER_ENERGIZE\n{110,105,energize_packed,sizeof(energize_packed),0,0,energize_tiles,&energize_teleporter,0},\n#endif\n#ifdef V6_TOWER_STATION\n{111,105,frown_packed,sizeof(frown_packed),frown_checkpoint,1,frown_tiles,0,0},\n#ifdef V6_TOWER_SHENANIGAN\n{111,106,shenanigan_packed,sizeof(shenanigan_packed),shenanigan_checkpoint,2,shenanigan_tiles,0,0},\n#endif\n#endif\n};\n#define TOWER_ROUTE_COUNT (sizeof(tower_route_rooms)/sizeof(tower_route_rooms[0]))\n'
+    header+='#ifdef V6_TOWER_BUILDING\n{111,104,building_packed,sizeof(building_packed),0,0,building_tiles,&building_teleporter,2},\n#endif\n#ifdef V6_TOWER_ENERGIZE\n{110,105,energize_packed,sizeof(energize_packed),0,0,energize_tiles,&energize_teleporter,0},\n#endif\n#ifdef V6_TOWER_STATION\n{111,105,frown_packed,sizeof(frown_packed),frown_checkpoint,1,frown_tiles,0,0},\n#ifdef V6_TOWER_SHENANIGAN\n{111,106,shenanigan_packed,sizeof(shenanigan_packed),shenanigan_checkpoint,2,shenanigan_tiles,0,0},\n#ifdef V6_TOWER_PRIZE\n{111,107,prize_packed,sizeof(prize_packed),prize_checkpoint,1,prize_tiles,0,0},\n#endif\n#endif\n#endif\n};\n#define TOWER_ROUTE_COUNT (sizeof(tower_route_rooms)/sizeof(tower_route_rooms[0]))\n'
     (out/'tower_route_data.h').write_text(header)
 
 
@@ -163,4 +164,23 @@ def export_shenanigan(out):
         'static const uint8_t shenanigan_packed[]={'+','.join(map(str,encode(tiles)))+'};\n'+
         'static V6Checkpoint shenanigan_checkpoint[2]={{144,168,21,442490,0,0},{24,112,20,442491,0,0}};\n')
     (out/'shenanigan-room.json').write_text(json.dumps({k:v for k,v in room.items() if k!='tiles'},indent=2)+'\n')
+    return room
+
+
+def prize_room():
+    from pack_rooms import prize_record
+    source,raw,_=prize_record()
+    return dict(x=111,y=107,tileset=0,tiles=list(struct.unpack('>1200H',raw)),
+                name='Prize for the Reckless',source=source,
+                checkpoints=[(240,136,20,443490)])
+
+def export_prize(out):
+    room=prize_room();tiles=room['tiles']
+    for y in (72,112,128):
+        assert tiles[y//8*40+15:y//8*40+19]==[0]*4
+    (out/'prize_collision.h').write_text('/* Reviewed normal-mode mutable source room. */\n'+
+        'static uint16_t prize_tiles[1200]={'+','.join(map(str,tiles))+'};\n'+
+        'static const uint8_t prize_packed[]={'+','.join(map(str,encode(tiles)))+'};\n'+
+        'static V6Checkpoint prize_checkpoint[1]={{240,136,20,443490,0,0}};\n')
+    (out/'prize-room.json').write_text(json.dumps({k:v for k,v in room.items() if k!='tiles'},indent=2)+'\n')
     return room
