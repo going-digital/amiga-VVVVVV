@@ -2813,3 +2813,30 @@ comparing 460,800 native viewport pixels exactly after the descriptor expansion.
 Next: Frown graphics, yellow crew spawn/follow/rendering, audio cue binding and
 persistent yellow story fields before exposing the new room in live play.
 Music reconstruction remains parked.
+
+## Playable yellow rescue build — 11 October 2026
+
+`make -C amiga_version tower-station-run` builds and launches the isolated
+Frown Upside Down game slice. The bootable disk is
+`build/amiga-station-live/tower.adf`. Move left from the ceiling checkpoint to
+start Victoria's rescue; fire advances dialogue and left mouse exits.
+The live build uses joystick input, without capture autoplay.
+
+This integrates Frown's source tile graphics, collision and checkpoint, yellow
+crew rendering and ceiling following, all eleven rescue speeches, bars and fades,
+and the normal/skip script paths. Frown and Energize are resident rooms; exits
+outside the resident bank retain the explicit unsupported-route diagnostic.
+Yellow progress is held in memory. Disk persistence, yellow audio cues and the
+special companion restraint on returning to Energize remain subsequent work.
+This is a playable room slice, not a complete campaign release.
+
+`make -C amiga_version tower-station-capture` passes normal and skipped native
+68000/OCS PAL runs on 512 KiB Chip plus 512 KiB Slow RAM. Each run checks 4,096
+integration trace fields and final rescue state after 1,000 logic ticks, with
+zero reported errors or missed frames and unchanged boot disks. Chip allocation
+is 111,328 bytes; maximum measured work is 197 PAL lines (normal) and 194 (skip).
+Graphics checks match 79,360 source-derived ring pixels and 1,024 yellow sprite
+pixels. Existing red rescue and companion checks remain separate regressions.
+
+Next: bind yellow rescue audio cues, admit the room and yellow story flags to
+persistent saves, then extend companion behavior and the station route.

@@ -47,3 +47,19 @@ void v6_companion_step(V6Companion *c,const V6Player *p,const V6Room *room,int d
     if(death>-1)c->frame=c->body.dir?12:13;
     ++c->steps;
 }
+
+void v6_station_companion_idle(V6Companion *c,int visible)
+{
+    c->visible=0;
+    if(visible) {
+        spawn(c,42,86,1,0,0);c->body.gravity=1;c->frame=150;
+    }
+}
+void v6_station_companion_enter(V6Companion *c,int companion,int x,int y,const V6Player *p)
+{
+    c->visible=0;
+    if(companion==7 && y<=105) {
+        spawn(c,x==110?320:p->x,86,p->dir,p->vx,1);
+        c->body.gravity=1;c->frame=6;
+    }
+}

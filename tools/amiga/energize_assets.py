@@ -6,9 +6,9 @@ import subprocess
 from tower_gameplay_data import energize_room
 from pack_rooms import encode
 
-def export(archive,out,decoder):
-    room=energize_room();ids=sorted(set(room['tiles']));assert len(ids)<=32
-    path=out/'energize-tiles.png';path.write_bytes(archive.read('graphics/tiles.png'))
+def export(archive,out,decoder,room=None,name="energize"):
+    room=energize_room() if room is None else room;ids=sorted(set(room['tiles']));assert len(ids)<=32
+    path=out/(name+'-tiles.png');path.write_bytes(archive.read('graphics/tiles.png'))
     header,rgba=subprocess.check_output([str(decoder),str(path)]).split(b'\n',1)
     width,height=map(int,header.split());assert width%8==height%8==0
     pixels=[]
@@ -37,9 +37,10 @@ def export(archive,out,decoder):
     display=struct.pack('>4sHHH',b'V6TR',1,40,30)+directory+payload
     colors=[r<<8|g<<4|b for r,g,b in palette]
     header='/* Private converted graphics; do not redistribute. */\n'
-    for ctype,name,values in [('uint8_t','energize_display',display),('uint8_t','energize_atlas',atlas),('uint16_t','energize_palette',colors),('uint16_t','energize_pair_offsets',offsets),('uint16_t','energize_pairs',words)]:
-        header+=f'static const {ctype} {name}[]={{'+','.join(map(str,values))+'};\n'
-    header+=f'#define ENERGIZE_TILE_COUNT {len(ids)}\n#define ENERGIZE_PAIR_WORDS {len(words)}\n'
-    (out/'energize_assets.h').write_text(header)
-    for name,blob in [('energize.v6tr',display),('energize-atlas.bin',atlas)]: (out/name).write_bytes(blob)
-    (out/'energize-graphics.json').write_text(json.dumps(dict(source_ids=ids,palette=colors,pairs=len(words)//16,quantized_pixels=indices,display_tiles=tiles),indent=2)+'\n')
+    for ctype,symbol,values in [('uint8_t','energize_display',display),('uint8_t','energize_atlas',atlas),('uint16_t','energize_palette',colors),('uint16_t','energize_pair_offsets',offsets),('uint16_t','energize_pairs',words)]:
+        symbol=symbol.replace('energize',name)
+        header+=f'static const {ctype} {symbol}[]={{'+','.join(map(str,values))+'};\n'
+    header+=f'#define {name.upper()}_TILE_COUNT {len(ids)}\n#define {name.upper()}_PAIR_WORDS {len(words)}\n'
+    (out/(name+'_assets.h')).write_text(header)
+    for filename,blob in [(name+'.v6tr',display),(name+'-atlas.bin',atlas)]: (out/filename).write_bytes(blob)
+    (out/(name+'-graphics.json')).write_text(json.dumps(dict(source_ids=ids,palette=colors,pairs=len(words)//16,quantized_pixels=indices,display_tiles=tiles),indent=2)+'\n')

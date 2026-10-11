@@ -69,6 +69,8 @@ def main():
         teleporter_png=archive.read('graphics/teleporter.png')
         from energize_assets import export as export_energize_assets
         export_energize_assets(archive,out,decoder)
+        from tower_gameplay_data import frown_room
+        export_energize_assets(archive,out,decoder,frown_room(),"frown")
     tele_path=out/'teleporter.png';tele_path.write_bytes(teleporter_png)
     dimensions,tele_rgba=subprocess.check_output([str(decoder),str(tele_path)]).split(b'\n',1)
     tw,th=map(int,dimensions.split());assert (tw,th)==(960,96)
@@ -109,6 +111,13 @@ def main():
     assert all(not (row & ~(((1<<16)-1)<<(32-6-16))) for row in crew), 'Crew crop loses source pixels'
     with (out/'tower_player_assets.h').open('a') as header:
         header.write('static const uint32_t tower_crew_rows[32]={'+','.join(hex(v)+'UL' for v in crew)+'};\n')
+    tile=150;ox=(tile%(sw//32))*32;oy=(tile//(sw//32))*32
+    yellow=[sum((sprite_rgba[((oy+y)*sw+ox+x)*4+3]>127 and
+        max(sprite_rgba[((oy+y)*sw+ox+x)*4:((oy+y)*sw+ox+x)*4+3])>0)<<(31-x)
+        for x in range(32)) for y in range(32)]
+    assert all(not (row & ~(((1<<16)-1)<<(32-6-16))) for row in yellow)
+    with (out/'tower_player_assets.h').open('a') as header:
+        header.write('static const uint32_t station_crew_rows[32]={'+','.join(hex(v)+'UL' for v in yellow)+'};\n')
     path=out/'tiles3.png';path.write_bytes(original)
     header,rgba=subprocess.check_output([str(decoder),str(path)]).split(b'\n',1)
     width,height=map(int,header.split());assert len(rgba)==width*height*4

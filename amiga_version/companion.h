@@ -18,4 +18,7 @@ void v6_companion_idle(V6Companion *,int visible);
 void v6_companion_enter(V6Companion *,int companion,int tower,int room_x,const V6Player *);
 /* Execute before player physics: the source entity loop visits crew first. */
 void v6_companion_step(V6Companion *,const V6Player *,const V6Room *,int death);
+/* Source type-16 idle spawn and Map companion 7 roof entry. */
+void v6_station_companion_idle(V6Companion *,int visible);
+void v6_station_companion_enter(V6Companion *,int companion,int room_x,int room_y,const V6Player *);
 #endif
