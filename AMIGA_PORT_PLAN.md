@@ -4587,3 +4587,26 @@ a fresh boot starts from the normal-mode room tiles.
 Next: source pickup screen and room sound cues, followed by their pause/resume
 and audio verification before promoting Prize into the regular station build.
 Music reconstruction remains parked.
+
+### Trinket pickup controller — 11 October 2026
+
+The portable `trinket_screen` controller now implements normal-game source
+states 1000–1003: cutscene bars, control removal, complete gameplay stop,
+15 game ticks before text, action advancement using the caller's jump-held
+latch, and restoration on dismissal. It emits adapter events for the pickup
+cue, music silence and the source 3000 ms fade-in. It counts all 100 collection
+identities, matching `Game::trinkets()`, rather than assuming the 20 normal-game
+trinkets are the only populated flags.
+
+`make -C amiga_version test-trinket-screen` compares 32,768 ticks against
+the actual extracted Game.cpp state cases and Input.cpp advancement block,
+including early presses, held action, repeated pickups and music availability
+changes. A separate case verifies the source recovery when advancement is
+unexpectedly cleared. The controller also compiles freestanding for 68000.
+The Prize candidate ADF rebuild and source graphics checks pass.
+
+This controller is not connected to the running candidate yet. Next: add the
+pickup text/bar renderer, connect the pause/input stages without leaking a
+dismissal press into a gravity flip, and play the source vanish/trinket cues on
+the reserved Paula channels. Verify the integrated pause/resume and audio paths
+before promoting Prize into the regular station build.

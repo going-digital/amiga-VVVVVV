@@ -996,6 +996,12 @@ test-prize: $(BUILD)/prize.o
 	$(BUILD)/test_prize
 .PHONY: test-prize
 test: test-prize
+.PHONY: test-trinket-screen
+test-trinket-screen: $(BUILD)/trinket_screen.o
+	python3 $(ROOT)/tools/amiga/test_trinket_screen.py
+test: test-trinket-screen
+$(BUILD)/trinket_screen.o: trinket_screen.c trinket_screen.h trinkets.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
 prize-run:
 	$(MAKE) BUILD=$(ROOT)/build/amiga-prize SCENE=prize all
 	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-prize
