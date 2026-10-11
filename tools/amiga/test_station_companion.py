@@ -5,7 +5,7 @@ import subprocess
 from test_companion import Companion,bind
 from test_tower_player import libraries,OUT
 from test_player import ROOT,Player,Room,Terrain,block
-from tower_gameplay_data import energize_room,frown_room
+from tower_gameplay_data import energize_room,frown_room,building_room
 
 def main():
     core,_=libraries();bind(core)
@@ -20,8 +20,8 @@ def main():
     (OUT/'station_crew_shim.h').write_text(shim)
     code=(OUT/'reference.cpp').read_text().replace('#include "tower_shim.h"','#include "station_crew_shim.h"')
     code+='\n'+block(source,source.index('void entityclass::animatehumanoidcollision('))+'''
-extern "C" void crew_init(const V6Player *p,const uint16_t *tiles) {
-reference_init(p,tiles,0,0);obj.entities[0].rule=7;obj.entities[0].type=EntityType_CREWMATE;
+extern "C" void crew_init(const V6Player *p,const uint16_t *tiles,int tileset) {
+reference_init(p,tiles,tileset,0);obj.entities[0].rule=7;obj.entities[0].type=EntityType_CREWMATE;
 }
 extern "C" void crew_tick(int hero,int roomx,int roomy,int follow,int death,V6Player *out,int *frame) {
 obj.entities.push_back(obj.entities[0]);obj.entities[0].xp=hero;
@@ -39,17 +39,17 @@ obj.animatehumanoidcollision(i);obj.updateentitylogic(i);obj.entitymapcollision(
     flags=['-O2','-shared','-fPIC','-fsanitize=undefined','-fno-sanitize-recover=all']
     (OUT/'station_crew_reference.cpp').write_text(code)
     subprocess.run(['c++','-std=c++11',*flags,'-I/opt/homebrew/include','-I'+str(ROOT/'desktop_version/src'),'-I'+str(ROOT/'amiga_version'),str(OUT/'station_crew_reference.cpp'),'-L/opt/homebrew/lib','-lSDL3','-o',str(OUT/'station_crew_reference.so')],check=True)
-    ref=C.CDLL(str(OUT/'station_crew_reference.so'));ref.crew_init.argtypes=[C.POINTER(Player),C.POINTER(C.c_uint16)]
+    ref=C.CDLL(str(OUT/'station_crew_reference.so'));ref.crew_init.argtypes=[C.POINTER(Player),C.POINTER(C.c_uint16),C.c_int]
     ref.crew_tick.argtypes=[C.c_int]*5+[C.POINTER(Player),C.POINTER(C.c_int)]
     ticks=0
-    for desc in (energize_room(),frown_room()):
-        tiles=(C.c_uint16*1200)(*desc['tiles']);room=Room(tiles,0,0);terrain=Terrain();core.v6_terrain_build(C.byref(terrain),C.byref(room))
+    for desc in (energize_room(),frown_room(),dict(x=111,y=104,tiles=building_room(),tileset=2)):
+        tiles=(C.c_uint16*1200)(*desc['tiles']);room=Room(tiles,desc.get("tileset",0),0);terrain=Terrain();core.v6_terrain_build(C.byref(terrain),C.byref(room))
         for x in (42,154,155,156,320):
             for vx in (-3,0,3):
                 for following in (0,1):
                     crew=Companion();core.v6_companion_init(C.byref(crew));core.v6_station_companion_idle(C.byref(crew),1)
                     crew.body.x=crew.body.old_x=x;crew.body.vx=vx*16777216;crew.following=following;crew.mood=0
-                    cached=Companion.from_buffer_copy(crew);ref.crew_init(C.byref(crew.body),tiles)
+                    cached=Companion.from_buffer_copy(crew);ref.crew_init(C.byref(crew.body),tiles,desc.get("tileset",0))
                     hero=Player();expected=Player();frame=C.c_int()
                     for tick in range(240):
                         hero.x=crew.body.x+(-100,-46,-45,-6,-5,0,5,6,45,46,100)[(tick//8)%11]

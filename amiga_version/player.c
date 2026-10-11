@@ -96,10 +96,19 @@ static int solid(const V6Room *room, int x, int y)
         (tile >= 80 && tile < 680) || (tile == 740 && room->tileset == 1);
 }
 
+/* Cached static rooms are the common route case. Keep their byte lookup
+ * inline instead of paying for the general tower/tile classifier per probe. */
+static inline __attribute__((always_inline)) int collision_solid(const V6Room *room,
+    const V6Terrain *terrain,int x,int y)
+{
+    return terrain?v6_terrain_solid(terrain,x,y):solid(room,x,y);
+}
+
 static inline __attribute__((always_inline)) int wall_mode(const V6Room *room, int x, int y, int32_t dx, int32_t dy, int skip_directional)
 {
     int left = x + 6, top = y + 2, right = left + 11, bottom = top + 20;
     int tx, ty, gy, previous_row;
+    const V6Terrain *terrain=room->tileset==V6_TILE_SOURCE_TOWER?0:room->terrain;
     unsigned i;
     for(i=0;i<room->block_count;++i)
         if((!skip_directional || room->blocks[i].type!=V6_DIRECTIONAL) && v6_block_hit(&room->blocks[i],left,top,12,21,dx,dy,0)) return 1;
@@ -109,17 +118,17 @@ static inline __attribute__((always_inline)) int wall_mode(const V6Room *room, i
     }
     /* Deliberately /8, not >>3: original getgridpoint truncates toward zero. */
     int l = left / 8, r = right / 8, t = top / 8, b = bottom / 8;
-    if (solid(room, l, t) || solid(room, r, t) ||
-        solid(room, l, b) || solid(room, r, b)) return 1;
+    if (collision_solid(room,terrain, l, t) || collision_solid(room,terrain, r, t) ||
+        collision_solid(room,terrain, l, b) || collision_solid(room,terrain, r, b)) return 1;
     previous_row=t;
     for (gy = 6; gy <= 12; gy += 6) {
         int row=(top+gy)/8;
         if (row != t && row != b && row != previous_row &&
-            (solid(room,l,row) || solid(room,r,row))) return 1;
+            (collision_solid(room,terrain,l,row) || collision_solid(room,terrain,r,row))) return 1;
         previous_row=row;
     }
     tx=(left+6)/8;
-    if(tx != l && tx != r && (solid(room,tx,t) || solid(room,tx,b))) return 1;
+    if(tx != l && tx != r && (collision_solid(room,terrain,tx,t) || collision_solid(room,terrain,tx,b))) return 1;
     if(room->terrain && room->tileset==2) {
         /* Tiles 14..17 are solid in tileset 2. All edge cells have already
          * been sampled, so only an unsampled interior directional block can

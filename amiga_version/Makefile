@@ -941,3 +941,8 @@ tower-station-menu-run: tower-station-menu
 tower-station-menu-capture: tower-station-menu
 	$(MAKE) BUILD=$(ROOT)/build/amiga-station-menu CPPFLAGS="$(STATION_MENU_FLAGS) -DV6_STATION_CAPTURE -DV6_TOWER_UI_REPLAY" $(ROOT)/build/amiga-station-menu/tower.adf
 	python3 $(ROOT)/tools/amiga/run_station_menu.py --build $(ROOT)/build/amiga-station-menu --live $(ROOT)/build/amiga-station-menu-live
+
+.PHONY: tower-station-travel-capture
+tower-station-travel-capture: tower-station-menu
+	$(MAKE) BUILD=$(ROOT)/build/amiga-station-travel CPPFLAGS="$(STATION_MENU_FLAGS) -DV6_TELE_MENU_CAPTURE -DV6_STATION_TRAVEL_CAPTURE" $(ROOT)/build/amiga-station-travel/tower.adf
+	python3 $(ROOT)/tools/amiga/run_station_travel.py --build $(ROOT)/build/amiga-station-travel --live $(ROOT)/build/amiga-station-menu-live

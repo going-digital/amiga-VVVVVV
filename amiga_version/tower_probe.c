@@ -1,3 +1,6 @@
+#if defined(V6_STATION_TRAVEL_CAPTURE) && (!defined(V6_STATION_MENU) || !defined(V6_TELE_MENU_CAPTURE) || defined(V6_STATION_CAPTURE))
+#error Station travel capture requires the interactive station menu fixture
+#endif
 #if defined(V6_STATION_MENU) && (!defined(V6_TOWER_STATION) || !defined(V6_TOWER_MENU_TRAVEL) || defined(V6_STATION_SAVE))
 #error Station menu requires interactive station travel without the isolated save path
 #endif
@@ -285,6 +288,10 @@ static void audio_record(void)
 static V6Companion companion;
 static V6Terrain hallway_terrain[2];
 static V6RescueScript rescue_vm={.control=1,.mood=1};
+#ifdef V6_STATION_MENU
+static volatile struct {ULONG magic,version,count,bytes;LONG snapshot[sizeof(V6Companion)/4],records[64][14];}
+    station_travel_trace={0x56365943,1,0,sizeof(V6Companion),{0},{{0}}};
+#endif
 
 static int rescue_bars,rescue_fade,rescue_fade_mode,rescue_fire;
 static UBYTE *rescue_captions;
@@ -304,6 +311,12 @@ static void companion_record(void)
         companion.body.x,companion.body.y,companion.body.vx,companion.body.vy,companion.body.dir,
         companion.animation.delay,companion.animation.walk,companion.spawns,companion.steps,companion.follow_steps};
     for(i=0;i<14;++i) companion_diag.values[i]=values[i];
+#ifdef V6_STATION_MENU
+    if(station_travel_trace.count<64 && station_travel_trace.count<menu_travel_trace.count) {
+        for(i=0;i<14;++i)station_travel_trace.records[station_travel_trace.count][i]=values[i];
+        ++station_travel_trace.count;
+    }
+#endif
     if(companion_trace.count<128) {
         volatile ULONG *record=companion_trace.records[companion_trace.count];
         for(i=0;i<14;++i) record[i]=values[i];
@@ -1632,6 +1645,15 @@ static int run(void) {
     if(!v6_tower_route_load(&route,110,105,0))return 20;
     v6_player_init(&session.player,64,86,1);
 #endif
+#ifdef V6_STATION_TRAVEL_CAPTURE
+    /* Completed rescue and visited destinations are fixture setup only. */
+    station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
+    rescue_vm.following=1;rescue_vm.mood=0;
+    world.save.x=156;world.save.y=92;world.save.gravity=0;world.save.dir=0;
+    world.save.room_x=111;world.save.room_y=104;world.save.id=0;
+    v6_tower_session_init(&session,156,92,0,0);
+    if(!v6_tower_route_load(&route,111,104,1))return 20;
+#endif
     v6_station_trigger_init(&station_trigger);
 #endif
     v6_hallway_trigger_init(&hallway_trigger);
@@ -1653,7 +1675,7 @@ static int run(void) {
     else
 #endif
 #ifdef V6_TOWER_STATION
-#if defined(V6_STATION_SAVE) || defined(V6_STATION_COMPANION_CAPTURE)
+#if defined(V6_STATION_SAVE) || defined(V6_STATION_COMPANION_CAPTURE) || defined(V6_STATION_TRAVEL_CAPTURE)
     if(station_story.companion==7)v6_station_companion_enter(&companion,7,route.rooms[route.index].x,route.rooms[route.index].y,&session.player);
     else
 #endif
@@ -1710,6 +1732,9 @@ static int run(void) {
     /* Capture setup represents a previously visited resident room. The normal
      * executable starts with current-room exploration only. */
     if(!v6_exploration_visit(&tele_exploration,110,105))return 20;
+#endif
+#ifdef V6_STATION_TRAVEL_CAPTURE
+    if(!v6_exploration_visit(&tele_exploration,111,105) || !v6_exploration_visit(&tele_exploration,110,105))return 20;
 #endif
     if(!tele_note_room(route.rooms[route.index].x,route.rooms[route.index].y))return 20;
 #endif
@@ -1855,7 +1880,7 @@ static int run(void) {
 #endif
 
 #ifdef V6_TOWER_STATION
-           route.index==6?frown_display:energize_display,
+           route.index==6?frown_display:route.index==5?energize_display:building_display,
 #elif defined(V6_TOWER_ROUNDTRIP)
            building_display,
 #elif defined(V6_ENERGIZE_CAPTURE)
@@ -1872,7 +1897,7 @@ static int run(void) {
 #endif
 
 #ifdef V6_TOWER_STATION
-           route.index==6?sizeof(frown_display):sizeof(energize_display)) ||
+           route.index==6?sizeof(frown_display):route.index==5?sizeof(energize_display):sizeof(building_display)) ||
 #elif defined(V6_TOWER_ROUNDTRIP)
            sizeof(building_display)) ||
 #elif defined(V6_ENERGIZE_CAPTURE)
@@ -2271,6 +2296,11 @@ static int run(void) {
 #endif
                             menu_target=target;ui_fields=0;tele_menu.ready=0;++tele_menu_diag.values[3];
                             menu_travel_active=1;menu_travel_trace.count=0;
+#ifdef V6_STATION_MENU
+                            station_travel_trace.count=0;
+                            for(j=0;j<sizeof(V6Companion)/4;++j)
+                                station_travel_trace.snapshot[j]=((const LONG *)&companion)[j];
+#endif
                             for(j=0;j<6;++j)menu_effect_diag.values[j]=0;
                             menu_effect_diag.values[0]=diag.logic_ticks;
 #ifdef V6_TOWER_SHAKE

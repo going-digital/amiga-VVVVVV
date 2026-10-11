@@ -4209,3 +4209,42 @@ Next: verify yellow companion travel and V3 arrival autosaves through the
 teleporter menu, then expand the station rooms. This step admits interactive
 save/load; it does not yet claim combined teleporter effects/audio validation.
 Music reconstruction remains parked.
+
+
+### Yellow menu travel and arrival saves verified — 11 October 2026
+
+`make -C amiga_version tower-station-travel-capture` now checks the combined
+station/menu build from Building Apport to Energize and back. The outbound
+fixture seeds an already completed yellow rescue and three visited rooms; the
+normal live build has no such seed. Physical joystick controls open and select
+both journeys. A fresh live boot loads the outbound V3 arrival record and makes
+the return trip. Each leg matches all 2,304 fields of the existing 64-tick
+travel-core trace and 896 fields of a new companion trace. Room entry at travel
+tick 22 spawns Vitellary at (320,86) in Energize and (150,86) in Building, then
+retains the source AI/physics through arrival. The complete companion snapshot
+makes the check independent of pre-menu settling time.
+
+Both completed arrivals publish canonical teleporter checkpoints with yellow
+flags 56 and all three exploration bits. The save is queued at travel tick 64;
+DOS does not advance game ticks or alter the saved game state. Two physical
+save requests per journey are rejected in the source-validated departure and
+arrival phases. The loaded yellow story stays complete, with no rescue script
+or dialogue cues replayed. Both runs restore the OS, leave the boot disks
+unchanged, and report zero errors/missed frames with 143,094 Chip bytes.
+
+The first run exposed a 281-line peak while Vitellary rose toward Building's
+ceiling. Cached collision probes now inline their existing terrain byte lookup,
+avoiding repeated calls through the general tower/tile classifier. The native
+outbound/return peaks are now 236/232 PAL lines, under the 250-line target.
+Uncached and tower classifications retain their prior behavior. Expanded yellow
+source tests cover Building's tileset 2 as well as Energize/Frown: 21,600 source
+AI/physics ticks and cached matches pass. Player tests pass 36,746 source ticks
+and cached matches plus 53,280 hazard cases; red companion, terrain, route and
+V3 transactional-save regressions also pass. The prior interactive V3
+save/load and fresh-boot capture passes again at 228/185 PAL lines, with zero
+errors/missed frames. Station startup now selects the
+Building display bank as well as the existing Frown/Energize banks.
+
+Next: combine yellow dialogue audio with the already proven teleporter shake
+and reserved-channel effects, then expand station room coverage. Music
+reconstruction remains parked.
