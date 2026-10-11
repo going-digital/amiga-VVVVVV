@@ -27,6 +27,7 @@ def export(out):
     export_shenanigan(out)
     export_prize(out)
     export_vstitch(out)
+    export_prize_return_rooms(out)
     from hallway_scripts import export as export_scripts
     export_scripts(out)
     from station_scripts import export as export_station_scripts
@@ -210,3 +211,49 @@ def export_vstitch(out):
         'static V6Checkpoint vstitch_checkpoint[2]={{280,192,21,443500,0,0},{64,80,21,443501,0,0}};\n')
     (out/'vstitch-room.json').write_text(json.dumps({k:v for k,v in room.items() if k!='tiles'},indent=2)+'\n')
     return room
+
+
+def prize_return_room(name):
+    """Literal west-route candidates; export does not admit them to the campaign."""
+    cases={'deception':(48,43,'A Deception'), 'downunder':(48,42,'Down Under')}
+    rx,ry,title=cases[name]
+    source=(ROOT/'desktop_version/src/Spacestation2.cpp').read_text()
+    start=source.index(f'case rn({rx},{ry}):')
+    body=source[start:source.index('case rn(',start+5)]
+    raw=re.search(r'static const short contents\[\]\s*=\s*\{(.*?)\};',body,re.S)[1]
+    tiles=[int(v) for v in raw.split(',') if v.strip()]
+    calls=[tuple(int(v.strip()) for v in call.split(','))
+           for call in re.findall(r'obj.createentity\(([^;]+)\);',body)]
+    expected={
+        'deception':[(152,32,10,1,443480),(152,184,10,0,443481),
+            (272,120,1,2,8),(32,96,1,3,8),
+            (104,80,2,10,4),(168,80,2,10,4),(232,80,2,8,4),
+            (56,144,2,10,4),(120,144,2,10,4),(184,144,2,8,4)],
+        'downunder':[(88,112,2,0,4,88,64,264,168),(136,112,2,1,4,88,64,264,168),
+            (184,112,2,0,4,88,64,264,168),(232,112,2,1,4,88,64,264,168),
+            (56,64,10,0,442480),(280,152,10,1,442481)]}
+    assert len(tiles)==1200 and calls==expected[name]
+    assert not re.findall(r'obj.createblock\(',body)
+    assert f'roomname = "{title}";' in body
+    assert 'rx += 50 - 12;' in source and 'ry += 50 - 14;' in source
+    return dict(x=rx+62,y=ry+64,tileset=0,tiles=tiles,name=title,entities=calls,
+        checkpoints=[(x,y,20+orientation,identifier)
+                     for x,y,kind,orientation,identifier in (c for c in calls if c[2]==10)])
+
+
+def deception_room():return prize_return_room('deception')
+def downunder_room():return prize_return_room('downunder')
+
+
+def export_prize_return_rooms(out):
+    for name in ('deception','downunder'):
+        room=prize_return_room(name);tiles=room['tiles']
+        checkpoints=room['checkpoints']
+        (out/(name+'_collision.h')).write_text(
+            '/* West-route candidate only; actors, campaign/save admission pending. */\n'+
+            'static const uint16_t '+name+'_tiles[1200]={'+','.join(map(str,tiles))+'};\n'+
+            'static const uint8_t '+name+'_packed[]={'+','.join(map(str,encode(tiles)))+'};\n'+
+            'static V6Checkpoint '+name+'_checkpoint[2]={'+
+            ','.join('{'+','.join(map(str,(*r,0,0)))+'}' for r in checkpoints)+'};\n')
+        (out/(name+'-room.json')).write_text(json.dumps(
+            {k:v for k,v in room.items() if k!='tiles'},indent=2)+'\n')

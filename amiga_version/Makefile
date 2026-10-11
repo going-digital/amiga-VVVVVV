@@ -1091,3 +1091,7 @@ test: test-floor-retry
 .PHONY: test-player-crop
 test-player-crop: tower-assets
 	python3 $(ROOT)/tools/amiga/test_player_crop.py
+
+.PHONY: test-prize-return-data
+test-prize-return-data: tower-assets
+	python3 $(ROOT)/tools/amiga/test_prize_return_data.py

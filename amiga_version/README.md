@@ -3696,3 +3696,28 @@ Next: implement and verify the connected campaign return to the shaft while
 retaining the Prize checkpoint, then cover V Stitch's upper timed trigger
 before general room admission. The bounded pickup fixture does not complete
 that campaign connection. Music reconstruction remains parked.
+
+### Prize west-route room data — 11 October 2026
+
+A Deception (110,107) and Down Under (110,106) now have source-derived private
+collision, packed terrain, checkpoint and compact graphics exports. Ordered
+entity calls are retained in their JSON metadata: A Deception has two enemies,
+six conveyors and two checkpoints; Down Under has four bounded vertical
+platforms and two checkpoints. The source's behaviour 10 conveyors are double
+width and normalize to behaviour 8 at entity creation; this must be retained
+when connecting their actor banks. These rooms are candidates only and are not
+added to the native route table or save admission bank.
+
+`make -C amiga_version test-prize-return-data` compiles the generated collision
+headers and checks all 2,400 decoded terrain words and all four checkpoint
+records through the C implementation. Independent source-PNG pixel comparisons
+pass for 158,720 ring pixels: 18 tile IDs/25 pairs in A Deception and 25 IDs/41
+pairs in Down Under. Packed collision sizes are 778 and 1,158 bytes. Generated
+private assets remain outside Git.
+
+The retained native Prize pickup capture also passes: 4,320 compared fields,
+280 PAL work lines, zero errors/missed frames and 296,150 Chip bytes.
+
+Next: connect the ordered actor banks and prove an input-only return through
+these rooms without replacing the Prize checkpoint. This export step does not
+prove that traversal; V Stitch's upper trigger also remains pending.
