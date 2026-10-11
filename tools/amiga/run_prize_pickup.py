@@ -39,7 +39,7 @@ def main():
     assert n>1 and fades[-1][6]==0x2220aaa and all(r[5] and r[7] for r in fades),fades
     at=data.index(b'V6PA\0\0\0\1')
     audio=struct.unpack_from('>5I',data,at+8)
-    assert audio==(2,1,0,1,0),audio
+    assert audio==(3,1,0,1,0),audio
     at=data.index(b'V6UI\0\0\0\1');ui=dict(zip(KEYS,struct.unpack_from('>18I',data,at+8)))
     assert ui['actions']==1 and ui['busy']==1 and ui['saves']==ui['loads']==ui['errors']==0,ui
     assert ui['before_hash']==ui['after_hash'] and ui['ticks_before']==ui['ticks_after'],ui

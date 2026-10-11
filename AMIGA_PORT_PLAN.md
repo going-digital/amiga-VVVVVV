@@ -4800,3 +4800,30 @@ screenshot retains the room art around and between the bordered boxes.
 Next: preserve individual simultaneous collapse requests, then broaden
 normal-input campaign coverage. Prize remains a separate candidate and music
 reconstruction remains parked.
+
+### Individual Prize collapse sound requests
+
+Prize events retain one sound bit per gate alongside the legacy SOUND flag.
+The native adapter dispatches pickup first, then gates 2, 1, 0, matching source
+entity order. Each request sees the updated voice state; simultaneous gates
+no longer collapse into one OR-ed cue. The sound diagnostic counts gates.
+Channels 2/3 remain reserved for effects, and higher-priority pickup audio is
+protected. Requests beyond available equal-priority voices are recorded as
+drops; no extra Chip samples or audio voices are allocated. Idle frames skip
+request dispatch. The isolated monophonic prototype retains its legacy cue.
+
+Host checks cover all eight gate subsets and 64 pickup/occupancy allocations,
+including saturation, priority and reserved-channel protection. The existing
+native replay naturally triggers two gates at world tick 97: captured stems
+now require both requests on distinct voices in the same PAL frame, plus the
+tick-42 collapse and tick-152 source pickup jingle.
+
+Native route replay, V4 save/load and fresh loading, V3 migration and physical
+quit pass with zero errors or missed frames. Peaks are 280 lines for replay,
+233 for cold loading and 201 for migration; Chip allocation remains 296,150
+bytes. Four captured sample correlations are 0.990..0.999. The held pickup
+capture keeps the world frozen for 934 UI ticks, completes all effects,
+rejects a busy save without disk changes and peaks at 273 lines.
+
+Next: broaden normal-input campaign traversal beyond test-only placements.
+Music reconstruction remains parked awaiting original tracker files.

@@ -592,7 +592,7 @@ static int prize_events(V6TowerRoute *r,unsigned events)
 {
     if(events&V6_PRIZE_FULL)return 0;
     if(events&V6_PRIZE_PICKUP) {
-        ++prize_pickups;prize_audio_pending|=8;
+        ++prize_pickups;prize_audio_pending|=V6_PRIZE_PICKUP;
 #ifdef V6_TOWER_PICKUP_SCREEN
         /* No tracker is playing yet; only the source effect is requested. */
         v6_trinket_screen_begin(&pickup_screen,&station_collected,0);
@@ -606,7 +606,12 @@ static int prize_events(V6TowerRoute *r,unsigned events)
         pickup_diag.values[6]=r->session->player.flips;
 #endif
     }
-    if(events&V6_PRIZE_SOUND){++prize_sounds;prize_audio_pending|=4;}
+    if(events&V6_PRIZE_SOUND) {
+        unsigned gate;
+        for(gate=0;gate<3;++gate)
+            if(events&(1U<<(V6_PRIZE_GATE_SOUND_SHIFT+gate)))++prize_sounds;
+        prize_audio_pending|=events&V6_PRIZE_GATE_SOUND_MASK;
+    }
     if(events&V6_PRIZE_TILE) {
         int changed=v6_terrain_set_tile(&prize_terrain,prize_tiles,0,0,18,9,59);
         if(changed<0)return 0;
@@ -2995,11 +3000,22 @@ static int run(void) {
                 }
 #ifdef V6_TOWER_TRAVEL_AUDIO
                 {
-                    unsigned events=departure.events|arrival.events,cue,limit=2;
+                    unsigned events=departure.events|arrival.events,cue,slot,limit=2;
 #ifdef V6_TOWER_PRIZE
-                    events|=prize_audio_pending;prize_audio_pending=0;limit=4;
+                    unsigned pending=prize_audio_pending;prize_audio_pending=0;
+                    limit=pending?6:2;
 #endif
-                    for(cue=0;cue<limit;++cue)if(events&(1U<<cue)) {
+                    if(!events
+#ifdef V6_TOWER_PRIZE
+                       && !pending
+#endif
+                    )limit=0;
+                    for(slot=0;slot<limit;++slot) {
+                        cue=slot;
+#ifdef V6_TOWER_PRIZE
+                        if(slot>=2)cue=v6_prize_audio_cue(pending,slot-2);
+#endif
+                        if(slot<2 ? !(events&(1U<<slot)) : cue==4)continue;
                         unsigned i,busy=0,age[4];int chosen;V6AudioSample sample;V6AudioPlan plan;
                         for(i=0;i<4;++i) {
                             if(travel_voices[i].audio.state!=V6_AUDIO_IDLE)busy|=1U<<i;

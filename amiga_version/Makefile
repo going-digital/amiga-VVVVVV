@@ -992,7 +992,7 @@ tower-shenanigan-capture: tower-station-effects
 
 .PHONY: prize-run prize-capture
 test-prize: $(BUILD)/prize.o
-	cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I. $(ROOT)/tools/amiga/test_prize.c prize.c platform_gate.c disappearing.c trinkets.c checkpoints.c platform.c enemy.c player.c terrain.c blocks.c -o $(BUILD)/test_prize
+	cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I. $(ROOT)/tools/amiga/test_prize.c audio_policy.c prize.c platform_gate.c disappearing.c trinkets.c checkpoints.c platform.c enemy.c player.c terrain.c blocks.c -o $(BUILD)/test_prize
 	$(BUILD)/test_prize
 .PHONY: test-prize
 test: test-prize

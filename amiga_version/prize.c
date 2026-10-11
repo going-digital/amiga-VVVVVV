@@ -9,7 +9,7 @@ static unsigned update_gates(V6Prize *s,V6Room *r,int dying)
     for(i=3;i>0;--i) {
         unsigned e=v6_disappearing_update_room(&s->disappearing[i-1],120,
             gate_y[i-1],s->blocks,&s->block_count,4,dying,111,107,0);
-        if(e&V6_DISAPPEAR_SOUND)events|=V6_PRIZE_SOUND;
+        if(e&V6_DISAPPEAR_SOUND)events|=V6_PRIZE_SOUND|(1U<<(V6_PRIZE_GATE_SOUND_SHIFT+i-1));
         if(e&V6_DISAPPEAR_DEATH_TILE)events|=V6_PRIZE_TILE;
         if(e&V6_DISAPPEAR_FULL)events|=V6_PRIZE_FULL;
     }

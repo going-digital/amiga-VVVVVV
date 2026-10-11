@@ -4,7 +4,16 @@
 #include "trinkets.h"
 #include "checkpoints.h"
 enum { V6_PRIZE_SOUND=1, V6_PRIZE_PICKUP=2, V6_PRIZE_SAVE=4,
-       V6_PRIZE_TILE=8, V6_PRIZE_FULL=16 };
+       V6_PRIZE_TILE=8, V6_PRIZE_FULL=16, V6_PRIZE_GATE_SOUND_SHIFT=5,
+       V6_PRIZE_GATE_SOUND_MASK=7<<V6_PRIZE_GATE_SOUND_SHIFT };
+/* Individual gate sound bits retain source identity alongside legacy SOUND.
+ * Audio order is pickup, then gates 2, 1, 0. A missing slot returns 4. */
+static inline unsigned v6_prize_audio_cue(unsigned events,unsigned slot)
+{
+    if(slot==0)return (events&V6_PRIZE_PICKUP)?3:4;
+    if(slot<=3)return (events&(1U<<(V6_PRIZE_GATE_SOUND_SHIFT+3-slot)))?2:4;
+    return 4;
+}
 /* Source entities in room (111,107): three disappearing platforms, then the
  * waiting platform, trinket 6 and ceiling checkpoint 443490. The caller owns
  * terrain and collection progress. No room transition or pickup-screen UI. */

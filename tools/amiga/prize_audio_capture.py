@@ -6,12 +6,13 @@ from audio_capture import ROOT,read_wav
 
 def verify(data,folder):
     at=data.index(b'V6PA\0\0\0\1');values=struct.unpack_from('>5I',data,at+8)
-    assert values==(2,1,0,1,0),values
-    records=[struct.unpack_from('>4I',data,at+28+16*i) for i in range(3)]
-    assert [r[:2] for r in records]==[(42,2),(97,2),(152,3)],records
+    assert values==(3,1,0,1,0),values
+    records=[struct.unpack_from('>4I',data,at+28+16*i) for i in range(4)]
+    assert [r[:2] for r in records]==[(42,2),(97,2),(97,2),(152,3)],records
     assert all(r[2] in (2,3) for r in records),records
+    assert records[1][2]!=records[2][2] and records[1][3]==records[2][3],records
     at=data.index(b'V6AP\0\0\0\1');assert struct.unpack_from('>3I',data,at+8)==(12,0,0)
-    at=data.index(b'V6TA\0\0\0\1');assert struct.unpack_from('>7I',data,at+8)==(0,3,3,6,3,0,1)
+    at=data.index(b'V6TA\0\0\0\1');assert struct.unpack_from('>7I',data,at+8)==(0,4,4,8,4,0,2)
     manifest=json.loads((ROOT/'build/amiga-feasibility/prize-samples.json').read_text())
     templates=[[(v if v<128 else v-256) for v in (ROOT/'build/amiga-feasibility'/('prize-'+cue+'.pcm')).read_bytes()] for cue in ('vanish','trinket')]
     correlations=[]
@@ -45,4 +46,4 @@ def verify(data,folder):
             assert abs((end-begin)/rate-expected_duration)<.08,(cue,(end-begin)/rate,expected_duration)
             correlations.append(round(best,5))
         assert len(samples)-bursts[-1][1]>rate
-    print('PASS native Prize audio: two vanish cues, source trinket jingle, completion during pause, protected channels and PCM correlations',correlations)
+    print('PASS native Prize audio: three vanish cues (including simultaneous gates), source trinket jingle, completion during pause, protected channels and PCM correlations',correlations)

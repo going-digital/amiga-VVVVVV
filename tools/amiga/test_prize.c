@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "prize.h"
+#include "audio_policy.h"
 int main(void)
 {
     uint16_t tiles[1200]={0};
@@ -10,6 +11,26 @@ int main(void)
     V6Collect bank;
     V6Player p;
     unsigned e,input,i;
+    /* Same request ordering and reservation policy as the native dispatcher.
+     * Equal-priority collapses cannot steal each other or the pickup jingle. */
+    for(unsigned pickup=0;pickup<2;++pickup)for(unsigned mask=0;mask<8;++mask)
+    for(unsigned occupied=0;occupied<4;++occupied) {
+        unsigned priority[4]={9,9,2,2},age[4]={0,0,1,2};
+        unsigned busy=3|(occupied<<2),accepted=0,dropped=0;
+        unsigned events=(mask<<V6_PRIZE_GATE_SOUND_SHIFT)|(pickup?V6_PRIZE_PICKUP:0);
+        for(unsigned slot=0;slot<4;++slot) {
+            unsigned cue=v6_prize_audio_cue(events,slot);
+            if(cue==4)continue;
+            int chosen=v6_audio_choose(12,busy,priority,age,cue+1);
+            if(chosen<0) {assert(chosen==-1);++dropped;continue;}
+            assert(chosen==2 || chosen==3);
+            busy|=1U<<chosen;priority[chosen]=cue+1;age[chosen]=0;++accepted;
+        }
+        unsigned requests=pickup+!!(mask&1)+!!(mask&2)+!!(mask&4);
+        assert(accepted==(requests<2?requests:2));
+        assert(dropped==requests-accepted && priority[0]==9 && priority[1]==9);
+        if(pickup)assert(priority[2]==4 || priority[3]==4);
+    }
     v6_collect_clear(&bank);
     v6_player_init(&p,200,200,0);
     v6_prize_init(&s,&room,&bank,-1,p.y);
@@ -28,6 +49,20 @@ int main(void)
         v6_prize_live(&s,&room,&p,0,0,&bank,&input);
         assert(s.waiting.state==1 && s.waiting.vx==4 && s.waiting.x==92);
     }
+    /* Every simultaneous subset preserves identities and pickup-first order. */
+    for(unsigned mask=0;mask<8;++mask) {
+        v6_collect_clear(&bank);v6_prize_init(&s,&room,&bank,-1,p.y);
+        s.trinket.pending=1;
+        for(i=0;i<3;++i)if(mask&(1U<<i))s.disappearing[i].state=1;
+        e=v6_prize_entities(&s,&room,&bank);
+        assert((e&V6_PRIZE_GATE_SOUND_MASK)==(mask<<V6_PRIZE_GATE_SOUND_SHIFT));
+        assert(!!(e&V6_PRIZE_SOUND)==!!mask);
+        assert(v6_prize_audio_cue(e,0)==3);
+        for(i=1;i<=3;++i)assert(v6_prize_audio_cue(e,i)==((mask&(1U<<(3-i)))?2:4));
+        assert(v6_prize_audio_cue(e,4)==4);
+        assert(!(v6_prize_entities(&s,&room,&bank)&(V6_PRIZE_SOUND|V6_PRIZE_GATE_SOUND_MASK)));
+    }
+    v6_collect_clear(&bank);
     v6_prize_init(&s,&room,&bank,-1,p.y);
     for(i=0;i<3;++i) {
         s.disappearing[i].state=2;s.disappearing[i].life=1;
@@ -57,6 +92,6 @@ int main(void)
     e=v6_prize_live(&s,&room,&p,V6_LEFT,0,&bank,&input);
     assert(e&V6_PRIZE_SAVE);
     assert(s.save.x==236 && s.save.y==134 && s.save.gravity==1 && s.save.dir==0);
-    puts("PASS Prize composition: source order, three X-only gates, death/recharge, reverse block reuse, pickup/reentry and checkpoint direction");
+    puts("PASS Prize composition: eight simultaneous gate subsets, 64 reserved-channel allocations, source order, death/recharge, pickup/reentry and checkpoint direction");
     return 0;
 }
