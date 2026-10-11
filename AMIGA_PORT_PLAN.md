@@ -3790,3 +3790,21 @@ summary `build/amiga-arrival-save-capture.json`. The fixture accepts its selecte
 terminal teleporter and zero story flags only. Automatic in-game DOS pause/
 resume, broader story saves, explored-destination admission and live Energize
 menu travel remain pending. Music reconstruction remains parked.
+
+## Explored-destination admission core — 11 October 2026
+
+Added a 400-room session exploration bitset and a destination filter that
+preserves the original 17-teleporter order. A destination must be explored and
+present in the caller's validated resident route list. Exploration alone cannot
+unlock an unsupported room. Invalid room coordinates, duplicate or non-source
+residents, and insufficient output capacity leave existing state/output intact.
+The exploration map is not yet persisted in the 44-byte campaign record.
+
+`make -C amiga_version test-teleporter-admission` passes all 131,072 subsets of
+the original teleporters against the desktop source order, all 400 room indices,
+resident exclusion, and invalid/capacity cases. The core compiles with the native
+68000 toolchain. Native menu integration remains pending: mark entered rooms,
+refresh available destinations, connect confirmation to departure/arrival, and
+queue DOS autosave only after the final arrival SAVE event. Verify physical menu
+input, unexplored exclusion and save pause/resume before admitting live travel.
+Music reconstruction remains parked.
