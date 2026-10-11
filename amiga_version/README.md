@@ -2536,3 +2536,24 @@ or soundtrack quality. The fixture holds its scene for capture, so full OS-exit
 restoration has not been capture-validated here. Next: adapt actual tracker
 replay to emit decoded ownership-safe plans and measure a representative module
 alongside gameplay/SFX before selecting the shipping music channel budget.
+
+
+## Register-based teleporter screen shake
+
+`make -C amiga_version tower-teleporter-shake-capture` builds a bounded staged
+Building Apport/Energize fixture. DIW clipping, DDF fetch timing and BPLCON1 fine
+scroll translate both circular playfields; hardware sprite positions follow the
+same source-matched fixed-tick offset. No screen-copy blitter operation is used.
+An immutable 9,602-byte opaque backdrop plane lets the border remain black,
+including simultaneous grey flashes; flash frames display only this plane.
+
+Host checks cover 16,128 ring/register plans and 3,000 clipped sprite pixel cases.
+Three native shifted/unshifted capture pairs check all 230,400 viewport pixels,
+including both horizontal directions, vertical clipping, sprites and grey flash.
+The full round trip keeps the existing 4,608 oracle fields unchanged, reports no
+missed fields/errors and uses 78,690 Chip bytes. Its 250-line peak meets the
+existing no-audio gate at the limit. Shake/SFX coexistence needs more headroom;
+interactive captions and final vertical flip remain outside this fixture.
+Captures and reports stay in ignored `build/amiga-teleporter-shake/` and
+`build/amiga-shake-pixels-*` directories. Music work is paused pending tracker
+files; the next engine work is coexistence headroom and arrival persistence.

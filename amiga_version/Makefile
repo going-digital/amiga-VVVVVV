@@ -282,7 +282,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -O2 -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/screen_shake.o $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -806,3 +806,17 @@ $(BUILD)/screen_shake.o: screen_shake.c screen_shake.h | $(BUILD)
 test-screen-shake: $(BUILD)/screen_shake.o
 	python3 $(ROOT)/tools/amiga/test_screen_shake.py
 test: test-screen-shake
+
+$(BUILD)/screen_shake_dma.o: screen_shake_dma.c screen_shake_dma.h screen_shake.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+$(BUILD)/screen_shake_display.o: screen_shake_display.c screen_shake_display.h screen_shake.h tower_draw.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+.PHONY: test-screen-shake-dma tower-teleporter-shake-capture
+test-screen-shake-dma: $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o
+	python3 $(ROOT)/tools/amiga/test_screen_shake_dma.py
+test: test-screen-shake-dma
+tower-teleporter-shake-capture: tower-probe test-screen-shake test-screen-shake-dma
+	$(MAKE) BUILD=$(ROOT)/build/amiga-teleporter-shake CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_ENERGIZE -DV6_ENERGIZE_CAPTURE -DV6_TOWER_ARRIVAL -DV6_TOWER_ROUNDTRIP -DV6_TOWER_SHAKE" $(ROOT)/build/amiga-teleporter-shake/tower.adf
+	python3 $(ROOT)/tools/amiga/run_energize.py --roundtrip --shake
+	python3 $(ROOT)/tools/amiga/run_shake.py
+-include $(BUILD)/screen_shake_dma.d $(BUILD)/screen_shake_display.d

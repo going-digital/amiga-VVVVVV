@@ -4,9 +4,10 @@ Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: 
 
 Current direction (11 October 2026): pause automatic music reconstruction while
 the user seeks original tracker files from Magnus Palsson. Preserve the editing
-assets and return to engine work. The screen-shake offset/clipping core now
-passes source differential and 68000 build checks; native rendering integration
-is the next engine increment. See "Screen-shake viewport core" below.
+assets and return to engine work. The screen-shake core and native register-based teleporter fixture now pass
+source, sprite, pixel-capture and A500 timing checks. Next, recover headroom for
+shake/SFX coexistence, then complete arrival checkpoint disk validation and
+explored-destination admission. See "Native register-based screen shake" below.
 
 Latest milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
@@ -3689,3 +3690,39 @@ native renderer, preserve black edges through simultaneous flashes, then verify
 captured offsets and CPU/video headroom on the A500. Final teleporter arrival
 saving/fresh-boot validation and enabling Energize in the playable menu remain
 subsequent engine work; soundtrack asset conversion stays parked.
+
+
+## Native register-based screen shake — 11 October 2026
+
+The staged Building Apport/Energize teleporter fixture now samples shake before
+fixed-tick counter decay and latches each physical offset through paused fields.
+It changes DIWSTRT/DIWSTOP, DDFSTRT and BPLCON1 rather than copying the viewport
+with the blitter. Positive X uses the normal twenty-word fetch; negative X
+starts one word earlier and uses twenty-one fetches with modulo -2. Copper
+pointer resets account for clipped vertical rows and both circular rings.
+Hardware sprites move by the same offset; pristine teleporter position headers
+are restored before the next translation. The isolated fixture bounds-checks
+its teleporter positions so those static six-channel strips never need pixel
+clipping. The general sprite helper also supports clipping, checked separately.
+
+An immutable 9,602-byte constant plane makes the dual-playfield backdrop opaque
+inside DIW, leaving COLOR00 black outside it. This preserves the original dark
+backdrop inside the translated scene and keeps exposed edges black during a
+simultaneous grey flash. Flash frames display only that constant plane. No
+viewport-copy blit or per-frame mask generation is needed. Noflashing suppresses
+the visible translation/flash while shake sampling retains source semantics.
+
+Validation: source sampling/viewport tests remain valid; 16,128 ring/register
+plans and 3,000 sprite pixel translations pass, including both Y directions and
+invalid-input preservation. Native captures compare every viewport pixel
+against identical unshifted fixtures at ticks 1, 6 and 7: grey flash (-3,-1),
+rightward scene (+1,0), and left/down scene (-1,+1), 230,400 pixels total. The
+128-tick staged round trip retains all 4,608 gameplay/render oracle fields and
+has zero missed fields/errors, using 78,690 Chip bytes. The no-audio fixture
+reaches the 250-line headroom limit; combined shake/SFX has not yet been admitted.
+
+Run `make -C amiga_version tower-teleporter-shake-capture`. Artifacts are in
+`build/amiga-teleporter-shake/` and `build/amiga-shake-pixels-*`. This is a bounded
+staged teleporter fixture, not yet the interactive menu/caption renderer. Native
+final vertical flip and captions still need integration. Music reconstruction
+remains parked while awaiting original tracker files.

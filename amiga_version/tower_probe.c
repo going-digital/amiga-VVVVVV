@@ -335,6 +335,20 @@ static volatile struct {ULONG magic,version,count,records[128][14];}
 #ifdef V6_TOWER_ROUNDTRIP
 #include "teleporter_departure.h"
 #include "teleporter_colour.h"
+#ifdef V6_TOWER_SHAKE
+#include "screen_shake_dma.h"
+#include "screen_shake_display.h"
+#if !defined(V6_TOWER_ROUNDTRIP) || defined(V6_TOWER_RESCUE) || defined(V6_TOWER_UI_SAVE)
+#error Shake capture currently supports the staged teleporter roundtrip only
+#endif
+static V6ScreenShake shake;
+static V6ScreenShakePlan shake_plan;
+static ULONG shake_random=19;
+static int shake_timer;
+static UBYTE *shake_mask;
+static unsigned shake_heads[2];
+static struct { ULONG magic,version,count; LONG records[128][3]; } shake_trace={0x56365348,1,0,{{0}}};
+#endif
 #ifdef V6_TOWER_TRAVEL_AUDIO
 #include "paula_voice.h"
 #include "audio_policy.h"
@@ -597,7 +611,12 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #else
 #define UI_DMA_BYTES 0
 #endif
-#define CHIP_BYTES (BUILDING_DMA_BYTES+TELE_DMA_BYTES+UI_DMA_BYTES+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES+AUDIO_DMA_BYTES)
+#ifdef V6_TOWER_SHAKE
+#define SHAKE_DMA_BYTES V6_SHAKE_MASK_BYTES
+#else
+#define SHAKE_DMA_BYTES 0
+#endif
+#define CHIP_BYTES (SHAKE_DMA_BYTES+BUILDING_DMA_BYTES+TELE_DMA_BYTES+UI_DMA_BYTES+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES+AUDIO_DMA_BYTES)
 static V6TowerStream stream,background_stream;
 static V6TowerDraw draw[2],background_draw[2];
 static UBYTE *rings[2];
@@ -739,6 +758,9 @@ static UWORD *move(UWORD *p,UWORD reg,UWORD value) {
 #ifdef V6_TOWER_ARRIVAL
     /* Graphics::flashlight fills the complete viewport with RGB 0xBB. */
     if(arrival_flash && reg>=0x180 && reg<=0x1be)value=0xbbb;
+#ifdef V6_TOWER_SHAKE
+    if(shake_timer && !session.noflashing && reg==0x180)value=0;
+#endif
 #endif
     *p++=reg;*p++=value;return p;
 }
@@ -868,6 +890,12 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     v6_sprites_begin(&player_sprites[index],player_sprites[index].dma);
 #ifdef V6_TOWER_BUILDING
     if(route.rooms[route.index].teleporter) {
+#ifdef V6_TOWER_SHAKE
+        /* This bounded fixture restores only teleporter heads. Its six
+         * sprite strips must remain away from clipping edges at every offset. */
+        if(route.rooms[route.index].teleporter->x<4 || route.rooms[route.index].teleporter->x>222 ||
+           route.rooms[route.index].teleporter->y<4 || route.rooms[route.index].teleporter->y>142)return 0;
+#endif
         const UWORD (*prepared)[6*V6_TELEPORTER_DMA_WORDS]=building_prepared;
 #ifdef V6_TOWER_ENERGIZE
         if(route.index==5)prepared=energize_prepared;
@@ -884,7 +912,19 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
                 bank[word+6]=prepared[frame][word+6];bank[word+7]=prepared[frame][word+7];
             }
             building_frames[index]=frame;
+#ifdef V6_TOWER_SHAKE
+            shake_heads[index]=0;
+#endif
         }
+#ifdef V6_TOWER_SHAKE
+        /* The fixture teleporter is away from viewport edges. Restore heads
+         * after each translation; the bounds check excludes pixel clipping. */
+        if(shake_heads[index])for(word=0;word<6;++word) {
+            bank[word*V6_TELEPORTER_DMA_WORDS]=prepared[frame][word*V6_TELEPORTER_DMA_WORDS];
+            bank[word*V6_TELEPORTER_DMA_WORDS+1]=prepared[frame][word*V6_TELEPORTER_DMA_WORDS+1];
+        }
+        shake_heads[index]=shake_plan.x || shake_plan.y;
+#endif
         player_sprites[index].count=6;
         for(i=0;i<3;++i) {
             unsigned tint=route.rooms[route.index].teleporter->tile==1?0x444:0xaaf;
@@ -941,9 +981,20 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     if(player_sprites[index].count>world_diag.values[12]) world_diag.values[12]=player_sprites[index].count;
 #endif
     for(i=0;i<8;++i) {
-        ULONG address=(ULONG)(player_sprites[index].dma+i*V6_SPRITE_WORDS);
+        UWORD *sprite=player_sprites[index].dma+i*V6_SPRITE_WORDS;
+        unsigned sprite_words=V6_SPRITE_WORDS;
+        ULONG address=(ULONG)sprite;
 #ifdef V6_TOWER_BUILDING
-        if(route.rooms[route.index].teleporter && i<6)address=(ULONG)(building_dma+(index*6+i)*V6_TELEPORTER_DMA_WORDS);
+        if(route.rooms[route.index].teleporter && i<6) {
+            sprite=building_dma+(index*6+i)*V6_TELEPORTER_DMA_WORDS;
+            sprite_words=V6_TELEPORTER_DMA_WORDS;address=(ULONG)sprite;
+        }
+#endif
+#ifdef V6_TOWER_SHAKE
+        if((shake_plan.x || shake_plan.y) &&
+           !v6_screen_shake_sprite(sprite,sprite_words,shake_plan.x,shake_plan.y))return 0;
+#else
+        (void)sprite_words;
 #endif
         p=move(p,0x120+i*4,address>>16);p=move(p,0x122+i*4,address);
     }
@@ -980,6 +1031,13 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #endif
         ),
         0x6ff,DISPLAY_COLOUR(FG_PALETTE[1]),DISPLAY_COLOUR(FG_PALETTE[3]))!=0;
+#endif
+#ifdef V6_TOWER_SHAKE
+    if(shake_timer && !session.noflashing) {
+        p=move(p,0x194,DISPLAY_COLOUR(0x010));p=move(p,0x196,DISPLAY_COLOUR(0x111));
+        return v6_screen_shake_display(p,&shake_plan,(ULONG)ring,
+            (ULONG)(ring+V6_TOWER_RING_BYTES),(ULONG)shake_mask,camera&255,bg_camera&255,arrival_flash)!=0;
+    }
 #endif
     return v6_tower_dual_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
         camera&255,bg_camera&255)!=0;
@@ -1255,8 +1313,12 @@ static int run(void) {
 #endif
     chip=AllocMem(CHIP_BYTES,MEMF_CHIP|MEMF_CLEAR);
     if(!chip) { CloseLibrary((struct Library *)GfxBase);return 20; }
-    rings[0]=chip;rings[1]=chip+LAYER_BYTES;
-    lists[0]=(UWORD *)(chip+2*LAYER_BYTES);lists[1]=lists[0]+LIST_WORDS;
+    rings[0]=chip+SHAKE_DMA_BYTES;rings[1]=rings[0]+LAYER_BYTES;
+#ifdef V6_TOWER_SHAKE
+    { unsigned i;shake_mask=chip;for(i=0;i<V6_SHAKE_MASK_BYTES/2;++i)((UWORD *)shake_mask)[i]=0xffff; }
+    v6_screen_shake_init(&shake);v6_screen_shake_plan(&shake,0,0,0,&shake_plan);
+#endif
+    lists[0]=(UWORD *)(rings[0]+2*LAYER_BYTES);lists[1]=lists[0]+LIST_WORDS;
 #ifdef V6_TOWER_PLAY
     player_sprites[0].dma=(UWORD *)(lists[1]+LIST_WORDS);
     player_sprites[1].dma=player_sprites[0].dma+8*V6_SPRITE_WORDS;
@@ -1771,6 +1833,23 @@ static int run(void) {
                 }
 #endif
                 arrival_flash=departure.state?departure.flash:arrival.flash;
+#ifdef V6_TOWER_SHAKE
+                {
+                    UWORD samples[2]={0,0};unsigned i;
+                    shake_timer=departure.state?departure.shake:arrival.shake;
+                    if(shake_timer)for(i=0;i<2;++i) {
+                        shake_random^=shake_random<<13;shake_random^=shake_random>>17;shake_random^=shake_random<<5;
+                        samples[i]=shake_random>>16;
+                    }
+                    v6_screen_shake_pre(&shake,shake_timer,samples);
+                    v6_screen_shake_plan(&shake,shake_timer,session.noflashing,0,&shake_plan);
+                    if(session.noflashing)arrival_flash=0;
+                    if(shake_trace.count<128) {
+                        LONG *record=shake_trace.records[shake_trace.count++];
+                        record[0]=shake_timer;record[1]=shake_plan.x;record[2]=shake_plan.y;
+                    }
+                }
+#endif
                 if(departure_trace.count<128) {
                     volatile ULONG *d=departure_trace.records[departure_trace.count++];
                     d[0]=departure.state;d[1]=departure.delay;d[2]=departure.control;

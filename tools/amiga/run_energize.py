@@ -25,11 +25,15 @@ def main():
     parser.add_argument('--roundtrip',action='store_true')
     parser.add_argument('--outbound',action='store_true')
     parser.add_argument('--colour',action='store_true')
+    parser.add_argument('--shake',action='store_true')
+    parser.add_argument('--capture-ticks',type=int)
+    parser.add_argument('--build-dir',type=Path)
     parser.add_argument('--audio',action='store_true')
     parser.add_argument('--reserved-audio',action='store_true')
     parser.add_argument('--music',action='store_true')
     parser.add_argument('--coexist-audio',action='store_true')
     args=parser.parse_args()
+    if args.shake and not args.roundtrip:parser.error('--shake requires roundtrip')
     if args.coexist_audio and not (args.audio and args.reserved_audio):parser.error('--coexist-audio requires --audio --reserved-audio')
     if args.music and (not args.roundtrip or args.audio or args.colour or args.flash or args.outbound):parser.error('--music requires full roundtrip without audio/colour/flash/outbound')
     if args.reserved_audio and not args.audio:parser.error('--reserved-audio requires --audio')
@@ -44,7 +48,12 @@ def main():
     if args.audio:BUILD=ROOT/('build/amiga-teleporter-reserved' if args.reserved_audio else 'build/amiga-teleporter-paula')
     if args.music:BUILD=ROOT/'build/amiga-teleporter-music'
     if args.coexist_audio:BUILD=ROOT/'build/amiga-coexist-audio'
+    if args.shake:BUILD=ROOT/'build/amiga-teleporter-shake'
     ticks=6 if args.colour else 1 if args.flash else 64 if args.outbound else 128
+    if args.capture_ticks is not None:
+        assert args.roundtrip and 1<=args.capture_ticks<=128
+        ticks=args.capture_ticks
+    if args.build_dir:BUILD=args.build_dir.resolve()
     config=BUILD/'energize.toml'
     config.write_text(f'''rom = {json.dumps(str(Path.home()/'amiga/KICK13.ROM'))}
 [machine]
@@ -75,7 +84,7 @@ write_protected = true
             env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
     display=diagnostics(dump)
     assert display['status']==1 and not display['error'] and not display['missed'],display
-    chip_bytes=69088
+    chip_bytes=69088+(9602 if args.shake else 0)
     if args.audio:
         manifest=json.loads((ROOT/'build/amiga-feasibility/teleporter-samples.json').read_text())
         chip_bytes+=sum(s['pcm_bytes'] for s in manifest['samples'])+2+(64 if args.coexist_audio else 0)
@@ -178,7 +187,7 @@ write_protected = true
         assert [(i+1,row[5]) for i,row in enumerate(arrival_records) if row[5]]==[event for event in [(23,1),(38,2),(64,4),(87,1),(102,2),(128,4)] if event[0]<=ticks]
         if args.colour:
             assert departure.state==4001 and departure.delay==5 and not departure.control and not s.invisible and not leg
-        else:assert arrival.control and not arrival.state and not s.invisible and leg==(1 if args.outbound else 2)
+        elif ticks==128 or args.outbound:assert arrival.control and not arrival.state and not s.invisible and leg==(1 if args.outbound else 2)
         at=data.index(b'V6RT\0\0\0\1')
         route_diag=struct.unpack_from('>7I',data,at)
         assert route_diag[2:5]==(r.index,r.transitions,r.returns) and route_diag[5]>=62*leg and not route_diag[6],route_diag
@@ -219,6 +228,9 @@ write_protected = true
     if args.coexist_audio:
         from coexist_audio_capture import verify
         verify(report,dump,BUILD/'audio-stems')
+    if args.shake:
+        from shake_capture import verify
+        verify(report,dump,BUILD)
     if args.music:
         from music_capture import verify
         verify(report,dump)
