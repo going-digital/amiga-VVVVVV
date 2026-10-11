@@ -2551,9 +2551,19 @@ Host checks cover 16,128 ring/register plans and 3,000 clipped sprite pixel case
 Three native shifted/unshifted capture pairs check all 230,400 viewport pixels,
 including both horizontal directions, vertical clipping, sprites and grey flash.
 The full round trip keeps the existing 4,608 oracle fields unchanged, reports no
-missed fields/errors and uses 78,690 Chip bytes. Its 250-line peak meets the
-existing no-audio gate at the limit. Shake/SFX coexistence needs more headroom;
-interactive captions and final vertical flip remain outside this fixture.
+missed fields/errors and uses 78,690 Chip bytes. Flash frames skip sprite work because the solid translated mask replaces the
+scene; the no-audio peak is now 225 lines. Interactive captions and final
+vertical flip remain outside this fixture.
 Captures and reports stay in ignored `build/amiga-teleporter-shake/` and
 `build/amiga-shake-pixels-*` directories. Music work is paused pending tracker
-files; the next engine work is coexistence headroom and arrival persistence.
+files; the next engine work is arrival persistence and destination admission.
+
+
+`make -C amiga_version tower-shake-audio-capture` verifies shake alongside two
+reserved Paula SFX voices. The combined fixture peaks at 235 PAL lines (below
+the 250-line gate), uses 120,420 Chip bytes and reports zero missed fields/errors
+or channel ownership violations. Eight cue requests start; seven complete and
+one is replaced according to priority. Captured waveform, duration, overlap,
+silence and hard-panning checks pass; reserved music channels stay idle. Gameplay
+and shake counter/RNG traces also match. Artifacts are in
+`build/amiga-shake-audio/`. Actual tracker music is still outside this fixture.

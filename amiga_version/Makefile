@@ -820,3 +820,8 @@ tower-teleporter-shake-capture: tower-probe test-screen-shake test-screen-shake-
 	python3 $(ROOT)/tools/amiga/run_energize.py --roundtrip --shake
 	python3 $(ROOT)/tools/amiga/run_shake.py
 -include $(BUILD)/screen_shake_dma.d $(BUILD)/screen_shake_display.d
+
+.PHONY: tower-shake-audio-capture
+tower-shake-audio-capture: tower-probe test-screen-shake test-screen-shake-dma test-audio-policy test-paula-voice
+	$(MAKE) BUILD=$(ROOT)/build/amiga-shake-audio CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_ENERGIZE -DV6_ENERGIZE_CAPTURE -DV6_TOWER_ARRIVAL -DV6_TOWER_ROUNDTRIP -DV6_TOWER_SHAKE -DV6_TOWER_TRAVEL_AUDIO -DV6_TRAVEL_SFX_MASK=3" $(ROOT)/build/amiga-shake-audio/tower.adf
+	python3 $(ROOT)/tools/amiga/run_energize.py --roundtrip --shake --audio --reserved-audio --build-dir $(ROOT)/build/amiga-shake-audio

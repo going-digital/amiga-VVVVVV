@@ -5,9 +5,8 @@ Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: 
 Current direction (11 October 2026): pause automatic music reconstruction while
 the user seeks original tracker files from Magnus Palsson. Preserve the editing
 assets and return to engine work. The screen-shake core and native register-based teleporter fixture now pass
-source, sprite, pixel-capture and A500 timing checks. Next, recover headroom for
-shake/SFX coexistence, then complete arrival checkpoint disk validation and
-explored-destination admission. See "Native register-based screen shake" below.
+source, sprite, pixel-capture and A500 timing checks. Shake/SFX coexistence now also passes within the timing budget. Next, complete
+arrival checkpoint disk validation and explored-destination admission. See "Native register-based screen shake" below.
 
 Latest milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
@@ -3726,3 +3725,31 @@ Run `make -C amiga_version tower-teleporter-shake-capture`. Artifacts are in
 staged teleporter fixture, not yet the interactive menu/caption renderer. Native
 final vertical flip and captions still need integration. Music reconstruction
 remains parked while awaiting original tracker files.
+
+
+## Screen-shake/audio headroom — 11 October 2026
+
+Flash frames now skip sprite drawing and teleporter animation-sample copies.
+The source replaces the entire scene with a solid grey rectangle before shake;
+the translated opaque mask already supplies all visible pixels. The inactive
+sprite heads are terminated for these fields. Existing teleporter cache tags
+and translated-head restoration state are retained, so the first non-flash
+field restores the current animation normally. Other renderers keep their
+existing sprite path.
+
+The no-audio roundtrip peak falls from 250 to 225 PAL lines. The combined
+register-shake and two-channel reserved-SFX fixture peaks at 235 lines, using
+120,420 Chip bytes, with zero missed fields, errors or channel-policy violations.
+All 4,608 gameplay/render fields still match. Shake records are additionally
+cross-checked against the source-validated departure/arrival timers before
+counter decay. All eight SFX requests start: seven drain, one flash is replaced
+by teleport, two voices overlap, and reserved channels 2/3 remain idle. Captured
+waveform, duration, replacement, final silence and hard-panning checks pass.
+
+The three native shifted/unshifted pixel capture pairs remain exact, including
+the flash and first non-flash field. Run
+`make -C amiga_version tower-shake-audio-capture`; combined reports, RAM dump,
+screenshot and audio stems are in `build/amiga-shake-audio/`. This admits the
+bounded shake/SFX combination, not tracker music or interactive captions/flip.
+Next: final teleporter arrival checkpoint disk/fresh-boot validation, then
+explored-destination menu admission. Music reconstruction remains parked.

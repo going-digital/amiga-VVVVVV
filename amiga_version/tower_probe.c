@@ -887,6 +887,20 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     }
 #endif
 #ifdef V6_TOWER_PLAY
+#ifdef V6_TOWER_SHAKE
+    if(arrival_flash && shake_timer && !session.noflashing) {
+        /* Flash replaces the whole scene before translation. Its opaque mask
+         * already supplies every visible pixel; sprite work is unnecessary.
+         * Leave cached animation frames untouched so the next scene restores
+         * the current frame normally. Publish terminated inactive sprites. */
+        v6_sprites_begin(&player_sprites[index],player_sprites[index].dma);
+        for(i=0;i<8;++i) {
+            ULONG address=(ULONG)(player_sprites[index].dma+i*V6_SPRITE_WORDS);
+            p=move(p,0x120+i*4,address>>16);p=move(p,0x122+i*4,address);
+        }
+    } else
+#endif
+    {
     v6_sprites_begin(&player_sprites[index],player_sprites[index].dma);
 #ifdef V6_TOWER_BUILDING
     if(route.rooms[route.index].teleporter) {
@@ -1007,6 +1021,7 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #else
     p=move(p,0x1a2,0x6ff);
 #endif
+    }
 #endif
 #ifdef V6_TOWER_RESCUE
     if(rescue_vm.speech || rescue_bars) {
