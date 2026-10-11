@@ -41,6 +41,20 @@ def export(archive,out,decoder,room=None,name="energize"):
         symbol=symbol.replace('energize',name)
         header+=f'static const {ctype} {symbol}[]={{'+','.join(map(str,values))+'};\n'
     header+=f'#define {name.upper()}_TILE_COUNT {len(ids)}\n#define {name.upper()}_PAIR_WORDS {len(words)}\n'
+    if name=='shenanigan':
+        frames=[]
+        for tile in (*range(68,72),*range(28,32)):
+            ox=tile%(width//8)*8;oy=tile//(width//8)*8
+            frame=[]
+            for y in range(8):
+                for x in range(8):
+                    r,g,b,a=rgba[((oy+y)*width+ox+x)*4:((oy+y)*width+ox+x)*4+4]
+                    assert a==255
+                    colour=tuple(round(v/17) for v in (r,g,b))
+                    frame.append(min(range(4),key=lambda i:sum((palette[i][j]-colour[j])**2 for j in range(3))))
+            frames.append([sum(((frame[y*8+x]>>p)&1)<<(7-x) for x in range(8)) for p in range(2) for y in range(8)])
+        assert len(set(tuple(f) for f in frames[:4]))==4
+        header+='static const uint8_t shenanigan_treads[8][16]={'+','.join('{'+','.join(map(str,f))+'}' for f in frames)+'};\n'
     (out/(name+'_assets.h')).write_text(header)
     for filename,blob in [(name+'.v6tr',display),(name+'-atlas.bin',atlas)]: (out/filename).write_bytes(blob)
     (out/(name+'-graphics.json')).write_text(json.dumps(dict(source_ids=ids,palette=colors,pairs=len(words)//16,quantized_pixels=indices,display_tiles=tiles),indent=2)+'\n')

@@ -195,6 +195,8 @@ int v6_tower_route_step_phase(V6TowerRoute *r,unsigned input,V6TowerRoutePhase p
         }
     }
     v6_player_physics(&s->player,&r->room,&s->motion,0,0);
+    /* Dynamic platform blocks require the source post-physics stuck stage. */
+    if(r->room.block_count)v6_player_unstick(&s->player,&r->room);
     v6_tower_checkpoints_collide(w,&s->player);
     if(here->teleporter)v6_teleporter_collide(here->teleporter,&s->player);
     if(v6_player_hurt(&s->player,&r->room)) v6_tower_session_die(s);

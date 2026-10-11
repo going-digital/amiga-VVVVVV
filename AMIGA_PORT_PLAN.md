@@ -4330,3 +4330,48 @@ traversal or a verification of second-checkpoint activation.
 Next: connect Shenanigan below Frown, verify entry/return and both checkpoints,
 and admit their canonical identities to V3 campaign persistence. The isolated
 scene currently uses local checkpoint state; the campaign route is unchanged.
+
+
+### Shenanigan connected route and V3 saves — 11 October 2026
+
+Shenanigan (111,106) is now resident below Frown Upside Down in the station
+builds, including the combined dialogue/travel-audio and shake configuration.
+Entry binds cached source terrain and both conveyor blocks. Conveyor carrying
+runs after player input and before checkpoint updates/physics; dynamic blocks
+also run the source post-physics stuck correction. Animated treads occupy the
+foreground bitplanes, while both checkpoints use the existing sprite renderer.
+Yellow disappears below room row 105 and returns on entering Frown.
+
+Both source checkpoint identities are admitted to V3 campaign saves: floor
+442490 at (140,161), gravity 0, and ceiling 442491 at (20,110), gravity 1.
+Admission still requires a canonical source-bank position, direction and ID;
+V1/V2 writers reject the new room. Exploration includes the Shenanigan map bit.
+The graphics export validates that both conveyor bands cover empty terrain.
+One-row cold fills and direct conveyor initialization retain PAL headroom.
+
+`make -C amiga_version tower-shenanigan-capture` passes on the PAL 68000 A500
+with 512K Chip and 512K Slow. Its 160-tick trace verifies entry, both checkpoint
+activations, return to Frown, hidden yellow companion, and a menu save/load
+round trip into Shenanigan. The save/load actions freeze logic, preserve state
+on save, and write the expected 96-byte V3 record with yellow flags 56 and the
+new exploration bit. A fresh interactive combined-effects boot physically
+loads that disk and restores the ceiling checkpoint, then restores the OS;
+the load leaves the disk unchanged. Peaks are 236/199 PAL lines, with zero
+errors/missed frames and 194,682 Chip bytes. Captures have been visually reviewed.
+The fixture places the player at checkpoints and the north edge; it does not
+prove a complete normal-input room traversal.
+
+Host checks cover 512 original static player-physics ticks, south/north history
+transforms, both deferred checkpoints, remote death restores, unsupported-room
+and canonical-save guards, independent V3 vectors, and legacy-writer rejection.
+Shenanigan's paired atlas matches 79,360 source-quantized pixels, and all
+512 conveyor-frame pixels match the same four-colour quantization. Existing
+station route, conveyor carry and V3 transactional/fault checks pass. The full
+yellow rescue regression still matches 4,096 integration fields over 1,000
+native ticks; all eleven dialogue cues finish with 22 DMA interrupts, no
+replacement/error and source correlations above 0.965. Its peak is 206 PAL lines.
+
+Next: Prize for the Reckless (111,107), below Shenanigan, needs disappearing
+platforms, a waiting platform and trinket progress before route admission. A
+normal-input traversal of Shenanigan also remains to be recorded. Music
+reconstruction remains parked.

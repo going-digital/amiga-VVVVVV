@@ -461,12 +461,25 @@ static V6Terrain energize_terrain;
 static UWORD energize_prepared[10][6*V6_TELEPORTER_DMA_WORDS];
 #ifdef V6_TOWER_STATION
 #include "frown_assets.h"
+#include "shenanigan_assets.h"
+#ifdef V6_TOWER_SHENANIGAN
+#include "platform.h"
+static V6Terrain shenanigan_terrain;
+static V6Platform station_conveyors[2];
+static V6Block station_conveyor_blocks[2];
+static unsigned station_conveyor_phase,station_conveyor_delay;
+#ifdef V6_SHENANIGAN_CAPTURE
+static volatile struct {ULONG magic,version,count;LONG records[160][14];}
+    shenanigan_trace={0x5636534e,1,0,{{0}}};
+static unsigned shenanigan_ui_stage;
+#endif
+#endif
 static V6Terrain frown_terrain;
-#define FG_OFFSETS (route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)
-#define FG_PAIRS (route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)
-#define FG_WORDS (route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)
-#define FG_COUNT (route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)
-#define FG_PALETTE (route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)
+#define FG_OFFSETS (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)
+#define FG_PAIRS (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)
+#define FG_WORDS (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)
+#define FG_COUNT (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)
+#define FG_PALETTE (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)
 #else
 #define FG_OFFSETS (route.index==5?energize_pair_offsets:tower_pair_offsets)
 #define FG_PAIRS (route.index==5?energize_pairs:tower_pairs)
@@ -480,6 +493,20 @@ static V6Terrain frown_terrain;
 #define FG_WORDS TOWER_PAIR_WORDS
 #define FG_COUNT TOWER_TILE_COUNT
 #define FG_PALETTE tower_palette
+#endif
+#ifdef V6_TOWER_SHENANIGAN
+static int station_conveyor_tick(V6TowerRoute *r,void *context)
+{
+    V6PlatformPush push;
+    (void)context;
+    if(r->index!=7)return 1;
+    push.pending_y=r->session->motion.pending_y;push.visual_ground=push.visual_roof=0;
+    v6_platform_transport(&r->session->player,&r->room,station_conveyors,2,
+        station_conveyor_blocks,2,V6_PLATFORMS_HORIZONTAL,r->session->life_timer,&push);
+    if(!station_conveyor_delay) {station_conveyor_phase=(station_conveyor_phase+1)&3;station_conveyor_delay=3;}
+    --station_conveyor_delay;
+    return 1;
+}
 #endif
 #ifdef V6_TOWER_ARRIVAL
 #if !defined(V6_ENERGIZE_CAPTURE) && !defined(V6_TOWER_MENU_TRAVEL)
@@ -653,6 +680,9 @@ static volatile struct {ULONG magic,version,count,records[128][8];}
 static int arrival_phase(V6TowerRoute *r,void *context)
 {
     V6TowerSession *s=r->session;
+#ifdef V6_TOWER_SHENANIGAN
+    if(!station_conveyor_tick(r,0))return 0;
+#endif
     return v6_teleporter_arrival_tick((V6TeleporterArrival *)context,&s->player,
         &s->motion,&s->invisible,r->rooms[r->index].teleporter,&r->tele_region);
 }
@@ -831,8 +861,19 @@ static int route_source(void)
     if(!v6_exploration_visit(&station_exploration,route.rooms[route.index].x,route.rooms[route.index].y))return 0;
 #endif
     if(route.index==6){data=frown_display;bytes=sizeof(frown_display);route.room.terrain=&frown_terrain;}
+#ifdef V6_TOWER_SHENANIGAN
+    if(route.index==7) {
+        data=shenanigan_display;bytes=sizeof(shenanigan_display);route.room.terrain=&shenanigan_terrain;
+        for(i=0;i<2;++i) {
+            if(!v6_conveyor_init(&station_conveyors[i],i?104:16,i?184:104,8+i,4,64))return 0;
+            station_conveyor_blocks[i]=(V6Block){i?104:16,i?184:104,32,8,V6_BLOCK,0};
+        }
+        route.room.blocks=station_conveyor_blocks;route.room.block_count=2;
+        station_conveyor_phase=station_conveyor_delay=0;
+    }
 #endif
-    /* All three resident maps were opened and fully pair-validated before
+#endif
+    /* Resident maps were opened and fully pair-validated before
      * takeover. Rebind only these identical immutable bytes; a repeated
      * 700-entry directory scan would consume the transition frame. */
     stream.data=data;stream.size=bytes;stream.height=route.index<2?700:30;stream.valid=0;
@@ -1072,6 +1113,20 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         tower_tiles,TOWER_TILE_COUNT,0,drawn)) return 0;
     if(!v6_tower_draw_mono_prepare(&background_draw[index],ring+V6_TOWER_RING_BYTES,
         &background_stream,bg_camera>>3,tower_backdrop,TOWER_TILE_COUNT,&background_rows)) return 0;
+#endif
+#ifdef V6_TOWER_SHENANIGAN
+    if(route.index==7) {
+        unsigned n,row,plane;
+        for(n=0;n<2;++n) {
+            unsigned frame=n?4+station_conveyor_phase:((4-station_conveyor_phase)&3);
+            for(plane=0;plane<2;++plane)for(row=0;row<8;++row) {
+                UBYTE bits=shenanigan_treads[frame][plane*8+row];
+                UBYTE *dest=ring+plane*V6_TOWER_PLANE_BYTES+(station_conveyors[n].y+row)*40+station_conveyors[n].x/8;
+                dest[0]=dest[1]=dest[2]=dest[3]=bits;
+                dest[4]=dest[5]=dest[6]=dest[7]=bits;
+            }
+        }
+    }
 #endif
     if(drawn) *drawn+=background_rows;
     p=move(p,0x100,0x3600);p=move(p,0x102,0);p=move(p,0x104,0x24);
@@ -1380,10 +1435,10 @@ static ULONG ui_game_hash(void)
 #ifdef V6_STATION_MENU
 static int ui_station_checkpoint_valid(const V6CheckpointSave *c,const V6HallwayStory *s)
 {
-    /* Only these three rooms run the yellow slice; red progress is retained,
+    /* Only these four rooms run the yellow slice; red progress is retained,
      * but its active companion requires the separate red runtime. */
     return checkpoint_bank_valid(c) && !s->companion &&
-        ((c->room_x==111 && (c->room_y==104 || c->room_y==105)) ||
+        ((c->room_x==111 && (c->room_y==104 || c->room_y==105 || c->room_y==106)) ||
          (c->room_x==110 && c->room_y==105));
 }
 #endif
@@ -1648,6 +1703,11 @@ static int run(void) {
     station_save_diag.values[10]=station_story.rescue_triggered;station_save_diag.values[11]=station_story.yellow_rescued;
     station_save_diag.values[12]=station_story.companion;
 #endif
+#ifdef V6_SHENANIGAN_CAPTURE
+    station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
+    rescue_vm.following=1;rescue_vm.mood=0;
+    v6_player_init(&session.player,234,219,0);
+#endif
 #ifdef V6_STATION_COMPANION_CAPTURE
     station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
     rescue_vm.following=1;rescue_vm.mood=0;
@@ -1800,6 +1860,10 @@ static int run(void) {
         if(route.index==5)route.room.terrain=&energize_terrain;
 #ifdef V6_TOWER_STATION
         collision.tiles=frown_tiles;v6_terrain_build(&frown_terrain,&collision);
+#ifdef V6_TOWER_SHENANIGAN
+        collision.tiles=shenanigan_tiles;v6_terrain_build(&shenanigan_terrain,&collision);
+        if(route.index==7)route.room.terrain=&shenanigan_terrain;
+#endif
         if(route.index==6)route.room.terrain=&frown_terrain;
 #endif
         for(frame=1;frame<10;++frame)
@@ -1843,6 +1907,10 @@ static int run(void) {
 #endif
 #endif
     if(
+#ifdef V6_TOWER_SHENANIGAN
+       !v6_tower_open(&stream,shenanigan_display,sizeof(shenanigan_display)) ||
+       !v6_tower_pairs_validate(&stream,shenanigan_pair_offsets,SHENANIGAN_PAIR_WORDS,SHENANIGAN_TILE_COUNT,2) ||
+#endif
 #ifdef V6_TOWER_ENERGIZE
        !v6_tower_open(&stream,energize_display,sizeof(energize_display)) ||
        !v6_tower_pairs_validate(&stream,energize_pair_offsets,ENERGIZE_PAIR_WORDS,ENERGIZE_TILE_COUNT,2) ||
@@ -1889,7 +1957,7 @@ static int run(void) {
 #endif
 
 #ifdef V6_TOWER_STATION
-           route.index==6?frown_display:route.index==5?energize_display:building_display,
+           route.index==7?shenanigan_display:route.index==6?frown_display:route.index==5?energize_display:building_display,
 #elif defined(V6_TOWER_ROUNDTRIP)
            building_display,
 #elif defined(V6_ENERGIZE_CAPTURE)
@@ -1906,7 +1974,7 @@ static int run(void) {
 #endif
 
 #ifdef V6_TOWER_STATION
-           route.index==6?sizeof(frown_display):route.index==5?sizeof(energize_display):sizeof(building_display)) ||
+           route.index==7?sizeof(shenanigan_display):route.index==6?sizeof(frown_display):route.index==5?sizeof(energize_display):sizeof(building_display)) ||
 #elif defined(V6_TOWER_ROUNDTRIP)
            sizeof(building_display)) ||
 #elif defined(V6_ENERGIZE_CAPTURE)
@@ -2027,6 +2095,14 @@ static int run(void) {
                 right=fire=1;ui_test_phase=4;ui_test_tick=diag.logic_ticks;
             }
             ui_diag.values[17]=ui_test_phase;
+#endif
+#ifdef V6_SHENANIGAN_CAPTURE
+            right=fire=0;
+            if(shenanigan_ui_stage==0 && diag.logic_ticks>=45) {
+                right=1;shenanigan_ui_stage=1;
+            } else if(shenanigan_ui_stage==1 && diag.logic_ticks>=60) {
+                right=fire=1;shenanigan_ui_stage=2;
+            }
 #endif
             action=v6_save_controls_tick(&save_controls,right,fire);
 #ifdef V6_TOWER_MENU_TRAVEL
@@ -2246,6 +2322,16 @@ static int run(void) {
                 if(building_stage==2)input=0;
 #endif
 #endif
+#ifdef V6_SHENANIGAN_CAPTURE
+                input=0;
+                if(diag.logic_ticks==20 || diag.logic_ticks==35 || diag.logic_ticks==50) {
+                    unsigned tick=diag.logic_ticks;
+                    v6_player_init(&session.player,tick==20?140:tick==35?20:234,
+                        tick==20?161:tick==35?110:-3,tick==20?0:1);
+                    session.death_timer=-1;session.life_timer=0;session.invisible=0;
+                    session.motion.ax=0;session.motion.pending_y=session.player.y;
+                }
+#endif
 #ifdef V6_STATION_CAPTURE
                 input=station_story.rescue_triggered?(rescue_vm.waiting && (UWORD)diag.logic_ticks%30==0?V6_FLIP:0):V6_LEFT;
 #endif
@@ -2373,7 +2459,11 @@ static int run(void) {
                 if(departure.state || !arrival.control)input|=V6_NO_CONTROL;
 #ifdef V6_TOWER_MENU_TRAVEL
                 if(!departure.state && !arrival.state) {
+#ifdef V6_TOWER_SHENANIGAN
+                    if(!v6_tower_route_step_phase(&route,input,station_conveyor_tick,0))diag.error=6;
+#else
                     if(!v6_tower_route_step(&route,input))diag.error=6;
+#endif
                 } else
 #endif
                 if(!v6_tower_route_step_phase(&route,input,travel_phase,0))diag.error=6;
@@ -2493,7 +2583,11 @@ static int run(void) {
                 if(arrival.flash>0)--arrival.flash;
                 if(arrival.shake>0)--arrival.shake;
 #else
+#ifdef V6_TOWER_SHENANIGAN
+                if(!v6_tower_route_step_phase(&route,input,station_conveyor_tick,0))diag.error=6;
+#else
                 if(!v6_tower_route_step(&route,input)) diag.error=6;
+#endif
 #endif
 #else
                 (void)input;
@@ -2589,6 +2683,16 @@ static int run(void) {
 #else
                 v6_tower_session_play_world(&session,&player_room,input,&world);
 #endif
+#ifdef V6_SHENANIGAN_CAPTURE
+                if(shenanigan_trace.count<160) {
+                    volatile LONG *d=shenanigan_trace.records[shenanigan_trace.count++];
+                    d[0]=route.index;d[1]=session.player.x;d[2]=session.player.y;
+                    d[3]=session.player.gravity;d[4]=session.death_timer;d[5]=world.save.id;
+                    d[6]=world.save.x;d[7]=world.save.y;d[8]=world.save.gravity;
+                    d[9]=world.save.room_x;d[10]=world.save.room_y;d[11]=companion.visible;
+                    d[12]=route.room.block_count;d[13]=station_conveyor_phase;
+                }
+#endif
                 record_world();
 #else
                 v6_tower_session_play(&session,&player_room,input,0,0);
@@ -2663,7 +2767,7 @@ tele_menu_paused:
             drawn=fg_rows+bg_rows;++route_diag.loading_frames;
 #ifdef V6_TOWER_BUILDING
             /* Leave room for the six-channel DMA copy on final cold fields. */
-            route_budget=route.rooms[route.index].teleporter?1:2;
+            route_budget=(route.rooms[route.index].teleporter || route.index==7)?1:2;
 #else
             route_budget=2;
 #endif

@@ -7,7 +7,7 @@ import zlib
 from test_campaign_save import ROOT,Checkpoint,Story,values
 from test_campaign_state import Exploration
 from test_station_trigger import Story as Yellow
-from test_campaign_file import Files,IO,main as build_file
+from test_campaign_file import Files,IO,Bank,main as build_file
 from test_campaign_replace import Operations
 
 def main():
@@ -45,12 +45,32 @@ def main():
     for bit in range(400):
         m=Exploration.from_buffer_copy(bytes(e));m.rooms[bit>>3]|=1<<(bit&7)
         decode(encode(c,r,y,m),tuple(bytes(x) for x in (c,r,y,m)))
+    # Room-specific admission checks the actual two-entry source bank.
+    bank=(Bank*2)(Bank(144,168,21,442490,0,0),Bank(24,112,20,442491,0,0))
+    lib.v6_campaign_checkpoint_valid.argtypes=[C.POINTER(Checkpoint),C.POINTER(Bank),C.c_uint]
+    for px,py,g,identity in ((140,161,0,442490),(20,110,1,442491)):
+        for direction in (0,1):
+            checkpoint=Checkpoint(px,py,g,direction,111,106,identity)
+            assert lib.v6_campaign_checkpoint_valid(C.byref(checkpoint),bank,2)
+            for field in ('x','y','gravity','dir','id'):
+                bad=Checkpoint(*values(checkpoint));setattr(bad,field,getattr(bad,field)+2)
+                assert not lib.v6_campaign_checkpoint_valid(C.byref(bad),bank,2)
+            for name,n in (('v6_campaign_encode',44),('v6_campaign_state_encode',96)):
+                out=(C.c_uint8*n)(*([165]*n))
+                args=[out,n,C.byref(checkpoint),C.byref(r)]
+                if n==96:args.append(C.byref(e))
+                assert not getattr(lib,name)(*args)
+                assert bytes(out)==bytes([165]*n)
+    # Independent V3 vectors for both Shenanigan source checkpoint orientations.
+    for checkpoint in (Checkpoint(140,161,0,1,111,106,442490),Checkpoint(20,110,1,0,111,106,442491)):
+        m=Exploration.from_buffer_copy(bytes(e));m.rooms[131>>3]|=1<<(131&7)
+        decode(encode(checkpoint,r,y,m),tuple(bytes(x) for x in (checkpoint,r,y,m)))
     updated=encode(c,r,y,e)
     for bit in range(768):
         bad=bytearray(updated);bad[bit>>3]^=1<<(bit&7);decode(bad)
     for n in range(96):decode(updated[:n])
     decode(updated+b'x')
-    for offset,value in ((8,321),(12,241),(16,2),(20,2),(24,112),(28,106),(32,0xfffffffe),(36,64),(36,8),(36,32),(36,63)):
+    for offset,value in ((8,321),(12,241),(16,2),(20,2),(24,112),(28,107),(32,0xfffffffe),(36,64),(36,8),(36,32),(36,63)):
         bad=bytearray(updated);struct.pack_into('>I',bad,offset,value);struct.pack_into('>I',bad,92,zlib.crc32(bad[:92]));decode(bad)
     for offset in (0,4,6,7,90,91,40+(111>>3)):
         bad=bytearray(updated);bad[offset]^=1 if offset!=40+(111>>3) else 1<<(111&7)

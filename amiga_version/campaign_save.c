@@ -109,8 +109,8 @@ static int progress_valid(const V6CheckpointSave *c,const V6HallwayStory *red,
     const V6StationStory *yellow)
 {
     V6CheckpointSave bounded=*c;
-    /* V3 adds one bounded static room; retain all legacy coordinate/story guards. */
-    if(c->room_x==111 && c->room_y==105)bounded.room_y=104;
+    /* V3 station rooms retain all legacy coordinate/story guards. */
+    if(c->room_x==111 && (c->room_y==105 || c->room_y==106))bounded.room_y=104;
     return valid(&bounded,red) && !yellow->time_trial && !yellow->translator_exploring
         && (yellow->rescue_triggered==0 || yellow->rescue_triggered==1)
         && (yellow->yellow_rescued==0 || yellow->yellow_rescued==1)

@@ -6,13 +6,13 @@ int v6_platform_init(V6Platform *p, int x, int y, int behavior, int speed,
 }
 int v6_conveyor_init(V6Platform *p, int x, int y, int behavior, int speed, int width)
 {
-    V6Platform candidate;
     if ((behavior!=8 && behavior!=9) || (width!=32 && width!=64) ||
-        !v6_platform_init(&candidate,x,y,0,speed,-64,-64,384,304)) return 0;
-    /* Reinitialize after validation to avoid a freestanding memcpy helper. */
-    v6_platform_init(p,x,y,0,speed,-64,-64,384,304);
-    p->behavior=behavior; p->w=width;
-    p->vx=p->vy=0; p->state=1; p->onwall=0;
+        speed< -16 || speed>16 || x< -64 || x>384 || y< -64 || y>304) return 0;
+    /* Initialize directly: no moving-platform setup or freestanding memcpy. */
+    p->x=p->old_x=x;p->y=p->old_y=y;
+    p->behavior=behavior;p->speed=speed;p->w=width;p->h=8;
+    p->cx=p->cy=0;p->x1=p->y1=-64;p->x2=384;p->y2=304;
+    p->vx=p->vy=0;p->state=1;p->onwall=0;
     return 1;
 }
 void v6_platform_step(V6Platform *p, const V6Room *room, V6Block *blocks, unsigned count)
