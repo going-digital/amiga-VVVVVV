@@ -5021,3 +5021,34 @@ The retained native Prize pickup capture also passes: 4,320 compared fields,
 Next: connect the ordered actor banks and prove an input-only return through
 these rooms without replacing the Prize checkpoint. This export step does not
 prove that traversal; V Stitch's upper trigger also remains pending.
+
+### Prize west-route actor banks — 11 October 2026
+
+`prize_return.c` now composes A Deception's six conveyors and two bouncing
+enemies, and Down Under's four bounded vertical platforms. It retains creation
+order, source bounds and speeds, behaviour-10 normalization to a 64-wide
+behaviour-8 conveyor, and initially 32-wide blocks that expand on live update.
+The existing transport core performs player carrying, vertical pushing and
+post-physics platform overlap disabling. Enemy updates run in reverse creation
+order against the current platform blocks. Checkpoints remain the route
+controller's responsibility.
+
+Enemy contact returns a bit mask of bounding-box candidates. A Deception uses
+sprite frames starting at source tile 92; source death additionally requires
+pixel collision. The caller must supply the animation masks and run
+`v6_pixel_hit` before initiating death. This actor bank does not replace that
+check with rectangle damage or admit either room to the native campaign.
+
+`make -C amiga_version test-prize-return-actors` passes 15,360 platform/player
+timesteps against extracted desktop scheduling and physics in the two actual
+rooms, alternating cached/plain terrain. It also passes 4,096 enemy timesteps
+against extracted desktop movement and 36,864 strict collision edge checks.
+The tests cover initial/expanded/disabled conveyor blocks, platform bounds,
+pending movement and visual contact fields, plus invalid-room immutability.
+The candidate actor object compiles for 68000 with warnings treated as errors;
+its unresolved calls are existing port cores, with no compiler runtime helpers.
+
+Next: bind these actor phases into the campaign route, add source enemy
+animation and pixel masks, and prove the return traversal while retaining the
+Prize checkpoint. Native display/save admission and V Stitch's upper timed
+trigger remain pending.

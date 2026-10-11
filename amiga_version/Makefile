@@ -1095,3 +1095,11 @@ test-player-crop: tower-assets
 .PHONY: test-prize-return-data
 test-prize-return-data: tower-assets
 	python3 $(ROOT)/tools/amiga/test_prize_return_data.py
+
+$(BUILD)/prize_return.o: prize_return.c prize_return.h platform.h enemy.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+.PHONY: test-prize-return-actors
+test-prize-return-actors:
+	python3 $(ROOT)/tools/amiga/test_prize_return_actors.py
+test: test-prize-return-actors
