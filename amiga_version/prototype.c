@@ -132,6 +132,9 @@ static V6Block platform_blocks[PLATFORM_COUNT];
 static V6PlayerMotion platform_motion;
 static V6PlatformPush platform_push;
 static ULONG platform_ticks, platform_pushes;
+#ifdef V6_CONVEYOR_SCENE
+static UWORD conveyor_phase,conveyor_delay;
+#endif
 #ifdef V6_WAITING_REPLAY
 static V6Disappearing waiting_gate;
 static const int waiting_gate_x=176;
@@ -158,6 +161,9 @@ static void reset_platforms(void)
 {
     unsigned i;
     for(i=0;i<PLATFORM_COUNT;++i) {
+#ifdef V6_CONVEYOR_SCENE
+        v6_conveyor_init(&platforms[i],platform_setup[i][0],platform_setup[i][1],8+i,4,64);
+#else
         v6_platform_init(&platforms[i],platform_setup[i][0],platform_setup[i][1],
 #ifdef CHECKPOINT_COUNT
                          3,6,0,0,320,240);
@@ -168,6 +174,7 @@ static void reset_platforms(void)
 #else
                          0,3,100,70,320,160);
 #endif
+#endif /* V6_CONVEYOR_SCENE */
 #ifdef V6_WAITING_REPLAY
         /* Synthetic trigger is supplied separately; no disappearing actor is drawn. */
         v6_disappearing_init(&waiting_gate);
@@ -181,6 +188,9 @@ static void reset_platforms(void)
 #ifdef V6_DISAPPEAR_SCENE
     for(i=0;i<PLATFORM_COUNT;++i) v6_disappearing_init(&disappearing[i]);
     disappearing_count=PLATFORM_COUNT;disappearing_sound=0;
+#endif
+#ifdef V6_CONVEYOR_SCENE
+    conveyor_phase=conveyor_delay=0;
 #endif
     platform_motion=(V6PlayerMotion){0,slice.player.y};
     platform_push=(V6PlatformPush){slice.player.y,0,0};
@@ -242,6 +252,10 @@ static unsigned platform_movement(V6Player *p,const V6Room *r,unsigned input,
 #endif
 #endif
     v6_player_unstick(p,r);
+#ifdef V6_CONVEYOR_SCENE
+    if(!conveyor_delay) { conveyor_phase=(conveyor_phase+1)&3; conveyor_delay=3; }
+    --conveyor_delay;
+#endif
     ++platform_ticks;
     return events;
 }
@@ -814,6 +828,26 @@ static int run(void)
             checkpoint_dirty[buffer] = 0;
             if (slice.checkpoint_y < 16 || slice.checkpoint_y+16 > 216) hud_versions[buffer] = 0;
         }
+#ifdef V6_CONVEYOR_SCENE
+        {
+            unsigned n,row,plane;
+            /* Source advances walking frame immediately, then every three ticks.
+             * Animation runs in the reverse direction for behavior 8. */
+            unsigned phase=conveyor_phase;
+            for(n=0;n<PLATFORM_COUNT;++n) {
+                unsigned frame=n ? phase%4 : (4-phase%4)%4;
+                unsigned tile=tile_mapping[(n?28:68)+frame];
+                for(plane=0;plane<V6_PLANES;++plane)
+                    for(row=0;row<8;++row) {
+                        UBYTE bits=tile_planes[tile][plane*8+row];
+                        UBYTE *dest=background+plane*BACKGROUND_PLANE_BYTES+(platforms[n].y+row)*40+platforms[n].x/8;
+                        dest[0]=dest[1]=dest[2]=dest[3]=bits;
+                        dest[4]=dest[5]=dest[6]=dest[7]=bits;
+                    }
+                restore_rectangle(screen[buffer],platforms[n].x,platforms[n].y,64,8);
+            }
+        }
+#endif
         PROFILE_MARK(4);
         v6_sprites_begin(&sprites[back],sprites[back].dma);
         if (v6_sprites_add(&sprites[back],sprite_rows[slice.frame],
@@ -837,6 +871,9 @@ static int run(void)
         {
             unsigned n;
             for(n=0;n<PLATFORM_COUNT;++n) {
+#ifdef V6_CONVEYOR_SCENE
+                continue;
+#else
 #ifdef V6_DISAPPEAR_SCENE
                 if(disappearing[n].invisible) continue;
                 uint32_t rows[32];
@@ -854,6 +891,7 @@ static int run(void)
                         platforms[n].y,0,32,8,0xf6b)<V6_SPRITE_CLIPPED) {
                     diagnostics.error=4;break;
                 }
+#endif /* V6_CONVEYOR_SCENE */
             }
             if(diagnostics.error) break;
         }

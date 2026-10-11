@@ -9,9 +9,10 @@ int v6_conveyor_init(V6Platform *p, int x, int y, int behavior, int speed, int w
     V6Platform candidate;
     if ((behavior!=8 && behavior!=9) || (width!=32 && width!=64) ||
         !v6_platform_init(&candidate,x,y,0,speed,-64,-64,384,304)) return 0;
-    candidate.behavior=behavior; candidate.w=width;
-    candidate.vx=candidate.vy=0; candidate.state=1; candidate.onwall=0;
-    *p=candidate;
+    /* Reinitialize after validation to avoid a freestanding memcpy helper. */
+    v6_platform_init(p,x,y,0,speed,-64,-64,384,304);
+    p->behavior=behavior; p->w=width;
+    p->vx=p->vy=0; p->state=1; p->onwall=0;
     return 1;
 }
 void v6_platform_step(V6Platform *p, const V6Room *room, V6Block *blocks, unsigned count)

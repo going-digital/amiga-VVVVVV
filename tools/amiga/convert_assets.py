@@ -46,6 +46,7 @@ def build(data, out, scene="world", disappearing=False):
         records = [enemy_record(scene=scene)] if scene != 'world' else [prototype_record(coords=c) for c in SLICE_ROOMS]
         w, h, rgba = png('graphics/tiles.png' if scene != 'world' else 'graphics/tiles2.png')
         ids = sorted({tile for record in records for tile in struct.unpack('>1200H', record[1])})
+        if scene=='shenanigan':ids=sorted(set(ids)|set(range(28,32))|set(range(68,72)))
         tiles = []
         colors = Counter()
         for tile in ids:
@@ -147,6 +148,12 @@ def build(data, out, scene="world", disappearing=False):
         room_colors.append(max(candidates, key=lambda c: sum(c)))
     two_planes = [[sum((max(pixels[y*8+x]) >= 3) << (7-x) for x in range(8))
                    for y in range(8)] + [0]*8 for pixels in tiles]
+    if scene=='shenanigan':
+        # Preserve bright tread chevrons against the darker purple tile fill
+        # in the two-plane scene; the four-plane export retains both colours.
+        for i,tile in enumerate(ids):
+            if tile in (*range(28,32),*range(68,72)):
+                two_planes[i]=[sum((max(tiles[i][y*8+x])>=13) << (7-x) for x in range(8)) for y in range(8)]+[0]*8
     header += '#if V6_PLANES == 2\n'
     header += 'static const unsigned short palette[4] = {0,' + hex(sum(v << shift for v, shift in zip(room_colors[0], (8,4,0)))) + ',0x6f6,0xfff};\n'
     header += 'static const unsigned short room_colors[] = {' + ','.join(hex(r<<8|g<<4|b) for r,g,b in room_colors) + '};\n'
@@ -176,7 +183,7 @@ def build(data, out, scene="world", disappearing=False):
                   scene_palette_slots=13, checkpoint_palette_index=13, sprite_palette_index=14, text_palette_index=15,
                   font_bytes=1024, sound_bytes=len(sound), vanish_sound_bytes=len(vanish), sound_rate=target_rate,
                   disappearing_mask_bytes=len(disappearing_frames)*8,
-                  note=('What Lies Beneath? (116,110): checkpoint, three disappearing platforms, base tile 707.' if scene=='beneath' else 'Synthetic disappearing-platform fixture: compact tile masks from tile 2 onward, jump.wav and vanish.wav.' if disappearing else 'Just Pick Yourself Down (117,109): both checkpoints and horizontal platform, tile 159.' if scene=='pick' else 'Stop and Reflect (112,106): three platforms using repeated tile 616.' if scene == 'platform' else 'Traffic Jam (115,103): original tiles, three enemies, frames 28-31 and red-channel collision masks.' if scene == 'traffic' else 'Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
+                  note=('Shenanigan (111,106): two 64x8 conveyors, frames 68-71/28-31, two checkpoints.' if scene=='shenanigan' else 'What Lies Beneath? (116,110): checkpoint, three disappearing platforms, base tile 707.' if scene=='beneath' else 'Synthetic disappearing-platform fixture: compact tile masks from tile 2 onward, jump.wav and vanish.wav.' if disappearing else 'Just Pick Yourself Down (117,109): both checkpoints and horizontal platform, tile 159.' if scene=='pick' else 'Stop and Reflect (112,106): three platforms using repeated tile 616.' if scene == 'platform' else 'Traffic Jam (115,103): original tiles, three enemies, frames 28-31 and red-channel collision masks.' if scene == 'traffic' else 'Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
                         'Rooms (100,110) and (119,110), static tiles, player animation and checkpoints. No other room entities or scripts.'))
     (out / 'assets.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))
@@ -186,7 +193,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, default=DEFAULT_DATA)
     parser.add_argument('--out', type=Path, default=ROOT / 'build/amiga')
-    parser.add_argument('--scene', choices=('world','enemy','traffic','platform','pick','beneath'), default='world')
+    parser.add_argument('--scene', choices=('world','enemy','traffic','platform','pick','beneath','shenanigan'), default='world')
     parser.add_argument('--disappearing', action='store_true')
     args = parser.parse_args()
     build(args.data, args.out, args.scene, args.disappearing)

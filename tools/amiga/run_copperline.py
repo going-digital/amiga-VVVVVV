@@ -80,6 +80,7 @@ def main():
     parser.add_argument('--enemy', action='store_true')
     parser.add_argument('--traffic', action='store_true')
     parser.add_argument('--platform', action='store_true')
+    parser.add_argument('--shenanigan', action='store_true')
     parser.add_argument('--waiting', action='store_true')
     parser.add_argument('--horizontal', action='store_true')
     parser.add_argument('--crush', action='store_true')
@@ -115,7 +116,7 @@ write_protected = true
     if args.capture:
         env = dict(os.environ, RUST_LOG='info', COPPERLINE_DBG_AFTER='16.5',
                    COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{build / "slow.bin"}')
-        command += ([] if args.waiting or args.retrigger or args.beneath_route or args.beneath or args.platform or args.horizontal or args.crush or args.disappearing or args.pick or args.pick_checkpoints or args.pick_route else
+        command += ([] if args.shenanigan or args.waiting or args.retrigger or args.beneath_route or args.beneath or args.platform or args.horizontal or args.crush or args.disappearing or args.pick or args.pick_checkpoints or args.pick_route else
                     ['--joy-after','12','left','200'] if args.traffic else
                     ['--joy-after','12','right','300'] if args.enemy else
                     ['--joy-after','13','fire','100','--joy-after','15.5','right','300',
@@ -129,7 +130,13 @@ write_protected = true
         report = read_diagnostics(build / 'slow.bin')
         report['visible_player_pixels'] = visible_player(build, build / 'prototype.png')
         assert report['error'] == 0 and report['status'] == 1, report
-        if args.transitions:
+        if args.shenanigan:
+            assert report['max_sprite_channels']==1 and report['enemy_hits']>0, report
+            assert report['checkpoint']==1 and report['deaths']>=1 and report['respawns']>=1, report
+            assert report['exits']==0 and report['missed_frames']==0 and report['max_work_lines']<250, report
+            assert (report['enemy_x'],report['enemy_y'])==(16,104), report
+            report['scope']='Shenanigan idle conveyor carry, checkpoint respawn and native bitplane rendering; no route traversal or second-checkpoint activation asserted'
+        elif args.transitions:
             assert report['transitions'] >= 1 and report['room_index'] == 0, report
             assert 0 < report['max_load_lines'] < 250 and report['exits'] == 0, report
             assert report['load_frames'] == 0, report
@@ -266,13 +273,13 @@ write_protected = true
             report['visible_enemy_pixels']=visible_enemy(build,build/'prototype.png')
         else:
             assert report['flips'] == 1 and report['checkpoint'] == 1, report
-        if not args.waiting and not args.retrigger and not args.beneath_route and not args.beneath and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
+        if not args.shenanigan and not args.waiting and not args.retrigger and not args.beneath_route and not args.beneath and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
             assert report['deaths'] >= 1 and report['respawns'] >= 1, report
         # Snapshot can land between a tick and completion of its render.
         assert report['ticks'] > 100 and 0 <= report['ticks'] - report['renders'] <= 1, report
         report['video_headroom_passed'] = report['missed_frames'] == 0 and report['max_work_lines'] < 250
         report['max_work_ms'] = round(report['max_work_lines'] * 227 / 3546895 * 1000, 3)
-        if not args.waiting and not args.retrigger and not args.beneath_route and not args.beneath and not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
+        if not args.shenanigan and not args.waiting and not args.retrigger and not args.beneath_route and not args.beneath and not args.transitions and not args.enemy and not args.traffic and not args.platform and not args.horizontal and not args.crush and not args.disappearing and not args.pick and not args.pick_checkpoints and not args.pick_route:
             report['flip_audio_peak'] = audio_peak(build / 'prototype.wav')
             assert report['flip_audio_peak'] > 0.001, report
         report['max_load_ms'] = round(report['max_load_lines'] * 227 / 3546895 * 1000, 3)

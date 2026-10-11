@@ -31,7 +31,7 @@ $(BUILD)/prototype_assets.h: FORCE $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/convert_assets.py --data "$(DATA)" --out $(BUILD) --scene $(SCENE) $(if $(findstring V6_DISAPPEAR_REPLAY,$(CPPFLAGS)),--disappearing,)
 
 $(BUILD)/prototype.o: prototype.c $(ROOT)/tools/amiga/transition_replay.h $(BUILD)/prototype_room.h $(BUILD)/prototype_assets.h FORCE
-	$(CC) $(CPPFLAGS) $(if $(filter enemy traffic,$(SCENE)),-DV6_ENEMY_SCENE,) $(if $(filter platform pick beneath,$(SCENE)),-DV6_PLATFORM_SCENE,) $(if $(filter beneath,$(SCENE)),-DV6_DISAPPEAR_SCENE,) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -c $< -o $@
+	$(CC) $(CPPFLAGS) $(if $(filter enemy traffic,$(SCENE)),-DV6_ENEMY_SCENE,) $(if $(filter platform pick beneath shenanigan,$(SCENE)),-DV6_PLATFORM_SCENE,) $(if $(filter beneath,$(SCENE)),-DV6_DISAPPEAR_SCENE,) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -c $< -o $@
 
 $(BUILD)/room_codec.o: room_codec.c room_codec.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -958,3 +958,13 @@ tower-station-effects-capture: tower-station-effects
 	python3 $(ROOT)/tools/amiga/run_station_travel.py --build $(ROOT)/build/amiga-station-effects --live $(ROOT)/build/amiga-station-effects-live --effects
 	$(MAKE) BUILD=$(ROOT)/build/amiga-station-effects-rescue CPPFLAGS="$(STATION_EFFECT_FLAGS) -DV6_STATION_CAPTURE" $(ROOT)/build/amiga-station-effects-rescue/tower.adf
 	python3 $(ROOT)/tools/amiga/run_station_game.py --build $(ROOT)/build/amiga-station-effects-rescue --menu-effects
+
+.PHONY: shenanigan-run
+shenanigan-run:
+	$(MAKE) BUILD=$(ROOT)/build/amiga-shenanigan SCENE=shenanigan all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-shenanigan
+
+.PHONY: shenanigan-capture
+shenanigan-capture:
+	$(MAKE) BUILD=$(ROOT)/build/amiga-shenanigan SCENE=shenanigan all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-shenanigan --capture --shenanigan

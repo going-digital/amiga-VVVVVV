@@ -3106,3 +3106,28 @@ Shenanigan is not yet admitted to the live route. Next: export its room and
 conveyor animation, render both conveyors within the A500 sprite/bitplane
 budget, verify a native room scene, then add both checkpoints and V3 save/load
 admission to the connected route. Music remains parked.
+
+
+### Shenanigan native room scene — 11 October 2026
+
+Shenanigan (111,106) now has an isolated playable scene exported from its
+original tile table and all four source entities: two 64x8 conveyors with
+opposite speed-4 transport, plus floor and ceiling checkpoints. Conveyor
+frames 68–71 and 28–31 repeat eight times and advance in opposite directions
+every three active logic ticks. The two-plane export preserves bright tread
+chevrons; conveyor bands are drawn in bitplanes, leaving hardware sprites for
+the player. Byte writes support the second conveyor's odd byte alignment.
+The conveyor initializer also avoids an unavailable freestanding memcpy helper.
+
+`make -C amiga_version shenanigan-run` launches the scene.
+`make -C amiga_version shenanigan-capture` passes the PAL 68000 A500 smoke check
+with 512K Chip and 512K Slow: 169 logic ticks/renders, 56 transport ticks,
+checkpoint respawns, zero errors/missed frames, 188 PAL-line peak, 43,534 Chip
+bytes and one sprite channel. Both conveyors are visible in the reviewed
+capture and the exit restores the OS. Source carry comparisons still pass.
+This is an idle/respawn smoke check, not a source-equivalent complete room
+traversal or a verification of second-checkpoint activation.
+
+Next: connect Shenanigan below Frown, verify entry/return and both checkpoints,
+and admit their canonical identities to V3 campaign persistence. The isolated
+scene currently uses local checkpoint state; the campaign route is unchanged.
