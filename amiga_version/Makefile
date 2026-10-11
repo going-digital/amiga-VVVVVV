@@ -798,3 +798,11 @@ test: test-music-registers
 tower-coexist-audio-capture: tower-probe test-music-registers test-music-gain
 	$(MAKE) BUILD=$(ROOT)/build/amiga-coexist-audio CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_ENERGIZE -DV6_ENERGIZE_CAPTURE -DV6_TOWER_ARRIVAL -DV6_TOWER_ROUNDTRIP -DV6_TOWER_TRAVEL_AUDIO -DV6_TRAVEL_SFX_MASK=3 -DV6_TOWER_COEXIST_AUDIO" $(ROOT)/build/amiga-coexist-audio/tower.adf
 	python3 $(ROOT)/tools/amiga/run_energize.py --roundtrip --audio --reserved-audio --coexist-audio
+
+$(BUILD)/screen_shake.o: screen_shake.c screen_shake.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+-include $(BUILD)/screen_shake.d
+.PHONY: test-screen-shake
+test-screen-shake: $(BUILD)/screen_shake.o
+	python3 $(ROOT)/tools/amiga/test_screen_shake.py
+test: test-screen-shake

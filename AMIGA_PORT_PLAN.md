@@ -2,6 +2,12 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
+Current direction (11 October 2026): pause automatic music reconstruction while
+the user seeks original tracker files from Magnus Palsson. Preserve the editing
+assets and return to engine work. The screen-shake offset/clipping core now
+passes source differential and 68000 build checks; native rendering integration
+is the next engine increment. See "Screen-shake viewport core" below.
+
 Latest milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
 validation and a native DF1 save/fresh-boot fixture, including malformed-centre
@@ -3637,3 +3643,49 @@ Choose fresh output directories for new auditions; do not regenerate over manual
 edits. Next: compare the simpler waveform/level version against the original,
 continue manual musical corrections, then proceed with three/four-channel
 composite-sample and native replay work.
+
+
+## Screen-shake viewport core — 11 October 2026
+
+Music reconstruction is parked at the user's request after contacting Magnus
+Palsson for original tracker files. Existing MODs and manual edit copies remain
+available. Continue engine work with screen shake, which teleporter
+departure/arrival states already request and decay but the native renderer has
+not yet displaced.
+
+Added `screen_shake.c/.h`. `v6_screen_shake_pre` matches the actual
+`Graphics::updatescreenshake` calculation using two caller-owned uniform 16-bit
+samples representing fRandom() in [0,1). The integer expression truncates toward
+zero, preserving the asymmetric source range -4 through +2, including the -4
+endpoint at zero. A positive shake timer refreshes the offsets; inactive timers
+retain them. Sampling is separate from visible effect suppression, matching
+`renderfixedpre` sampling even when noflashing mode prevents drawing the shake.
+The caller still owns RNG progression and existing timer decay.
+
+`v6_screen_shake_plan` produces a clipped 320x240 source/destination rectangle
+and physical displacement. Inactive/noflashing plans cover the complete viewport
+without displacement. Flipped mode negates physical Y displacement, equivalent
+to translating before the desktop's final vertical texture flip. Invalid calls
+preserve output; reset restores zero offsets. This is a rendering plan, not a
+pixel copy: the native caller must explicitly produce black exposed edges,
+translate hardware sprites/text with the playfield, and keep the screenshot
+border fixed after translation.
+
+`make -C amiga_version test-screen-shake` compiles the core with the existing
+68000 toolchain and runs undefined-behaviour-sanitized host tests. The reference
+extracts `Graphics::updatescreenshake` from the desktop source, testing all
+65,536 values paired with complementary Y inputs plus 10,000 mixed pairs:
+75,536 matching calculations. Every -4..+2 X/Y combination, active/inactive,
+noflashing and flip choice drives a per-pixel unique-source-ID oracle: 30,105,600
+pixel checks verify clipping, simulated black exposed edges, and translation
+before final vertical flipping. Inactive retention, reset, NULL inputs and
+transactional invalid-state handling also pass.
+
+This increment adds no Chip allocation and does not change the native frame
+loop or claim visible native screen shake. It is the source-matched foundation
+for that integration. The new target is included in `make test`. Next: connect
+sampling to the teleporter fixed/render phases, move the complete scene in the
+native renderer, preserve black edges through simultaneous flashes, then verify
+captured offsets and CPU/video headroom on the A500. Final teleporter arrival
+saving/fresh-boot validation and enabling Energize in the playable menu remain
+subsequent engine work; soundtrack asset conversion stays parked.
