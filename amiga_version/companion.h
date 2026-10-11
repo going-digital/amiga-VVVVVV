@@ -2,8 +2,8 @@
 #define V6_COMPANION_H
 #include "player.h"
 #include "animation.h"
-/* Vermilion only: source AI 10 and AI 1 subset in the two resident hallways.
- * The special AI 1 restraint in room 110,105 is outside this route. No tower
+/* Source AI 10/1 following in bounded static rooms; yellow has the AI 1
+ * leftward acceleration restraint in Energize (110,105). No tower
  * companion, harm, gravity-line interaction or other crew AI is synthesized. */
 typedef struct {
     V6Player body;
@@ -21,4 +21,8 @@ void v6_companion_step(V6Companion *,const V6Player *,const V6Room *,int death);
 /* Source type-16 idle spawn and Map companion 7 roof entry. */
 void v6_station_companion_idle(V6Companion *,int visible);
 void v6_station_companion_enter(V6Companion *,int companion,int room_x,int room_y,const V6Player *);
+/* Station entry uses AI 1; only Energize applies its x<155 restraint.
+ * This suppresses acceleration, preserving source inertia and direction. */
+void v6_station_companion_step(V6Companion *,const V6Player *,const V6Room *,
+    int death,int room_x,int room_y);
 #endif

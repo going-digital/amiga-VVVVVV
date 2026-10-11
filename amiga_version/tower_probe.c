@@ -1,6 +1,9 @@
 #if defined(V6_STATION_SAVE) && !defined(V6_TOWER_STATION)
 #error Station save requires the station room slice
 #endif
+#if defined(V6_STATION_COMPANION_CAPTURE) && (!defined(V6_STATION_CAPTURE) || !defined(V6_TOWER_STATION) || defined(V6_STATION_SAVE))
+#error Companion capture requires the isolated station capture without saves
+#endif
 #ifdef V6_TOWER_STATION
 #if !defined(V6_TOWER_BUILDING) || !defined(V6_TOWER_ENERGIZE) || !defined(V6_TOWER_RESCUE) || !defined(V6_TOWER_TRIGGER_REPLAY) || defined(V6_TOWER_UI_SAVE)
 #error Station slice requires room/rescue cores and its separate save path
@@ -1184,9 +1187,9 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #else
             0xf44
 #endif
-            )<0) return 0;
+            )<V6_SPRITE_CLIPPED) return 0;
 #else
-            264,185,6,0xf44)<0) return 0;
+            264,185,6,0xf44)<V6_SPRITE_CLIPPED) return 0;
 #endif
 #endif
     if(player_sprites[index].count>world_diag.values[12]) world_diag.values[12]=player_sprites[index].count;
@@ -1551,6 +1554,12 @@ static int run(void) {
     station_save_diag.values[10]=station_story.rescue_triggered;station_save_diag.values[11]=station_story.yellow_rescued;
     station_save_diag.values[12]=station_story.companion;
 #endif
+#ifdef V6_STATION_COMPANION_CAPTURE
+    station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
+    rescue_vm.following=1;rescue_vm.mood=0;
+    if(!v6_tower_route_load(&route,110,105,0))return 20;
+    v6_player_init(&session.player,64,86,1);
+#endif
     v6_station_trigger_init(&station_trigger);
 #endif
     v6_hallway_trigger_init(&hallway_trigger);
@@ -1572,8 +1581,8 @@ static int run(void) {
     else
 #endif
 #ifdef V6_TOWER_STATION
-#ifdef V6_STATION_SAVE
-    if(station_story.companion==7)v6_station_companion_enter(&companion,7,111,105,&session.player);
+#if defined(V6_STATION_SAVE) || defined(V6_STATION_COMPANION_CAPTURE)
+    if(station_story.companion==7)v6_station_companion_enter(&companion,7,route.rooms[route.index].x,route.rooms[route.index].y,&session.player);
     else
 #endif
     v6_station_companion_idle(&companion,trigger_crew_visible);
@@ -1771,7 +1780,7 @@ static int run(void) {
 #endif
 
 #ifdef V6_TOWER_STATION
-           frown_display,
+           route.index==6?frown_display:energize_display,
 #elif defined(V6_TOWER_ROUNDTRIP)
            building_display,
 #elif defined(V6_ENERGIZE_CAPTURE)
@@ -1788,7 +1797,7 @@ static int run(void) {
 #endif
 
 #ifdef V6_TOWER_STATION
-           sizeof(frown_display)) ||
+           route.index==6?sizeof(frown_display):sizeof(energize_display)) ||
 #elif defined(V6_TOWER_ROUNDTRIP)
            sizeof(building_display)) ||
 #elif defined(V6_ENERGIZE_CAPTURE)
@@ -1798,7 +1807,7 @@ static int run(void) {
 #endif
 #endif
 #ifdef V6_TOWER_STATION
-       !v6_tower_pairs_validate(&stream,frown_pair_offsets,FROWN_PAIR_WORDS,FROWN_TILE_COUNT,2) ||
+       !v6_tower_pairs_validate(&stream,FG_OFFSETS,FG_WORDS,FG_COUNT,2) ||
 #endif
        !prepare(rings[0],lists[0],0,camera,0)) {
         FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
@@ -2213,7 +2222,11 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_RESCUE
                 V6RescueSignals rescue_signals;
+#ifdef V6_TOWER_STATION
+                v6_station_companion_step(&companion,&session.player,&route.room,session.death_timer,route.rooms[route.index].x,route.rooms[route.index].y);
+#else
                 v6_companion_step(&companion,&session.player,&route.room,session.death_timer);
+#endif
                 rescue_animate();
                 rescue_signals.bars_ready=rescue_vm.bars?rescue_bars>=360:rescue_bars==0;
                 rescue_signals.fade_ready=rescue_vm.fade>0?rescue_fade>416:rescue_fade==0;

@@ -31,7 +31,7 @@ static void animate(const V6Player *p,void *context)
     c->frame=v6_collision_frame(&c->animation,p,p->ground,p->roof,-1);
     if(c->mood)c->frame+=144;
 }
-void v6_companion_step(V6Companion *c,const V6Player *p,const V6Room *room,int death)
+static void step(V6Companion *c,const V6Player *p,const V6Room *room,int death,int restrained,int station)
 {
     if(!c->visible) return;
     c->motion.ax=0;
@@ -42,9 +42,10 @@ void v6_companion_step(V6Companion *c,const V6Player *p,const V6Room *room,int d
         if(p->x>c->body.x+45)c->motion.ax=3*V6_ONE;
         else if(p->x<c->body.x-45)c->motion.ax=-3*V6_ONE;
     }
+    if(restrained && c->body.x<155 && c->motion.ax<0)c->motion.ax=0;
     /* Collision animation observes pre-integration velocity, as in Logic.cpp. */
     v6_player_physics(&c->body,room,&c->motion,animate,c);
-    if(death>-1)c->frame=c->body.dir?12:13;
+    if(death>-1)c->frame=(c->body.dir?12:13)+(station?2:0);
     ++c->steps;
 }
 
@@ -63,3 +64,9 @@ void v6_station_companion_enter(V6Companion *c,int companion,int x,int y,const V
         c->body.gravity=1;c->frame=6;
     }
 }
+
+void v6_companion_step(V6Companion *c,const V6Player *p,const V6Room *room,int death)
+{ step(c,p,room,death,0,0); }
+void v6_station_companion_step(V6Companion *c,const V6Player *p,const V6Room *room,
+    int death,int room_x,int room_y)
+{ step(c,p,room,death,room_x==110 && room_y==105,1); }

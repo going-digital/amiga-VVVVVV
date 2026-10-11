@@ -2916,3 +2916,40 @@ also passes.
 Next: implement the source companion restraint when returning to Energize,
 then connect the progress format and yellow state to the main menu/route and
 expand the station rooms. Music reconstruction remains parked.
+
+## Energize yellow companion restraint — 11 October 2026
+
+The station companion step now applies source AI 1's Energize-only rule:
+when the crew's x is strictly below 155, negative follow acceleration is
+suppressed. Direction, inherited velocity and friction remain unchanged, so
+this is not a positional clamp. Frown retains unrestricted source following.
+Yellow death frames now use the rule-7 upside-down variants; red's step and
+public structure ABI remain unchanged.
+
+`test-station-companion` compares 14,400 AI/rule-7 movement ticks against
+extracted original Entity.cpp methods on Frown and Energize. It covers initial
+x=154/155/156, signed inherited velocities, follow thresholds, stationary cases,
+death frames and identical cached/uncached terrain results. Ninety compiled
+original Map::spawncompanion case-7 entries verify the roof spawn, room-y bound,
+Energize's x=320 spawn and inherited direction/velocity. Ordinary animation
+frame parity outside death is not asserted by this physics test.
+
+The native return-path fixture also exposed a clipped-sprite admission error.
+An offscreen crew at the source x=320 spawn now consumes no sprite channel and
+is skipped until visible; invalid requests and exhausted channels still fail.
+Initial station display selection and validation now use the current Frown or
+Energize bank, allowing the Energize companion fixture to start correctly.
+
+`make -C amiga_version tower-station-companion-capture` compares 640 native
+movement fields with the original yellow AI/physics. The crew coasts through
+155 and settles at x=138 while the player waits at x=64. The 1,000-tick capture
+reports zero errors and missed frames. Peak work is 268 PAL lines: within the
+312-line field, but above the plan's 250-line headroom target. That Energize
+performance margin remains unresolved; the report records it explicitly.
+Existing red companion comparisons, normal/skip yellow gameplay and waveform
+captures, and native save/fresh-boot/rejection checks also pass. The playable
+station and save-enabled live disks are rebuilt with these changes.
+
+Next: connect V3 progress/yellow state to the main menu and route, improve the
+Energize frame headroom, and expand station rooms. Music reconstruction remains
+parked.

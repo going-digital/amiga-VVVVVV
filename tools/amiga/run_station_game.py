@@ -34,6 +34,7 @@ def verify(data,skip):
     v=VM();v.control=v.mood=1;story=Story();trigger=Trigger();crew=Companion()
     core.v6_companion_init(C.byref(crew));core.v6_station_companion_idle.argtypes=[C.POINTER(Companion),C.c_int]
     core.v6_station_companion_idle(C.byref(crew),1)
+    core.v6_station_companion_step.argtypes=[C.POINTER(Companion),C.POINTER(type(s.player)),C.POINTER(type(r.room)),C.c_int,C.c_int,C.c_int]
     vm=C.CDLL(str(ROOT/'build/amiga-station-rescue/core.so'));vm.program.restype=C.POINTER(Program)
     vm.v6_rescue_start.argtypes=[C.POINTER(VM),C.POINTER(Program),C.POINTER(Program),C.c_int]
     vm.v6_station_rescue_tick.argtypes=[C.POINTER(VM),C.POINTER(Story),C.POINTER(Signals)]
@@ -50,7 +51,7 @@ def verify(data,skip):
     final=None
     for tick in range(1000):
         buttons=(4 if v.waiting and tick%30==0 else 0) if story.rescue_triggered else 1
-        core.v6_companion_step(C.byref(crew),C.byref(s.player),C.byref(r.room),s.death_timer)
+        core.v6_station_companion_step(C.byref(crew),C.byref(s.player),C.byref(r.room),s.death_timer,111,105)
         bars=min(361,bars+25) if v.bars else max(0,bars-25)
         if v.fade!=mode:mode=v.fade;fade=416 if mode<0 else 0
         elif mode>0:fade=min(432,fade+24)

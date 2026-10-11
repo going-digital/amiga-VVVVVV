@@ -896,7 +896,7 @@ test: test-station-rescue
 
 STATION_FLAGS = -DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_BUILDING -DV6_TOWER_ENERGIZE -DV6_TOWER_TRIGGER_REPLAY -DV6_TOWER_RESCUE -DV6_TOWER_STATION -DV6_TOWER_AUDIO
 .PHONY: tower-station tower-station-run
-tower-station: tower-probe test-station-rescue test-station-trigger test-station-route test-station-graphics
+tower-station: tower-probe test-station-rescue test-station-trigger test-station-route test-station-graphics test-station-companion
 	$(MAKE) BUILD=$(ROOT)/build/amiga-station-live CPPFLAGS="$(STATION_FLAGS)" $(ROOT)/build/amiga-station-live/tower.adf
 tower-station-run: tower-station
 	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-station-live --interactive
@@ -923,3 +923,11 @@ tower-station-save-run: tower-station-save
 tower-station-save-capture: tower-station-save
 	$(MAKE) BUILD=$(ROOT)/build/amiga-station-save CPPFLAGS="$(STATION_FLAGS) -DV6_STATION_SAVE -DV6_STATION_CAPTURE" $(ROOT)/build/amiga-station-save/tower.adf
 	python3 $(ROOT)/tools/amiga/run_station_save.py --build $(ROOT)/build/amiga-station-save
+
+.PHONY: test-station-companion tower-station-companion-capture
+test-station-companion: $(BUILD)/companion.o
+	python3 $(ROOT)/tools/amiga/test_station_companion.py
+test: test-station-companion
+tower-station-companion-capture: tower-station
+	$(MAKE) BUILD=$(ROOT)/build/amiga-station-companion CPPFLAGS="$(STATION_FLAGS) -DV6_STATION_CAPTURE -DV6_STATION_COMPANION_CAPTURE" $(ROOT)/build/amiga-station-companion/tower.adf
+	python3 $(ROOT)/tools/amiga/run_station_companion.py
