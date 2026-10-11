@@ -30,7 +30,7 @@ def describe_module(data):
         if i<15 and (words*2!=CYCLES[i%5] or start!=0 or loop!=words or fine!=1):
             raise ValueError('pitched sample bank differs from the verified sketch format')
         if words:
-            entry=dict(number=i+1,hex=f'{i+1:02X}',name=data[at:at+22].rstrip(b'\0').decode('ascii'),bytes=words*2,finetune=fine if fine<8 else fine-16,loop_bytes=loop*2)
+            entry=dict(number=i+1,hex=f'{i+1:02X}',name=data[at:at+22].rstrip(b'\0').decode('ascii'),bytes=words*2,volume=volume,finetune=fine if fine<8 else fine-16,loop_bytes=loop*2)
             if i<15:
                 cycle=CYCLES[i%5];midi=round(69+12*math.log2(3546895/(428*cycle)/440))
                 entry.update(role=ROLES[i//5],cycle=cycle,reference_period=428,reference_pitch=f'C{midi//12-1}',reference_midi=midi)
@@ -124,7 +124,7 @@ def main():
         global_row=round(time/row_seconds);order,row=divmod(global_row,64)
         markers.append(dict(source_seconds=time,order=order,pattern=info['orders'][order],row=row,row_hex=f'{row:02X}',tracker_seconds=global_row*row_seconds))
     manifest=dict(version=1,title='Positive Force - first 24 seconds',baseline_module_sha256=sha(data),initial_editable_module_sha256=sha(editable),source_sha256=arr['source_sha256'],notes_sha256=sha(notes_bytes),
-        accepted_for_manual_edit=True,reduction_readiness=reduction_readiness(editable,report['rows']),channels=8,editing_bpm=92,replay_bpm=184,replay_speed=6,row_seconds=row_seconds,instruments=info['samples'],reported_gap_markers=markers,
+        accepted_for_manual_edit=True,waveform_profile=arr.get('waveform_profile','sketch'),fixed_volume=arr.get('fixed_volume'),reduction_readiness=reduction_readiness(editable,report['rows']),channels=8,editing_bpm=92,replay_bpm=184,replay_speed=6,row_seconds=row_seconds,instruments=info['samples'],reported_gap_markers=markers,
         known_delayed_events=[e for e in events if e['status']=='delayed'],existing_vibrato_events=[e for e in events if e['vibrato'] is not None],
         edit_policy='Editable MOD becomes authoritative after manual changes. Original JSON is recognition history, not synchronized with tracker edits. Initial hashes describe the handoff, not later edits.',
         scope='24-second editing prototype; not the complete track or native four-channel shipping asset')
@@ -142,6 +142,7 @@ def main():
         'preview.wav is the exact baseline replay; reference.wav is the original excerpt.',
         '', 'KEEP THE REPLAY CLOCK: BPM 184, speed 6. Each row is 81.522 ms.',
         '92 is the analysis grid, not the tempo to enter in the tracker.',
+        f"Waveform profile: {arr.get('waveform_profile','sketch')}; fixed base volume: {arr.get('fixed_volume','not set')}.",
         'The source bar is approximately 1.714 s; pattern boundaries are editing blocks,',
         'not source bars. Preserve the initial F06 / FB8 commands and final B00 loop.',
         '', 'INSTRUMENTS (numbers shown in decimal / hex):',
@@ -149,7 +150,7 @@ def main():
         'Tracker octave labels vary. These are five tuning lengths per timbre, not',
         'five different instruments. Sample finetune remains +1 for pitched waves.']
     for sample in info['samples']:
-        guide.append(f"{sample['number']:2d} / {sample['hex']}: {sample['name']}"+(' - '+sample['role'] if sample['role']=='percussion' else f" - {sample['cycle']} samples/cycle"))
+        guide.append(f"{sample['number']:2d} / {sample['hex']}: {sample['name']}"+(' - '+sample['role'] if sample['role']=='percussion' else f" - {sample['cycle']} samples/cycle, volume {sample['volume']}"))
     guide+=['','CHANNELS: 1-7 pitched notes; 8 drums. Held notes keep their lanes.',
         'Channels can carry different roles as voices spill. They are not fixed parts.',
         'Cxx sets volume; C00 releases. 4xy is calibrated vibrato at two events.',

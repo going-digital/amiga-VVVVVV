@@ -74,6 +74,20 @@ def main():
         onset=int(np.where(np.max(np.abs(samples),axis=1)>3)[0][0])
         assert abs(onset-clocks[1])<=1,(onset,clocks)
 
+        # Reusing an instrument after C00 must restore its fixed header volume,
+        # irrespective of recognition confidence; no attack Cxx is needed.
+        for role in ('bass','lead','harmony'):
+            fixed,_=working_module([[.08,.3,64,.2],[.5,.72,64,.9]],92,.9,
+                roles=[role,role],waveform_profile='pulse-triangle',fixed_volume=32)
+            path=root/('fixed-'+role);path.with_suffix('.mod').write_bytes(fixed)
+            render(args.library,path.with_suffix('.mod'),path.with_suffix('.wav'),2)
+            with wave.open(str(path.with_suffix('.wav'))) as wav:
+                x=np.frombuffer(wav.readframes(wav.getnframes()),dtype='<i2').reshape(-1,2)/32768
+            levels=[float(np.sqrt(np.mean(x[round(a*48000):round(b*48000)]**2)))
+                    for a,b in ((.16,.24),(.57,.65))]
+            assert min(levels)>.005 and abs(levels[0]/levels[1]-1)<.02,(role,levels)
+            assert np.max(np.abs(x[round(.4*48000):round(.44*48000)]))<=2/32768
+
         # Corrupt eight-channel storage must be rejected by independent loader.
         (root/'broken.mod').write_bytes(module[:1084])
         try:
@@ -82,7 +96,7 @@ def main():
             pass
         else:
             raise AssertionError('libxmp accepted a truncated pattern stream')
-        print(json.dumps(dict(pitch_checks=results, silence=True, corrupt_rejected=True, note_delay=True), indent=2))
+        print(json.dumps(dict(pitch_checks=results, silence=True, corrupt_rejected=True, note_delay=True, fixed_levels=True), indent=2))
 
 
 if __name__ == '__main__':

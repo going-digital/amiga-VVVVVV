@@ -92,7 +92,7 @@ def module(notes, bpm, duration, reduced=False):
     return result, report
 
 
-def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=None, role_levels=None, vibrato=None, tick_multiplier=1):
+def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=None, role_levels=None, vibrato=None, tick_multiplier=1, waveform_profile="sketch", fixed_volume=None):
     """Eight-channel editing master: retain held notes on their assigned lane.
 
     Held events keep their lanes. Optional roles select distinct timbres and
@@ -104,6 +104,10 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
         raise ValueError('BPM must be 32..255; duration must be 0..120 seconds')
     if tick_multiplier not in (1,2) or bpm*tick_multiplier>255:
         raise ValueError('invalid replay tick multiplier/tempo')
+    if waveform_profile not in ('sketch','pulse-triangle'):
+        raise ValueError('invalid waveform profile')
+    if fixed_volume is not None and (not isinstance(fixed_volume,int) or not 0<=fixed_volume<=48):
+        raise ValueError('fixed pitched volume must be an integer from 0 to 48')
     step = 7.5 / bpm
     rows = math.ceil(duration / step)
     patterns = math.ceil(rows / 64)
@@ -188,8 +192,8 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
             at = row*32 + ch*4
             sample = j+1+(role_bank[roles[i]] if arranged else 0)
             gain = role_levels[roles[i]] if arranged else 1
-            data[at:at+4] = cell(sample, period, 12,
-                                max(0 if arranged else 8, min(48, round(n[3]*48*gain))))
+            data[at:at+4] = (cell(sample,period) if fixed_volume is not None else
+                            cell(sample, period, 12, max(0 if arranged else 8, min(48, round(n[3]*48*gain)))))
             lanes[ch] = i
             starts += 1
             started.add(i)
@@ -243,13 +247,16 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
             for point in range(cycle):
                 phase = 2*math.pi*point/cycle
                 if role == 'bass':
-                    value = math.sin(phase)+.25*math.sin(2*phase)
+                    value = (2/math.pi*math.asin(math.sin(phase)) if waveform_profile=='pulse-triangle'
+                             else math.sin(phase)+.25*math.sin(2*phase))
                 elif role == 'lead':
                     # Bright pulse-like wave, softened to seven harmonics.
                     value = sum(math.sin(k*math.pi/4)/k * math.cos(k*phase)
                                 for k in range(1,min(8,cycle//2)))
                 elif role == 'harmony':
-                    value = math.sin(phase)+.2*math.sin(3*phase)+.1*math.sin(5*phase)
+                    value = (sum(math.sin(k*phase)/k for k in range(1,min(8,cycle//2),2))
+                             if waveform_profile=='pulse-triangle' else
+                             math.sin(phase)+.2*math.sin(3*phase)+.1*math.sin(5*phase))
                 else:
                     value = 2/math.pi*math.asin(math.sin(phase))
                 values.append(value)
@@ -258,7 +265,8 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
             samples.append(wave)
             at = 20+(bank*5+j)*30
             header[at:at+22] = (role+' '+str(cycle)).encode().ljust(22, b'\0')
-            default_volume = min(48, round(40*role_levels[role])) if arranged else 40
+            base_volume = fixed_volume if fixed_volume is not None else 40
+            default_volume = min(48, round(base_volume*role_levels[role])) if arranged else base_volume
             struct.pack_into('>HBBHH', header, at+22, cycle//2, 1, default_volume, 0, cycle//2)
     for i, drum in enumerate(percussion['samples']):
         wave = bytes(drum['pcm'])
@@ -287,6 +295,7 @@ def working_module(notes, bpm, duration, quantize=True, roles=None, percussion=N
                         sample_bytes=sum(len(wave) for wave in samples), file_bytes=len(result),
                         role_arrangement=arranged, role_spills=role_spills,
                         role_levels=role_levels if arranged else None,
+                        waveform_profile=waveform_profile, fixed_volume=fixed_volume,
                         percussion_hits=len(drum_rows), percussion_tick_timing=tick_timing,
                         percussion_row_collisions=drum_collisions,
                         percussion_boundary_skips=drum_boundary_skips,

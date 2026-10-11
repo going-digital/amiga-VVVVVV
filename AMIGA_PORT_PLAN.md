@@ -3549,3 +3549,91 @@ Positive Force and other soundtrack tracks are not yet transcribed. Next:
 work from the manually corrected master for three/four-channel comparisons,
 selectively bake simultaneous parts where appropriate, then measure Chip bank
 size, mono/hard-panned balance, SFX policy and native replay alongside gameplay.
+
+
+### Source waveform correction and reduced adjustment export
+
+The user identifies bass as triangle, lead as 25% pulse and harmony as 50%
+pulse/square, and reports excessive repeated notes with volume adjustments.
+The full original reference is
+`build/amiga-transcription/positive-force-source.ogg` (168.001 s, stereo 44.1 kHz);
+`positive-force-excerpt.wav` is the mono first-24-second reference used for the
+editing MOD. These files remain private/ignored.
+
+The initial sketch bass was sine plus a weak second harmonic, and harmony was
+fundamental plus weak third/fifth harmonics. The lead was already a softened
+25% pulse approximation. `working_module` now has an opt-in `pulse-triangle`
+profile: triangle bass, existing seven-harmonic quarter-pulse lead, and a
+seven-harmonic band-limited 50% pulse harmony. The default sketch remains
+byte-identical to the accepted 409-event baseline; both original manual-edit
+copies and any subsequent user edits remain untouched.
+
+Recognition confidence had been incorrectly used as an onset volume estimate.
+That score is not measured source loudness. New opt-in fixed-volume export uses
+base volume 32 with existing role gains: bass 32, lead 38, harmony 16. Instrument
+headers carry these levels; pitched attacks need no Cxx adjustment because an
+explicit instrument restores its header volume after a prior C00 cut. Required
+C00 releases, two existing vibrato annotations and delayed percussion commands
+remain. `arrange_tracker.py` passes the profile and fixed level consistently to
+the full mix and all stems. Drum PCM, headers/placements and level policy remain
+unchanged. This constant-level prototype does not claim to recover real source
+dynamics; intentional dynamics can be restored manually.
+
+`simplify_tracker_notes.py` forms a separate audition from the accepted score.
+It considers adjacent same-pitch/same-role fragments with at most 25 ms source
+gaps, protecting any calibrated vibrato note. Source/model evidence at the
+following boundary must have onset probability <0.65 and rises <1.5 at all of
+the fundamental, second and third harmonic. Stronger repeated attacks remain.
+A merge is also rejected if it would fill any additional tracker row. Chains
+join with original pitch/initial confidence and extend the retained note's end;
+no occupied pitch/role rows disappear or get added. The original arrangement
+history is preserved byte-for-byte in a separate sidecar, while retained role,
+effect and active vibrato calibration indices are updated for the simplified
+score. The tool refuses an existing output directory.
+
+For this excerpt, 36 weak same-pitch boundaries merge, reducing 409 events to
+373. Of 182 reviewed boundaries, 146 stronger attack cases remain. The full
+quantized pitch/role coverage multiset is exactly identical to the input.
+Every one of the 373 retained events starts; the sole original late attack near
+22.28 s persists (now event 23). Existing eight vibrato rows and all 71 drums
+remain; no new voice overload or percussion collision occurs.
+
+Positive pitched Cxx commands fall from 409 to zero. There are still 157 C00
+release commands (previously 153), because channel allocation and note cuts
+remain necessary; these are not confidence-driven volume automation. New MOD
+SHA-256 `acb994e664703ccd5e569fb9bd1fac16f31b3bdfab21d3170c1b489167c99e08`,
+21,314 bytes with 9,990 sample bytes. Independent libxmp playback reaches the
+first loop in 24.2 s, peak 0.62061 with no clipping. The edited palette and fewer
+attacks need audition and are not claimed to resolve every recognition error.
+
+Private assets are under `build/amiga-transcription/simplified-waveforms/`.
+A new protected manual handoff is `build/amiga-transcription/manual-edit-v2/`,
+including `positive-force-edit.mod`, baseline/reference/preview, guide and
+373-event decoded map. Display-only renamed MOD SHA-256 is
+`5186d433b4891465d581309f62bc923ec5627c16b46e19dcf31895b809bc6dce`;
+its independently rendered preview matches the simplified baseline exactly.
+Version 1 remains available unchanged. This is still only the first 24 seconds,
+not the full 168-second track or a native four-channel asset.
+
+Tests cover weak fragment chains, protection of attacks/roles/vibrato, refusal
+to fill a rounded-row gap, triangle/pulse/square harmonic signatures, fixed
+header levels and absence of volume commands on attacks. Independent replay
+checks all three timbres restore equal levels after a C00 cut despite differing
+recognition confidences, and confirms silence between notes. Existing pitch,
+EDx timing, malformed-module, tracker/handoff and allocation checks pass.
+Metadata/effect reindexing, quantized coverage and unchanged default export
+bytes are verified. Licensed source/derived assets remain uncommitted.
+
+```sh
+python3 tools/amiga/test_tracker_simplification.py
+build/amiga-transcription-env/bin/python tools/amiga/test_tracker_render.py --library build/amiga-libxmp/build/libxmp.dylib
+build/amiga-transcription-env/bin/python tools/amiga/simplify_tracker_notes.py build/amiga-transcription/positive-force-excerpt.wav --baseline build/amiga-transcription/lead-role-audition --candidate-dir build/amiga-transcription/lower-frame-recheck --out build/amiga-transcription/simplified-waveforms
+build/amiga-transcription-env/bin/python tools/amiga/arrange_tracker.py build/amiga-transcription/positive-force-excerpt.wav --notes build/amiga-transcription/simplified-waveforms/notes.json --arrangement build/amiga-transcription/simplified-waveforms/arrangement.json --out build/amiga-transcription/simplified-waveforms
+python3 tools/amiga/render_tracker.py build/amiga-transcription/simplified-waveforms/arranged-eight.mod --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/simplified-waveforms/arranged-eight.wav
+python3 tools/amiga/prepare_tracker_edit.py --baseline build/amiga-transcription/simplified-waveforms --reference build/amiga-transcription/positive-force-excerpt.wav --library build/amiga-libxmp/build/libxmp.dylib --out build/amiga-transcription/manual-edit-v2
+```
+
+Choose fresh output directories for new auditions; do not regenerate over manual
+edits. Next: compare the simpler waveform/level version against the original,
+continue manual musical corrections, then proceed with three/four-channel
+composite-sample and native replay work.
