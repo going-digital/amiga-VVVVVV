@@ -4891,3 +4891,38 @@ existing Shenanigan-to-Prize route enters the left shaft and does not establish
 the Prize checkpoint before its intentional death. The Frown approach and
 right-side checkpoint entry need further route coverage; the relocation fix
 does not itself prove that complete path. Music reconstruction remains parked.
+
+### Input-only V Stitch to Prize checkpoint — 11 October 2026
+
+The right-hand Prize checkpoint approach now passes in a dedicated native
+capture. V Stitch's literal lower checkpoint starts the player at (276,185),
+normal gravity, saved ID 443500 in room (112,107). A shared fixed sequence of
+left/right/fire inputs makes eight flips through the alternating lower spike
+passage, crosses west into Prize at tick 173, and activates checkpoint 443490
+at tick 195. A ceiling-spike death at tick 224 relocates the waiting platform
+to x=152; tick 254 respawns at (236,134), inverted, in Prize. No player,
+platform, death or checkpoint state is assigned after the canonical start.
+
+`make -C amiga_version tower-prize-checkpoint-capture` builds
+`build/amiga-prize-checkpoint/tower.adf` and captures the trace, final PNG and
+JSON report. All 7,248 fields across 302 ticks match the host integration
+oracle under undefined-behaviour sanitization. This oracle shares the port's
+cores; it is not an independent desktop-loop equivalence test. Source export
+checks pin both checkpoint declarations, room coordinates and the upper
+introductory trigger. The paired renderer passes 79,360 ring-pixel comparisons
+against the private source PNG: 20 source tile IDs and 22 pairs.
+
+Native peak work is 255 PAL lines, with zero errors or missed frames and
+296,150 Chip bytes. The ELF has no unresolved runtime symbols. Boot and save
+disks are unchanged. The earlier Shenanigan input capture still matches all
+5,376 fields, requests its three collapse cues and peaks at 279 lines.
+
+Scope remains deliberately bounded: V Stitch is resident only under
+`V6_VSTITCH_INPUT_CAPTURE`, which requires the Prize input fixture. Its upper
+(0,0,112,112) intro trigger is not implemented; the trace confirms that the
+player stays below it throughout V Stitch. This does not admit V Stitch into
+the regular campaign or extend its disk-save schema. No trinket is collected
+in this capture. Next: extend input-only traversal from the established Prize
+checkpoint through the disappearing-platform puzzle to trinket collection,
+then cover the upper V Stitch script before general room admission. Music
+reconstruction remains parked.

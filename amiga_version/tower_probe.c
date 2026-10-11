@@ -1,3 +1,6 @@
+#if defined(V6_VSTITCH_INPUT_CAPTURE) && (!defined(V6_PRIZE_INPUT_CAPTURE) || !defined(V6_TOWER_PRIZE))
+#error V Stitch lower-passage admission is only for the Prize input capture
+#endif
 #if defined(V6_TOWER_COLLECTION_SAVE) && (!defined(V6_TOWER_PRIZE) || !defined(V6_STATION_MENU))
 #error Collection saves require the Prize route and station menu
 #endif
@@ -540,8 +543,13 @@ static volatile struct {ULONG magic,version,count,records[256][8];}
     pickup_frame_trace={0x56365058,1,0,{{0}}};
 static unsigned prize_ui_stage,prize_pickup_release;
 #endif
+#ifdef V6_VSTITCH_INPUT_CAPTURE
+#define PRIZE_INPUT_TICKS 302
+#else
+#define PRIZE_INPUT_TICKS 224
+#endif
 #if defined(V6_PRIZE_ROUTE_CAPTURE) || defined(V6_PRIZE_INPUT_CAPTURE)
-static volatile struct {ULONG magic,version,count;LONG records[224][24];}
+static volatile struct {ULONG magic,version,count;LONG records[PRIZE_INPUT_TICKS][24];}
     prize_route_trace={
 #ifdef V6_PRIZE_INPUT_CAPTURE
         0x5636504e,
@@ -551,7 +559,11 @@ static volatile struct {ULONG magic,version,count;LONG records[224][24];}
         1,0,{{0}}};
 #endif
 #ifdef V6_PRIZE_INPUT_CAPTURE
+#ifdef V6_VSTITCH_INPUT_CAPTURE
+#include "../tools/amiga/prize_checkpoint_replay.h"
+#else
 #include "../tools/amiga/prize_input_replay.h"
+#endif
 #if defined(V6_PRIZE_ROUTE_CAPTURE) || !defined(V6_TOWER_PRIZE)
 #error Input capture requires Prize and excludes placement capture
 #endif
@@ -560,12 +572,19 @@ static volatile struct {ULONG magic,version,count;LONG records[224][24];}
 #else
 #define PRIZE_FG(value,fallback) (fallback)
 #endif
+#ifdef V6_VSTITCH_INPUT_CAPTURE
+#include "vstitch_assets.h"
+static V6Terrain vstitch_terrain;
+#define VSTITCH_FG(value,fallback) (route.index==9?(value):(fallback))
+#else
+#define VSTITCH_FG(value,fallback) (fallback)
+#endif
 static V6Terrain frown_terrain;
-#define FG_OFFSETS PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets))
-#define FG_PAIRS PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs))
-#define FG_WORDS PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS))
-#define FG_COUNT PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT))
-#define FG_PALETTE PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette))
+#define FG_OFFSETS VSTITCH_FG(vstitch_pair_offsets,PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)))
+#define FG_PAIRS VSTITCH_FG(vstitch_pairs,PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)))
+#define FG_WORDS VSTITCH_FG(VSTITCH_PAIR_WORDS,PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)))
+#define FG_COUNT VSTITCH_FG(VSTITCH_TILE_COUNT,PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)))
+#define FG_PALETTE VSTITCH_FG(vstitch_palette,PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)))
 #else
 #define FG_OFFSETS (route.index==5?energize_pair_offsets:tower_pair_offsets)
 #define FG_PAIRS (route.index==5?energize_pairs:tower_pairs)
@@ -1041,6 +1060,11 @@ static int route_source(void)
 #endif
 #endif
 #ifdef V6_TOWER_PRIZE
+#ifdef V6_VSTITCH_INPUT_CAPTURE
+    if(route.index==9) {
+        data=vstitch_display;bytes=sizeof(vstitch_display);route.room.terrain=&vstitch_terrain;
+    }
+#endif
     if(route.index==8) {
         data=prize_display;bytes=sizeof(prize_display);
         route.room.terrain=&prize_terrain;
@@ -2102,9 +2126,13 @@ static int run(void) {
 #ifdef V6_PRIZE_INPUT_CAPTURE
     station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
     rescue_vm.following=1;rescue_vm.mood=0;
+#ifdef V6_VSTITCH_INPUT_CAPTURE
+    world.save=(V6CheckpointSave){276,185,0,1,112,107,443500};
+#else
     world.save=(V6CheckpointSave){140,161,0,1,111,106,442490};
-    v6_tower_session_init(&session,140,161,0,1);
-    if(!v6_tower_route_load(&route,111,106,1))return 20;
+#endif
+    v6_tower_session_init(&session,world.save.x,world.save.y,world.save.gravity,1);
+    if(!v6_tower_route_load(&route,world.save.room_x,world.save.room_y,1))return 20;
 #endif
 #ifdef V6_PRIZE_ROUTE_CAPTURE
     station_story.rescue_triggered=station_story.yellow_rescued=1;station_story.companion=7;
@@ -2274,6 +2302,10 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_PRIZE
         collision.tiles=prize_tiles;v6_terrain_build(&prize_terrain,&collision);
+#ifdef V6_VSTITCH_INPUT_CAPTURE
+        collision.tiles=vstitch_tiles;v6_terrain_build(&vstitch_terrain,&collision);
+        if(route.index==9)route.room.terrain=&vstitch_terrain;
+#endif
 #endif
         if(route.index==6)route.room.terrain=&frown_terrain;
 #endif
@@ -2318,6 +2350,10 @@ static int run(void) {
 #endif
 #endif
     if(
+#ifdef V6_VSTITCH_INPUT_CAPTURE
+       !v6_tower_open(&stream,vstitch_display,sizeof(vstitch_display)) ||
+       !v6_tower_pairs_validate(&stream,vstitch_pair_offsets,VSTITCH_PAIR_WORDS,VSTITCH_TILE_COUNT,2) ||
+#endif
 #ifdef V6_TOWER_PRIZE
        !v6_tower_open(&stream,prize_display,sizeof(prize_display)) ||
        !v6_tower_pairs_validate(&stream,prize_pair_offsets,PRIZE_PAIR_WORDS,PRIZE_TILE_COUNT,2) ||
@@ -2372,6 +2408,9 @@ static int run(void) {
 #endif
 
 #ifdef V6_TOWER_STATION
+#ifdef V6_VSTITCH_INPUT_CAPTURE
+           route.index==9?vstitch_display:
+#endif
            route.index==7?shenanigan_display:route.index==6?frown_display:route.index==5?energize_display:building_display,
 #elif defined(V6_TOWER_ROUNDTRIP)
            building_display,
@@ -2389,6 +2428,9 @@ static int run(void) {
 #endif
 
 #ifdef V6_TOWER_STATION
+#ifdef V6_VSTITCH_INPUT_CAPTURE
+           route.index==9?sizeof(vstitch_display):
+#endif
            route.index==7?sizeof(shenanigan_display):route.index==6?sizeof(frown_display):route.index==5?sizeof(energize_display):sizeof(building_display)) ||
 #elif defined(V6_TOWER_ROUNDTRIP)
            sizeof(building_display)) ||
@@ -2783,7 +2825,11 @@ static int run(void) {
 #endif
 #endif
 #ifdef V6_PRIZE_INPUT_CAPTURE
+#ifdef V6_VSTITCH_INPUT_CAPTURE
+                input=v6_prize_checkpoint_replay(diag.logic_ticks);
+#else
                 input=v6_prize_input_replay(diag.logic_ticks);
+#endif
 #endif
 #ifdef V6_PRIZE_ROUTE_CAPTURE
                 input=0;
@@ -3276,7 +3322,7 @@ static int run(void) {
                     pickup_diag.values[7]=session.player.flips;
 #endif
 #if defined(V6_PRIZE_ROUTE_CAPTURE) || defined(V6_PRIZE_INPUT_CAPTURE)
-                if(prize_route_trace.count<224) {
+                if(prize_route_trace.count<PRIZE_INPUT_TICKS) {
                     volatile LONG *d=prize_route_trace.records[prize_route_trace.count++];
                     unsigned i;
                     d[0]=route.index;d[1]=session.player.x;d[2]=session.player.y;

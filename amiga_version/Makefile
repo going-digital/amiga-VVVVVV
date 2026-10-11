@@ -1064,3 +1064,13 @@ tower-prize-input-capture: tower-prize-route test-prize-input
 test-prize-death-platform:
 	python3 $(ROOT)/tools/amiga/test_prize_death_platform.py
 test: test-prize-death-platform
+
+.PHONY: test-prize-checkpoint test-vstitch-graphics tower-prize-checkpoint-capture
+test-prize-checkpoint:
+	python3 $(ROOT)/tools/amiga/test_prize_checkpoint.py
+test: test-prize-checkpoint
+test-vstitch-graphics: tower-assets
+	python3 $(ROOT)/tools/amiga/test_vstitch_graphics.py
+tower-prize-checkpoint-capture: test-vstitch-graphics test-prize-checkpoint
+	$(MAKE) BUILD=$(ROOT)/build/amiga-prize-checkpoint CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_VSTITCH_INPUT_CAPTURE" $(ROOT)/build/amiga-prize-checkpoint/tower.adf
+	python3 $(ROOT)/tools/amiga/run_prize_checkpoint.py --build $(ROOT)/build/amiga-prize-checkpoint

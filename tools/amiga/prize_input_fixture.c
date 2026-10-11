@@ -2,10 +2,11 @@
 #include "prize.h"
 #include "tower_route.h"
 #include "prize_input_replay.h"
+#include "prize_checkpoint_replay.h"
 typedef struct {
     V6Prize prize;V6Collect collected;V6TowerRoute route;V6TowerSession session;
-    V6TowerGameplay world;V6Terrain terrain[2];uint16_t tiles[2][1200];
-    V6Checkpoint checkpoint[3];V6TowerRouteRoom rooms[2];
+    V6TowerGameplay world;V6Terrain terrain[3];uint16_t tiles[3][1200];
+    V6Checkpoint checkpoint[5];V6TowerRouteRoom rooms[3];
     V6Platform conveyors[2];V6Block blocks[2];unsigned pickups,patches;
 } Fixture;
 static int events(Fixture *f,unsigned e)
@@ -23,7 +24,7 @@ static int platforms(V6TowerRoute *r,void *context)
 {
     Fixture *f=context;V6TowerSession *s=r->session;
     if(r->index==1)v6_prize_platform(&f->prize,&r->room,&s->player,s->life_timer,s->motion.pending_y);
-    else {
+    else if(r->index==0) {
         V6PlatformPush push={s->motion.pending_y,0,0};
         v6_platform_transport(&s->player,&r->room,f->conveyors,2,f->blocks,2,
             V6_PLATFORMS_HORIZONTAL,s->life_timer,&push);
@@ -33,25 +34,25 @@ static int platforms(V6TowerRoute *r,void *context)
 static int entities(V6TowerRoute *r,void *context)
 {
     Fixture *f=context;
-    return !r->index || events(f,v6_prize_entities(&f->prize,&r->room,&f->collected));
+    return r->index!=1 || events(f,v6_prize_entities(&f->prize,&r->room,&f->collected));
 }
 static int contacts(V6TowerRoute *r,void *context)
 {
     Fixture *f=context;
-    if(r->index)v6_prize_collide(&f->prize,&r->session->player);
+    if(r->index==1)v6_prize_collide(&f->prize,&r->session->player);
     return 1;
 }
 static int death(V6TowerRoute *r,void *context)
 {
     Fixture *f=context;
-    return !r->index || events(f,v6_prize_death(&f->prize,&r->room));
+    return r->index!=1 || events(f,v6_prize_death(&f->prize,&r->room));
 }
 static void enter(Fixture *f)
 {
     V6TowerRoute *r=&f->route;
     r->room.terrain=&f->terrain[r->index];
-    if(r->index)v6_prize_init(&f->prize,&r->room,&f->collected,f->world.save.id,f->session.player.y);
-    else {
+    if(r->index==1)v6_prize_init(&f->prize,&r->room,&f->collected,f->world.save.id,f->session.player.y);
+    else if(r->index==0) {
         for(unsigned i=0;i<2;++i) {
             v6_conveyor_init(&f->conveyors[i],i?104:16,i?184:104,8+i,4,64);
             f->blocks[i]=(V6Block){i?104:16,i?184:104,32,8,V6_BLOCK,0};
@@ -59,7 +60,7 @@ static void enter(Fixture *f)
         r->room.blocks=f->blocks;r->room.block_count=2;
     }
 }
-int prize_input_fixture(const uint16_t *north,const uint16_t *south,int32_t *trace,unsigned count)
+static int fixture(const uint16_t *north,const uint16_t *south,const uint16_t *east,int32_t *trace,unsigned count)
 {
     Fixture f={0};V6TowerRoute *r=&f.route;V6TowerSession *s=&f.session;
     V6TowerGameplay *w=&f.world;
@@ -75,15 +76,24 @@ int prize_input_fixture(const uint16_t *north,const uint16_t *south,int32_t *tra
         V6Room room={f.tiles[i],0,0,0,0,0};
         v6_terrain_build(&f.terrain[i],&room);
     }
-    w->save=(V6CheckpointSave){140,161,0,1,111,106,442490};
-    v6_tower_session_init(s,140,161,0,1);
+    if(east) {
+        for(unsigned i=0;i<1200;++i)f.tiles[2][i]=east[i];
+        f.checkpoint[3]=(V6Checkpoint){280,192,21,443500,0,0};
+        f.checkpoint[4]=(V6Checkpoint){64,80,21,443501,0,0};
+        f.rooms[2]=(V6TowerRouteRoom){112,107,(const uint8_t *)"x",1,
+            &f.checkpoint[3],2,f.tiles[2],0,0};
+        V6Room room={f.tiles[2],0,0,0,0,0};v6_terrain_build(&f.terrain[2],&room);
+    }
+    w->save=east?(V6CheckpointSave){276,185,0,1,112,107,443500}:
+        (V6CheckpointSave){140,161,0,1,111,106,442490};
+    v6_tower_session_init(s,w->save.x,w->save.y,w->save.gravity,1);
     /* Only ordinary rooms are needed by this bounded checkpoint fixture. */
-    r->session=s;r->world=w;r->rooms=f.rooms;r->count=2;
-    if(!v6_tower_route_load(r,111,106,1))return 0;
+    r->session=s;r->world=w;r->rooms=f.rooms;r->count=east?3:2;
+    if(!v6_tower_route_load(r,w->save.room_x,w->save.room_y,1))return 0;
     enter(&f);
     for(unsigned tick=0;tick<count;++tick) {
         unsigned previous=r->index;
-        if(!v6_tower_route_step_hooks(r,v6_prize_input_replay(tick),&hooks,&f))return 0;
+        if(!v6_tower_route_step_hooks(r,east?v6_prize_checkpoint_replay(tick):v6_prize_input_replay(tick),&hooks,&f))return 0;
         if(previous!=r->index)enter(&f);
         int32_t *d=trace+tick*24;
         d[0]=7+r->index;d[1]=s->player.x;d[2]=s->player.y;d[3]=s->player.gravity;
@@ -96,4 +106,13 @@ int prize_input_fixture(const uint16_t *north,const uint16_t *south,int32_t *tra
         d[23]=s->respawns;
     }
     return 1;
+}
+
+int prize_input_fixture(const uint16_t *north,const uint16_t *south,int32_t *trace,unsigned count)
+{
+    return fixture(north,south,0,trace,count);
+}
+int prize_checkpoint_fixture(const uint16_t *north,const uint16_t *south,const uint16_t *east,int32_t *trace,unsigned count)
+{
+    return fixture(north,south,east,trace,count);
 }

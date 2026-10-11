@@ -26,6 +26,7 @@ def export(out):
     export_frown(out)
     export_shenanigan(out)
     export_prize(out)
+    export_vstitch(out)
     from hallway_scripts import export as export_scripts
     export_scripts(out)
     from station_scripts import export as export_station_scripts
@@ -65,13 +66,13 @@ def export_route(out):
             '{'+','.join(map(str,(*r['checkpoint'],0,0)))+'}};\n')
     header+='#ifdef V6_TOWER_BUILDING\n#include "building_display.h"\nstatic V6Teleporter building_teleporter={112,48,0,1,1,0};\n#endif\n'
     header+='#ifdef V6_TOWER_ENERGIZE\n#include "energize_collision.h"\nstatic V6Teleporter energize_teleporter={36,68,0,1,1,0};\n#endif\n'
-    header+='#ifdef V6_TOWER_STATION\n#include "frown_collision.h"\n#ifdef V6_TOWER_SHENANIGAN\n#include "shenanigan_collision.h"\n#ifdef V6_TOWER_PRIZE\n#include "prize_collision.h"\n#endif\n#endif\n#endif\n'
+    header+='#ifdef V6_TOWER_STATION\n#include "frown_collision.h"\n#ifdef V6_TOWER_SHENANIGAN\n#include "shenanigan_collision.h"\n#ifdef V6_TOWER_PRIZE\n#include "prize_collision.h"\n#ifdef V6_VSTITCH_INPUT_CAPTURE\n#include "vstitch_collision.h"\n#endif\n#endif\n#endif\n#endif\n'
     header+='static const V6TowerRouteRoom tower_route_rooms[]={\n'
     header+='{109,109,0,0,tower_checkpoints,TOWER_CHECKPOINT_COUNT,0,0,2},\n'
     header+='{109,104,0,0,tower_checkpoints,TOWER_CHECKPOINT_COUNT,0,0,2},\n'
     for i,r in enumerate(hallway_rooms()):
         header+='{'+f'{r["x"]},{r["y"]},hallway{i}_packed,sizeof(hallway{i}_packed),hallway{i}_checkpoint,1,hallway{i}_tiles,0,2'+'},\n'
-    header+='#ifdef V6_TOWER_BUILDING\n{111,104,building_packed,sizeof(building_packed),0,0,building_tiles,&building_teleporter,2},\n#endif\n#ifdef V6_TOWER_ENERGIZE\n{110,105,energize_packed,sizeof(energize_packed),0,0,energize_tiles,&energize_teleporter,0},\n#endif\n#ifdef V6_TOWER_STATION\n{111,105,frown_packed,sizeof(frown_packed),frown_checkpoint,1,frown_tiles,0,0},\n#ifdef V6_TOWER_SHENANIGAN\n{111,106,shenanigan_packed,sizeof(shenanigan_packed),shenanigan_checkpoint,2,shenanigan_tiles,0,0},\n#ifdef V6_TOWER_PRIZE\n{111,107,prize_packed,sizeof(prize_packed),prize_checkpoint,1,prize_tiles,0,0},\n#endif\n#endif\n#endif\n};\n#define TOWER_ROUTE_COUNT (sizeof(tower_route_rooms)/sizeof(tower_route_rooms[0]))\n'
+    header+='#ifdef V6_TOWER_BUILDING\n{111,104,building_packed,sizeof(building_packed),0,0,building_tiles,&building_teleporter,2},\n#endif\n#ifdef V6_TOWER_ENERGIZE\n{110,105,energize_packed,sizeof(energize_packed),0,0,energize_tiles,&energize_teleporter,0},\n#endif\n#ifdef V6_TOWER_STATION\n{111,105,frown_packed,sizeof(frown_packed),frown_checkpoint,1,frown_tiles,0,0},\n#ifdef V6_TOWER_SHENANIGAN\n{111,106,shenanigan_packed,sizeof(shenanigan_packed),shenanigan_checkpoint,2,shenanigan_tiles,0,0},\n#ifdef V6_TOWER_PRIZE\n{111,107,prize_packed,sizeof(prize_packed),prize_checkpoint,1,prize_tiles,0,0},\n#ifdef V6_VSTITCH_INPUT_CAPTURE\n{112,107,vstitch_packed,sizeof(vstitch_packed),vstitch_checkpoint,2,vstitch_tiles,0,0},\n#endif\n#endif\n#endif\n#endif\n};\n#define TOWER_ROUTE_COUNT (sizeof(tower_route_rooms)/sizeof(tower_route_rooms[0]))\n'
     (out/'tower_route_data.h').write_text(header)
 
 
@@ -183,4 +184,29 @@ def export_prize(out):
         'static const uint8_t prize_packed[]={'+','.join(map(str,encode(tiles)))+'};\n'+
         'static V6Checkpoint prize_checkpoint[1]={{240,136,20,443490,0,0}};\n')
     (out/'prize-room.json').write_text(json.dumps({k:v for k,v in room.items() if k!='tiles'},indent=2)+'\n')
+    return room
+
+
+def vstitch_room():
+    """Literal source room; native scope is the lower checkpoint passage only."""
+    source=(ROOT/'desktop_version/src/Spacestation2.cpp').read_text()
+    start=source.index('case rn(50,43):');body=source[start:source.index('case rn(',start+5)]
+    raw=re.search(r'static const short contents\[\]\s*=\s*\{(.*?)\};',body,re.S)[1]
+    tiles=[int(v) for v in raw.split(',') if v.strip()]
+    assert len(tiles)==1200 and max(tiles)==851
+    calls=re.findall(r'obj.createentity\(([^;]+)\);',body)
+    assert calls==['280, 192, 10, 1, 443500','64, 80, 10, 1, 443501']
+    assert re.findall(r'obj.createblock\(([^;]+)\);',body)==['1, 0, 0, 112, 112, 8']
+    assert 'if(!game.nocutscenes)' in body and 'roomname = "V Stitch";' in body
+    assert 'rx += 50 - 12;' in source and 'ry += 50 - 14;' in source
+    return dict(x=112,y=107,tileset=0,tiles=tiles,name='V Stitch',
+        checkpoints=[(280,192,21,443500),(64,80,21,443501)],trigger=(0,0,112,112,8))
+
+def export_vstitch(out):
+    room=vstitch_room();tiles=room['tiles']
+    (out/'vstitch_collision.h').write_text('/* Lower-passage capture only; upper intro trigger remains pending. */\n'+
+        'static const uint16_t vstitch_tiles[1200]={'+','.join(map(str,tiles))+'};\n'+
+        'static const uint8_t vstitch_packed[]={'+','.join(map(str,encode(tiles)))+'};\n'+
+        'static V6Checkpoint vstitch_checkpoint[2]={{280,192,21,443500,0,0},{64,80,21,443501,0,0}};\n')
+    (out/'vstitch-room.json').write_text(json.dumps({k:v for k,v in room.items() if k!='tiles'},indent=2)+'\n')
     return room

@@ -73,10 +73,11 @@ def main():
         teleporter_png=archive.read('graphics/teleporter.png')
         from energize_assets import export as export_energize_assets
         export_energize_assets(archive,out,decoder)
-        from tower_gameplay_data import frown_room,shenanigan_room,prize_room
+        from tower_gameplay_data import frown_room,shenanigan_room,prize_room,vstitch_room
         export_energize_assets(archive,out,decoder,frown_room(),"frown")
         export_energize_assets(archive,out,decoder,shenanigan_room(),"shenanigan")
         export_energize_assets(archive,out,decoder,prize_room(),"prize")
+        export_energize_assets(archive,out,decoder,vstitch_room(),"vstitch")
     tele_path=out/'teleporter.png';tele_path.write_bytes(teleporter_png)
     dimensions,tele_rgba=subprocess.check_output([str(decoder),str(tele_path)]).split(b'\n',1)
     tw,th=map(int,dimensions.split());assert (tw,th)==(960,96)
