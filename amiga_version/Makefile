@@ -1103,3 +1103,13 @@ $(BUILD)/prize_return.o: prize_return.c prize_return.h platform.h enemy.h | $(BU
 test-prize-return-actors:
 	python3 $(ROOT)/tools/amiga/test_prize_return_actors.py
 test: test-prize-return-actors
+
+$(BUILD)/prize_return_sprite.o: prize_return_sprite.c prize_return_sprite.h pixel_collision.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+.PHONY: test-prize-return-sprite
+test-prize-return-sprite: tower-assets
+	python3 $(ROOT)/tools/amiga/test_prize_return_sprite.py
+
+.PHONY: test-prize-return-route
+test-prize-return-route: tower-assets
+	python3 $(ROOT)/tools/amiga/test_prize_return_route.py

@@ -5052,3 +5052,49 @@ Next: bind these actor phases into the campaign route, add source enemy
 animation and pixel masks, and prove the return traversal while retaining the
 Prize checkpoint. Native display/save admission and V Stitch's upper timed
 trigger remain pending.
+
+### Connected west host route and source sprite damage — 11 October 2026
+
+The new host route fixture starts at the same canonical V Stitch lower
+checkpoint and replays the existing approach through world tick 195, preserving
+all 24 trace fields exactly. It then continues through ordinary inputs into
+A Deception and Down Under with their actor phases and checkpoint banks bound
+to the route controller. No post-start placements or forced deaths are used.
+This fixture is a port-core integration oracle, not a complete independent
+desktop-game replay, and does not admit these rooms to the native display/save
+bank.
+
+One retained route reaches A Deception at tick 252, naturally activates its
+lower checkpoint 443481 at tick 299, and enters Down Under. That activation
+replaces Prize checkpoint 443490 exactly as the source does. It does not
+satisfy the Prize-checkpoint-preserving return goal. A second route avoids
+that checkpoint, suffers a pixel enemy death at tick 276, freezes actor motion
+through death, and remotely respawns at Prize (236,134,g1) at tick 306. Both
+routes retain the existing lower V Stitch approach and exclude its upper
+trigger and the pickup UI.
+
+Private sprite export now retains source enemy visible masks for frames
+92..95, full red-channel collision masks for those frames, and player collision
+frames 0..15. Red != 0 is deliberately independent of alpha and visible colour,
+as in source Hitest. The enemy simple-loop animation starts with source
+framedelay/walkingframe zero, advances to frame 93 on its first fixed-render
+pass, then loops every eight passes. `main.cpp` schedules fixed rendering
+before gameplay logic. Blackout/completestop suppress animation; ordinary
+death does not. The pre-animation drawframe zero uses the original tile-0
+mask, rather than assuming frame 92.
+
+`test-prize-return-sprite` checks 24,576 source-PNG mask pixels, 4,096 extracted
+animation timesteps and 191,360 source Hitest damage comparisons. Of those,
+24,232 bounding-box contacts are correctly harmless. The pixel damage module
+compiles for 68000 with warnings as errors and only references existing
+`v6_pixel_hit`/`v6_player_overlaps` cores. `test-prize-return-route` verifies the
+two connected host replays and writes `build/amiga-prize-return-host/` traces.
+
+The retained native Prize pickup also passes: 4,320 matched fields, 280 PAL
+work lines, zero errors/missed frames and 296,150 Chip bytes. The candidate
+west sprite/actor banks are not linked into that native fixture yet.
+
+Next: find and verify the checkpoint-preserving route through both west rooms,
+then add native room rendering/save admission and its input capture. The
+complete return to the Prize shaft and V Stitch upper timed trigger remain
+pending.

@@ -124,6 +124,25 @@ def main():
         'static const uint32_t tower_player_cropped_rows[16][32]={\n'+
         ',\n'.join('{'+','.join(hex(((v>>10)&65535)<<16)+'UL' for v in frame)+'}'
                     for frame in frames[:16])+'};\n')
+    # Source Hitest uses red != 0, independently of alpha and visible RGB.
+    # Keep the full 32x32 collision masks, including pixels outside hitboxes.
+    def sprite_masks(tiles,collision=False):
+        result=[]
+        for tile in tiles:
+            ox=tile%(sw//32)*32;oy=tile//(sw//32)*32
+            assert oy+32<=sh
+            result.append([sum((sprite_rgba[((oy+y)*sw+ox+x)*4]!=0 if collision else
+                sprite_rgba[((oy+y)*sw+ox+x)*4+3]>127 and
+                max(sprite_rgba[((oy+y)*sw+ox+x)*4:((oy+y)*sw+ox+x)*4+3])>0)<<(31-x)
+                for x in range(32)) for y in range(32)])
+        return result
+    assets='/* Private source masks; red-channel collision is independent of visibility. */\n'
+    for name,tiles,collision in (('return_player_collision',range(16),True),
+            ('return_enemy_collision',range(92,96),True),('return_enemy_visible',range(92,96),False)):
+        masks=sprite_masks(tiles,collision)
+        assets+=('static const uint32_t '+name+'['+str(len(masks))+'][32]={\n'+
+            ',\n'.join('{'+','.join(hex(v)+'UL' for v in mask)+'}' for mask in masks)+'};\n')
+    (out/'prize_return_sprite_assets.h').write_text(assets)
     # AI 17 remains still, tile 144 (sad), facing left: visual frame 147.
     # Export just this required frame rather than a full crew sprite sheet.
     tile=147;ox=(tile%(sw//32))*32;oy=(tile//(sw//32))*32
