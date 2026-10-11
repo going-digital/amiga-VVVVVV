@@ -878,3 +878,12 @@ tower-menu-effects-capture: tower-probe test-campaign-state-file test-shake-capt
 	python3 $(ROOT)/tools/amiga/run_menu_travel.py --build $(ROOT)/build/amiga-menu-effects-return --load-return $(ROOT)/build/amiga-menu-effects/capture-menu-disk.adf --effects
 	python3 $(ROOT)/tools/amiga/run_menu_travel.py --build $(ROOT)/build/amiga-menu-effects-return --load-return $(ROOT)/build/amiga-menu-effects/capture-menu-disk.adf --legacy-load --effects
 	python3 $(ROOT)/tools/amiga/run_menu_effect_pixels.py
+
+$(BUILD)/station_trigger.o: station_trigger.c station_trigger.h player.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+.PHONY: test-station-trigger test-station-route
+test-station-trigger: $(BUILD)/station_trigger.o
+	python3 $(ROOT)/tools/amiga/test_station_trigger.py
+test-station-route:
+	python3 $(ROOT)/tools/amiga/test_station_route.py
+test: test-station-trigger test-station-route

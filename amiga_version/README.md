@@ -2745,3 +2745,33 @@ compiles without warnings.
 
 Next: expand validated resident rooms and story support. Music reconstruction
 remains parked pending original tracker assets.
+
+## Frown Upside Down room/trigger foundation — 11 October 2026
+
+The candidate route east of Energize is source room (111,105), translated to
+Station 2 literal (49,41): Frown Upside Down. Asset export now retains its exact
+1,200 collision tiles, ceiling checkpoint (192,88, tile 20, ID 441490), yellow
+crew entity (42,86, type 16) and trigger 34 rectangle (0,0,140,240). Its generated
+collision header is separate from the native resident bank.
+
+`station_trigger` implements source yellow-crew admission using independent
+flag 10/yellow-rescued/companion state. Normal entry creates the crew/trigger
+only before rescue with no companion; time trials suppress it unless translator
+exploration is enabled. Strict player collision-box intersection removes the
+trigger, sets flag 10 and retains one `rescueyellow` request. Rescued status and
+companion remain unchanged until a script consumer executes their commands.
+Pending requests survive room changes and repeated contacts.
+
+`make -C amiga_version test-station-trigger test-station-route` passes 19,200
+room-entry comparisons and 3,630 trigger comparisons against extracted desktop
+Station 2/Entity/Game methods, plus all source collision tiles. Candidate host
+routes match 640 original movement/collision ticks and verify the east entrance
+from Energize, deferred checkpoint activation, local/remote checkpoint respawn,
+malformed-room retention and explicit rejection of unsupported neighbors. The
+trigger compiles for the freestanding 68000; existing red-trigger checks pass.
+
+This room is not yet admitted by the live renderer or campaign save codec.
+Its yellow story flags, sprite, rescue dialogue and save support must be
+connected before the native route can expose it. Next: compile the source
+`rescueyellow`/`skipyellow` programs and support their ceiling/follow behavior,
+then integrate graphics and persistence. Music reconstruction remains parked.

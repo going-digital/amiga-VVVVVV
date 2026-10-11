@@ -23,6 +23,7 @@ def export(out):
     export_route(out)
     export_building(out)
     export_energize(out)
+    export_frown(out)
     from hallway_scripts import export as export_scripts
     export_scripts(out)
     return rows
@@ -113,3 +114,30 @@ def export_energize(out):
         'static const uint16_t energize_tiles[1200]={'+','.join(map(str,tiles))+'};\n'+
         'static const uint8_t energize_packed[]={'+','.join(map(str,encode(tiles)))+'};\n')
     (out/'energize-room.json').write_text(json.dumps({k:v for k,v in room.items() if k!='tiles'},indent=2)+'\n')
+
+
+def frown_room():
+    """Source candidate adjacent to Energize; crew/script integration pending."""
+    source=(ROOT/'desktop_version/src/Spacestation2.cpp').read_text()
+    assert 'rx += 50 - 12;' in source and 'ry += 50 - 14;' in source
+    start=source.index('case rn(49,41):');body=source[start:source.index('case rn(',start+5)]
+    raw=re.search(r'static const short contents\[\]\s*=\s*\{(.*?)\};',body,re.S)[1]
+    raw=re.sub(r'//[^\n]*|/\*.*?\*/','',raw,flags=re.S)
+    tiles=[int(v) for v in raw.split(',') if v.strip()]
+    assert len(tiles)==1200 and max(tiles)==850
+    assert re.findall(r'obj.createentity\(([^;]+)\);',body)==['192, 88, 10, 0, 441490','42, 86, 16, 0']
+    assert re.findall(r'obj.createblock\(([^;]+)\);',body)==['1, 0, 0, 140, 240, 34']
+    assert 'roomname = "Frown Upside Down";' in body
+    assert 'if(!game.intimetrial || game.translator_exploring)' in body
+    assert 'if(game.companion==0 && !obj.flags[10] &&  !game.crewstats[2])' in body
+    return dict(x=111,y=105,tileset=0,tiles=tiles,name='Frown Upside Down',
+        checkpoint=(192,88,20,441490),crew=(42,86,16,0),trigger=(0,0,140,240,34))
+
+def export_frown(out):
+    room=frown_room();tiles=room['tiles']
+    (out/'frown_collision.h').write_text('/* Candidate source room; native admission pending crew/story/save support. */\n'+
+        'static const uint16_t frown_tiles[1200]={'+','.join(map(str,tiles))+'};\n'+
+        'static const uint8_t frown_packed[]={'+','.join(map(str,encode(tiles)))+'};\n'+
+        'static V6Checkpoint frown_checkpoint[1]={{192,88,20,441490,0,0}};\n')
+    (out/'frown-room.json').write_text(json.dumps({k:v for k,v in room.items() if k!='tiles'},indent=2)+'\n')
+    return room
