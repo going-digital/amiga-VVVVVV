@@ -64,10 +64,10 @@ def expected():
             assert all(r[24]==0 for r in rows)
         reports[name]=rows
     (out/'prize-return-host-report.json').write_text(json.dumps(dict(
-        scope='Host integration using port cores, private masks and fixed source approach. West checkpoint activation and pixel enemy death/remote return verified; 480-tick checkpoint-preserving west loop also verified; native display/save admission, upper V Stitch trigger and pickup UI excluded.',traces=reports),indent=2)+'\n')
+        scope='Host integration using port cores, private masks and fixed source approach. West checkpoint activation and pixel enemy death/remote return verified; 480-tick checkpoint-preserving west loop and 660-tick connected pickup also verified; native display/save admission, upper V Stitch trigger and pickup UI excluded.',traces=reports),indent=2)+'\n')
     return reports['connected-pickup']
 
 def main():
     expected()
-    print('PASS connected west host route: retained 195-tick V Stitch/Prize approach, source west checkpoint replacement, Down Under entry, pixel enemy death and remote Prize respawn; 480-tick checkpoint-preserving loop; native admission pending')
+    print('PASS connected west host route: retained 195-tick V Stitch/Prize approach, source west checkpoint replacement, Down Under entry, pixel enemy death and remote Prize respawn; 480-tick checkpoint-preserving loop and 660-tick connected pickup; native display/save admission checked separately')
 if __name__=='__main__':main()

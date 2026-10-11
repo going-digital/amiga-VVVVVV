@@ -38,6 +38,23 @@ void v6_prize_return_platforms(V6PrizeReturn *s,V6Room *r,V6Player *p,int life,i
 void v6_prize_return_entities(V6PrizeReturn *s,const V6Room *r)
 {
     unsigned i;
+    /* Both source enemy rows fit in one gap between the conveyors. Check
+     * that shared gap once, avoiding two identical block-filter scans. */
+    if(s->enemy_count==2 && s->enemies[0].y==120 && s->enemies[1].y==96 &&
+       !s->enemies[0].cy && !s->enemies[1].cy &&
+       s->enemies[0].h==16 && s->enemies[1].h==16 &&
+       s->enemies[0].behavior>=2 && s->enemies[1].behavior>=2 &&
+       !s->enemies[0].vy && !s->enemies[1].vy) {
+        for(i=0;i<r->block_count;++i) {
+            const V6Block *b=&r->blocks[i];
+            if(b->h>0 && b->y<136 && b->y+b->h>96)break;
+        }
+        if(i==r->block_count) {
+            v6_enemy_step(&s->enemies[1],r,0,0);
+            v6_enemy_step(&s->enemies[0],r,0,0);
+            return;
+        }
+    }
     for(i=s->enemy_count;i>0;--i) {
         V6Enemy *e=&s->enemies[i-1];
         V6Block candidates[6];unsigned j,count=0;
@@ -63,4 +80,19 @@ unsigned v6_prize_return_contacts(V6PrizeReturn *s,const V6Player *p)
         if(v6_player_overlaps(p,e->x+e->cx,e->y+e->cy,e->w,e->h))hits|=1U<<i;
     }
     return hits;
+}
+
+unsigned v6_prize_return_physics_blocks(const V6PrizeReturn *s,const V6Player *p,V6Block out[6])
+{
+    unsigned i,count=0;
+    int bounded=p->vx>=-16*V6_ONE && p->vx<=16*V6_ONE &&
+        p->vy>=-16*V6_ONE && p->vy<=16*V6_ONE;
+    /* Input and platform transport have already completed. Physics reduces
+     * each velocity towards zero, so every body test lies inside this hull. */
+    for(i=0;i<s->platform_count;++i) {
+        const V6Block *b=&s->blocks[i];
+        if(!bounded || (b->x<p->x+34 && b->x+b->w>p->x-10 &&
+                        b->y<p->y+39 && b->y+b->h>p->y-14))out[count++]=*b;
+    }
+    return count;
 }

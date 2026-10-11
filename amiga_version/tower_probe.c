@@ -1,3 +1,15 @@
+#if defined(V6_PRIZE_RETURN_INPUT_CAPTURE) && (!defined(V6_VSTITCH_INPUT_CAPTURE) || !defined(V6_TOWER_PICKUP_SCREEN))
+#error West return capture requires the lower V Stitch approach and pickup controller
+#endif
+/* The long west replay owns its 32-field world trace. Auxiliary fixture
+ * traces retain a header/one slot but are disabled to fit the stock 1 MB boot. */
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+#define AUX_TRACE_ENABLED 0
+#define AUX_TRACE_ROWS(n) 1
+#else
+#define AUX_TRACE_ENABLED 1
+#define AUX_TRACE_ROWS(n) (n)
+#endif
 #if defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE) && (!defined(V6_PRIZE_INPUT_CAPTURE) || !defined(V6_TOWER_PICKUP_SCREEN) || defined(V6_VSTITCH_INPUT_CAPTURE))
 #error Collection input capture requires the pickup screen and excludes V Stitch input capture
 #endif
@@ -122,7 +134,7 @@ static V6Collect ui_loaded_collection;
 static const V6TeleporterDestination tele_residents[2]={{111,104},{110,105}};
 static V6TeleporterDestination menu_target;
 static unsigned menu_save_pending,menu_travel_active,menu_exit_pending;
-static volatile struct {ULONG magic,version,count;LONG snapshot[23],records[128][36];}
+static volatile struct {ULONG magic,version,count;LONG snapshot[23],records[AUX_TRACE_ROWS(128)][36];}
     menu_travel_trace={0x56364d54,1,0,{0},{{0}}};
 static volatile struct {ULONG magic,version,values[6];}
     menu_effect_diag={0x56364d45,1,{0}};
@@ -301,18 +313,18 @@ static V6Companion companion;
 static V6Terrain hallway_terrain[2];
 static V6RescueScript rescue_vm={.control=1,.mood=1};
 #ifdef V6_STATION_MENU
-static volatile struct {ULONG magic,version,count,bytes;LONG snapshot[sizeof(V6Companion)/4],records[64][14];}
+static volatile struct {ULONG magic,version,count,bytes;LONG snapshot[sizeof(V6Companion)/4],records[AUX_TRACE_ROWS(64)][14];}
     station_travel_trace={0x56365943,1,0,sizeof(V6Companion),{0},{{0}}};
 #endif
 
 static int rescue_bars,rescue_fade,rescue_fade_mode,rescue_fire;
 static UBYTE *rescue_captions;
 static unsigned rescue_flips_applied;
-static volatile struct { ULONG magic,version,count,capacity,records[128][18]; }
+static volatile struct { ULONG magic,version,count,capacity,records[AUX_TRACE_ROWS(128)][18]; }
     rescue_trace={0x56365256,1,0,128,{{0}}};
 static volatile struct { ULONG magic,version,values[18]; }
     rescue_diag={0x56365241,1,{0}};
-static volatile struct { ULONG magic,version,count,capacity,records[128][14]; }
+static volatile struct { ULONG magic,version,count,capacity,records[AUX_TRACE_ROWS(128)][14]; }
     companion_trace={0x56364354,1,0,128,{{0}}};
 static volatile struct { ULONG magic,version,values[14]; }
     companion_diag={0x56364346,1,{0}};
@@ -324,12 +336,12 @@ static void companion_record(void)
         companion.animation.delay,companion.animation.walk,companion.spawns,companion.steps,companion.follow_steps};
     for(i=0;i<14;++i) companion_diag.values[i]=values[i];
 #ifdef V6_STATION_MENU
-    if(station_travel_trace.count<64 && station_travel_trace.count<menu_travel_trace.count) {
+    if(AUX_TRACE_ENABLED && (station_travel_trace.count<64 && station_travel_trace.count<menu_travel_trace.count)) {
         for(i=0;i<14;++i)station_travel_trace.records[station_travel_trace.count][i]=values[i];
         ++station_travel_trace.count;
     }
 #endif
-    if(companion_trace.count<128) {
+    if(AUX_TRACE_ENABLED && (companion_trace.count<128)) {
         volatile ULONG *record=companion_trace.records[companion_trace.count];
         for(i=0;i<14;++i) record[i]=values[i];
         ++companion_trace.count;
@@ -349,7 +361,7 @@ static void rescue_record(void)
 #endif
         rescue_bars,rescue_fade};
     for(i=0;i<18;++i) rescue_diag.values[i]=values[i];
-    if(rescue_trace.count<128) {
+    if(AUX_TRACE_ENABLED && (rescue_trace.count<128)) {
         volatile ULONG *record=rescue_trace.records[rescue_trace.count];
         for(i=0;i<18;++i) record[i]=values[i];
         ++rescue_trace.count;
@@ -382,7 +394,7 @@ static UWORD rescue_colour(unsigned c)
 #else
 #define DISPLAY_COLOUR(c) (c)
 #endif
-static volatile struct { ULONG magic,version,count,capacity,records[128][7]; }
+static volatile struct { ULONG magic,version,count,capacity,records[AUX_TRACE_ROWS(128)][7]; }
     trigger_trace={0x56364854,1,0,128,{{0}}};
 static volatile struct { ULONG magic,version,values[7]; }
     trigger_diag={0x56364851,1,{0}};
@@ -396,7 +408,7 @@ static void record_trigger(void)
     trigger_diag.values[4]=hallway_trigger.pending;
     trigger_diag.values[5]=hallway_trigger.requests;
     trigger_diag.values[6]=trigger_crew_visible;
-    if(trigger_trace.count<128) {
+    if(AUX_TRACE_ENABLED && (trigger_trace.count<128)) {
         for(i=0;i<7;++i) trigger_trace.records[trigger_trace.count][i]=trigger_diag.values[i];
         ++trigger_trace.count;
     }
@@ -546,7 +558,10 @@ static volatile struct {ULONG magic,version,count,records[256][8];}
     pickup_frame_trace={0x56365058,1,0,{{0}}};
 static unsigned prize_ui_stage,prize_pickup_release;
 #endif
-#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+#define PRIZE_INPUT_TICKS 660
+#define PRIZE_TRACE_FIELDS 32
+#elif defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE)
 #define PRIZE_INPUT_TICKS 180
 #elif defined(V6_VSTITCH_INPUT_CAPTURE)
 #define PRIZE_INPUT_TICKS 302
@@ -554,7 +569,10 @@ static unsigned prize_ui_stage,prize_pickup_release;
 #define PRIZE_INPUT_TICKS 224
 #endif
 #if defined(V6_PRIZE_ROUTE_CAPTURE) || defined(V6_PRIZE_INPUT_CAPTURE)
-static volatile struct {ULONG magic,version,count;LONG records[PRIZE_INPUT_TICKS][24];}
+#ifndef PRIZE_TRACE_FIELDS
+#define PRIZE_TRACE_FIELDS 24
+#endif
+static volatile struct {ULONG magic,version,count;LONG records[PRIZE_INPUT_TICKS][PRIZE_TRACE_FIELDS];}
     prize_route_trace={
 #ifdef V6_PRIZE_INPUT_CAPTURE
         0x5636504e,
@@ -564,7 +582,11 @@ static volatile struct {ULONG magic,version,count;LONG records[PRIZE_INPUT_TICKS
         1,0,{{0}}};
 #endif
 #ifdef V6_PRIZE_INPUT_CAPTURE
-#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+#include "../tools/amiga/prize_checkpoint_replay.h"
+#include "../tools/amiga/prize_collection_replay.h"
+#include "../tools/amiga/prize_return_replay.h"
+#elif defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE)
 #include "../tools/amiga/prize_collection_replay.h"
 #elif defined(V6_VSTITCH_INPUT_CAPTURE)
 #include "../tools/amiga/prize_checkpoint_replay.h"
@@ -586,12 +608,31 @@ static V6Terrain vstitch_terrain;
 #else
 #define VSTITCH_FG(value,fallback) (fallback)
 #endif
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+#include "prize_return_sprite.h"
+#include "prize_return_draw.h"
+#include "prize_return_sprite_assets.h"
+#include "deception_assets.h"
+#include "downunder_assets.h"
+static V6Terrain deception_terrain,downunder_terrain;
+static V6PrizeReturn west_actors;
+static V6Block west_physics_blocks[6];
+static V6ReturnEnemyAnimation west_enemy_animation[2];
+static V6CollisionAnimation west_player_animation;
+static int west_player_frame,west_platform_y[2][4];
+static unsigned west_enemy_hits,west_tread_phase,west_tread_delay;
+static int west_tread_drawn[2];
+static unsigned west_copper_ready[2],west_colour_words[2][8];
+#define WEST_FG(a,b,c) (route.index==10?(a):route.index==11?(b):(c))
+#else
+#define WEST_FG(a,b,c) (c)
+#endif
 static V6Terrain frown_terrain;
-#define FG_OFFSETS VSTITCH_FG(vstitch_pair_offsets,PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)))
-#define FG_PAIRS VSTITCH_FG(vstitch_pairs,PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)))
-#define FG_WORDS VSTITCH_FG(VSTITCH_PAIR_WORDS,PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)))
-#define FG_COUNT VSTITCH_FG(VSTITCH_TILE_COUNT,PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)))
-#define FG_PALETTE VSTITCH_FG(vstitch_palette,PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)))
+#define FG_OFFSETS WEST_FG(deception_pair_offsets,downunder_pair_offsets,VSTITCH_FG(vstitch_pair_offsets,PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets))))
+#define FG_PAIRS WEST_FG(deception_pairs,downunder_pairs,VSTITCH_FG(vstitch_pairs,PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs))))
+#define FG_WORDS WEST_FG(DECEPTION_PAIR_WORDS,DOWNUNDER_PAIR_WORDS,VSTITCH_FG(VSTITCH_PAIR_WORDS,PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS))))
+#define FG_COUNT WEST_FG(DECEPTION_TILE_COUNT,DOWNUNDER_TILE_COUNT,VSTITCH_FG(VSTITCH_TILE_COUNT,PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT))))
+#define FG_PALETTE WEST_FG(deception_palette,downunder_palette,VSTITCH_FG(vstitch_palette,PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette))))
 #else
 #define FG_OFFSETS (route.index==5?energize_pair_offsets:tower_pair_offsets)
 #define FG_PAIRS (route.index==5?energize_pairs:tower_pairs)
@@ -615,6 +656,13 @@ static int station_conveyor_tick(V6TowerRoute *r,void *context)
     if(r->index==8) {
         v6_prize_platform(&station_prize,&r->room,&r->session->player,
                          r->session->life_timer,r->session->motion.pending_y);
+        return 1;
+    }
+#endif
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    if(r->index==10 || r->index==11) {
+        v6_prize_return_platforms(&west_actors,&r->room,&r->session->player,
+            r->session->life_timer,r->session->motion.pending_y);
         return 1;
     }
 #endif
@@ -663,12 +711,33 @@ static int prize_events(V6TowerRoute *r,unsigned events)
 static int prize_entities(V6TowerRoute *r,void *context)
 {
     (void)context;
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    if(r->index==10 || r->index==11) {
+        v6_prize_return_entities(&west_actors,&r->room);
+        r->room.block_count=v6_prize_return_physics_blocks(&west_actors,&r->session->player,west_physics_blocks);
+        r->room.blocks=west_physics_blocks;
+    }
+#endif
     return r->index!=8 || prize_events(r,v6_prize_entities(&station_prize,&r->room,&station_collected));
 }
 static int prize_contacts(V6TowerRoute *r,void *context)
 {
     (void)context;
     if(r->index==8)v6_prize_collide(&station_prize,&r->session->player);
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    else if(r->index==10 || r->index==11) {
+        const uint32_t *m[2];unsigned i;
+        r->room.blocks=west_actors.blocks;r->room.block_count=west_actors.platform_count;
+        v6_platform_disable_overlaps(&r->session->player,west_actors.platforms,
+            west_actors.platform_count,west_actors.blocks,west_actors.platform_count);
+        for(i=0;i<2;++i)m[i]=west_enemy_animation[i].frame<0?
+            return_player_collision[0]:return_enemy_collision[west_enemy_animation[i].frame];
+        if(v6_prize_return_pixel_hurt(&west_actors,&r->session->player,
+            return_player_collision[west_player_frame],m[0],m[1])) {
+            ++west_enemy_hits;v6_tower_session_die(r->session);
+        }
+    }
+#endif
     return 1;
 }
 static int prize_death(V6TowerRoute *r,void *context)
@@ -691,7 +760,7 @@ static int station_route_step(V6TowerRoute *r,unsigned input,V6TowerRoutePhase p
 #include "teleporter_arrival.h"
 static V6TeleporterArrival arrival;
 static int arrival_flash;
-static volatile struct {ULONG magic,version,count,records[128][14];}
+static volatile struct {ULONG magic,version,count,records[AUX_TRACE_ROWS(128)][14];}
     arrival_trace={0x56364152,1,0,{{0}}};
 #ifdef V6_TOWER_ROUNDTRIP
 #include "teleporter_departure.h"
@@ -708,9 +777,9 @@ static ULONG shake_random=19;
 static int shake_timer;
 static UBYTE *shake_mask;
 static unsigned shake_heads[2];
-static struct { ULONG magic,version,count; LONG records[128][3]; } shake_trace={0x56365348,1,0,{{0}}};
+static struct { ULONG magic,version,count; LONG records[AUX_TRACE_ROWS(128)][3]; } shake_trace={0x56365348,1,0,{{0}}};
 #ifdef V6_TOWER_MENU_TRAVEL
-static volatile struct {ULONG magic,version,count,seed;LONG records[64][3];}
+static volatile struct {ULONG magic,version,count,seed;LONG records[AUX_TRACE_ROWS(64)][3];}
     menu_shake_trace={0x56364d48,1,0,0,{{0}}};
 #endif
 #endif
@@ -847,7 +916,7 @@ static V6TeleporterDeparture departure;
 static unsigned travel_leg;
 static ULONG colour_random=7;
 static UWORD teleporter_tint=0xccd,player_tint=0xccd;
-static volatile struct {ULONG magic,version,count,records[128][2];}
+static volatile struct {ULONG magic,version,count,records[AUX_TRACE_ROWS(128)][2];}
     colour_trace={0x5636434c,1,0,{{0}}};
 static UWORD flashing_colour(int noflashing)
 {
@@ -858,7 +927,7 @@ static UWORD flashing_colour(int noflashing)
     }
     return v6_teleporter_flash_colour(samples,noflashing);
 }
-static volatile struct {ULONG magic,version,count,records[128][8];}
+static volatile struct {ULONG magic,version,count,records[AUX_TRACE_ROWS(128)][8];}
     departure_trace={0x56364452,1,0,{{0}}};
 #endif
 static int arrival_phase(V6TowerRoute *r,void *context)
@@ -883,7 +952,7 @@ static int travel_phase(V6TowerRoute *r,void *context)
 #endif
 static ULONG building_random=1;
 #define BUILDING_DMA_BYTES (2*6*V6_TELEPORTER_DMA_WORDS*2)
-static volatile struct {ULONG magic,version,count,records[128][12];}
+static volatile struct {ULONG magic,version,count,records[AUX_TRACE_ROWS(128)][12];}
     building_trace={0x56364252,1,0,{{0}}};
 #else
 #define BUILDING_DMA_BYTES 0
@@ -1080,6 +1149,20 @@ static int route_source(void)
         prize_drawn_patch[0]=prize_drawn_patch[1]=~prize_patches;
     }
 #endif
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    if(route.index==10 || route.index==11) {
+        unsigned buffer,n;
+        data=route.index==10?deception_display:downunder_display;
+        bytes=route.index==10?sizeof(deception_display):sizeof(downunder_display);
+        route.room.terrain=route.index==10?&deception_terrain:&downunder_terrain;
+        if(!v6_prize_return_init(&west_actors,&route.room,110,route.index==10?107:106,
+            route.session->player.y))return 0;
+        for(n=0;n<2;++n)v6_return_enemy_animation_init(&west_enemy_animation[n]);
+        for(buffer=0;buffer<2;++buffer)for(n=0;n<4;++n)west_platform_y[buffer][n]=-1;
+        west_tread_phase=west_tread_delay=0;
+        west_tread_drawn[0]=west_tread_drawn[1]=-1;
+    }
+#endif
     /* Resident maps were opened and fully pair-validated before
      * takeover. Rebind only these identical immutable bytes; a repeated
      * 700-entry directory scan would consume the transition frame. */
@@ -1112,13 +1195,19 @@ static int route_source(void)
 #ifdef V6_TOWER_MUSIC_TRACE
     if(!music_trace_enter())return 0;
 #endif
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    west_copper_ready[0]=west_copper_ready[1]=0;
+#endif
     route_loading=2;route_budget=1;
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    if(route.index==10 || route.index==11)route_budget=0;
+#endif
 #ifdef V6_TOWER_TELE_MENU
     if(!tele_note_room(route.rooms[route.index].x,route.rooms[route.index].y))return 0;
 #endif
     return 1;
 }
-static volatile struct { ULONG magic,version,count,records[128][3]; }
+static volatile struct { ULONG magic,version,count,records[AUX_TRACE_ROWS(128)][3]; }
     route_trace={0x56365252,1,0,{{0}}};
 #endif
 static volatile ULONG frames;
@@ -1180,7 +1269,7 @@ static volatile struct { ULONG magic,version,values[13]; }
     world_diag={0x56365747,1,{0}};
 static volatile struct {
     ULONG magic,version,count,capacity;
-    ULONG records[128][12];
+    ULONG records[AUX_TRACE_ROWS(128)][12];
 } world_trace={0x56365754,1,0,128,{{0}}};
 static void record_world(void)
 {
@@ -1207,21 +1296,21 @@ static void record_world(void)
 #ifdef V6_TOWER_ROUTE
     route_diag.index=route.index;route_diag.transitions=route.transitions;
     route_diag.returns=route.returns;route_diag.error=route.error;
-    if(route_trace.count<128) {
+    if(AUX_TRACE_ENABLED && (route_trace.count<128)) {
         route_trace.records[route_trace.count][0]=route.index;
         route_trace.records[route_trace.count][1]=route.transitions;
         route_trace.records[route_trace.count][2]=route.returns;
         ++route_trace.count;
     }
 #endif
-    if(world_trace.count<128) {
+    if(AUX_TRACE_ENABLED && (world_trace.count<128)) {
         for(i=0;i<12;++i) world_trace.records[world_trace.count][i]=world_diag.values[i];
         ++world_trace.count;
     }
 }
 #endif
 #ifdef V6_TOWER_RECOVERY
-#ifndef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+#if !defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE) && !defined(V6_PRIZE_RETURN_INPUT_CAPTURE)
 /* The pickup input capture has its own world trace and a fixed-zero camera. */
 /* Test-only bounded trace: all camera fields plus callback state. Stored
  * outside the Chip allocation; count is published after a complete record. */
@@ -1407,6 +1496,15 @@ static int pickup_prepare(UBYTE *ring,unsigned index,unsigned camera)
 static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsigned *drawn) {
     UWORD *p=list;unsigned i,background_rows,copied,bg_camera=background_camera(camera);
     copied=0;
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    if((route.index==10 || route.index==11) && west_copper_ready[index] &&
+       !camera && !shake_timer && !ui_fields && !rescue_fade && !rescue_vm.speech && !rescue_bars &&
+       !pickup_screen.state && !pickup_draw.bars && !pickup_fade.visible) {
+        if(drawn)*drawn=0;
+        goto west_actor_draw;
+    }
+    west_copper_ready[index]=0;
+#endif
     /* Small advances cost less to redraw than to scan and copy from peer. */
     if(camera>prepared_camera[index]+8 || prepared_camera[index]>camera+8) {
         copied=reuse_rows(&draw[index],&draw[index^1],ring,rings[index^1],camera>>3,2);
@@ -1441,6 +1539,17 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         }
     }
 #endif
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+west_actor_draw:
+    if(route.index==10 && west_tread_drawn[index]!=(int)west_tread_phase) {
+        v6_prize_return_draw_conveyors(ring,deception_treads[west_tread_phase]);
+    }
+    if(route.index==10)west_tread_drawn[index]=west_tread_phase;
+    if(route.index==11) {
+        if(!v6_prize_return_draw_platforms(ring,&west_actors,
+            &downunder_strips[0][0],downunder_platform,downunder_platform_mask,west_platform_y[index]))return 0;
+    }
+#endif
 #ifdef V6_TOWER_PRIZE
     if(route.index==8) {
         unsigned n,row,plane;
@@ -1461,6 +1570,9 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         }
         prize_drawn_patch[index]=prize_patches;
     }
+#endif
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    if(west_copper_ready[index])goto west_sprite_refresh;
 #endif
     if(drawn) *drawn+=background_rows;
     p=move(p,0x100,0x3600);p=move(p,0x102,0);p=move(p,0x104,0x24);
@@ -1534,6 +1646,9 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     } else
 #endif
     {
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+west_sprite_refresh:
+#endif
     v6_sprites_begin(&player_sprites[index],player_sprites[index].dma);
 #ifdef V6_TOWER_BUILDING
     if(route.rooms[route.index].teleporter) {
@@ -1636,6 +1751,17 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
             264,185,6,0xf44)<V6_SPRITE_CLIPPED) return 0;
 #endif
 #endif
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    if(route.index==10) {
+        unsigned n;
+        for(n=0;n<2;++n) {
+            int frame=west_enemy_animation[n].frame;
+            const uint32_t *rows=frame<0?tower_player_rows[0]:return_enemy_visible[frame];
+            if(v6_sprites_add_rect(&player_sprites[index],rows,west_actors.enemies[n].x,
+                west_actors.enemies[n].y,0,frame<0?32:16,frame<0?32:16,0xf44)<V6_SPRITE_CLIPPED)return 0;
+        }
+    }
+#endif
 #ifdef V6_TOWER_PRIZE
     if(route.index==8) {
         if(v6_sprites_add_rect(&player_sprites[index],prize_waiting_rows,
@@ -1645,6 +1771,13 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     }
 #endif
     if(player_sprites[index].count>world_diag.values[12]) world_diag.values[12]=player_sprites[index].count;
+#endif
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    if(west_copper_ready[index]) {
+        for(i=0;i<player_sprites[index].count;++i)
+            list[west_colour_words[index][i]]=player_sprites[index].colours[i];
+        return 1;
+    }
 #endif
     for(i=0;i<8;++i) {
         UWORD *sprite=player_sprites[index].dma+i*V6_SPRITE_WORDS;
@@ -1668,6 +1801,14 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         p=move(p,0x120+i*4,address>>16);p=move(p,0x122+i*4,address);
     }
 #ifdef V6_TOWER_WORLD
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    if(route.index==10 || route.index==11) {
+        for(i=0;i<8;++i) {
+            west_colour_words[index][i]=(unsigned)(p-list)+1;
+            p=move(p,v6_sprite_colour_register(i),DISPLAY_COLOUR(player_sprites[index].colours[i]));
+        }
+    } else
+#endif
     for(i=
 #ifdef V6_TOWER_BUILDING
         route.rooms[route.index].teleporter?6:
@@ -1773,8 +1914,12 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
             (ULONG)(ring+V6_TOWER_RING_BYTES),(ULONG)shake_mask,camera&255,bg_camera&255,arrival_flash)!=0;
     }
 #endif
-    return v6_tower_dual_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
-        camera&255,bg_camera&255)!=0;
+    if(!v6_tower_dual_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
+        camera&255,bg_camera&255))return 0;
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+    if((route.index==10 || route.index==11) && !camera)west_copper_ready[index]=1;
+#endif
+    return 1;
 }
 #ifdef V6_TOWER_UI_SAVE
 static void ui_copy(void *out,const void *in,unsigned n)
@@ -2337,6 +2482,10 @@ static int run(void) {
 #ifdef V6_VSTITCH_INPUT_CAPTURE
         collision.tiles=vstitch_tiles;v6_terrain_build(&vstitch_terrain,&collision);
         if(route.index==9)route.room.terrain=&vstitch_terrain;
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+        collision.tiles=deception_tiles;v6_terrain_build(&deception_terrain,&collision);
+        collision.tiles=downunder_tiles;v6_terrain_build(&downunder_terrain,&collision);
+#endif
 #endif
 #endif
         if(route.index==6)route.room.terrain=&frown_terrain;
@@ -2382,6 +2531,12 @@ static int run(void) {
 #endif
 #endif
     if(
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+       !v6_tower_open(&stream,deception_display,sizeof(deception_display)) ||
+       !v6_tower_pairs_validate(&stream,deception_pair_offsets,DECEPTION_PAIR_WORDS,DECEPTION_TILE_COUNT,2) ||
+       !v6_tower_open(&stream,downunder_display,sizeof(downunder_display)) ||
+       !v6_tower_pairs_validate(&stream,downunder_pair_offsets,DOWNUNDER_PAIR_WORDS,DOWNUNDER_TILE_COUNT,2) ||
+#endif
 #ifdef V6_VSTITCH_INPUT_CAPTURE
        !v6_tower_open(&stream,vstitch_display,sizeof(vstitch_display)) ||
        !v6_tower_pairs_validate(&stream,vstitch_pair_offsets,VSTITCH_PAIR_WORDS,VSTITCH_TILE_COUNT,2) ||
@@ -2863,7 +3018,22 @@ static int run(void) {
 #endif
 #endif
 #ifdef V6_PRIZE_INPUT_CAPTURE
-#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+                unsigned n;
+                input=v6_prize_return_replay(diag.logic_ticks);
+                if(!pickup_screen.state) {
+                    west_player_frame=v6_collision_frame(&west_player_animation,&session.player,
+                        session.player.ground,session.player.roof,session.death_timer);
+                    if(route.index==10 || route.index==11) {
+                        for(n=0;n<west_actors.enemy_count;++n)
+                            v6_return_enemy_animation_tick(&west_enemy_animation[n],0);
+                        if(route.index==10) {
+                            if(!west_tread_delay){west_tread_phase=(west_tread_phase+3)&3;west_tread_delay=3;}
+                            --west_tread_delay;
+                        }
+                    }
+                }
+#elif defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE)
                 input=v6_prize_collection_replay(diag.logic_ticks);
 #elif defined(V6_VSTITCH_INPUT_CAPTURE)
                 input=v6_prize_checkpoint_replay(diag.logic_ticks);
@@ -2942,7 +3112,7 @@ static int run(void) {
                     action=1;
 #endif
 #endif
-#ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+#if defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE) || defined(V6_PRIZE_RETURN_INPUT_CAPTURE)
                     /* Ordinary released fire, then one fresh press after the jingle. */
                     action=pickup_pause_ticks==94;
 #endif
@@ -3201,12 +3371,12 @@ static int run(void) {
                     v6_screen_shake_plan(&shake,0,session.noflashing,0,&shake_plan);
 #endif
                     if(session.noflashing)arrival_flash=0;
-                    if(shake_trace.count<128) {
+                    if(AUX_TRACE_ENABLED && (shake_trace.count<128)) {
                         LONG *record=shake_trace.records[shake_trace.count++];
                         record[0]=shake_timer;record[1]=shake_plan.x;record[2]=shake_plan.y;
                     }
 #ifdef V6_TOWER_MENU_TRAVEL
-                    if(menu_travel_active && menu_shake_trace.count<64) {
+                    if(AUX_TRACE_ENABLED && (menu_travel_active && menu_shake_trace.count<64)) {
                         volatile LONG *record=menu_shake_trace.records[menu_shake_trace.count++];
                         record[0]=shake_timer;record[1]=shake_plan.x;record[2]=shake_plan.y;
                     }
@@ -3214,13 +3384,13 @@ static int run(void) {
                 }
 #endif
 #ifdef V6_TOWER_MENU_TRAVEL
-                if(menu_travel_active && menu_travel_trace.count<128) {
+                if(AUX_TRACE_ENABLED && (menu_travel_active && menu_travel_trace.count<128)) {
                     volatile LONG *d=menu_travel_trace.records[menu_travel_trace.count];
                     d[0]=departure.state;d[1]=departure.delay;d[2]=departure.control;d[3]=departure.flash;
                     d[4]=departure.shake;d[5]=departure.events;d[6]=departure.travel;d[7]=travel_leg;
                 }
 #endif
-                if(departure_trace.count<128) {
+                if(AUX_TRACE_ENABLED && (departure_trace.count<128)) {
                     volatile ULONG *d=departure_trace.records[departure_trace.count++];
                     d[0]=departure.state;d[1]=departure.delay;d[2]=departure.control;
                     d[3]=departure.flash;d[4]=departure.shake;d[5]=departure.events;
@@ -3233,7 +3403,7 @@ static int run(void) {
                 if(!station_route_step(&route,input,arrival_phase,&arrival))diag.error=6;
                 arrival_flash=arrival.flash;
 #endif
-                if(arrival_trace.count<128) {
+                if(AUX_TRACE_ENABLED && (arrival_trace.count<128)) {
                     volatile ULONG *a=arrival_trace.records[arrival_trace.count++];
                     a[0]=arrival.state;a[1]=arrival.delay;a[2]=arrival.control;
                     a[3]=arrival.flash;a[4]=arrival.shake;a[5]=arrival.events;
@@ -3242,7 +3412,7 @@ static int run(void) {
                     a[12]=session.player.dir;a[13]=session.death_timer;
                 }
 #ifdef V6_TOWER_MENU_TRAVEL
-                if(menu_travel_active && menu_travel_trace.count<128) {
+                if(AUX_TRACE_ENABLED && (menu_travel_active && menu_travel_trace.count<128)) {
                     volatile LONG *a=menu_travel_trace.records[menu_travel_trace.count]+8;
                     a[0]=arrival.state;a[1]=arrival.delay;a[2]=arrival.control;a[3]=arrival.flash;
                     a[4]=arrival.shake;a[5]=arrival.events;a[6]=session.invisible;a[7]=session.player.vx;
@@ -3278,14 +3448,14 @@ static int run(void) {
                     teleporter_tint=tile==6?flashing_colour(session.noflashing):tile==1?0x444:0xaaf;
                     player_tint=departure.state>=4000 && departure.state<=4002 && !session.invisible?
                         flashing_colour(session.noflashing):0x6ff;
-                    if(colour_trace.count<128) {
+                    if(AUX_TRACE_ENABLED && (colour_trace.count<128)) {
                         volatile ULONG *c=colour_trace.records[colour_trace.count++];
                         c[0]=teleporter_tint;c[1]=player_tint;
                     }
                 }
 #endif
 #ifdef V6_TOWER_MENU_TRAVEL
-                if(menu_travel_active && menu_travel_trace.count<128) {
+                if(AUX_TRACE_ENABLED && (menu_travel_active && menu_travel_trace.count<128)) {
                     volatile LONG *r=menu_travel_trace.records[menu_travel_trace.count]+22;
                     V6Teleporter *t=route.rooms[route.index].teleporter;
                     r[0]=route.index;r[1]=session.player.x;r[2]=session.player.y;r[3]=t->tile;r[4]=t->state;
@@ -3295,7 +3465,7 @@ static int run(void) {
                     if(arrival.events&V6_ARRIVAL_SAVE)menu_travel_active=0;
                 }
 #endif
-                if(building_trace.count<128) {
+                if(AUX_TRACE_ENABLED && (building_trace.count<128)) {
                     volatile ULONG *r=building_trace.records[building_trace.count++];
                     r[0]=route.index;r[1]=session.player.x;r[2]=session.player.y;
                     V6Teleporter *t=&building_teleporter;
@@ -3378,6 +3548,11 @@ static int run(void) {
                     d[18]=station_prize.trinket.visible;d[19]=prize_tiles[9*40+18];
                     for(i=0;i<3;++i)d[20+i]=station_prize.disappearing[i].state;
                     d[23]=session.respawns;
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+                    d[24]=west_enemy_hits;d[25]=session.player.vx;d[26]=session.player.vy;
+                    d[27]=session.motion.pending_y;d[28]=west_actors.platforms[0].y;
+                    d[29]=west_actors.enemies[0].x;d[30]=west_actors.enemies[1].x;d[31]=route.error;
+#endif
                 }
 #endif
 #ifdef V6_SHENANIGAN_CAPTURE
@@ -3403,7 +3578,7 @@ static int run(void) {
                 diag.recovery_calls=session.life_calls;
                 diag.recovery_life=session.life_timer;diag.recovery_delay=session.resume_delay;
                 diag.recovery_seek_frames=session.camera.seek_frames;
-#ifndef V6_PRIZE_COLLECTION_INPUT_CAPTURE
+#if !defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE) && !defined(V6_PRIZE_RETURN_INPUT_CAPTURE)
                 if(camera_trace.count<CAMERA_TRACE_TICKS) {
                     volatile int32_t *r=camera_trace.players[camera_trace.count];
                     r[0]=session.player.x;r[1]=session.player.y;r[2]=session.player.vx;r[3]=session.player.vy;
@@ -3466,7 +3641,11 @@ tele_menu_paused:
             drawn=fg_rows+bg_rows;++route_diag.loading_frames;
 #ifdef V6_TOWER_BUILDING
             /* Leave room for the six-channel DMA copy on final cold fields. */
-            route_budget=(route.rooms[route.index].teleporter || route.index==7 || route.index==8)?1:2;
+            route_budget=(route.rooms[route.index].teleporter || route.index==7 || route.index==8
+#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+                || route.index==10 || route.index==11
+#endif
+                )?1:2;
 #else
             route_budget=2;
 #endif

@@ -69,6 +69,7 @@ extern "C" unsigned bank_candidates(const V6Player *p,const V6Enemy *a,unsigned 
     core.v6_prize_return_platforms.argtypes=[bp,rp,pp,C.c_int,C.c_int]
     core.v6_prize_return_contacts.argtypes=[bp,pp]
     core.v6_prize_return_entities.argtypes=[bp,rp]
+    core.v6_prize_return_physics_blocks.argtypes=[bp,C.POINTER(Player),C.POINTER(DynamicBlock)]
     ref.bank_enemy_step.argtypes=[C.POINTER(C.c_uint16),ep,C.c_uint,dp,C.c_uint]
     ref.bank_candidates.argtypes=[pp,ep,C.c_uint]
     core.v6_player_init.argtypes=[pp,C.c_int,C.c_int,C.c_int]
@@ -106,7 +107,11 @@ extern "C" unsigned bank_candidates(const V6Player *p,const V6Enemy *a,unsigned 
                 wanted=Player();ref.reference_read(C.byref(wanted))
                 core.v6_player_input(C.byref(p),buttons,C.byref(motion))
                 core.v6_prize_return_platforms(C.byref(bank),C.byref(room),C.byref(p),life,motion.pending_y)
+                filtered=(DynamicBlock*6)()
+                room.block_count=core.v6_prize_return_physics_blocks(C.byref(bank),C.byref(p),filtered)
+                room.blocks=filtered
                 core.v6_player_physics(C.byref(p),C.byref(room),C.byref(motion),None,None)
+                room.blocks=bank.blocks;room.block_count=bank.platform_count
                 core.v6_prize_return_contacts(C.byref(bank),C.byref(p))
                 core.v6_player_unstick(C.byref(p),C.byref(room))
                 assert bytes(p)==bytes(wanted),(name,scenario,tick,'player')

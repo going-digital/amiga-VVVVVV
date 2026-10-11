@@ -4,11 +4,13 @@ Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: 
 
 Current direction (11 October 2026): music reconstruction remains paused while
 waiting for original tracker files from Magnus Palsson. Continue engine and
-campaign-route work. The native Prize checkpoint approach and bounded input-only
-trinket pickup now pass, including the pickup pause, caption, jingle and dismissal.
-Next, connect the return journey to the disappearing-platform shaft and implement
-V Stitch's upper timed trigger before broader room admission. See the latest
-"Input-only Prize puzzle and trinket pickup" milestone below.
+campaign-route work. The native checkpoint-preserving west loop now connects the
+V Stitch lower checkpoint approach to the Prize trinket pickup through A Deception,
+Down Under and Shenanigan. Its 660 ticks match the host, with source actor drawing,
+pickup pause/caption/jingle/dismissal, 278 PAL work lines and zero missed frames.
+The west rooms remain capture-only. Next: implement V Stitch's upper timed trigger
+and complete general room/save admission. See "Checkpoint-preserving west loop
+and native capture" below.
 
 Earlier milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
@@ -5098,3 +5100,44 @@ Next: find and verify the checkpoint-preserving route through both west rooms,
 then add native room rendering/save admission and its input capture. The
 complete return to the Prize shaft and V Stitch upper timed trigger remain
 pending.
+
+### Checkpoint-preserving west loop and native capture — 11 October 2026
+
+The retained ordinary-input route now preserves Prize checkpoint 443490 through
+A Deception (tick 252), Down Under (329), Shenanigan (418), and the Prize north
+shaft (480). It continues directly through the three collapsing gates, source
+spike death (547), local respawn, and trinket pickup (610). The 660-tick host
+fixture verifies every world field without placements or forced actor changes.
+The existing west-checkpoint replacement and pixel-enemy death regressions
+remain in the same suite.
+
+The capture-only native room bank renders source conveyor tiles 72–75 and
+animated enemy frames 92–95. Down Under's four moving platforms use bitplane
+stamps with separate restoration state for each display buffer, avoiding an
+eight-channel platform allocation that would leave no player channels. Source
+pixel checks cover tile 239, its alpha, all four conveyor frames and all 7,680
+background-strip bytes; 640 alternating opaque/partial-alpha complete-ring comparisons check that
+moving platforms leave no trails. No additional Chip allocation is required.
+
+`make -C amiga_version tower-prize-return-input-capture` now passes on the PAL
+68000 A500 with 512K Chip and 512K Slow RAM: 21,120 matched world fields,
+278 work lines, zero errors/missed frames and 296,150 Chip bytes. All three
+gate cues (ticks 498/516/532) and the pickup jingle (610) use reserved Paula
+channels. The 95-tick pickup pause, 15-tick caption delay and fresh-fire dismissal
+pass; the world/actor snapshot stays fixed and dismissal adds no flip. Both
+boot and save disks remain unchanged. The ELF has no undefined symbols. An intermediate Down Under view matches
+the first 369 host ticks and passes visual inspection. The retained 180-tick
+Prize collection capture also passes: 4,320 fields, 280 lines, zero errors/misses.
+
+Source-equivalent collision filtering passes 15,360 platform/player timesteps
+and 6,144 enemy timesteps, including synthetic colliding blocks and exact
+vertical edges. The renderer caches fixed-camera Copper geometry per buffer,
+patches active sprite colours and invalidates on room entry or display effects.
+Opaque conveyor stamps use aligned interior halfwords; moving platforms restore
+only their previous strips. Crossing frames defer west room fills to the normal
+paused loading frames. Capture-only auxiliary trace pruning fits the added banks
+in the boot memory allocation; the dedicated route, pickup and frame diagnostics
+remain enabled. Default capture buffers and campaign room/save banks are unchanged.
+
+The new rooms remain capture-only. Next: the V Stitch upper timed trigger and
+general campaign/save admission.

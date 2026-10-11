@@ -55,6 +55,36 @@ def export(archive,out,decoder,room=None,name="energize"):
             frames.append([sum(((frame[y*8+x]>>p)&1)<<(7-x) for x in range(8)) for p in range(2) for y in range(8)])
         assert len(set(tuple(f) for f in frames[:4]))==4
         header+='static const uint8_t shenanigan_treads[8][16]={'+','.join('{'+','.join(map(str,f))+'}' for f in frames)+'};\n'
+    if name in ('deception','downunder'):
+        def cell(tile):
+            ox=tile%(width//8)*8;oy=tile//(width//8)*8
+            colours=[];mask=[]
+            for y in range(8):
+                row=[];alpha=0
+                for x in range(8):
+                    r,g,b,a=rgba[((oy+y)*width+ox+x)*4:((oy+y)*width+ox+x)*4+4]
+                    assert a in (0,255)
+                    colour=tuple(round(v*a/255/17) for v in (r,g,b))
+                    row.append(min(range(4),key=lambda i:sum((palette[i][j]-colour[j])**2 for j in range(3))))
+                    alpha|=(a!=0)<<(7-x)
+                colours.append(row);mask.append(alpha)
+            planes=[sum(((colours[y][x]>>p)&1)<<(7-x) for x in range(8)) for p in range(2) for y in range(8)]
+            return planes,mask
+        if name=='deception':
+            frames=[cell(t) for t in range(72,76)]
+            assert all(mask==[255]*8 for _,mask in frames)
+            header+='static const uint8_t deception_treads[4][16]={'+','.join('{'+','.join(map(str,f))+'}' for f,_ in frames)+'};\n'
+        else:
+            planes,mask=cell(239)
+            header+='static const uint8_t downunder_platform[16]={'+','.join(map(str,planes))+'};\n'
+            header+='static const uint8_t downunder_platform_mask[8]={'+','.join(map(str,mask))+'};\n'
+            strips=[]
+            for x in (88,136,184,232):
+                strip=[]
+                for y in range(240):
+                    strip.extend(atlas[tiles[y//8*40+x//8+c]*16+p*8+y%8] for p in range(2) for c in range(4))
+                strips.append(strip)
+            header+='static const uint8_t downunder_strips[4][1920]={'+','.join('{'+','.join(map(str,f))+'}' for f in strips)+'};\n'
     if name=='prize':
         frames=[];masks=[];waiting=[]
         for tile in range(747,1200):

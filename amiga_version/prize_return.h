@@ -21,4 +21,7 @@ void v6_prize_return_entities(V6PrizeReturn *,const V6Room *);
  * Source sprite collisions require v6_pixel_hit before the caller starts death.
  * Platform overlap disabling must precede stuck prevention. */
 unsigned v6_prize_return_contacts(V6PrizeReturn *,const V6Player *);
+/* Conservative blocks for the bounded player physics pass only. Restore the
+ * full bank before contact disabling, unsticking or any actor update. */
+unsigned v6_prize_return_physics_blocks(const V6PrizeReturn *,const V6Player *,V6Block out[6]);
 #endif
