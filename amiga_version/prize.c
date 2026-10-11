@@ -37,24 +37,39 @@ void v6_prize_init(V6Prize *s,V6Room *r,const V6Collect *c,int saved_id,int play
     s->save=(V6CheckpointSave){236,134,1,1,111,107,443490};
     v6_prize_respawn(s,player_y);
 }
-unsigned v6_prize_live(V6Prize *s,V6Room *r,V6Player *p,unsigned input,int life,
-                       V6Collect *c,unsigned *player_events)
+void v6_prize_platform(V6Prize *s,V6Room *r,V6Player *p,int life,int pending_y)
 {
-    unsigned i,events=0;
-    *player_events=v6_player_input(p,input,&s->motion);
-    s->push.pending_y=s->motion.pending_y;
+    s->push.pending_y=pending_y;
     /* Waiting platforms see the previous live states: gates update later. */
     v6_platform_gate_transport(p,r,&s->waiting,1,s->blocks,s->block_count,
         V6_PLATFORMS_HORIZONTAL,life,&s->push,s->disappearing,gate_x,3);
-    if(v6_checkpoint_update(&s->checkpoint,1,0,p,111,107,&s->save))events|=V6_PRIZE_SAVE;
+}
+unsigned v6_prize_entities(V6Prize *s,V6Room *r,V6Collect *c)
+{
+    unsigned events=0;
     if(v6_trinket_update(&s->trinket,c))events|=V6_PRIZE_PICKUP;
     events|=update_gates(s,r,0);
-    v6_player_physics(p,r,&s->motion,0,0);
+    return events;
+}
+void v6_prize_collide(V6Prize *s,V6Player *p)
+{
+    unsigned i;
     /* Source entity collision order, before stuck prevention/damage. */
     for(i=0;i<3;++i)v6_disappearing_contact(&s->disappearing[i],
         v6_player_overlaps(p,120,gate_y[i]-1,32,10));
     v6_platform_disable_overlaps(p,&s->waiting,1,s->blocks,s->block_count);
     v6_trinket_collide(&s->trinket,p);
+}
+unsigned v6_prize_live(V6Prize *s,V6Room *r,V6Player *p,unsigned input,int life,
+                       V6Collect *c,unsigned *player_events)
+{
+    unsigned events=0;
+    *player_events=v6_player_input(p,input,&s->motion);
+    v6_prize_platform(s,r,p,life,s->motion.pending_y);
+    if(v6_checkpoint_update(&s->checkpoint,1,0,p,111,107,&s->save))events|=V6_PRIZE_SAVE;
+    events|=v6_prize_entities(s,r,c);
+    v6_player_physics(p,r,&s->motion,0,0);
+    v6_prize_collide(s,p);
     v6_checkpoints_collide(&s->checkpoint,1,p);
     v6_player_unstick(p,r);
     return events;

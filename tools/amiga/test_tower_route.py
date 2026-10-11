@@ -102,6 +102,53 @@ def upper_traversal(core,ref):
     assert (s.player.x,s.player.y,s.player.gravity)==(12,105,0)
     return dict(crossings=crossings,death_ticks=deaths,remote_returns=r.returns)
 
+def hook_stages(core):
+    callback=C.CFUNCTYPE(C.c_int,C.POINTER(Route),C.c_void_p)
+    class Hooks(C.Structure):
+        _fields_=[(name,callback) for name in ('input','entities','contacts','death')]
+    core.v6_tower_route_step_hooks.argtypes=[C.POINTER(Route),C.c_uint,C.POINTER(Hooks),C.c_void_p]
+    observed=[]
+    token=C.c_int(42)
+    def record(stage):
+        def run(r,context):
+            state=r.contents
+            observed.append((stage,state.world.contents.activations,
+                             state.session.contents.death_timer,
+                             C.cast(context,C.POINTER(C.c_int)).contents.value))
+            return 1
+        return callback(run)
+    hooks=Hooks(*(record(name) for name in ('input','entities','contacts','death')))
+    r,s,w,keep=route_setup(core)
+    # Streamed tower owns its own phases and must never call ordinary hooks.
+    assert core.v6_tower_route_step_hooks(C.byref(r),0,C.byref(hooks),C.byref(token))
+    assert not observed
+    assert core.v6_tower_route_load(C.byref(r),108,109,0)
+    s.player.x=144;s.player.y=80;s.player.vx=s.player.vy=s.player.ay=0
+    w.checkpoints[0].pending=1
+    before=w.activations
+    assert core.v6_tower_route_step_hooks(C.byref(r),0,C.byref(hooks),C.byref(token))
+    assert observed==[('input',before,-1,42),('entities',before+1,-1,42),('contacts',before+1,-1,42)]
+    observed.clear();s.death_timer=1
+    assert core.v6_tower_route_step_hooks(C.byref(r),0,C.byref(hooks),C.byref(token))
+    assert observed==[('death',before+1,1,42)] and s.death_timer==-1 and s.respawns==1
+    # Failures stop subsequent stages and latch the existing route error.
+    for failing in ('input','entities','contacts','death'):
+        r,s,w,keep=route_setup(core)
+        assert core.v6_tower_route_load(C.byref(r),108,109,0)
+        s.player.x=144;s.player.y=80;s.player.vx=s.player.vy=s.player.ay=0
+        observed.clear()
+        failure=callback(lambda r,c: 0)
+        selected=Hooks(*(failure if name==failing else record(name)
+                         for name in ('input','entities','contacts','death')))
+        if failing=='death':s.death_timer=1
+        assert not core.v6_tower_route_step_hooks(C.byref(r),0,C.byref(selected),C.byref(token))
+        assert r.error and not s.respawns
+        expected={'input':[], 'entities':['input'], 'contacts':['input','entities'], 'death':[]}[failing]
+        assert [row[0] for row in observed]==expected
+        assert not core.v6_tower_route_step(C.byref(r),0)
+    return dict(live_order=['input','checkpoint','entities','physics','contacts'],
+                death_before_restore=True,failure_stages=4,tower_hooks=0)
+
 def main():
     from probe_feasibility import tower_probe
     tower_probe(OUT);core,ref=libraries();r,s,w,keep=route_setup(core)
@@ -186,8 +233,9 @@ def main():
         assert s.life_timer==10 and r.returns==1 and not s.camera.y
     upper=upper_traversal(core,ref)
     entries=entry_reference(core)
+    hooks=hook_stages(core)
     report=dict(crossings=crossings,remote_returns=remote_returns,source_entry_cases=entries,
-        source_hallway_movement_ticks=movement_ticks,upper_natural_route=upper,
+        source_hallway_movement_ticks=movement_ticks,upper_natural_route=upper,entity_hooks=hooks,
         scope='Literal hallway terrain/checkpoints, normal-input lower entrance crossing, saved tower returns; crew/scripts and full desktop loop excluded')
     (OUT/'route-tests.json').write_text(json.dumps(report,indent=2)+'\n');print('PASS',report)
 if __name__=='__main__':main()

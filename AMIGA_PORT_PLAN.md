@@ -4468,3 +4468,31 @@ Next: Prize for the Reckless (111,107), below Shenanigan, needs disappearing
 platforms, a waiting platform and trinket progress before route admission. A
 normal-input traversal of Shenanigan also remains to be recorded. Music
 reconstruction remains parked.
+
+
+### Prize campaign entity stages — 11 October 2026
+
+The ordinary-room route now accepts separate after-input, after-checkpoint,
+post-physics contact and death callbacks. Death callbacks run before the timer
+and saved-room restore; failing callbacks stop later stages and latch the route
+error. Streamed tower behavior and existing callers retain their own loop.
+Checkpoint and teleporter contacts now precede dynamic-block stuck prevention,
+as in the source entity collision stage.
+
+Prize exposes its waiting-platform, reverse entity-update and collision passes
+separately, allowing the campaign to retain ownership of player motion and its
+checkpoint bank. Its isolated scene composes these same passes. Host tests
+verify callback ordering, checkpoint activation between stages, death before
+restore, all four failure paths, and exclusion from the streamed tower.
+
+`make -C amiga_version test-tower-route prize-capture` passes, including 3,840
+source hallway movement ticks and 2,560 matching native Prize replay fields.
+Prize retains 204/206 PAL-line peaks with zero errors/missed frames.
+`tower-shenanigan-capture` also passes connected checkpoints, menu save/load and
+fresh physical-input disk load, at 236/200 PAL lines with zero errors/missed
+frames. These fixtures do not establish complete normal-input room traversal.
+
+Next: export Prize's paired campaign graphics, bind its mutable terrain and
+actors below Shenanigan using the new stages, then add pickup UI and connect
+V4 collection persistence to the menu. Prize is still isolated; the current
+campaign menu still writes V3. Music reconstruction remains parked.

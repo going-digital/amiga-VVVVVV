@@ -55,6 +55,15 @@ int v6_tower_route_step(V6TowerRoute *,unsigned input);
  * A failed phase latches the route error before physics runs. */
 typedef int (*V6TowerRoutePhase)(V6TowerRoute *,void *);
 int v6_tower_route_step_phase(V6TowerRoute *,unsigned input,V6TowerRoutePhase,void *);
+/* Additional ordinary-room entity stages. Death runs before the death timer
+ * and restore; entities after checkpoint updates; contacts after physics and
+ * before stuck correction. Same callback restrictions as the input phase.
+ * NULL hooks preserve the existing route behavior. */
+typedef struct {
+    V6TowerRoutePhase input,entities,contacts,death;
+} V6TowerRouteHooks;
+int v6_tower_route_step_hooks(V6TowerRoute *,unsigned input,
+                             const V6TowerRouteHooks *,void *);
 /* Ordinary non-wrapping room edges, in desktop vertical/horizontal order.
  * Each successful crossing resets physics history through route_load.
  * Missing/malformed destinations retain coordinates at the failed edge and

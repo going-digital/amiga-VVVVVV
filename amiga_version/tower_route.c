@@ -141,6 +141,12 @@ int v6_tower_route_step(V6TowerRoute *r,unsigned input)
 }
 int v6_tower_route_step_phase(V6TowerRoute *r,unsigned input,V6TowerRoutePhase phase,void *context)
 {
+    V6TowerRouteHooks hooks={phase,0,0,0};
+    return v6_tower_route_step_hooks(r,input,&hooks,context);
+}
+int v6_tower_route_step_hooks(V6TowerRoute *r,unsigned input,
+                             const V6TowerRouteHooks *hooks,void *context)
+{
     V6TowerSession *s=r->session;V6TowerGameplay *w=r->world;
     const V6TowerRouteRoom *here=&r->rooms[r->index];
     int x=here->x,y=here->y;
@@ -167,14 +173,16 @@ int v6_tower_route_step_phase(V6TowerRoute *r,unsigned input,V6TowerRoutePhase p
     v6_tower_session_life(s);
     v6_player_input(&s->player,input,&s->motion);
     if(s->death_timer!=-1) {
-        int contacts=v6_player_contacts(&s->player,&r->room);
+        int contacts;
+        if(hooks && hooks->death && !hooks->death(r,context)) goto failed;
+        contacts=v6_player_contacts(&s->player,&r->room);
         s->player.ground=contacts&1?2:s->player.ground-1;
         s->player.roof=contacts&2?2:s->player.roof-1;
         if(s->death_timer==30) ++s->deaths;
         if(--s->death_timer<=0 && !restore(r)) goto failed;
         return 1;
     }
-    if(phase && !phase(r,context)) goto failed;
+    if(hooks && hooks->input && !hooks->input(r,context)) goto failed;
     {
         unsigned saves=v6_checkpoints_update(w->checkpoints,w->count,&s->player,x,y,&w->save);
         w->activations+=saves;
@@ -185,6 +193,7 @@ int v6_tower_route_step_phase(V6TowerRoute *r,unsigned input,V6TowerRoutePhase p
             s->save_gravity=w->save.gravity;s->save_dir=w->save.dir;
         }
     }
+    if(hooks && hooks->entities && !hooks->entities(r,context)) goto failed;
     if(here->teleporter) {
         r->tele_events=v6_teleporter_update(here->teleporter,&r->tele_region,
             w->checkpoints,w->count,&s->player,x,y,0,0,&w->save);
@@ -195,10 +204,11 @@ int v6_tower_route_step_phase(V6TowerRoute *r,unsigned input,V6TowerRoutePhase p
         }
     }
     v6_player_physics(&s->player,&r->room,&s->motion,0,0);
-    /* Dynamic platform blocks require the source post-physics stuck stage. */
-    if(r->room.block_count)v6_player_unstick(&s->player,&r->room);
+    if(hooks && hooks->contacts && !hooks->contacts(r,context)) goto failed;
     v6_tower_checkpoints_collide(w,&s->player);
     if(here->teleporter)v6_teleporter_collide(here->teleporter,&s->player);
+    /* All entity contacts precede the source stuck-prevention stage. */
+    if(r->room.block_count)v6_player_unstick(&s->player,&r->room);
     if(v6_player_hurt(&s->player,&r->room)) v6_tower_session_die(s);
     return v6_tower_route_boundary(r);
 failed:

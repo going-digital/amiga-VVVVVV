@@ -20,6 +20,12 @@ typedef struct {
     V6PlatformPush push;
 } V6Prize;
 void v6_prize_init(V6Prize *,V6Room *,const V6Collect *,int saved_id,int player_y);
+/* Campaign composition: platform pass after input; entities after checkpoint
+ * updates; contacts after physics and before checkpoints/stuck correction.
+ * The route owns player motion and its checkpoint bank in this mode. */
+void v6_prize_platform(V6Prize *,V6Room *,V6Player *,int life,int pending_y);
+unsigned v6_prize_entities(V6Prize *,V6Room *,V6Collect *);
+void v6_prize_collide(V6Prize *,V6Player *);
 /* After input: horizontal platform pass, then reverse non-platform entities
  * (checkpoint, trinket, disappearing 2..0), then player physics/collisions.
  * Returns player-input events separately to avoid overlapping event bits. */
