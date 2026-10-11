@@ -17,6 +17,7 @@
 #include "platform.h"
 #include "platform_gate.h"
 #include "disappearing.h"
+#include "prize.h"
 #include "pixel_collision.h"
 #include "animation.h"
 #include "sprites.h"
@@ -55,7 +56,7 @@ static volatile struct Custom * const hw = (void *)0xdff000;
 #define HUD_PLANE_BYTES (40 * 40)
 #define HUD_BYTES HUD_PLANE_BYTES
 #define MASK_BYTES (2 * V6_SPRITE_CHANNELS * V6_SPRITE_WORDS * 2)
-#define CHIP_BYTES (DISPLAY_BUFFER_COUNT * SCREEN_BYTES + COPPER_BYTES + sizeof(flip_sound) + VANISH_SOUND_BYTES + 4 + HUD_BYTES + MASK_BYTES)
+#define CHIP_BYTES (DISPLAY_BUFFER_COUNT * SCREEN_BYTES + COPPER_BYTES + sizeof(flip_sound) + VANISH_SOUND_BYTES + TRINKET_SOUND_BYTES + 4 + HUD_BYTES + MASK_BYTES)
 
 /* Located by the host smoke test in a RAM dump. Fixed-width big-endian fields. */
 static volatile struct {
@@ -91,6 +92,29 @@ static UWORD *room = room_tiles[0];
 static V6Slice slice;
 static V6Terrain terrain[SLICE_ROOM_COUNT];
 static V6Room current_room = {room_tiles[0], SLICE_TILESET, SLICE_EXTRA_ROW, 0, 0, 0};
+#ifdef V6_PRIZE_SCENE
+static V6Prize prize;
+static V6Collect prize_collected;
+static unsigned prize_events,prize_pickups,prize_sounds,prize_tile_changes;
+static int prize_frames[DISPLAY_BUFFER_COUNT][3];
+static unsigned prize_tile_dirty;
+static unsigned prize_movement(V6Player *p,const V6Room *r,unsigned input,int life,void *context)
+{
+    unsigned events;
+    (void)r;(void)context;
+    prize_events|=v6_prize_live(&prize,&current_room,p,input,life,&prize_collected,&events);
+    if(prize_events&V6_PRIZE_SAVE) {
+        v6_slice_apply_save(&slice,&prize.save);events|=V6_EVENT_SAVE;
+    }
+    return events;
+}
+#ifdef V6_PRIZE_REPLAY
+static volatile struct {
+    ULONG magic,version,count;
+    LONG rows[160][16];
+} prize_trace={0x56365052,1,0,{{0}}};
+#endif
+#endif
 #ifdef V6_ENEMY_SCENE
 static V6Enemy drones[ENEMY_COUNT];
 static UWORD drone_frame = ENEMY_TILE, drone_walk, drone_delay;
@@ -266,7 +290,7 @@ static struct View *saved_view;
 
 static const char *room_caption(void)
 {
-#if defined(V6_ENEMY_SCENE) || defined(V6_PLATFORM_SCENE)
+#if defined(V6_ENEMY_SCENE) || defined(V6_PLATFORM_SCENE) || defined(V6_PRIZE_SCENE)
     return SLICE_CAPTION;
 #else
     return slice.room_index ? "119,110 - TWO ROOM SLICE           " : "100,110 - TWO ROOM SLICE           ";
@@ -550,7 +574,9 @@ static void sound(const UBYTE *data,UWORD bytes)
 
 static void draw_checkpoint(void)
 {
-#ifdef CHECKPOINT_COUNT
+#ifdef V6_PRIZE_SCENE
+    draw_checkpoint_at(prize.checkpoint.x,prize.checkpoint.y,20,prize.checkpoint.active);
+#elif defined(CHECKPOINT_COUNT)
     unsigned i;
     for(i=0;i<CHECKPOINT_COUNT;++i)
         draw_checkpoint_at(checkpoints[i].x,checkpoints[i].y,checkpoints[i].tile,checkpoints[i].active);
@@ -598,13 +624,16 @@ static int run(void)
     for (i = 0; i < DISPLAY_BUFFER_COUNT; ++i) screen[i] = chip + i * SCREEN_BYTES;
     copper = (UWORD *)(chip + DISPLAY_BUFFER_COUNT * SCREEN_BYTES);
     sample = (UBYTE *)copper + COPPER_BYTES;
-    silence = (UWORD *)(sample + sizeof(flip_sound) + VANISH_SOUND_BYTES);
+    silence = (UWORD *)(sample + sizeof(flip_sound) + VANISH_SOUND_BYTES + TRINKET_SOUND_BYTES);
     hud = (UBYTE *)(silence + 2);
     for (i=0;i<2;++i) v6_sprites_begin(&sprites[i],
         (UWORD *)(hud + HUD_BYTES) + i*V6_SPRITE_CHANNELS*V6_SPRITE_WORDS);
     for (i = 0; i < sizeof(flip_sound); ++i) sample[i] = flip_sound[i];
 #if VANISH_SOUND_BYTES
     for (i = 0; i < VANISH_SOUND_BYTES; ++i) sample[sizeof(flip_sound)+i] = vanish_sound[i];
+#endif
+#if TRINKET_SOUND_BYTES
+    for(i=0;i<TRINKET_SOUND_BYTES;++i)sample[sizeof(flip_sound)+VANISH_SOUND_BYTES+i]=trinket_sound[i];
 #endif
     for (i = 0; i < SLICE_ROOM_COUNT; ++i) {
         if (!v6_unpack_room(packed_rooms[i], packed_sizes[i], room_tiles[i], 1200)) {
@@ -633,6 +662,14 @@ static int run(void)
     diagnostics.chip_free = AvailMem(MEMF_CHIP);
     diagnostics.other_free = AvailMem(MEMF_FAST);
     v6_slice_init_world(&slice, room_setups, SLICE_ROOM_COUNT, 0);
+#ifdef V6_PRIZE_SCENE
+    /* Isolated slice starts at the open north entrance. The source ceiling
+     * checkpoint remains the slice's fallback until it is activated. */
+    v6_player_init(&slice.player,20,-2,0);
+    v6_collect_clear(&prize_collected);
+    v6_prize_init(&prize,&current_room,&prize_collected,-1,slice.player.y);
+    {unsigned b,n;for(b=0;b<DISPLAY_BUFFER_COUNT;++b)for(n=0;n<3;++n)prize_frames[b][n]=-99;}
+#endif
 #ifdef V6_DISAPPEAR_REPLAY
     /* Start on the test platform; respawn at the safe checkpoint ledge. */
     v6_player_init(&slice.player,108,70,0);
@@ -703,6 +740,20 @@ static int run(void)
             ++diagnostics.ticks;
             {
                 unsigned events;
+#ifdef V6_PRIZE_REPLAY
+                /* Test-only placements isolate actors, pickup and respawn. */
+                input=0;
+                if(diagnostics.ticks==1 || diagnostics.ticks==45 || diagnostics.ticks==65) {
+                    int y=diagnostics.ticks==1?70:diagnostics.ticks==45?110:126;
+                    v6_player_init(&slice.player,124,y,1);
+                    v6_prize_respawn(&prize,y);
+                }
+                if(diagnostics.ticks==90) {
+                    v6_player_init(&slice.player,192,128,1);
+                    v6_prize_respawn(&prize,128);
+                }
+                if(diagnostics.ticks==100)restart_pending=1;
+#endif
 #ifdef V6_PICK_REPLAY
                 input=diagnostics.ticks<=sizeof(pick_replay)?pick_replay[diagnostics.ticks-1]:0;
                 if(diagnostics.ticks==130) restart_pending=1;
@@ -751,8 +802,41 @@ static int run(void)
 #ifdef V6_DISAPPEAR_SCENE
                 if(slice.death_timer>=0 || restart_pending) update_disappearing(1);
 #endif
+#ifdef V6_PRIZE_SCENE
+                prize_events=0;
+                if(slice.death_timer>=0 || restart_pending)prize_events|=v6_prize_death(&prize,&current_room);
+                if(prize_events&V6_PRIZE_TILE) {
+                    int changed=v6_terrain_set_tile(&terrain[0],room_tiles[0],0,0,18,9,59);
+                    if(changed<0)diagnostics.error=5;
+                    if(changed>0) {
+                        unsigned plane,row;
+                        ++prize_tile_changes;prize_tile_dirty=3;
+                        /* Tile (18,9) lies under the first fixed platform. */
+                        prize_frames[0][0]=prize_frames[1][0]=-99;
+                        for(plane=0;plane<V6_PLANES;++plane)for(row=0;row<8;++row)
+                            background[plane*PLANE_BYTES+(72+row)*40+18]=tile_planes[tile_mapping[59]][plane*8+row];
+                    }
+                }
+#endif
                 PROFILE_MARK(1);
-#ifdef V6_PLATFORM_SCENE
+#ifdef V6_PRIZE_SCENE
+                events=v6_slice_step_entities(&slice,&current_room,input,restart_pending,prize_movement,0);
+                if(events&V6_EVENT_RESPAWN)v6_prize_respawn(&prize,slice.player.y);
+                if(prize_events&V6_PRIZE_FULL)diagnostics.error=5;
+                if(prize_events&V6_PRIZE_PICKUP)++prize_pickups;
+#ifdef V6_PRIZE_REPLAY
+                if(prize_trace.count<160) {
+                    volatile LONG *t=prize_trace.rows[prize_trace.count++];
+                    unsigned n;
+                    t[0]=slice.player.x;t[1]=slice.player.y;t[2]=slice.death_timer;
+                    t[3]=prize.waiting.x;t[4]=prize.waiting.state;t[5]=prize.waiting.vx;
+                    for(n=0;n<3;++n)t[6+n]=prize.disappearing[n].state;
+                    t[9]=prize.block_count;t[10]=prize.trinket.visible;
+                    t[11]=prize_pickups;t[12]=prize_collected.bits[0];
+                    t[13]=room_tiles[0][9*40+18];t[14]=slice.respawns;t[15]=prize_events;
+                }
+#endif
+#elif defined(V6_PLATFORM_SCENE)
 #ifdef CHECKPOINT_COUNT
                 events=v6_slice_step_entities(&slice,&current_room,input,restart_pending,platform_movement,0);
 #else
@@ -792,6 +876,13 @@ static int run(void)
                 PROFILE_MARK(2);
                 restart_pending = 0;
                 if (events & V6_EVENT_FLIP) sound(sample,sizeof(flip_sound));
+#ifdef V6_PRIZE_SCENE
+                if(prize_events&V6_PRIZE_SOUND) {sound(sample+sizeof(flip_sound),VANISH_SOUND_BYTES);++prize_sounds;}
+                if(prize_events&V6_PRIZE_PICKUP) {
+                    sound(sample+sizeof(flip_sound)+VANISH_SOUND_BYTES,TRINKET_SOUND_BYTES);
+                    text(1,24,"TRINKET 6 COLLECTED");
+                }
+#endif
 #ifdef V6_DISAPPEAR_SCENE
                 if(disappearing_sound) {
                     sound(sample+sizeof(flip_sound),VANISH_SOUND_BYTES);
@@ -849,11 +940,45 @@ static int run(void)
         }
 #endif
         PROFILE_MARK(4);
+#ifdef V6_PRIZE_SCENE
+        {
+            unsigned n,row,plane;
+            if(prize_tile_dirty&(1u<<buffer)) {
+                restore_rectangle(screen[buffer],144,72,8,8);
+                prize_tile_dirty&=~(1u<<buffer);
+            }
+            for(n=0;n<3;++n) {
+                int frame=prize.disappearing[n].invisible?-1:prize.disappearing[n].walking_frame;
+                int y=n==0?72:n==1?112:128;
+                if(prize_frames[buffer][n]==frame)continue;
+                restore_rectangle(screen[buffer],120,y,32,8);
+                if(frame>=0 && frame<DISAPPEARING_FRAME_COUNT)
+                    for(plane=0;plane<V6_PLANES;++plane)for(row=0;row<8;++row) {
+                        UBYTE bits=disappearing_tiles[frame][row];
+                        UBYTE *p=screen[buffer]+plane*PLANE_BYTES+(y+row)*40+15;
+                        /* Room-colour ink, byte stores also work at odd x/8. */
+                        if(plane==0) {p[0]|=bits;p[1]|=bits;p[2]|=bits;p[3]|=bits;}
+                        else {p[0]&=~bits;p[1]&=~bits;p[2]&=~bits;p[3]&=~bits;}
+                    }
+                prize_frames[buffer][n]=frame;
+            }
+        }
+#endif
         v6_sprites_begin(&sprites[back],sprites[back].dma);
         if (v6_sprites_add(&sprites[back],sprite_rows[slice.frame],
                 slice.player.x,slice.player.y,6,0x6ff) < V6_SPRITE_CLIPPED) {
             diagnostics.error=4; break;
         }
+#ifdef V6_PRIZE_SCENE
+        if(v6_sprites_add_rect(&sprites[back],platform_rows,prize.waiting.x,prize.waiting.y,
+                              0,32,8,0xf6b)<V6_SPRITE_CLIPPED ||
+           (prize.trinket.visible && v6_sprites_add_rect(&sprites[back],sprite_rows[22],192,128,
+                              0,16,16,0xff6)<V6_SPRITE_CLIPPED)) {
+            diagnostics.error=4;break;
+        }
+        diagnostics.enemy_x=prize.waiting.x;diagnostics.enemy_y=prize.waiting.state;
+        diagnostics.enemy_ticks=prize_pickups;diagnostics.enemy_hits=prize_tile_changes;
+#endif
 #ifdef V6_ENEMY_SCENE
         {
             unsigned n;

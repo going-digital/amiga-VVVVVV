@@ -9,7 +9,7 @@ typedef struct {
 } V6Terrain;
 struct V6Room;
 void v6_terrain_build(V6Terrain *, const struct V6Room *);
-/* Edit a caller-owned 40x30 tile buffer and rebuild its collision cache.
+/* Edit a caller-owned 40x30 tile buffer and update its collision cache.
  * Returns 1 if changed (caller must redraw), 0 if unchanged, -1 for invalid
  * coordinates/format. The buffer must be the one used by the caller's room.
  * Call with a cache already built for the supplied tileset/extra_row. */

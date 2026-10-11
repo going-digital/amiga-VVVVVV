@@ -17,7 +17,7 @@ DEFAULT_DATA = Path.home() / 'Library/Application Support/Steam/steamapps/common
 
 
 def build(data, out, scene="world", disappearing=False):
-    disappearing = disappearing or scene=="beneath"
+    disappearing = disappearing or scene in ("beneath","prize")
     out.mkdir(parents=True, exist_ok=True)
     fingerprint = dict(disappearing=disappearing,scene=scene, path=str(data.resolve()), size=data.stat().st_size,
                        mtime_ns=data.stat().st_mtime_ns,
@@ -46,6 +46,7 @@ def build(data, out, scene="world", disappearing=False):
         records = [enemy_record(scene=scene)] if scene != 'world' else [prototype_record(coords=c) for c in SLICE_ROOMS]
         w, h, rgba = png('graphics/tiles.png' if scene != 'world' else 'graphics/tiles2.png')
         ids = sorted({tile for record in records for tile in struct.unpack('>1200H', record[1])})
+        if scene=='prize':ids=sorted(set(ids)|{59})
         if scene=='shenanigan':ids=sorted(set(ids)|set(range(28,32))|set(range(68,72)))
         tiles = []
         colors = Counter()
@@ -73,8 +74,8 @@ def build(data, out, scene="world", disappearing=False):
         assert len(ids) <= 256
         # Source size-2 platforms repeat the selected 8x8 tile four times.
         platform_rows=[0]*32
-        if scene in ('platform','pick'):
-            platform_tile=159 if scene=='pick' else 616
+        if scene in ('platform','pick','prize'):
+            platform_tile=747 if scene=='prize' else 159 if scene=='pick' else 616
             ox,oy=(platform_tile%(w//8))*8,(platform_tile//(w//8))*8
             for y in range(8):
                 row=sum((rgba[((oy+y)*w+ox+x)*4+3]>127 and
@@ -82,7 +83,7 @@ def build(data, out, scene="world", disappearing=False):
                 platform_rows[y]=row*0x01010101
         disappearing_frames=[]
         if disappearing:
-            for tile in range(707 if scene=="beneath" else 2,(w//8)*(h//8)):
+            for tile in range(747 if scene=="prize" else 707 if scene=="beneath" else 2,(w//8)*(h//8)):
                 ox,oy=(tile%(w//8))*8,(tile//(w//8))*8
                 rows=[]
                 for y in range(8):
@@ -124,7 +125,7 @@ def build(data, out, scene="world", disappearing=False):
                 samples = [pcm[(i*channels+c)] - 128 if width == 1 else
                            struct.unpack_from('<h', pcm, (i*channels+c)*2)[0] / 256 for c in range(channels)]
                 mono.append(sum(samples) / channels)
-            # Offline linear resampling; only this short SFX, not music, is included.
+            # Offline linear resampling of short effects.
             target_rate = 11025
             sound = []
             for i in range(round(count * target_rate / rate)):
@@ -134,9 +135,13 @@ def build(data, out, scene="world", disappearing=False):
                 sound.append(round(max(-128, min(127, value))) & 255)
             if len(sound) & 1: sound.append(0)
             return sound
+        if scene=="prize":
+            assert all((bits & 0xffff)==0 and (y<16 or bits==0)
+                       for y,bits in enumerate(sprite_frames[22])), "Trinket exceeds 16x16"
         target_rate = 11025
         sound = sample("jump")
         vanish = sample("vanish") if disappearing else []
+        trinket = sample("trinket") if scene=="prize" else []
 
     def matrix(name, rows):
         return f'static const unsigned char {name}[{len(rows)}][{len(rows[0])}] = {{\n' + ',\n'.join('{' + ','.join(map(str,r)) + '}' for r in rows) + '\n};\n'
@@ -166,7 +171,7 @@ def build(data, out, scene="world", disappearing=False):
     header += matrix('font_rows', glyphs)
     header += 'static const unsigned long sprite_rows[40][32] = {\n' + ',\n'.join(
         '{' + ','.join(hex(v)+'UL' for v in sprite) + '}' for sprite in sprite_frames) + '\n};\n'
-    if scene in ('platform','pick'):
+    if scene in ('platform','pick','prize'):
         header += 'static const uint32_t platform_rows[32] = {' + ','.join(hex(v)+'UL' for v in platform_rows) + '};\n'
     if disappearing:
         header += '#define DISAPPEARING_FRAME_COUNT '+str(len(disappearing_frames))+'\n'
@@ -175,15 +180,18 @@ def build(data, out, scene="world", disappearing=False):
         '{' + ','.join(hex(v)+'UL' for v in sprite) + '}' for sprite in collision_frames) + '\n};\n'
     header += 'static const unsigned char flip_sound[] = {' + ','.join(map(str,sound)) + '};\n'
     header += '#define VANISH_SOUND_BYTES '+str(len(vanish))+'\n'
+    header += '#define TRINKET_SOUND_BYTES '+str(len(trinket))+'\n'
+    if trinket:
+        header += 'static const unsigned char trinket_sound[] = {' + ','.join(map(str,trinket)) + '};\n'
     if vanish:
         header += 'static const unsigned char vanish_sound[] = {' + ','.join(map(str,vanish)) + '};\n'
     (out / 'prototype_assets.h').write_text(header)
     report = dict(input_fingerprint=fingerprint, tiles=len(ids), tile_bytes=len(ids)*32, source_room_ocs_colors=len(colors)+1,
                   two_plane_tile_bytes=len(ids)*16, two_plane_room_colors=room_colors,
                   scene_palette_slots=13, checkpoint_palette_index=13, sprite_palette_index=14, text_palette_index=15,
-                  font_bytes=1024, sound_bytes=len(sound), vanish_sound_bytes=len(vanish), sound_rate=target_rate,
+                  font_bytes=1024, sound_bytes=len(sound), vanish_sound_bytes=len(vanish),trinket_sound_bytes=len(trinket), sound_rate=target_rate,
                   disappearing_mask_bytes=len(disappearing_frames)*8,
-                  note=('Shenanigan (111,106): two 64x8 conveyors, frames 68-71/28-31, two checkpoints.' if scene=='shenanigan' else 'What Lies Beneath? (116,110): checkpoint, three disappearing platforms, base tile 707.' if scene=='beneath' else 'Synthetic disappearing-platform fixture: compact tile masks from tile 2 onward, jump.wav and vanish.wav.' if disappearing else 'Just Pick Yourself Down (117,109): both checkpoints and horizontal platform, tile 159.' if scene=='pick' else 'Stop and Reflect (112,106): three platforms using repeated tile 616.' if scene == 'platform' else 'Traffic Jam (115,103): original tiles, three enemies, frames 28-31 and red-channel collision masks.' if scene == 'traffic' else 'Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
+                  note=('Prize for the Reckless (111,107): three disappearing platforms, waiting platform, trinket 6 and ceiling checkpoint; normal mode.' if scene=='prize' else 'Shenanigan (111,106): two 64x8 conveyors, frames 68-71/28-31, two checkpoints.' if scene=='shenanigan' else 'What Lies Beneath? (116,110): checkpoint, three disappearing platforms, base tile 707.' if scene=='beneath' else 'Synthetic disappearing-platform fixture: compact tile masks from tile 2 onward, jump.wav and vanish.wav.' if disappearing else 'Just Pick Yourself Down (117,109): both checkpoints and horizontal platform, tile 159.' if scene=='pick' else 'Stop and Reflect (112,106): three platforms using repeated tile 616.' if scene == 'platform' else 'Traffic Jam (115,103): original tiles, three enemies, frames 28-31 and red-channel collision masks.' if scene == 'traffic' else 'Security Sweep (112,103): original tiles, player, drone frames 36-39 and red-channel collision masks.' if scene == 'enemy' else
                         'Rooms (100,110) and (119,110), static tiles, player animation and checkpoints. No other room entities or scripts.'))
     (out / 'assets.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))
@@ -193,7 +201,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, default=DEFAULT_DATA)
     parser.add_argument('--out', type=Path, default=ROOT / 'build/amiga')
-    parser.add_argument('--scene', choices=('world','enemy','traffic','platform','pick','beneath','shenanigan'), default='world')
+    parser.add_argument('--scene', choices=('world','enemy','traffic','platform','pick','beneath','shenanigan','prize'), default='world')
     parser.add_argument('--disappearing', action='store_true')
     args = parser.parse_args()
     build(args.data, args.out, args.scene, args.disappearing)

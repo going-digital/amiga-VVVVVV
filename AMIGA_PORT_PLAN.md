@@ -4293,6 +4293,55 @@ collection pickups are active in that route yet. Next: bind the collection bank
 and V4 menu operations while integrating Prize's mixed disappearing/waiting
 platform scene, then verify native pickup, death, room reentry and cold load.
 
+### Prize for the Reckless isolated scene — 11 October 2026
+
+Added the reviewed normal-mode source room (111,107) as a playable prototype.
+`prize.c/h` composes its three disappearing platforms at (120,72), (120,112)
+and (120,128), waiting platform (88,72), trinket identity 6 and ceiling
+checkpoint 443490. The platform pass sees the previous gate states; reverse
+non-platform updates then handle checkpoint, trinket and disappearing actors.
+The death path adds source solid tile 59 at (18,9), updates collision/display
+and leaves recharge paused until live ticks. Collection survives same-room
+death, and an actor reinitialization with the retained bank omits the trinket.
+
+The exporter handles only this reviewed mutable initializer, checking every
+source setup statement and explicitly applying normal-mode spike initialization.
+It does not broaden the generic literal packer to mutable rooms. Fixed platform
+masks are drawn into bitplanes; the waiting platform, trinket and player fit
+four sprite channels. The isolated display retains the prototype's simplified
+colours. Original vanish/trinket samples accompany collapse and collection;
+pickup currently displays a HUD message, not the full campaign pickup screen.
+The interactive slice starts at its open north entrance (20,-2), gravity 0,
+with the source ceiling checkpoint as the slice's fallback.
+
+`make -C amiga_version prize-capture` passes on PAL 68000 A500, 512K Chip/512K
+Slow, with peaks of 204/206 PAL lines, zero errors/missed frames and 51,250 Chip
+bytes. The explicit-placement fixture compares 2,560 host/native fields over
+160 ticks: gate release one tick after collapse, death-time tile edit, recharge,
+checkpoint respawn, pickup and collection retained through a second death.
+A fresh interactive binary receives joystick-right input from the north
+entrance, releases the waiting platform, applies the solid tile on requested
+restart and returns to the OS on left click. Both boot disks remain unchanged.
+Screenshots have been visually reviewed. The placement trace is integration
+agreement, not independent full desktop-loop equivalence; the interactive run
+does not assert pickup or a complete room traversal.
+
+Host checks cover actor order, all three X-only gate triggers, block-slot reuse,
+death/recharge scheduling, pickup/reentry and checkpoint direction. Export
+checks reject 11 setup mutations and compare 30,272 actor-mask pixels against
+the original PNGs. Existing source-derived waiting-platform, disappearing and
+checkpoint checks pass. The initial native tile edit exceeded the frame budget;
+incremental cache edits now match full rebuilds across 64,800 edits, including
+border duplication and directional-tile removal. The existing Beneath prototype
+also rebuilds with the updated asset/header layout.
+
+Play with `make -C amiga_version prize-run` or boot
+`build/amiga-prize/prototype.adf`. Next: connect Prize below Shenanigan in the
+paired-atlas route, integrate the full pickup screen and V4 menu collection
+saves, then verify route reentry and fresh disk loads. Prize remains outside
+campaign save-room admission until that integration is verified. Music remains
+parked pending original trackers.
+
 
 ### Yellow dialogue and teleporter effects combined — 11 October 2026
 

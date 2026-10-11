@@ -105,7 +105,48 @@ def extract():
     return records
 
 
+def prize_record(source=None):
+    """Only the reviewed normal-mode mutable room, never general mutable arrays."""
+    if source is None:source=(ROOT/'desktop_version/src/Spacestation2.cpp').read_text()
+    start=source.index('case rn(49,43):');end=source.index('case rn(',start+5)
+    body=re.sub(r'//[^\n]*|/\*.*?\*/','',source[start:end],flags=re.S)
+    array=re.compile(r'static\s+short\s+contents\s*\[\]\s*=\s*\{([^}]+)\}\s*;')
+    matches=list(array.finditer(body))
+    if len(matches)!=1:raise ValueError('Prize mutable tile initializer changed')
+    tokens=[t.strip() for t in matches[0][1].split(',') if t.strip()]
+    if len(tokens)!=1200 or any(not re.fullmatch(r'\d+',t) for t in tokens):
+        raise ValueError('Prize requires exactly 1200 literal tiles')
+    values=list(map(int,tokens))
+    if any(v>65535 for v in values):raise ValueError('Prize tile exceeds uint16')
+    setup=array.sub('',body)
+    expected='''case rn(49,43): {
+        int spikevalue = (game.nodeathmode || (game.intimetrial && !game.translator_exploring)) ? 0 : 9;
+        for (int i = 23; i < 23+14; i++) { contents[i + 8*40] = spikevalue; }
+        obj.platformtile = 747;
+        obj.createentity(120, 72, 3, 747);
+        obj.createentity(120, 112, 3, 747);
+        obj.createentity(120, 128, 3, 747);
+        obj.createentity(88, 72, 2, 15, 4);
+        obj.createentity(192, 128, 9, 6);
+        obj.createentity(240, 136, 10, 0, 443490);
+        roomname = "Prize for the Reckless";
+        if(game.nodeathmode) { roomname = "I Can't Believe You Got This Far"; roomname_special = true; }
+        else if (game.intimetrial && !game.translator_exploring) { roomname = "Imagine Spikes There, if You Like"; roomname_special = true; }
+        result = contents; break; }
+    '''
+    if re.sub(r'\s+','',setup)!=re.sub(r'\s+','',expected):
+        raise ValueError('Prize room setup changed; review source entities and mode mutation')
+    # Campaign normal mode: explicitly perform the source spike initialization.
+    for x in range(23,37):values[x+8*40]=9
+    raw=struct.pack('>1200H',*values)
+    meta=dict(source='desktop_version/src/Spacestation2.cpp',
+              line=source.count('\n',0,start)+1,enclosing_label='case rn(49,43)',
+              sha256=hashlib.sha256(raw).hexdigest(),mode='normal')
+    return meta,raw,encode(values)
+
+
 def enemy_record(records=None, scene="enemy"):
+    if scene=="prize":return prize_record()
     records = extract() if records is None else records
     label = {"shenanigan":"49,42","beneath":"54,46","pick":"55,45","platform":"50,42","traffic":"53,39","enemy":"50,39"}[scene]
     name = {"shenanigan":"Shenanigan","beneath":"What Lies Beneath?","pick":"Just Pick Yourself Down","platform":"Stop and Reflect","traffic":"Traffic Jam","enemy":"Security Sweep"}[scene]
@@ -159,7 +200,7 @@ def build(out, scene="world"):
                   scope='Literal tile arrays only; no entities, room setup, scripts, or tower.',
                   rooms=manifest)
     (out / 'rooms.json').write_text(json.dumps(report, indent=2) + '\n')
-    if scene in ('enemy','traffic','platform','pick','beneath','shenanigan'):
+    if scene in ('enemy','traffic','platform','pick','beneath','shenanigan','prize'):
         selected=enemy_record(records,scene)[2]
         header = '/* Generated bounded enemy room: literal actors and checkpoint. */\n'
         header += 'static const unsigned char packed_room_0[] = {' + ','.join(map(str,selected)) + '};\n'
@@ -199,6 +240,12 @@ def build(out, scene="world"):
             header+='#define PLATFORM_COUNT 2\n#define CHECKPOINT_COUNT 2\n#define SLICE_CAPTION "111,106 - SHENANIGAN"\n'
             header+='static const int platform_setup[2][2]={{16,104},{104,184}};\n'
             header+='static const int checkpoint_setup[2][4]={{144,168,21,442490},{24,112,20,442491}};\n'
+        if scene=='prize':
+            header='/* Generated reviewed normal-mode Prize for the Reckless. */\n'
+            header+='static const unsigned char packed_room_0[] = {'+','.join(map(str,selected))+'};\n'
+            header+='#define SLICE_ROOM_COUNT 1\n#define SLICE_TILESET 0\n#define SLICE_EXTRA_ROW 0\n#define V6_PRIZE_SCENE\n'
+            header+='static const V6RoomSetup room_setups[]={{111,107,240,136,20,443490}};\n'
+            header+='#define SLICE_CAPTION "111,107 - PRIZE FOR THE RECKLESS"\n'
         header += 'static const unsigned char * const packed_rooms[] = {packed_room_0};\n'
         header += 'static const unsigned short packed_sizes[] = {sizeof(packed_room_0)};\n'
     else:
@@ -222,6 +269,6 @@ def build(out, scene="world"):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, default=ROOT / 'build/amiga')
-    parser.add_argument('--scene', choices=('world','enemy','traffic','platform','pick','beneath','shenanigan'), default='world')
+    parser.add_argument('--scene', choices=('world','enemy','traffic','platform','pick','beneath','shenanigan','prize'), default='world')
     args=parser.parse_args()
     build(args.out, args.scene)

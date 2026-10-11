@@ -3058,6 +3058,15 @@ for pickup, migration and transactional fault coverage. The playable station
 menu still uses V3 until Prize for the Reckless and its collection bank are
 integrated. See the latest entries in `AMIGA_PORT_PLAN.md` for scope and next work.
 
+Prize for the Reckless now has an isolated playable six-actor prototype:
+`make -C amiga_version prize-run` starts it at the north entrance, and
+`make -C amiga_version prize-capture` checks the native placement trace,
+joystick-triggered platform release, restart tile edit and OS restoration.
+The tested A500 build uses four sprite channels and peaks at 206 PAL lines
+without missed frames. Its in-memory trinket collection survives death; the
+full pickup screen, connected campaign route and V4 disk-save integration
+remain next. The live floppy is `build/amiga-prize/prototype.adf`.
+
 
 ### Yellow dialogue and teleporter effects combined — 11 October 2026
 

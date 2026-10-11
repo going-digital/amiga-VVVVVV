@@ -13,7 +13,7 @@ PLANES ?= 2
 SCENE ?= world
 CFLAGS := -DV6_PLANES=$(PLANES) -std=c99 -m68000 -Os -g -nostdlib -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fomit-frame-pointer -Wall -Wextra -Werror -ffunction-sections -fdata-sections -MMD -MP -I. -I$(BUILD)
 LDFLAGS := -nostdlib -m68000 -Wl,--emit-relocs,--gc-sections,-Ttext=0,-Map=$(BUILD)/prototype.map
-OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/platform.o $(BUILD)/checkpoints.o $(BUILD)/disappearing.o $(BUILD)/platform_gate.o $(BUILD)/tower_stream.o $(BUILD)/tower_draw.o $(BUILD)/tower_copper.o
+OBJECTS := $(BUILD)/prototype.o $(BUILD)/room_codec.o $(BUILD)/player.o $(BUILD)/slice.o $(BUILD)/enemy.o $(BUILD)/pixel_collision.o $(BUILD)/animation.o $(BUILD)/sprites.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/platform.o $(BUILD)/checkpoints.o $(BUILD)/disappearing.o $(BUILD)/platform_gate.o $(BUILD)/trinkets.o $(BUILD)/prize.o $(BUILD)/tower_stream.o $(BUILD)/tower_draw.o $(BUILD)/tower_copper.o
 
 .PHONY: all test capture run FORCE
 all: $(BUILD)/prototype.adf
@@ -64,6 +64,9 @@ $(BUILD)/platform.o: platform.c platform.h enemy.h blocks.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/checkpoints.o: checkpoints.c checkpoints.h player.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+
+$(BUILD)/prize.o: prize.c prize.h platform_gate.h trinkets.h checkpoints.h | $(BUILD)
 	$(CC) $(CFLAGS) -O2 -c $< -o $@
 
 $(BUILD)/trinkets.o: trinkets.c trinkets.h player.h | $(BUILD)
@@ -986,3 +989,18 @@ shenanigan-capture:
 tower-shenanigan-capture: tower-station-effects
 	$(MAKE) BUILD=$(ROOT)/build/amiga-shenanigan-effects CPPFLAGS="$(STATION_EFFECT_FLAGS) -DV6_SHENANIGAN_CAPTURE" $(ROOT)/build/amiga-shenanigan-effects/tower.adf
 	python3 $(ROOT)/tools/amiga/run_shenanigan_route.py --build $(ROOT)/build/amiga-shenanigan-effects
+
+.PHONY: prize-run prize-capture
+test-prize: $(BUILD)/prize.o
+	cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -I. $(ROOT)/tools/amiga/test_prize.c prize.c platform_gate.c disappearing.c trinkets.c checkpoints.c platform.c enemy.c player.c terrain.c blocks.c -o $(BUILD)/test_prize
+	$(BUILD)/test_prize
+.PHONY: test-prize
+test: test-prize
+prize-run:
+	$(MAKE) BUILD=$(ROOT)/build/amiga-prize SCENE=prize all
+	python3 $(ROOT)/tools/amiga/run_copperline.py --rom "$(ROM)" --emulator "$(COPPERLINE)" --build $(ROOT)/build/amiga-prize
+prize-capture: test-prize test-tile-edit
+	$(MAKE) BUILD=$(ROOT)/build/amiga-prize-replay SCENE=prize CPPFLAGS="-DV6_PRIZE_REPLAY" all
+	$(MAKE) BUILD=$(ROOT)/build/amiga-prize SCENE=prize all
+	python3 $(ROOT)/tools/amiga/test_prize_export.py --build $(ROOT)/build/amiga-prize-replay
+	python3 $(ROOT)/tools/amiga/run_prize.py --build $(ROOT)/build/amiga-prize-replay --live $(ROOT)/build/amiga-prize

@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 #include "player.h"
 #include "disappearing.h"
 static uint16_t tiles[1200];
@@ -29,6 +30,11 @@ int main(void)
     }
     memset(tiles,0,sizeof tiles);room.tileset=room.extra_row=0;
     v6_terrain_build(&cache,&room);
+    assert(v6_terrain_set_tile(&cache,tiles,0,0,1,1,14)==1);
+    assert(v6_terrain_set_tile(&cache,tiles,0,0,2,2,17)==1);
+    assert(v6_terrain_set_tile(&cache,tiles,0,0,1,1,0)==1 && cache.directional==1);
+    assert(v6_terrain_set_tile(&cache,tiles,0,0,2,2,0)==1 && cache.directional==0);
+    v6_terrain_build(&reference,&room);assert(memcmp(&cache,&reference,sizeof cache)==0);
     V6Disappearing platform={3,0,4,0,1};
     V6Block blocks[1]={{120,72,0,0,V6_BLOCK,0}};
     unsigned count=1;
@@ -50,6 +56,8 @@ int main(void)
     assert(v6_terrain_set_tile(&cache,tiles,0,0,18,30,0)==-1);
     assert(v6_terrain_set_tile(&cache,tiles,3,0,18,9,0)==-1);
     assert(v6_terrain_set_tile(&cache,tiles,0,2,18,9,0)==-1);
+    assert(v6_terrain_set_tile(&cache,tiles,0,INT_MAX,18,9,0)==-1);
+    assert(v6_terrain_set_tile(&cache,tiles,0,INT_MIN,18,9,0)==-1);
     assert(memcmp(&cache,&reference,sizeof cache)==0 && tiles[9*40+18]==59);
     printf("PASS: %u tile edits, border/directional cache rebuilds, death patch and invalid edits\n",checks);
     return 0;

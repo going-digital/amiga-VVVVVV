@@ -26,15 +26,30 @@ void v6_terrain_build(V6Terrain *out, const V6Room *room)
 int v6_terrain_set_tile(V6Terrain *out,uint16_t *tiles,int tileset,int extra_row,
                         int x,int y,uint16_t tile)
 {
-    V6Room room;
+    int height,old,sx,sy,x0,x1,y0,y1,solid;
     if((unsigned)x>=40 || (unsigned)y>=30 || (unsigned)tileset>2 ||
        (unsigned)extra_row>1) return -1;
+    height=29+extra_row;
     if(tiles[y*40+x]==tile) return 0;
+    old=tiles[y*40+x];
     tiles[y*40+x]=tile;
-    room.tiles=tiles;room.tileset=tileset;room.extra_row=extra_row;
-    room.terrain=0;room.blocks=0;room.block_count=0;
-    /* Changes can remove the final directional tile or affect duplicated
-     * border cells. Rebuild all classifications, not just one cached byte. */
-    v6_terrain_build(out,&room);
+    /* Row 29 is excluded in ordinary rooms. Preserve duplicated edge cells
+     * without rebuilding 2048 classifications during a death-time tile edit. */
+    if(y>=height)return 1;
+    solid=tileset==2 ? tile>=12 && tile<=27 :
+        tile==1 || (tile>=80 && tile<680) ||
+        (tile==59 && tileset==0) || (tile==740 && tileset==1);
+    x0=x==0?0:x+1;x1=x==39?41:x+1;
+    y0=y==0?0:y+1;y1=y==height-1?height+1:y+1;
+    for(sy=y0;sy<=y1;++sy)for(sx=x0;sx<=x1;++sx)out->solid[sy][sx]=(uint8_t)solid;
+    if(tile>=14 && tile<=17)out->directional=1;
+    else if(old>=14 && old<=17) {
+        out->directional=0;
+        /* Removing a directional tile may remove the last one. */
+        for(sy=0;sy<height;++sy)for(sx=0;sx<40;++sx) {
+            unsigned other=tiles[sy*40+sx];
+            if(other>=14 && other<=17) {out->directional=1;return 1;}
+        }
+    }
     return 1;
 }
