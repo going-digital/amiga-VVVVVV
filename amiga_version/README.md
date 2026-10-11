@@ -3561,3 +3561,35 @@ Next: extend input-only coverage to collecting the Prize trinket and activating
 its checkpoint, then connect the approach from Frown. The current input route
 does not collect the trinket or prove a complete campaign traversal. Music
 reconstruction remains parked awaiting original tracker files.
+
+### Prize death platform relocation
+
+Tracing the input-only pickup approach exposed a missing `Logic.cpp` death
+exception: the moving platform is relocated to x=152 whenever its current x
+is smaller, so it clears the special (18,9) tile. Prize death updates now
+disable blocks at the old origin and move the first matching block to the
+new origin, in source entity order after the disappearing gates. Velocity,
+state, Y position and old render coordinates remain unchanged. Repeated death
+ticks freeze the relocated actor. The movement core has no retained `newxp`;
+its next update uses the relocated current X.
+
+`test-prize-death-platform` extracts the original relocation branch and block
+methods from `Logic.cpp`/`Entity.cpp`. All 24,264 comparisons pass, covering
+both sides of the x=152 threshold, disabled/missing/duplicate blocks, actor
+state and velocity, render history and repeated death ticks. Composition
+checks verify the relocated platform block and gate recharge order.
+
+Native connected replay now explicitly requires x=152 on its first death
+tick and checks it remains frozen through death. Pickup interpolation/fades,
+three collapse cues and the source jingle, V4 save/load and cold loading, V3
+migration and physical quit pass. Replay peaks at 278 PAL lines, cold loading
+at 233 and migration at 201, with zero errors or missed frames. Chip allocation
+remains 296,150 bytes and the replay ELF has no unresolved runtime symbols.
+The input-only Shenanigan route still matches all 5,376 fields, requests its
+three gate cues and peaks at 279 lines with unchanged boot/save disks.
+
+Next: complete the input-only checkpoint approach and trinket collection. The
+existing Shenanigan-to-Prize route enters the left shaft and does not establish
+the Prize checkpoint before its intentional death. The Frown approach and
+right-side checkpoint entry need further route coverage; the relocation fix
+does not itself prove that complete path. Music reconstruction remains parked.

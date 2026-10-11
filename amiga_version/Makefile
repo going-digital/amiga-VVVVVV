@@ -1059,3 +1059,8 @@ test: test-prize-input
 tower-prize-input-capture: tower-prize-route test-prize-input
 	$(MAKE) BUILD=$(ROOT)/build/amiga-prize-input CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE" $(ROOT)/build/amiga-prize-input/tower.adf
 	python3 $(ROOT)/tools/amiga/run_prize_input.py --build $(ROOT)/build/amiga-prize-input
+
+.PHONY: test-prize-death-platform
+test-prize-death-platform:
+	python3 $(ROOT)/tools/amiga/test_prize_death_platform.py
+test: test-prize-death-platform

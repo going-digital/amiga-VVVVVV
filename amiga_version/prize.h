@@ -40,7 +40,8 @@ void v6_prize_collide(V6Prize *,V6Player *);
  * Returns player-input events separately to avoid overlapping event bits. */
 unsigned v6_prize_live(V6Prize *,V6Room *,V6Player *,unsigned input,int life,
                        V6Collect *,unsigned *player_events);
-/* Run each death tick; report special tile patch before caller respawns.
+/* Run each death tick; relocate a moving platform left of x=152 as source
+ * Logic.cpp does, and report special tile patch before caller respawns.
  * Caller applies tile (18,9)=59 to both terrain and display. */
 unsigned v6_prize_death(V6Prize *,V6Room *);
 /* Same-room respawn resets retained player movement only, preserving actors. */

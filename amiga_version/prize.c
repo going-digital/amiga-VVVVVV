@@ -75,4 +75,16 @@ unsigned v6_prize_live(V6Prize *s,V6Room *r,V6Player *p,unsigned input,int life,
     return events;
 }
 unsigned v6_prize_death(V6Prize *s,V6Room *r)
-{ return update_gates(s,r,1); }
+{
+    unsigned events=update_gates(s,r,1);
+    /* Logic.cpp death branch: keep the moving platform to the right of the
+     * special (18,9) tile. Preserve velocity/state and render history. There
+     * is no retained newxp in this core; the next move starts from current x. */
+    if(s->waiting.x<152) {
+        int x=s->waiting.x,y=s->waiting.y;
+        v6_blocks_disable_at(s->blocks,s->block_count,x,y);
+        s->waiting.x=152;
+        v6_blocks_move(s->blocks,s->block_count,x,y,152,y,s->waiting.w,s->waiting.h);
+    }
+    return events;
+}

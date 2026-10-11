@@ -70,10 +70,12 @@ int main(void)
     }
     assert(!(v6_prize_death(&s,&room)&V6_PRIZE_TILE)); /* completing state 2 isn't state 3 entry */
     for(i=0;i<3;++i)assert(s.disappearing[i].state==4 && s.disappearing[i].invisible);
-    /* Death does not advance recharge, moving actors or pending pickup. */
+    /* Death relocates the waiting platform once, then freezes movement,
+     * recharge and pending pickup. */
     s.trinket.pending=1;
     for(i=0;i<30;++i)assert(v6_prize_death(&s,&room)==0);
-    assert(s.waiting.x==88 && !v6_collect_has(&bank,6));
+    assert(s.waiting.x==152 && s.waiting.old_x==88 && !v6_collect_has(&bank,6));
+    assert(s.blocks[3].x==152 && s.blocks[3].y==72 && s.blocks[3].w==32 && s.blocks[3].h==8);
     e=v6_prize_live(&s,&room,&p,0,9,&bank,&input);
     assert(e&V6_PRIZE_PICKUP);
     assert(v6_collect_has(&bank,6) && !s.trinket.visible && room.block_count==4);

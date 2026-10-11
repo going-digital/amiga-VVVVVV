@@ -118,6 +118,7 @@ def main():
     assert any(row[0]==8 for row in rows[190:]) and all(row[17]==1 and row[18]==0 and row[19]==59
                                       for row in rows[190:] if row[0]==8)
     assert rows[149 if args.v4 else -1][23]>=2,rows[149 if args.v4 else -1]
+    assert rows[60][13]==152,rows[60]
     assert all(row[13]==rows[60][13] and row[20]==4 for row in rows[60:90])
     # A V3-supported Shenanigan checkpoint cannot silently discard trinket 6.
     assert any(row[5]==442490 and row[17]==1 for row in rows[185:190])
