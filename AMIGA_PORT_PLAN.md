@@ -4070,3 +4070,48 @@ and skipped native audio captures also pass, including OS restoration.
 Next: extend the save format and room admission to retain yellow rescue flags
 and the Frown checkpoint across fresh boots, then complete source companion
 restraint in Energize and expand the station route.
+
+## Yellow progress persistence — 11 October 2026
+
+The new V3 progress codec retains the 96-byte exploration record and adds
+separate yellow triggered/rescued flags and companion 7 alongside red's existing
+flags. Frown (111,105) is admitted only through this codec. It accepts V1/V2,
+clearing yellow state during migration; the existing V1/V2 APIs retain their
+formats and reject V3 instead of silently discarding yellow progress. Both crews
+can be rescued, but only one companion can be active. Runtime modes and
+inconsistent rescue flags are rejected. Source checkpoint validation remains a
+separate admission requirement.
+
+Progress file operations use the existing verified temp/backup transaction,
+including exact readback, interrupted-replacement recovery and publication of
+all checkpoint/story/map outputs together. Independent tests check all 64 flag
+combinations, 400 explored-room bits, 768 bit corruptions, checksum-valid semantic
+corruption, migration, 72 interruption snapshots and 144 replacement faults.
+Read failures retain all four outputs. Older writers cannot replace V3 records,
+and altered but checksum-valid readback cannot be promoted. Legacy codec and
+exploration/file fault regressions remain passing.
+
+`make -C amiga_version tower-station-save-run` launches the playable station
+build with a retained writable DF1 data disk at
+`build/amiga-station-save-live/save-disk.adf`. Left mouse exits and writes
+completed progress to `DF1:station.v6cs` after restoring the OS, then flushes the
+filesystem. The boot disk is read-only. This separate station file does not
+replace the existing menu's `campaign.v6cs`. Mid-script quits reject the save;
+there is no mid-cutscene restart or in-game save menu in this slice.
+
+`make -C amiga_version tower-station-save-capture` checks native early-quit
+rejection, completed rescue commit, fresh-boot restoration and checksum-valid
+shifted-checkpoint rejection before takeover. The fresh boot restores the
+188,86 ceiling checkpoint, direction/gravity, yellow story flags, companion 7
+and exploration map without replaying the rescue or its cues. Native admission
+is deliberately limited to the Frown checkpoint bank; wider V3 codec bounds do
+not make other rooms playable in this saved station build. Final and backup
+checkpoint banks are validated before recovery can clean either record.
+The completed-rescue and cold runs each execute 1,000 logic ticks with zero
+errors/missed frames, 116,214 Chip bytes, and peak work of 206/188 PAL lines.
+The existing native Building Apport save, cold boot and invalid-centre regression
+also passes.
+
+Next: implement the source companion restraint when returning to Energize,
+then connect the progress format and yellow state to the main menu/route and
+expand the station rooms. Music reconstruction remains parked.

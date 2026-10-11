@@ -1,6 +1,9 @@
+#if defined(V6_STATION_SAVE) && !defined(V6_TOWER_STATION)
+#error Station save requires the station room slice
+#endif
 #ifdef V6_TOWER_STATION
 #if !defined(V6_TOWER_BUILDING) || !defined(V6_TOWER_ENERGIZE) || !defined(V6_TOWER_RESCUE) || !defined(V6_TOWER_TRIGGER_REPLAY) || defined(V6_TOWER_UI_SAVE)
-#error Station slice requires room/rescue cores; yellow persistence is pending
+#error Station slice requires room/rescue cores and its separate save path
 #endif
 #endif
 /* Standalone PAL tower display experiment; left mouse exits. */
@@ -52,11 +55,20 @@
 #else
 #define V6_SAVE_STOP_TICKS V6_SAVE_TICKS
 #endif
-#if defined(V6_TOWER_PERSIST) || defined(V6_TOWER_UI_SAVE) || defined(V6_BUILDING_SAVE)
+#if defined(V6_TOWER_PERSIST) || defined(V6_TOWER_UI_SAVE) || defined(V6_BUILDING_SAVE) || defined(V6_STATION_SAVE)
 #include <proto/dos.h>
 #include "campaign_dos.h"
 #include "campaign_route.h"
 struct DosLibrary *DOSBase;
+#ifdef V6_STATION_SAVE
+static V6CheckpointSave station_saved;
+static V6HallwayStory station_saved_red;
+static V6StationStory station_saved_yellow;
+static V6Exploration station_exploration;
+static unsigned station_stage;
+static volatile struct {ULONG magic,version,values[18];} station_save_diag={0x56365350,1,{0}};
+static int checkpoint_bank_valid(const V6CheckpointSave *);
+#endif
 #ifdef V6_BUILDING_SAVE
 static V6CheckpointSave building_saved;
 static unsigned building_stage;
@@ -152,6 +164,11 @@ static unsigned ui_test_phase,ui_test_tick;
 #endif
 static int checkpoint_bank_valid(const V6CheckpointSave *);
 #else
+#ifdef V6_STATION_SAVE
+static const char save_name[]="DF1:station.v6cs";
+static const char save_temp[]="DF1:station.tmp";
+static const char save_backup[]="DF1:station.bak";
+#else
 #ifdef V6_BUILDING_SAVE
 static const char save_name[]="DF1:campaign.v6cs";
 static const char save_temp[]="DF1:campaign.tmp";
@@ -160,6 +177,7 @@ static const char save_backup[]="DF1:campaign.bak";
 static const char save_name[]="DF0:campaign.v6cs";
 static const char save_temp[]="DF0:campaign.tmp";
 static const char save_backup[]="DF0:campaign.bak";
+#endif
 #endif
 #endif
 #endif
@@ -775,6 +793,9 @@ static int route_source(void)
     }
 #endif
 #ifdef V6_TOWER_STATION
+#ifdef V6_STATION_SAVE
+    if(!v6_exploration_visit(&station_exploration,route.rooms[route.index].x,route.rooms[route.index].y))return 0;
+#endif
     if(route.index==6){data=frown_display;bytes=sizeof(frown_display);route.room.terrain=&frown_terrain;}
 #endif
     /* All three resident maps were opened and fully pair-validated before
@@ -1516,6 +1537,20 @@ static int run(void) {
     world.save.x=188;world.save.y=86;world.save.gravity=1;world.save.dir=0;
     world.save.room_x=111;world.save.room_y=105;world.save.id=441490;
     if(!v6_tower_route_load(&route,111,105,1))return 20;
+#ifdef V6_STATION_SAVE
+    if(station_stage==2) {
+        world.save=station_saved;hallway_story=station_saved_red;station_story=station_saved_yellow;
+        if(!v6_tower_route_load(&route,world.save.room_x,world.save.room_y,1))return 20;
+        rescue_vm.following=station_story.companion==7;rescue_vm.mood=!rescue_vm.following;
+    }
+    if(!v6_exploration_visit(&station_exploration,111,105))return 20;
+    station_save_diag.values[3]=session.player.x;station_save_diag.values[4]=session.player.y;
+    station_save_diag.values[5]=session.player.gravity;station_save_diag.values[6]=session.player.dir;
+    station_save_diag.values[7]=world.save.room_x;station_save_diag.values[8]=world.save.room_y;
+    station_save_diag.values[9]=world.save.id;
+    station_save_diag.values[10]=station_story.rescue_triggered;station_save_diag.values[11]=station_story.yellow_rescued;
+    station_save_diag.values[12]=station_story.companion;
+#endif
     v6_station_trigger_init(&station_trigger);
 #endif
     v6_hallway_trigger_init(&hallway_trigger);
@@ -1537,6 +1572,10 @@ static int run(void) {
     else
 #endif
 #ifdef V6_TOWER_STATION
+#ifdef V6_STATION_SAVE
+    if(station_story.companion==7)v6_station_companion_enter(&companion,7,111,105,&session.player);
+    else
+#endif
     v6_station_companion_idle(&companion,trigger_crew_visible);
 #else
     v6_companion_idle(&companion,trigger_crew_visible);
@@ -1832,6 +1871,9 @@ static int run(void) {
           (*(volatile UBYTE *)0xbfe001&0x40)
 #endif
           && !diag.error
+#if defined(V6_STATION_SAVE) && defined(V6_STATION_CAPTURE)
+          && diag.logic_ticks<1000
+#endif
 #ifdef V6_TOWER_WORLD
           && !world.exit.room_x
 #endif
@@ -2558,7 +2600,7 @@ tele_menu_paused:
 #endif
     FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return diag.error?20:0;
 }
-#if defined(V6_TOWER_PERSIST) || defined(V6_TOWER_UI_SAVE) || defined(V6_BUILDING_SAVE)
+#if defined(V6_TOWER_PERSIST) || defined(V6_TOWER_UI_SAVE) || defined(V6_BUILDING_SAVE) || defined(V6_STATION_SAVE)
 static int checkpoint_bank_valid(const V6CheckpointSave *c)
 {
     return v6_campaign_route_checkpoint_valid(c,tower_route_rooms,
@@ -2566,7 +2608,37 @@ static int checkpoint_bank_valid(const V6CheckpointSave *c)
 }
 #endif
 int __attribute__((used,section(".text.unlikely"))) _start(void) {
-#ifdef V6_BUILDING_SAVE
+#ifdef V6_STATION_SAVE
+    int result,a,t,k;V6CheckpointSave c;V6HallwayStory red;V6StationStory yellow;V6Exploration map;
+    __asm volatile("move.l 4.w,%0":"=r"(SysBase));
+    DOSBase=(struct DosLibrary *)OpenLibrary((CONST_STRPTR)"dos.library",0);
+    if(!DOSBase)return 20;
+    a=v6_campaign_dos.exists(save_name);t=v6_campaign_dos.exists(save_temp);k=v6_campaign_dos.exists(save_backup);
+    result=(a<0 || t<0 || k<0)?V6_SAVE_IO:V6_SAVE_OK;
+    station_stage=(a || t || k)?2:1;station_save_diag.values[0]=station_stage;
+    if(!result && station_stage==2) {
+        result=v6_campaign_progress_read(&v6_campaign_dos,a?save_name:save_backup,&station_saved,&station_saved_red,&station_saved_yellow,&station_exploration);
+        if(!result && (!checkpoint_bank_valid(&station_saved) || station_saved.room_x!=111 || station_saved.room_y!=105 || station_saved_red.companion))result=V6_SAVE_CORRUPT;
+        if(!result && a && k) {
+            result=v6_campaign_progress_read(&v6_campaign_dos,save_backup,&c,&red,&yellow,&map);
+            if(!result && (!checkpoint_bank_valid(&c) || c.room_x!=111 || c.room_y!=105 || red.companion))result=V6_SAVE_CORRUPT;
+        }
+        if(!result)result=v6_campaign_progress_recover(&v6_campaign_dos,save_name,save_temp,save_backup,&station_saved,&station_saved_red,&station_saved_yellow,&station_exploration);
+        if(!result && !v6_campaign_dos_flush("DF1:"))result=V6_SAVE_IO;
+    }
+    if(result) {station_save_diag.values[1]=result;station_save_diag.values[2]=1;CloseLibrary((struct Library *)DOSBase);return 20;}
+    result=run();
+    if(!result) {
+        /* No mid-script snapshots or unsupported checkpoint banks. */
+        if(rescue_vm.active || rescue_vm.error || !checkpoint_bank_valid(&world.save) || world.save.room_x!=111 || world.save.room_y!=105)result=V6_SAVE_INVALID;
+        else result=v6_campaign_progress_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story,&station_story,&station_exploration);
+        if(!v6_campaign_dos_flush("DF1:"))result=V6_SAVE_IO;
+    }
+    station_save_diag.values[1]=result;station_save_diag.values[13]=station_story.rescue_triggered;
+    station_save_diag.values[14]=station_story.yellow_rescued;station_save_diag.values[15]=station_story.companion;
+    station_save_diag.values[16]=station_trigger.requests;station_save_diag.values[17]=rescue_vm.cues;
+    CloseLibrary((struct Library *)DOSBase);return result?20:0;
+#elif defined(V6_BUILDING_SAVE)
     int result,a,k;V6HallwayStory story;
     __asm volatile("move.l 4.w,%0":"=r"(SysBase));
     DOSBase=(struct DosLibrary *)OpenLibrary((CONST_STRPTR)"dos.library",0);

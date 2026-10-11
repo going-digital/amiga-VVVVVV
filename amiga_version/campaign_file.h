@@ -33,4 +33,9 @@ int v6_campaign_state_read(const V6CampaignIO *,const char *,V6CheckpointSave *,
 int v6_campaign_state_write_new(const V6CampaignIO *,const char *,const char *,const V6CheckpointSave *,const V6HallwayStory *,const V6Exploration *);
 int v6_campaign_state_recover(const V6CampaignIO *,const char *,const char *,const char *,V6CheckpointSave *,V6HallwayStory *,V6Exploration *);
 int v6_campaign_state_replace(const V6CampaignIO *,const char *,const char *,const char *,const V6CheckpointSave *,const V6HallwayStory *,const V6Exploration *);
+/* Progress operations accept V1/V2/V3 and write V3; identical path/fault rules. */
+int v6_campaign_progress_read(const V6CampaignIO *,const char *,V6CheckpointSave *,V6HallwayStory *,V6StationStory *,V6Exploration *);
+int v6_campaign_progress_write_new(const V6CampaignIO *,const char *,const char *,const V6CheckpointSave *,const V6HallwayStory *,const V6StationStory *,const V6Exploration *);
+int v6_campaign_progress_recover(const V6CampaignIO *,const char *,const char *,const char *,V6CheckpointSave *,V6HallwayStory *,V6StationStory *,V6Exploration *);
+int v6_campaign_progress_replace(const V6CampaignIO *,const char *,const char *,const char *,const V6CheckpointSave *,const V6HallwayStory *,const V6StationStory *,const V6Exploration *);
 #endif

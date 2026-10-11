@@ -23,13 +23,14 @@ def read_record(path:Path,name=b'campaign.v6cs'):
     assert struct.unpack_from('>I',image,block)[0]==8 and size in (44,96)
     assert sum(struct.unpack_from('>128I',image,block))&0xffffffff==0
     record=image[block+24:block+24+size]
-    assert struct.unpack_from('>4sHH',record)==(b'V6CS',1 if size==44 else 2,size)
+    magic,version,length=struct.unpack_from('>4sHH',record)
+    assert magic==b'V6CS' and length==size and version in ((1,) if size==44 else (2,3))
     assert zlib.crc32(record[:-4])==struct.unpack_from('>I',record,size-4)[0]
     if size==96:assert record[90:92]==b'\0\0'
     return record
 def legacy_record_fixture(path:Path,name=b'campaign.v6cs'):
     """Downgrade a disposable capture disk to a valid v1 checkpoint-only record."""
-    record=read_record(path,name);assert len(record)==96
+    record=read_record(path,name);assert len(record)==96 and record[5]==2
     legacy=bytearray(record[:40]);struct.pack_into('>HH',legacy,4,1,44)
     legacy+=struct.pack('>I',zlib.crc32(legacy))
     image=bytearray(path.read_bytes())

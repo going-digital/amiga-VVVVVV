@@ -911,3 +911,15 @@ tower-station-capture: tower-station
 .PHONY: test-station-graphics
 test-station-graphics: tower-assets
 	python3 $(ROOT)/tools/amiga/test_station_graphics.py
+
+.PHONY: test-campaign-progress tower-station-save tower-station-save-run tower-station-save-capture
+test-campaign-progress: $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o
+	python3 $(ROOT)/tools/amiga/test_campaign_progress.py
+test: test-campaign-progress
+tower-station-save: tower-station test-campaign-progress
+	$(MAKE) BUILD=$(ROOT)/build/amiga-station-save-live CPPFLAGS="$(STATION_FLAGS) -DV6_STATION_SAVE" $(ROOT)/build/amiga-station-save-live/tower.adf
+tower-station-save-run: tower-station-save
+	python3 $(ROOT)/tools/amiga/run_station_save.py --build $(ROOT)/build/amiga-station-save-live --interactive
+tower-station-save-capture: tower-station-save
+	$(MAKE) BUILD=$(ROOT)/build/amiga-station-save CPPFLAGS="$(STATION_FLAGS) -DV6_STATION_SAVE -DV6_STATION_CAPTURE" $(ROOT)/build/amiga-station-save/tower.adf
+	python3 $(ROOT)/tools/amiga/run_station_save.py --build $(ROOT)/build/amiga-station-save

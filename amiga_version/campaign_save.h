@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "checkpoints.h"
 #include "hallway_crew.h"
+#include "station_trigger.h"
 #include "teleporter_admission.h"
 /* Bounded route save, not desktop XML or a mid-cutscene snapshot.
  * 44 bytes: V6CS, BE16 version/length, seven BE32 checkpoint fields,
@@ -30,4 +31,13 @@ int v6_campaign_state_decode(V6CheckpointSave *,V6HallwayStory *,V6Exploration *
 /* Bank must belong to the saved room. Only source checkpoint-derived spawns
  * are accepted; an initial save with id -1 is not a checkpoint restart. */
 int v6_campaign_checkpoint_valid(const V6CheckpointSave *,const V6Checkpoint *,unsigned);
+/* Version 3 keeps the 96-byte map layout. Story flags additionally encode
+ * yellow triggered=8, rescued=16, companion7=32. Reserved bytes remain zero.
+ * The two story outputs retain their existing ABI; at most one companion is
+ * active. Reads migrate V1/V2 with yellow state cleared. Older APIs reject V3.
+ * Frown room admission is V3-only; source-bank validation remains mandatory. */
+int v6_campaign_progress_encode(uint8_t *,size_t,const V6CheckpointSave *,
+    const V6HallwayStory *,const V6StationStory *,const V6Exploration *);
+int v6_campaign_progress_decode(V6CheckpointSave *,V6HallwayStory *,V6StationStory *,
+    V6Exploration *,const uint8_t *,size_t);
 #endif
