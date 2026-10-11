@@ -33,6 +33,10 @@ def main():
     at=data.index(b'V6PB\0\0\0\1')
     presentation=struct.unpack_from('>8I',data,at+12)
     assert presentation==(361,361,76,76,32,32,1,17),presentation
+    at=data.index(b'V6FF\0\0\0\1')
+    n=struct.unpack_from('>I',data,at+8)[0]
+    fades=[struct.unpack_from('>8I',data,at+12+i*32) for i in range(n)]
+    assert n>1 and fades[-1][6]==0x2220aaa and all(r[5] and r[7] for r in fades),fades
     at=data.index(b'V6PA\0\0\0\1')
     audio=struct.unpack_from('>5I',data,at+8)
     assert audio==(2,1,0,1,0),audio
@@ -41,7 +45,7 @@ def main():
     assert ui['before_hash']==ui['after_hash'] and ui['ticks_before']==ui['ticks_after'],ui
     assert disk.read_bytes()==before and (build/'tower.adf').read_bytes()==boot
     report=dict(display=display,pickup=pickup,ui=ui,
-                scope='Held action through pickup reveal; world and Prize actors frozen, save rejected as busy, disks unchanged. Source-positioned bordered textboxes, wordy count and fully extended bars; textbox fading remains outstanding. Source Prize effects complete while gameplay stays paused.')
+                scope='Held action through pickup reveal; world and Prize actors frozen, save rejected as busy, disks unchanged. Source-positioned bordered textboxes, wordy count and fully extended bars; source-interpolated textbox fade-in reaches full brightness. Source Prize effects complete while gameplay stays paused.')
     (build/'pickup-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native Prize pickup:',json.dumps(report))
 

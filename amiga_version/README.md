@@ -3460,3 +3460,45 @@ and between the boxes after gameplay resumes; the existing frozen strip snapshot
 cannot simply be kept on screen. Broader normal-input campaign traversal and
 per-entity simultaneous collapse sounds remain outstanding. Music reconstruction
 remains parked.
+
+
+### Source pickup textbox fades
+
+The Prize candidate now implements the source textbox lifecycle: creation at
+brightness .5, .1 increments per fixed tick to 1, and removal from 1 in .1 steps
+until the source .5 removal threshold. Palette brightness interpolates at PAL
+render phases. Dismissal restores gameplay immediately while the text finishes
+fading; source pickup VM timing and the held-action flip filter are unchanged.
+The native palette uses nearest OCS levels for source gray 174 and its gray/6
+fill. Exact integer threshold comparisons avoid repeated division in the render
+path, with no floating-point or libgcc runtime.
+
+Copper now treats the two boxes as separate regions (y=85..126 and y=137..160).
+The 10-row gap reads the current foreground ring and restores normal sprite
+priority. In this source-backed Prize candidate, the only changing foreground
+inside the upper region is the x=120, y=112 gate, which the opaque box covers;
+the y=128 gate is in the live gap and the y=72 gate/death patch is outside both
+regions. The foreground margins are static. A new room with mutable margins
+will need fresh composition or a different overlay adapter. Animated actors
+remain current hardware sprites, and background DMA remains live.
+
+`test-pickup-fade` compares 423,074 lifecycle/palette phases with extracted source
+updates, including immediate and held dismissal and five-tick removal. Expanded
+presentation checks cover mutable gate bounds, live gap pointers across ring
+wraps, each fade palette and invalid colour rejection. Maximum Copper segment
+length is 194/216 words; Chip allocation stays at 296,150 bytes.
+
+Visible and hidden layouts use separate per-bank caches, and palette changes
+patch cached register values. Aligned longword copying reduces list-transfer
+cost. These changes resolve the measured dismissal overrun without changing the
+280-line budget. Native replay validates ten palette changes, fading with
+restored control and exact removal at world tick 156. Audio capture, V4 save/load,
+fresh V4 loading, V3 migration and physical quit pass. PAL peaks are 280 lines for
+replay, 234 for cold loading and 201 for migration, with zero errors/missed frames.
+The held-screen capture verifies full fade-in brightness, 935 frozen UI ticks,
+a busy save rejection and unchanged disks, with a 272-line peak. Its reviewed
+screenshot retains the room art around and between the bordered boxes.
+
+Next: preserve individual simultaneous collapse requests, then broaden
+normal-input campaign coverage. Prize remains a separate candidate and music
+reconstruction remains parked.

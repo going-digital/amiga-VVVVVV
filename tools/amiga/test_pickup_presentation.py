@@ -162,6 +162,16 @@ extern "C" {
                 original=sum(((fg_raw[p*40+x//8]>>(7-x%8))&1)<<p for p in range(2))
                 assert actual==(4+k if m else original)
                 checks+=1
+    # Prize's source-validated mutable foreground: gates at x=120 and
+    # y=72/112/128, plus the death patch at tile (18,9). Changes within
+    # text strips are covered; the gap and top gate must read the live ring.
+    for y0 in (72,112,128):
+        for y in range(y0,y0+8):
+            for x in range(120,152):
+                if 85<=y<127:
+                    assert core.v6_pickup_text_row(C.byref(s),y-85,mask,ink,font,border)
+                    assert mask[x//8]&(128>>(x%8))
+                else:assert not (137<=y<161)
     before=bytes(s)
     assert not core.v6_pickup_draw_count(C.byref(s),101) and bytes(s)==before
     for pos in range(362):
@@ -207,16 +217,16 @@ extern "C" {
                 expected[640+at]=bits
             assert list(dest)==expected,(y,bits)
     maximum,copper_checks=check_copper(core)
-    print(f'PASS pickup presentation: {checks} source textbox/composite pixels, 101 source English counts, 362 source bar widths, source bar timer, {interpolation_checks} source interpolated positions, {copper_checks} Copper plans; maximum {maximum}/176 words')
+    print(f'PASS pickup presentation: {checks} source textbox/composite pixels, 101 source English counts, 362 source bar widths, source bar timer, {interpolation_checks} source interpolated positions, {copper_checks} Copper plans; maximum {maximum}/216 words')
 
 def check_copper(core):
-    core.v6_pickup_copper.argtypes=[C.c_void_p,C.c_uint32,C.c_uint32,C.c_uint,C.c_uint,C.c_uint32,C.c_uint32,C.c_int,C.c_uint]
-    buf=(C.c_uint16*178)();maximum=cases=0
+    core.v6_pickup_copper.argtypes=[C.c_void_p,C.c_uint32,C.c_uint32,C.c_uint,C.c_uint,C.c_uint32,C.c_uint32,C.c_int,C.c_uint,C.c_uint,C.c_uint]
+    buf=(C.c_uint16*218)();maximum=cases=0
     for fo in (0,17,239,255):
         for text in (0,1):
             cached={}
             for bars in range(362):
-                n=core.v6_pickup_copper(buf,0x10000,0x20000,fo,255-fo,0x30000,0x40000,text,bars)
+                n=core.v6_pickup_copper(buf,0x10000,0x20000,fo,255-fo,0x30000,0x40000,text,bars,0x222,0xaaa)
                 key=(fo,255-fo,text,bars>0,bars>40);segment=tuple(buf[:n])
                 if key in cached:assert cached[key]==segment,(key,bars)
                 cached[key]=segment
@@ -224,10 +234,10 @@ def check_copper(core):
         bo=(fo*73+29)&255
         for text in (0,1):
             for bars in (0,25,41,175,320,361):
-                buf[:]=[0xaaaa]*178
-                n=core.v6_pickup_copper(buf,0x10000,0x20000,fo,bo,0x30000,0x40000,text,bars)
-                assert 0<n<=176 and list(buf[n-2:n])==[0xffff,0xfffe]
-                assert list(buf[176:])==[0xaaaa]*2
+                buf[:]=[0xaaaa]*218
+                n=core.v6_pickup_copper(buf,0x10000,0x20000,fo,bo,0x30000,0x40000,text,bars,0x222,0xaaa)
+                assert 0<n<=216 and list(buf[n-2:n])==[0xffff,0xfffe]
+                assert list(buf[216:])==[0xaaaa]*2
                 maximum=max(maximum,n);events=[];line=epoch=0
                 for i in range(0,n-2,2):
                     r,v=buf[i:i+2]
@@ -239,13 +249,13 @@ def check_copper(core):
                 for y in range(240):
                     while at<len(events) and events[at][0]<52+y:
                         _,r,v=events[at];regs[r]=v;at+=1
-                    strip=(0,16,0) if bars and y<16 else (85,76,1920) if text and 85<=y<161 else (224,16,11040) if bars>40 and y>=224 else None
+                    strip=(0,16,0,640) if bars and y<16 else (85,42,1920,3040) if text and 85<=y<127 else (137,24,4000,3040) if text and 137<=y<161 else (224,16,11040,640) if bars>40 and y>=224 else None
                     expected={0xe4:0x20000+((bo+y)&255)*40}
                     if strip:
-                        top,h,offset=strip;base=0x30000+offset+(y-top)*40
-                        expected.update({0xe0:base,0xe8:base+h*40,0xf0:base+2*h*40,0xec:0x40000+(y-top)*40})
+                        top,h,offset,stride=strip;base=0x30000+offset+(y-top)*40
+                        expected.update({0xe0:base,0xe8:base+stride,0xf0:base+2*stride,0xec:0x40000+(y-top)*40})
                         assert regs[0x100]==0x5600 and regs[0x104]==0x20
-                        assert regs[0x188]==(0x222 if top==85 else 0) and regs[0x18a]==0xaaa
+                        assert regs[0x188]==(0x222 if top in (85,137) else 0) and regs[0x18a]==0xaaa
                     else:
                         expected.update({0xe0:0x10000+((fo+y)&255)*40,0xe8:0x12800+((fo+y)&255)*40})
                         assert regs[0x100]==0x3600 and regs[0x104]==0x24
@@ -260,9 +270,18 @@ def check_copper(core):
         (0x10000,0x20000,0,0,0x30000,0x40000,2,361),
         (0x10000,0x20000,0,0,0x30000,0x40000,1,362),
         (0x10000,0x20000,0,0,0x1000000-12958,0x40000,1,361)):
-        buf[:]=[0xaaaa]*178
-        assert not core.v6_pickup_copper(buf,fg,bg,fo,bo,bank,zero,text,bars)
-        assert list(buf)==[0xaaaa]*178
+        buf[:]=[0xaaaa]*218
+        assert not core.v6_pickup_copper(buf,fg,bg,fo,bo,bank,zero,text,bars,0x222,0xaaa)
+        assert list(buf)==[0xaaaa]*218
+    for fill,ink in ((0x111,0x555),(0x111,0x666),(0x111,0x777),(0x111,0x888),(0x222,0x999),(0x222,0xaaa)):
+        n=core.v6_pickup_copper(buf,0x10000,0x20000,249,239,0x30000,0x40000,1,361,fill,ink)
+        fills=[buf[i+1] for i in range(0,n-2,2) if buf[i]==0x188]
+        inks=[buf[i+1] for i in range(0,n-2,2) if buf[i]==0x18a]
+        assert fills==[0,fill,fill,0] and inks==[ink]*4,(fills,inks)
+    for fill,ink in ((0x1000,0xaaa),(0x222,0x1000)):
+        buf[:]=[0xaaaa]*218
+        assert not core.v6_pickup_copper(buf,0x10000,0x20000,0,0,0x30000,0x40000,1,361,fill,ink)
+        assert list(buf)==[0xaaaa]*218
     return maximum,cases
 
 if __name__=='__main__':main()
