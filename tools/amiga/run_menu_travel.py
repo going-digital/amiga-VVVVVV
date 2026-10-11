@@ -9,7 +9,7 @@ import struct
 import subprocess
 from run_interactive_save import ROOT, EMU, config, KEYS
 from run_tower_probe import diagnostics
-from save_disk import create_save_disk, read_record
+from save_disk import create_save_disk, read_record, legacy_record_fixture
 from test_tower_route import libraries, RouteRoom, encode
 from test_building_route import fixture
 from test_teleporter import Teleporter
@@ -104,14 +104,19 @@ def main():
     parser.add_argument('--effects',action='store_true',help='Verify interactive shake, reserved Paula cues and audio drain before DOS')
     parser.add_argument('--exit-pending',action='store_true',help='Quit during the final cue tail; verify queued arrival save before OS exit')
     parser.add_argument('--load-return',type=Path,help='Load a saved Energize record into an unseeded build, then return to Building')
+    parser.add_argument('--legacy-load',action='store_true',help='Load a v1 fixture and verify unsaved Building visits are discarded')
     args=parser.parse_args();build=args.build.resolve()
+    assert not args.legacy_load or args.load_return
+    no_travel=args.unexplored or args.legacy_load
     assert not (args.unexplored and args.load_return)
     assert not args.exit_pending or (args.effects and not args.unexplored and not args.load_return)
-    label='menu-exit' if args.exit_pending else 'menu-return' if args.load_return else 'menu-unexplored' if args.unexplored else 'menu-travel'
-    disk=build/('capture-exit-disk.adf' if args.exit_pending else 'capture-return-disk.adf' if args.load_return else 'capture-menu-disk.adf');disk.unlink(missing_ok=True)
+    label='menu-legacy' if args.legacy_load else 'menu-exit' if args.exit_pending else 'menu-return' if args.load_return else 'menu-unexplored' if args.unexplored else 'menu-travel'
+    disk=build/('capture-legacy-disk.adf' if args.legacy_load else 'capture-exit-disk.adf' if args.exit_pending else 'capture-return-disk.adf' if args.load_return else 'capture-menu-disk.adf');disk.unlink(missing_ok=True)
     create_save_disk(build/'tower.adf',disk);cfg=config(build,disk)
     if args.load_return:
-        disk.write_bytes(args.load_return.read_bytes())
+        source_before=args.load_return.read_bytes()
+        disk.write_bytes(source_before)
+        if args.legacy_load:legacy_record_fixture(disk)
         assert struct.unpack_from('>7iI',read_record(disk),8)[4:6]==(110,105)
     boot_before=(build/'tower.adf').read_bytes();disk_before=disk.read_bytes()
     dump=build/(label+'.bin');dump.unlink(missing_ok=True)
@@ -146,7 +151,7 @@ def main():
     menu=dict(zip('opened changed closed travel selected paused_ticks before_hash after_hash initial_flips final_flips'.split(),struct.unpack_from('>10I',data,at+8)))
     at=data.index(b'V6UI\0\0\0\1');ui=dict(zip(KEYS,struct.unpack_from('>18I',data,at+8)))
     display=diagnostics(dump)
-    assert menu['opened']==menu['changed']==1 and menu['selected']==int(bool(args.load_return)) and menu['paused_ticks']>30,menu
+    assert menu['opened']==menu['changed']==1 and menu['selected']==int(bool(args.load_return) and not args.legacy_load) and menu['paused_ticks']>30,menu
     assert menu['before_hash']==menu['after_hash'],menu
     assert menu['initial_flips']==menu['final_flips']==(0 if args.load_return else 1),menu
     assert display['status']==(2 if args.exit_pending else 1) and display['error']==display['missed']==0 and display['max_work_lines']<=250,display
@@ -158,9 +163,11 @@ def main():
     if not args.exit_pending:assert display['logic_ticks']==600,display
     assert display['logic_ticks']*34000+display['logic_remainder']==display['logic_frames']*19968
     at=data.index(b'V6MT\0\0\0\1')
-    if args.unexplored:
+    if no_travel:
         assert menu['closed']==1 and menu['travel']==0 and struct.unpack_from('>I',data,at+8)[0]==0,menu
-        assert ui['actions']==ui['pauses']==ui['resumes']==0,ui
+        assert ui['actions']==ui['pauses']==ui['resumes']==int(args.legacy_load),ui
+        assert ui['loads']==int(args.legacy_load) and ui['saves']==ui['errors']==0,ui
+        if args.legacy_load:assert (ui['loaded_x'],ui['loaded_y'])==(80,112),ui
         assert disk.read_bytes()==disk_before
         fields=0;events=[]
     else:
@@ -191,14 +198,21 @@ def main():
                 assert 1<=tick<=64,tick
                 state=struct.unpack_from('>36i',data,at+104+144*(tick-1))
                 assert (state[0]!=0 if i==0 else state[0]==0 and state[8]!=0),state
-        assert struct.unpack_from('>7iI',read_record(disk),8)==checkpoint
+        record=read_record(disk)
+        assert struct.unpack_from('>7iI',record,8)==checkpoint
+        assert len(record)==96
+        # Both resident destinations and the source approach room survive reboot.
+        for rx,ry in ((110,104),(111,104),(110,105)):
+            bit=(ry-100)*20+rx-100
+            assert record[40+(bit>>3)] & (1<<(bit&7)),(rx,ry)
         if args.exit_pending:assert display['logic_ticks']==events[-1][6],(display,events)
+    if args.load_return:assert args.load_return.read_bytes()==source_before
     assert (build/'tower.adf').read_bytes()==boot_before
     report=dict(menu=menu,ui=ui,display=display,source_trace_fields=fields,events=events,
                 physical_menu_controls=True,unexplored_excluded=args.unexplored,boot_disk_unchanged=True,
-                completed_arrival_autosave=not args.unexplored)
-    if args.load_return:report['loaded_room_admits_return']=True
-    if args.effects and not args.unexplored:
+                completed_arrival_autosave=not no_travel,exploration_saved=not no_travel,legacy_map_reset=args.legacy_load)
+    if args.load_return:report['loaded_room_admits_return']=not args.legacy_load
+    if args.effects and not no_travel:
         at=data.index(b'V6ME\0\0\0\1');effect=struct.unpack_from('>6I',data,at+8)
         assert effect[1]==effect[0]+64 and effect[2]>effect[1] and effect[3]>0 and effect[4]==0 and effect[5]==int(args.exit_pending),effect
         at=data.index(b'V6MH\0\0\0\1');count,seed=struct.unpack_from('>2I',data,at+8)

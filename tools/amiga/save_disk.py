@@ -19,8 +19,30 @@ def read_record(path:Path,name=b'campaign.v6cs'):
     assert len(headers)==1,headers
     header=headers[0];assert sum(struct.unpack_from('>128I',image,header))&0xffffffff==0
     block=struct.unpack_from('>I',image,header+16)[0]*512
-    assert struct.unpack_from('>I',image,block)[0]==8 and struct.unpack_from('>I',image,block+12)[0]==44
+    size=struct.unpack_from('>I',image,block+12)[0]
+    assert struct.unpack_from('>I',image,block)[0]==8 and size in (44,96)
     assert sum(struct.unpack_from('>128I',image,block))&0xffffffff==0
-    record=image[block+24:block+68]
-    assert zlib.crc32(record[:40])==struct.unpack_from('>I',record,40)[0]
+    record=image[block+24:block+24+size]
+    assert struct.unpack_from('>4sHH',record)==(b'V6CS',1 if size==44 else 2,size)
+    assert zlib.crc32(record[:-4])==struct.unpack_from('>I',record,size-4)[0]
+    if size==96:assert record[90:92]==b'\0\0'
     return record
+def legacy_record_fixture(path:Path,name=b'campaign.v6cs'):
+    """Downgrade a disposable capture disk to a valid v1 checkpoint-only record."""
+    record=read_record(path,name);assert len(record)==96
+    legacy=bytearray(record[:40]);struct.pack_into('>HH',legacy,4,1,44)
+    legacy+=struct.pack('>I',zlib.crc32(legacy))
+    image=bytearray(path.read_bytes())
+    for header in range(0,len(image),512):
+        if struct.unpack_from('>I',image,header)[0]!=2 or struct.unpack_from('>I',image,header+508)[0]!=0xfffffffd:continue
+        n=image[header+432]
+        if image[header+433:header+433+n]!=name:continue
+        block=struct.unpack_from('>I',image,header+16)[0]*512
+        struct.pack_into('>I',image,header+324,44)
+        struct.pack_into('>I',image,block+12,44)
+        image[block+24:block+120]=legacy+bytes(52)
+        for offset in (header,block):
+            struct.pack_into('>I',image,offset+20,0)
+            struct.pack_into('>I',image,offset+20,(-sum(struct.unpack_from('>128I',image,offset)))&0xffffffff)
+        path.write_bytes(image);assert read_record(path,name)==legacy;return
+    raise AssertionError('Missing capture record')

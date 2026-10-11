@@ -2706,3 +2706,42 @@ This is the format foundation; the live DOS file adapter still writes version
 1. Next: carry the map through transactional file replacement/recovery, then
 restore it on menu load and verify destination admission after a fresh boot.
 Music work remains parked.
+
+## Explored-room disk persistence — 11 October 2026
+
+The interactive menu-travel builds now save the 400-room exploration map with
+the checkpoint and story in one 96-byte version 2 campaign record. Full-state
+file APIs share the existing verified temporary-write, backup promotion and
+recovery sequence. Reads accept versions 1 and 2; replacing an old save upgrades
+it. Legacy checkpoint-only APIs still reject version 2, preventing map loss.
+Both final and backup records undergo source-bank/story validation before
+cleanup. Invalid live checkpoint/story/map state is rejected before disk work.
+Loading replaces session exploration with the saved map, then marks the loaded
+room and rebuilds resident admission. A legacy save seeds only its saved room.
+
+`test-campaign-state-file` checks 48 interruption snapshots and 228 operation
+faults across full-state replacement, legacy upgrades and recovery. Checkpoint
+and map always remain paired; failed reads/recovery retain all caller outputs.
+Checksum-valid altered readback is rejected before promotion. Existing version
+1 codec/file/recovery checks and the actual UI consumer tests also pass,
+including malformed source centres in either final or backup and legacy map
+replacement. Explicit bounded byte copies avoid libc dependencies on the
+freestanding 68000 target.
+
+`tower-menu-effects-capture` checks outbound arrival/autosave, quit during the
+cue tail, fresh-process full-state load/return and a legacy-load fixture. The
+legacy fixture downgrades only a disposable capture disk and verifies that
+previously visited but unsaved Building Apport is excluded after loading an
+Energize checkpoint. Full-state OFS bytes retain Seeing Red, Building Apport
+and Energize visits. The source save and boot disk stay unchanged during cold
+loads. Existing shake, caption pixels and reserved Paula cue checks remain in
+this target.
+
+Final captures retain the 147,556-byte Chip allocation, peak at 233 PAL work
+lines outbound/queued exit and 243 for fresh-process full/legacy loads, and
+report zero errors/missed fields. The paired 76,800-pixel caption translation
+check also passes within the 250-line gate. The live `tower-menu-effects` build
+compiles without warnings.
+
+Next: expand validated resident rooms and story support. Music reconstruction
+remains parked pending original tracker assets.

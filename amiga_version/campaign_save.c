@@ -99,5 +99,7 @@ int v6_campaign_state_decode(V6CheckpointSave *out,V6HallwayStory *story,
         room=(unsigned)(c.room_y-100)*20+(unsigned)(c.room_x-100);
         if(!(e.rooms[room>>3] & (1U<<(room&7))))return 0;
     }
-    *out=c;*story=s;*explored=e;return 1;
+    *out=c;*story=s;
+    for(i=0;i<V6_EXPLORED_BYTES;++i)((volatile uint8_t *)explored->rooms)[i]=e.rooms[i];
+    return 1;
 }

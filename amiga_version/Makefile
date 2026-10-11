@@ -512,6 +512,11 @@ test-campaign-state: $(BUILD)/campaign_save.o
 	python3 $(ROOT)/tools/amiga/test_campaign_state.py
 test: test-campaign-state
 
+.PHONY: test-campaign-state-file
+test-campaign-state-file: test-campaign-state $(BUILD)/campaign_file.o
+	python3 $(ROOT)/tools/amiga/test_campaign_state_file.py
+test: test-campaign-state-file
+
 $(BUILD)/campaign_file.o: campaign_file.c campaign_file.h | $(BUILD)
 	$(CC) $(CFLAGS) -O2 -c $< -o $@
 $(BUILD)/campaign_dos.o: campaign_dos.c campaign_dos.h | $(BUILD)
@@ -865,10 +870,11 @@ tower-menu-effects: tower-probe test-shake-caption
 	$(MAKE) BUILD=$(ROOT)/build/amiga-menu-effects-live CPPFLAGS="$(MENU_EFFECT_FLAGS)" $(ROOT)/build/amiga-menu-effects-live/tower.adf
 tower-menu-effects-run: tower-menu-effects
 	python3 $(ROOT)/tools/amiga/run_interactive_save.py --build $(ROOT)/build/amiga-menu-effects-live --building
-tower-menu-effects-capture: tower-probe test-shake-caption test-screen-shake test-screen-shake-dma test-audio-policy test-paula-voice
+tower-menu-effects-capture: tower-probe test-campaign-state-file test-shake-caption test-screen-shake test-screen-shake-dma test-audio-policy test-paula-voice
 	$(MAKE) BUILD=$(ROOT)/build/amiga-menu-effects CPPFLAGS="$(MENU_EFFECT_FLAGS) -DV6_TOWER_BUILDING_REPLAY -DV6_TELE_MENU_CAPTURE -DV6_MENU_EXPLORED_CAPTURE" $(ROOT)/build/amiga-menu-effects/tower.adf
 	python3 $(ROOT)/tools/amiga/run_menu_travel.py --build $(ROOT)/build/amiga-menu-effects --effects
 	python3 $(ROOT)/tools/amiga/run_menu_travel.py --build $(ROOT)/build/amiga-menu-effects --effects --exit-pending
 	$(MAKE) BUILD=$(ROOT)/build/amiga-menu-effects-return CPPFLAGS="$(MENU_EFFECT_FLAGS) -DV6_TOWER_BUILDING_REPLAY -DV6_TELE_MENU_CAPTURE" $(ROOT)/build/amiga-menu-effects-return/tower.adf
 	python3 $(ROOT)/tools/amiga/run_menu_travel.py --build $(ROOT)/build/amiga-menu-effects-return --load-return $(ROOT)/build/amiga-menu-effects/capture-menu-disk.adf --effects
+	python3 $(ROOT)/tools/amiga/run_menu_travel.py --build $(ROOT)/build/amiga-menu-effects-return --load-return $(ROOT)/build/amiga-menu-effects/capture-menu-disk.adf --legacy-load --effects
 	python3 $(ROOT)/tools/amiga/run_menu_effect_pixels.py

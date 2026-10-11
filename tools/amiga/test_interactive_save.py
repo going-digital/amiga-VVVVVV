@@ -19,6 +19,11 @@ V6CampaignIO v6_campaign_dos;
 static const char *save_name="save",*save_temp="temp",*save_backup="backup";
 static V6TowerGameplay world;
 static V6HallwayStory hallway_story;
+#ifdef V6_TOWER_MENU_TRAVEL
+static V6Exploration tele_exploration,ui_loaded_exploration;
+void map_setup(const V6Exploration *e){tele_exploration=*e;ui_loaded_exploration=*e;}
+void map_loaded(V6Exploration *e){*e=ui_loaded_exploration;}
+#endif
 static V6Checkpoint bank={144,1824,20,505147,0,0};
 static V6Teleporter teleporter={112,48,0,1,1,0};
 static const V6TowerRouteRoom tower_route_rooms[5]={{109,109,0,0,&bank,1,0,0,2},{0},{0},{0},{111,104,0,0,0,0,0,&teleporter,2}};
@@ -111,5 +116,36 @@ int load(V6CheckpointSave *c,V6HallwayStory *s){return ui_load_checked(c,s);}
         assert (bytes(out_cp),bytes(out_story))==before
         assert dedicated.save()==4 and f.files==image
     f.files.clear()
+    # Compile and execute the production menu-travel consumers with full state.
+    from test_campaign_state import Exploration
+    subprocess.run(['cc','-std=c99','-O2','-shared','-fPIC','-Wall','-Wextra','-Werror',
+        '-DV6_TOWER_BUILDING','-DV6_TOWER_MENU_TRAVEL','-I'+str(ROOT/'amiga_version'),str(out/'ui-consumer.c'),
+        *[str(ROOT/'amiga_version'/name) for name in ('campaign_save.c','campaign_file.c','campaign_route.c','teleporter.c','player.c','terrain.c')],
+        '-o',str(out/'ui-menu.so')],check=True)
+    menu=C.CDLL(str(out/'ui-menu.so'));menu.setup.argtypes=lib.setup.argtypes;menu.load.argtypes=lib.load.argtypes
+    menu.map_setup.argtypes=menu.map_loaded.argtypes=[C.POINTER(Exploration)]
+    menu.v6_campaign_state_encode.argtypes=[C.c_void_p,C.c_size_t,C.POINTER(Checkpoint),C.POINTER(Story),C.POINTER(Exploration)]
+    visited=Exploration();visited.rooms[91>>3]|=1<<(91&7);visited.rooms[110>>3]|=1<<(110&7)
+    def state_blob(cp):
+        raw=(C.c_uint8*96)();assert menu.v6_campaign_state_encode(raw,96,C.byref(cp),C.byref(zero),C.byref(visited));return bytes(raw)
+    full=state_blob(tele)
+    f=Files();menu.setup(C.byref(f.io),C.byref(tele),C.byref(zero));menu.map_setup(C.byref(visited))
+    assert menu.save()==0 and f.files=={b'save':full}
+    f.calls.clear();menu.map_setup(C.byref(Exploration()))
+    assert menu.save()==1 and not f.calls and f.files=={b'save':full}
+    menu.map_setup(C.byref(visited))
+    # Loading a full record retains its map; a legacy load replaces unsaved visits.
+    legacy=(C.c_uint8*44)();assert lib.v6_campaign_encode(legacy,44,C.byref(tele),C.byref(zero))
+    for payload,expected in ((full,bytes(visited)),(bytes(legacy),bytes([0]*11+[8]+[0]*38))):
+        f.files={b'save':payload};menu.map_setup(C.byref(visited))
+        assert menu.load(C.byref(out_cp),C.byref(out_story))==0
+        loaded=Exploration();menu.map_loaded(C.byref(loaded));assert bytes(loaded)==expected
+    bad=Checkpoint(*values(tele));bad.x+=1;invalid=state_blob(bad)
+    for image in ({b'save':invalid,b'backup':full},{b'save':full,b'backup':invalid},{b'backup':invalid}):
+        f.files=image.copy();menu.map_setup(C.byref(visited));before=bytes(out_cp),bytes(out_story)
+        assert menu.load(C.byref(out_cp),C.byref(out_story))==4 and f.files==image
+        loaded=Exploration();menu.map_loaded(C.byref(loaded));assert bytes(loaded)==bytes(visited)
+        assert (bytes(out_cp),bytes(out_story))==before
+        assert menu.save()==4 and f.files==image
     print('PASS actual UI consumers: malformed final/backup preservation, transactional load rejection, new/replaced/recovered saves and invalid-live-state guard')
 if __name__=='__main__':main()

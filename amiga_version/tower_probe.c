@@ -74,6 +74,7 @@ static V6Exploration tele_exploration;
 static V6TeleporterDestination tele_destinations[2];
 static unsigned tele_destination_count;
 #ifdef V6_TOWER_MENU_TRAVEL
+static V6Exploration ui_loaded_exploration;
 static const V6TeleporterDestination tele_residents[2]={{111,104},{110,105}};
 static V6TeleporterDestination menu_target;
 static unsigned menu_save_pending,menu_travel_active,menu_exit_pending;
@@ -1215,34 +1216,57 @@ static int ui_load_checked(V6CheckpointSave *out,V6HallwayStory *story)
 {
     int a=v6_campaign_dos.exists(save_name),k=v6_campaign_dos.exists(save_backup),result;
     V6CheckpointSave c,b;V6HallwayStory s,bs;
+#ifdef V6_TOWER_MENU_TRAVEL
+    V6Exploration map,bmap;
+#endif
     if(a<0 || k<0)return V6_SAVE_IO;
+#ifdef V6_TOWER_MENU_TRAVEL
+    result=v6_campaign_state_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s,&map);
+#else
     result=v6_campaign_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s);
+#endif
     if(result)return result;
     if(!checkpoint_bank_valid(&c))return V6_SAVE_CORRUPT;
 #if defined(V6_TOWER_BUILDING) && !defined(V6_TOWER_RESCUE)
     if(s.companion || s.rescue_triggered || s.red_rescued)return V6_SAVE_CORRUPT;
 #endif
     if(a && k) {
+#ifdef V6_TOWER_MENU_TRAVEL
+        result=v6_campaign_state_read(&v6_campaign_dos,save_backup,&b,&bs,&bmap);
+#else
         result=v6_campaign_read(&v6_campaign_dos,save_backup,&b,&bs);
+#endif
         if(result)return result;
         if(!checkpoint_bank_valid(&b))return V6_SAVE_CORRUPT;
 #if defined(V6_TOWER_BUILDING) && !defined(V6_TOWER_RESCUE)
         if(bs.companion || bs.rescue_triggered || bs.red_rescued)return V6_SAVE_CORRUPT;
 #endif
     }
+#ifdef V6_TOWER_MENU_TRAVEL
+    return v6_campaign_state_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story,&ui_loaded_exploration);
+#else
     return v6_campaign_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story);
+#endif
 }
 static int ui_save_checked(void)
 {
     V6CheckpointSave c;V6HallwayStory story;int result;
     int a,k;
     if(!checkpoint_bank_valid(&world.save))return V6_SAVE_INVALID;
+#ifdef V6_TOWER_MENU_TRAVEL
+    { uint8_t bytes[V6_CAMPAIGN_STATE_BYTES];
+      if(!v6_campaign_state_encode(bytes,sizeof(bytes),&world.save,&hallway_story,&tele_exploration))return V6_SAVE_INVALID; }
+#endif
     a=v6_campaign_dos.exists(save_name);k=v6_campaign_dos.exists(save_backup);
     if(a<0 || k<0)return V6_SAVE_IO;
     /* Existing records need source-bank validation before replacement recovery
      * can discard a backup, just as an explicit load does. */
     if(a || k) {result=ui_load_checked(&c,&story);if(result)return result;}
+#ifdef V6_TOWER_MENU_TRAVEL
+    return v6_campaign_state_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story,&tele_exploration);
+#else
     return v6_campaign_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story);
+#endif
 }
 static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
 {
@@ -1272,6 +1296,9 @@ static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
     shake_timer=0;v6_screen_shake_init(&shake);v6_screen_shake_plan(&shake,0,0,0,&shake_plan);
 #endif
 #endif
+#endif
+#ifdef V6_TOWER_MENU_TRAVEL
+    ui_copy(&tele_exploration,&ui_loaded_exploration,sizeof(tele_exploration));
 #endif
     return route_source();
 }

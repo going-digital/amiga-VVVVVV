@@ -26,4 +26,11 @@ int v6_campaign_write_new(const V6CampaignIO *,const char *,const char *,const V
  * before retrying; success does not promise physical power-loss durability. */
 int v6_campaign_recover(const V6CampaignIO *,const char *,const char *,const char *,V6CheckpointSave *,V6HallwayStory *);
 int v6_campaign_replace(const V6CampaignIO *,const char *,const char *,const char *,const V6CheckpointSave *,const V6HallwayStory *);
+/* Full-state operations share the same transactional path rules. Read/recover
+ * accept versions 1 and 2; writes always publish version 2 atomically. Legacy
+ * operations reject version 2 and cannot overwrite its exploration map. */
+int v6_campaign_state_read(const V6CampaignIO *,const char *,V6CheckpointSave *,V6HallwayStory *,V6Exploration *);
+int v6_campaign_state_write_new(const V6CampaignIO *,const char *,const char *,const V6CheckpointSave *,const V6HallwayStory *,const V6Exploration *);
+int v6_campaign_state_recover(const V6CampaignIO *,const char *,const char *,const char *,V6CheckpointSave *,V6HallwayStory *,V6Exploration *);
+int v6_campaign_state_replace(const V6CampaignIO *,const char *,const char *,const char *,const V6CheckpointSave *,const V6HallwayStory *,const V6Exploration *);
 #endif
