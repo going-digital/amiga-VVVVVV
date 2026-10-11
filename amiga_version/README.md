@@ -3347,7 +3347,45 @@ a busy save rejection with the game hash unchanged, and both disks unchanged.
 The caption and count are legible in the reviewed screenshot. This fixture uses
 injected positions and buttons; a complete normal-input traversal is outstanding.
 
-Next: source-centered pickup textboxes and animated cutscene bars, then the
-source vanish/trinket audio cues on reserved Paula channels and integrated
-presentation/audio checks. Prize remains a candidate rather than replacing the
-regular station build. Music reconstruction remains parked.
+The next milestone was source-centered pickup textboxes and animated cutscene
+bars, implemented below. Prize remains a separate candidate. Music reconstruction
+remains parked.
+
+
+### Source pickup boxes and sliding bars
+
+The Prize candidate now uses the source English pickup layout: a 280-by-42
+bordered box at (20,85), a centered count box at y=137, and wordy counts such
+as “One out of Twenty”. Border tiles 40–47 use source alpha, including the
+42-pixel box's overlapping side tiles. The source bar timer advances 25 pixels
+per fixed tick, clamps at 361, and retreats to zero after dismissal. Top and
+bottom bars are 16 pixels high; the bottom starts at x=360-position.
+
+Only overlay strips switch to five-plane dual playfield. A third foreground
+plane masks textboxes/bars while preserving room pixels around them; the extra
+background plane is zero. Normal DMA format and sprite priority return between
+strips. Text templates are prepared before gameplay or during OS-owned loading;
+both display banks are composed during the source 15-tick reveal delay. Static
+bar strips are warmed before pickup, moving edge words are updated during the
+animation, and matching Copper segments are reused. The candidate's single
+pending trinket is checked against the precomputed count on pickup.
+
+`test-pickup-presentation` compares 2,456,320 textbox/composite pixels with
+extracted source methods, all 101 collection counts, every bar width, the source
+bar timer, and 3,072 Copper plans across all ring offsets. Additional checks
+cover bar-column updates across every ring wrap and identical Copper segments
+for each cached bar regime. Native fixtures also check complete entry/exit bar
+positions, frozen gameplay, held-input dismissal and the busy save guard.
+
+Native PAL work peaks are 274 lines for the connected replay, 234 for fresh
+V4 loading and 199 for V3 migration, with zero errors or missed frames.
+Chip allocation is 224,154 bytes. The held-screen capture peaks at 270 lines,
+keeps gameplay at tick 152 for 270 paused timesteps, rejects saving as busy,
+and leaves both disks unchanged. Its screenshot was reviewed: both boxes and
+wordy count are legible, bars cover the top/bottom 16 rows, and room art remains
+visible around and between the textboxes.
+
+Textbox fades and subframe interpolation remain outstanding. Next are the
+source vanish/trinket audio cues and integrated presentation/audio checks.
+Prize remains a separate candidate; normal-input traversal is still unverified.
+Music reconstruction remains parked.

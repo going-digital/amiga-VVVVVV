@@ -30,12 +30,15 @@ def main():
     assert pickup[0]==pickup[2]==1 and pickup[1]>20 and pickup[3]==0,pickup
     assert pickup[4]==15 and pickup[8:]==(0,1002,1,152),pickup
     assert display['logic_ticks']==152,display
+    at=data.index(b'V6PB\0\0\0\1')
+    presentation=struct.unpack_from('>8I',data,at+12)
+    assert presentation==(361,361,76,76,32,32,1,17),presentation
     at=data.index(b'V6UI\0\0\0\1');ui=dict(zip(KEYS,struct.unpack_from('>18I',data,at+8)))
     assert ui['actions']==1 and ui['busy']==1 and ui['saves']==ui['loads']==ui['errors']==0,ui
     assert ui['before_hash']==ui['after_hash'] and ui['ticks_before']==ui['ticks_after'],ui
     assert disk.read_bytes()==before and (build/'tower.adf').read_bytes()==boot
     report=dict(display=display,pickup=pickup,ui=ui,
-                scope='Held action through pickup reveal; world and Prize actors frozen, save rejected as busy, disks unchanged. Caption uses the existing port layout; room audio and source textbox/bar presentation remain outstanding.')
+                scope='Held action through pickup reveal; world and Prize actors frozen, save rejected as busy, disks unchanged. Source-positioned bordered textboxes, wordy count and fully extended bars; textbox fading, interpolation and room audio remain outstanding.')
     (build/'pickup-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native Prize pickup:',json.dumps(report))
 

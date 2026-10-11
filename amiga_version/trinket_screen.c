@@ -8,9 +8,13 @@ void v6_trinket_screen_init(V6TrinketScreen *s)
 }
 unsigned v6_trinket_screen_begin(V6TrinketScreen *s,const V6Collect *bank,int music)
 {
-    int i;
+    unsigned i;
     s->count=0;
-    for(i=0;i<V6_COLLECT_COUNT;++i)if(v6_collect_has(bank,i))++s->count;
+    for(i=0;i<V6_COLLECT_BYTES;++i) {
+        unsigned bits=bank->bits[i];
+        if(i==V6_COLLECT_BYTES-1)bits&=15;
+        while(bits){bits&=bits-1;++s->count;}
+    }
     s->state=1000;
     return V6_TRINKET_CUE | (music ? V6_TRINKET_SILENCE : 0);
 }

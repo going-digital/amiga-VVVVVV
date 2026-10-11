@@ -67,6 +67,7 @@ def main():
         original=archive.read('graphics/tiles3.png')
         sprite_png=archive.read('graphics/sprites.png')
         font_png=archive.read('graphics/font.png')
+        pickup_tiles=archive.read('graphics/tiles.png')
         teleporter_png=archive.read('graphics/teleporter.png')
         from energize_assets import export as export_energize_assets
         export_energize_assets(archive,out,decoder)
@@ -93,6 +94,16 @@ def main():
         glyphs.append([sum((font[((oy+y)*fw+ox+x)*4+3]>127 and max(font[((oy+y)*fw+ox+x)*4:((oy+y)*fw+ox+x)*4+3])>0)<<(7-x)
             for x in range(8)) for y in range(8)])
     (out/'dialogue_font.h').write_text('static const uint8_t dialogue_font[128][8]={'+','.join('{'+','.join(map(str,row))+'}' for row in glyphs)+'};\n')
+    pickup_path=out/'pickup-tiles.png';pickup_path.write_bytes(pickup_tiles)
+    header,pixels=subprocess.check_output([str(decoder),str(pickup_path)]).split(b'\n',1)
+    pw,ph=map(int,header.split());borders=[]
+    for tile in range(40,48):
+        ox=tile%(pw//8)*8;oy=tile//(pw//8)*8;assert oy+8<=ph
+        # GraphicsResources.cpp TEX_WHITE retains alpha, including black RGB.
+        borders.append([sum((pixels[((oy+y)*pw+ox+x)*4+3]>127)<<(7-x)
+                            for x in range(8)) for y in range(8)])
+    (out/'pickup_assets.h').write_text('/* Private source tiles 40..47, alpha only. */\n'
+        'static const uint8_t pickup_border[8][8]={'+','.join('{'+','.join(map(str,row))+'}' for row in borders)+'};\n')
     sprite_path=out/'tower_sprites.png';sprite_path.write_bytes(sprite_png)
     sprite_header,sprite_rgba=subprocess.check_output([str(decoder),str(sprite_path)]).split(b'\n',1)
     sw,sh=map(int,sprite_header.split());frames=[]

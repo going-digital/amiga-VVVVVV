@@ -67,6 +67,13 @@ def main():
         pickup=struct.unpack_from('>12I',data,at+8)
         assert pickup[:6]==(1,20,1,1,15,20),pickup
         assert pickup[6]==pickup[7] and pickup[8:]==(0,0,1,152),pickup
+        at=data.index(b'V6PB\0\0\0\1')
+        total=struct.unpack_from('>I',data,at+8)[0]
+        presentation=[struct.unpack_from('>5I',data,at+44+i*20) for i in range(total)]
+        assert total==35,(total,presentation)
+        positions=[min(25*(i+1),361) for i in range(20)]+[max(361-25*(i+1),0) for i in range(15)]
+        assert [r[1] for r in presentation]==positions,presentation
+        assert presentation[15][3]==1 and presentation[20][3]==0,presentation
     assert any(row[0]==7 for row in rows[:20]) and any(row[0]==8 for row in rows[20:30])
     assert all(row[11]==0 for row in rows if row[0]==8)
     assert any(row[0]==8 and row[14]==1 and row[13]>88 for row in rows)
@@ -87,8 +94,8 @@ def main():
     if args.v4:
         assert ui['saves']==ui['loads']==1 and ui['errors']==ui['last_result']==0,ui
         assert (ui['loaded_x'],ui['loaded_y'])==(236,134),ui
-        assert any(row[17]==0 and row[18]==1 for row in rows[160:165])
-        assert all(row[17]==1 and row[18]==0 for row in rows[165:175]),rows[165:175]
+        assert any(row[17]==0 and row[18]==1 for row in rows[160:166])
+        assert all(row[17]==1 and row[18]==0 for row in rows[166:175]),rows[166:175]
         from save_disk import read_record
         record=read_record(disk)
         assert struct.unpack_from('>4sHH7iI',record)==(b'V6CS',4,112,236,134,1,1,111,107,443490,56)

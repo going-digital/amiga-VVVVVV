@@ -494,9 +494,26 @@ static V6Collect station_collected;
 #error Pickup screen requires the caption/menu allocation
 #endif
 #include "trinket_screen.h"
+#include "pickup_draw.h"
+#include "pickup_copper.h"
+#include "pickup_assets.h"
 static V6TrinketScreen pickup_screen;
 typedef char PickupActorWordSize[(sizeof(V6Prize)%sizeof(ULONG))==0?1:-1];
-static UBYTE *pickup_caption;
+static V6PickupDraw pickup_draw;
+static UBYTE *pickup_banks,*pickup_zero;
+static UWORD pickup_mask[V6_PICKUP_PLANE_BYTES/2] __attribute__((aligned(4)));
+static UWORD pickup_ink[V6_PICKUP_PLANE_BYTES/2] __attribute__((aligned(4)));
+static unsigned pickup_rows[2],pickup_bar_rows[2];
+static unsigned pickup_bar_room[2],pickup_bar_camera[2];
+static unsigned pickup_bar_position[2];
+static UWORD pickup_bar_masks[2][2][20];
+static UWORD pickup_copper_cache[2][V6_PICKUP_COPPER_WORDS];
+static unsigned pickup_copper_key[2],pickup_copper_words[2];
+static const UWORD pickup_blank[20] __attribute__((aligned(4)))={0};
+static ULONG pickup_world_hash,pickup_actor_snapshot[sizeof(V6Prize)/sizeof(ULONG)];
+static unsigned pickup_hash_valid;
+static volatile struct {ULONG magic,version,count,values[8],records[48][5];}
+    pickup_presentation={0x56365042,1,0,{0},{{0}}};
 static unsigned pickup_held,pickup_pause_ticks;
 static volatile struct {ULONG magic,version,values[12];}
     pickup_diag={0x56365053,1,{0}};
@@ -507,6 +524,8 @@ static unsigned prize_pickups,prize_patches,prize_sounds;
 static int prize_gate_drawn[2][3];
 static unsigned prize_drawn_patch[2];
 #ifdef V6_PRIZE_ROUTE_CAPTURE
+static volatile struct {ULONG magic,version,count,records[128][8];}
+    pickup_frame_trace={0x56365058,1,0,{{0}}};
 static volatile struct {ULONG magic,version,count;LONG records[224][24];}
     prize_route_trace={0x56365052,1,0,{{0}}};
 static unsigned prize_ui_stage;
@@ -565,6 +584,11 @@ static int prize_events(V6TowerRoute *r,unsigned events)
 #ifdef V6_TOWER_PICKUP_SCREEN
         /* No tracker is playing yet; audio adapter events are connected next. */
         v6_trinket_screen_begin(&pickup_screen,&station_collected,0);
+        /* The candidate's sole pending trinket is known before gameplay.
+         * Prepare its template at boot/load while the OS owns the display. */
+        if(pickup_draw.count!=(unsigned)pickup_screen.count)return 0;
+        pickup_rows[0]=pickup_rows[1]=0;
+        pickup_hash_valid=0;
         pickup_held=r->session->player.held;pickup_pause_ticks=0;
         ++pickup_diag.values[0];
         pickup_diag.values[6]=r->session->player.flips;
@@ -872,7 +896,11 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #ifdef V6_TOWER_PLAY
 #if defined(V6_TOWER_RESCUE) || defined(V6_TOWER_BUILDING)
 #if defined(V6_TOWER_SHAKE) && defined(V6_TOWER_UI_SAVE)
+#ifdef V6_TOWER_PICKUP_SCREEN
+#define LIST_WORDS 384
+#else
 #define LIST_WORDS 256
+#endif
 #else
 #define LIST_WORDS 192
 #endif
@@ -917,7 +945,7 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #endif
 #ifdef V6_TOWER_UI_SAVE
 #ifdef V6_TOWER_PICKUP_SCREEN
-#define PICKUP_DMA_BYTES V6_DIALOGUE_BYTES
+#define PICKUP_DMA_BYTES V6_PICKUP_DMA_BYTES
 #else
 #define PICKUP_DMA_BYTES 0
 #endif
@@ -1207,6 +1235,74 @@ static unsigned background_camera(unsigned camera)
 #endif
     return camera>>1;
 }
+#ifdef V6_TOWER_PICKUP_SCREEN
+static void pickup_draw_tick(void)
+{
+    v6_pickup_draw_tick(&pickup_draw,pickup_screen.bars);
+    if((pickup_draw.bars || pickup_draw.old_bars) && pickup_presentation.count<48) {
+        volatile ULONG *r=pickup_presentation.records[pickup_presentation.count++];
+        r[0]=pickup_screen.state;r[1]=pickup_draw.bars;r[2]=pickup_draw.old_bars;
+        r[3]=pickup_screen.visible;r[4]=diag.logic_ticks;
+    }
+    pickup_presentation.values[0]=pickup_draw.bars;
+    pickup_presentation.values[1]=pickup_draw.old_bars;
+    pickup_presentation.values[6]=pickup_draw.count;
+    pickup_presentation.values[7]=pickup_draw.length;
+}
+static int pickup_prepare(UBYTE *ring,unsigned index,unsigned camera)
+{
+    unsigned n,row,x,b,fo=camera&255,was_warm,position;
+    UBYTE *bank;
+    if(!pickup_banks)return 1;
+    bank=pickup_banks+index*V6_PICKUP_BANK_BYTES;
+    if(pickup_bar_room[index]!=route.index || pickup_bar_camera[index]!=fo) {
+        pickup_bar_room[index]=route.index;pickup_bar_camera[index]=fo;pickup_bar_rows[index]=0;
+        pickup_bar_position[index]=0xffffffffUL;
+        for(b=0;b<2;++b)for(x=0;x<20;++x)pickup_bar_masks[index][b][x]=0;
+    }
+    if(route.index!=8 && !pickup_draw.bars && !pickup_screen.visible)return 1;
+    if(route_loading && !pickup_draw.bars)return 1;
+    /* Warm the unmasked bar strips before pickup. During animation only the
+     * words at the moving edge need changing. Prize's rim terrain is static. */
+    n=pickup_draw.bars?32:4;
+    was_warm=pickup_bar_rows[index]==32;
+    while(n-- && pickup_bar_rows[index]<32) {
+        row=pickup_bar_rows[index]++;b=row>=16;
+        row&=15;
+        v6_pickup_compose_row((UWORD *)(bank+(b?V6_PICKUP_BOTTOM_OFFSET:0)+row*40),
+            V6_PICKUP_BAR_PLANE_BYTES/2,(const UWORD *)(ring+((fo+(b?224:0)+row)&255)*40),
+            V6_TOWER_PLANE_BYTES/2,pickup_blank,pickup_blank);
+    }
+    position=pickup_draw.bars?pickup_draw.bars:25;
+    if(pickup_bar_rows[index]==32 && (was_warm || pickup_draw.bars) &&
+       pickup_bar_position[index]!=position)for(b=0;b<2;++b) {
+        UWORD mask[20];UBYTE *strip=bank+(b?V6_PICKUP_BOTTOM_OFFSET:0);
+        if(!v6_pickup_bar_row((UBYTE *)mask,position,b))return 0;
+        for(x=0;x<20;++x)if(mask[x]!=pickup_bar_masks[index][b][x]) {
+            unsigned y=(fo+(b?224:0))&255,rows=y>240?256-y:16;
+            v6_pickup_bar_column((UWORD *)strip+x,(const UWORD *)(ring+y*40)+x,mask[x],rows);
+            if(rows<16)v6_pickup_bar_column((UWORD *)(strip+rows*40)+x,
+                (const UWORD *)ring+x,mask[x],16-rows);
+            pickup_bar_masks[index][b][x]=mask[x];
+        }
+        if(b==1)pickup_bar_position[index]=position;
+    }
+    if(pickup_screen.state && pickup_pause_ticks) {
+        /* Two inactive banks are prepared in the source's 15-tick delay.
+         * The mask preserves room art in the gap and around both boxes. */
+        for(n=0;n<7 && pickup_rows[index]<V6_PICKUP_HEIGHT;++n) {
+            row=pickup_rows[index]++;
+            v6_pickup_compose_row((UWORD *)(bank+V6_PICKUP_TEXT_OFFSET+row*40),
+                V6_PICKUP_PLANE_BYTES/2,(const UWORD *)(ring+((fo+V6_PICKUP_TOP+row)&255)*40),
+                V6_TOWER_PLANE_BYTES/2,pickup_mask+row*20,pickup_ink+row*20);
+        }
+        if(pickup_screen.visible && pickup_rows[index]!=V6_PICKUP_HEIGHT)return 0;
+    }
+    pickup_presentation.values[2]=pickup_rows[0];pickup_presentation.values[3]=pickup_rows[1];
+    pickup_presentation.values[4]=pickup_bar_rows[0];pickup_presentation.values[5]=pickup_bar_rows[1];
+    return 1;
+}
+#endif
 static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsigned *drawn) {
     UWORD *p=list;unsigned i,background_rows,copied,bg_camera=background_camera(camera);
     copied=0;
@@ -1476,10 +1572,23 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     }
 #endif
 #ifdef V6_TOWER_PICKUP_SCREEN
-    if(pickup_screen.visible) {
-        return v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
-            camera&255,bg_camera&255,(ULONG)pickup_caption,0xaaa,
-            DISPLAY_COLOUR(FG_PALETTE[1]),DISPLAY_COLOUR(FG_PALETTE[3]))!=0;
+    if(!pickup_prepare(ring,index,camera))return 0;
+    if(pickup_screen.visible || pickup_draw.bars) {
+        unsigned key=(camera&255)|((bg_camera&255)<<8)|
+            (pickup_screen.visible<<16)|((pickup_draw.bars>40)<<17)|
+            ((pickup_draw.bars>0)<<18);
+        /* Bar width changes bitmap words, but its Copper segment changes
+         * only when a strip appears/disappears or a ring offset changes. */
+        if(!pickup_copper_words[index] || pickup_copper_key[index]!=key) {
+            pickup_copper_words[index]=v6_pickup_copper(pickup_copper_cache[index],
+                (ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),camera&255,bg_camera&255,
+                (ULONG)(pickup_banks+index*V6_PICKUP_BANK_BYTES),(ULONG)pickup_zero,
+                pickup_screen.visible,pickup_draw.bars);
+            pickup_copper_key[index]=key;
+        }
+        if(!pickup_copper_words[index])return 0;
+        for(i=0;i<pickup_copper_words[index];++i)*p++=pickup_copper_cache[index][i];
+        return 1;
     }
 #endif
 #ifdef V6_TOWER_RESCUE
@@ -1704,6 +1813,9 @@ static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
 {
 #ifdef V6_TOWER_PICKUP_SCREEN
     v6_trinket_screen_init(&pickup_screen);pickup_held=0;pickup_pause_ticks=0;
+    v6_pickup_draw_init(&pickup_draw);pickup_rows[0]=pickup_rows[1]=0;
+    pickup_bar_rows[0]=pickup_bar_rows[1]=0;
+    pickup_bar_room[0]=pickup_bar_room[1]=0xffffffffUL;
 #endif
 #ifdef V6_TOWER_COLLECTION_SAVE
     ui_copy(&station_collected,&ui_loaded_collection,sizeof(station_collected));
@@ -1712,6 +1824,17 @@ static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
     v6_collect_clear(&station_collected);
 #endif
     ui_copy(&world.save,c,sizeof(*c));
+#ifdef V6_TOWER_PICKUP_SCREEN
+    {
+        unsigned count=0,i;
+        for(i=0;i<V6_COLLECT_COUNT;++i)count+=v6_collect_has(&station_collected,i);
+        if(!v6_collect_has(&station_collected,6))++count;
+        if(!v6_pickup_draw_count(&pickup_draw,count))return 0;
+        for(i=0;i<V6_PICKUP_HEIGHT;++i)
+            if(!v6_pickup_text_row(&pickup_draw,i,(UBYTE *)pickup_mask+i*40,
+                (UBYTE *)pickup_ink+i*40,dialogue_font,pickup_border))return 0;
+    }
+#endif
 #ifdef V6_TOWER_RESCUE
     ui_copy(&hallway_story,story,sizeof(*story));
 #ifdef V6_STATION_MENU
@@ -2210,13 +2333,14 @@ static int run(void) {
         }
         ui_fields=250;ui_status=0;
 #ifdef V6_TOWER_PICKUP_SCREEN
-        pickup_caption=ui_captions+UI_MESSAGE_COUNT*V6_DIALOGUE_BYTES;
-        {
-            V6RescueSpeech speech;
-            speech.index=0;speech.speaker=1;speech.count=3;
-            speech.lines[0]="Congratulations!";speech.lines[1]="You have found a shiny trinket!";
-            speech.lines[2]="0 out of 20";speech.lines[3]=0;
-            if(!v6_dialogue_draw(pickup_caption,dialogue_font,&speech)) {
+        pickup_banks=ui_captions+UI_MESSAGE_COUNT*V6_DIALOGUE_BYTES;
+        pickup_zero=pickup_banks+2*V6_PICKUP_BANK_BYTES;
+        for(i=0;i<V6_PICKUP_PLANE_BYTES;++i)((volatile UBYTE *)pickup_zero)[i]=0;
+        v6_pickup_draw_init(&pickup_draw);v6_pickup_draw_count(&pickup_draw,1);
+        pickup_bar_room[0]=pickup_bar_room[1]=0xffffffffUL;
+        for(i=0;i<V6_PICKUP_HEIGHT;++i) {
+            if(!v6_pickup_text_row(&pickup_draw,i,(UBYTE *)pickup_mask+i*40,
+                (UBYTE *)pickup_ink+i*40,dialogue_font,pickup_border)) {
                 FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
             }
         }
@@ -2320,7 +2444,7 @@ static int run(void) {
 #else
             #ifdef V6_TOWER_COLLECTION_SAVE
             if(prize_ui_stage==0 && diag.logic_ticks>=154) {right=1;prize_ui_stage=1;}
-            else if(prize_ui_stage==1 && diag.logic_ticks>=165) {right=fire=1;prize_ui_stage=2;}
+            else if(prize_ui_stage==1 && diag.logic_ticks>=166) {right=fire=1;prize_ui_stage=2;}
 #else
             if(!prize_ui_stage && diag.logic_ticks>=188) {right=1;prize_ui_stage=1;}
 #endif
@@ -2610,8 +2734,7 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_PICKUP_SCREEN
                 if(pickup_screen.stopped) {
-                    ULONG before=ui_game_hash(),actor_hash=0,after_hash=0;
-                    unsigned i,events,action=(input&V6_FLIP)!=0;
+                    unsigned i,events,changed=0,action=(input&V6_FLIP)!=0;
                     const volatile ULONG *actor=(const volatile ULONG *)&station_prize;
 #ifdef V6_PRIZE_ROUTE_CAPTURE
                     /* Hold through the reveal, then release and press. */
@@ -2621,27 +2744,27 @@ static int run(void) {
                     action=1;
 #endif
 #endif
-                    for(i=0;i<sizeof(station_prize)/sizeof(ULONG);++i)actor_hash=(actor_hash<<5)-actor_hash+actor[i];
+                    if(!pickup_hash_valid) {
+                        pickup_world_hash=ui_game_hash();
+                        for(i=0;i<sizeof(station_prize)/sizeof(ULONG);++i)
+                            pickup_actor_snapshot[i]=actor[i];
+                        pickup_hash_valid=1;
+                    }
                     if(v6_trinket_screen_input(&pickup_screen,action,pickup_held))pickup_held=1;
                     if(!action)pickup_held=0;
                     events=v6_trinket_screen_tick(&pickup_screen,0);
+                    pickup_draw_tick();
                     ++pickup_pause_ticks;++pickup_diag.values[1];
                     if(events&V6_TRINKET_SHOW) {
-                        char count[16];unsigned n=pickup_screen.count,pos=0,tens=0;
-                        if(n>=100){count[pos++]='1';n-=100;count[pos++]='0';}
-                        else {while(n>=10){++tens;n-=10;}if(tens)count[pos++]='0'+tens;}
-                        count[pos++]='0'+n;
-                        {const char *suffix=" out of 20";while(*suffix)count[pos++]=*suffix++;}
-                        count[pos]=0;
-                        if(!v6_dialogue_replace_line(pickup_caption,dialogue_font,3,2,count))diag.error=18;
                         ++pickup_diag.values[2];pickup_diag.values[4]=pickup_pause_ticks;
                     }
                     if(events&V6_TRINKET_HIDE) {
                         ++pickup_diag.values[3];pickup_diag.values[5]=pickup_pause_ticks;
                         pickup_diag.values[7]=session.player.flips;
                     }
-                    for(i=0;i<sizeof(station_prize)/sizeof(ULONG);++i)after_hash=(after_hash<<5)-after_hash+actor[i];
-                    if(before!=ui_game_hash() || actor_hash!=after_hash) {
+                    for(i=0;i<sizeof(station_prize)/sizeof(ULONG);++i)
+                        if(pickup_actor_snapshot[i]!=actor[i])changed=1;
+                    if(pickup_world_hash!=ui_game_hash() || changed) {
                         ++pickup_diag.values[8];diag.error=18;
                     }
                     pickup_diag.values[9]=pickup_screen.state;
@@ -2996,6 +3119,7 @@ static int run(void) {
                 /* Source updatestate follows entities and physics. The pickup
                  * tick finishes before completestop applies to the next tick. */
                 if(pickup_screen.state==1000)v6_trinket_screen_tick(&pickup_screen,0);
+                pickup_draw_tick();
                 if(pickup_diag.values[3] && diag.logic_ticks<pickup_diag.values[11]+3)
                     pickup_diag.values[7]=session.player.flips;
 #endif
@@ -3116,6 +3240,14 @@ tele_menu_paused:
         work=clock_lines()-start;
 #ifdef V6_TOWER_PLAY
         render_work=work-logic_work;
+#ifdef V6_PRIZE_ROUTE_CAPTURE
+        if(prize_pickups && (pickup_draw.bars || pickup_draw.old_bars || pickup_screen.state) &&
+           pickup_frame_trace.count<128) {
+            volatile ULONG *r=pickup_frame_trace.records[pickup_frame_trace.count++];
+            r[0]=diag.logic_ticks;r[1]=frames;r[2]=logic_work;r[3]=render_work;
+            r[4]=pickup_pause_ticks;r[5]=pickup_rows[back];r[6]=pickup_draw.bars;r[7]=frames-previous;
+        }
+#endif
         if(logic_work>profile.max_logic) profile.max_logic=logic_work;
         if(render_work>profile.max_render) profile.max_render=render_work;
         if(work>diag.max_work_lines) {

@@ -17,6 +17,14 @@ def main():
     palette=[((c>>8)&15,(c>>4)&15,c&15) for c in metadata['palette']]
     dimensions,rgba=subprocess.check_output([str(out/'png_rgba'),str(out/'prize-tiles.png')]).split(b'\n',1)
     w,h=map(int,dimensions.split());checks=0
+    pickup=(out/'pickup_assets.h').read_text()
+    raw=re.search(r'pickup_border\[8\]\[8\]=\{(.*?)\};',pickup,re.S)[1]
+    borders=[[int(v) for v in row.split(',')] for row in re.findall(r'\{([^}]+)\}',raw)]
+    for tile,rows in zip(range(40,48),borders):
+        ox=tile%(w//8)*8;oy=tile//(w//8)*8
+        for y in range(8):
+            for x in range(8):
+                assert ((rows[y]>>(7-x))&1)==(rgba[((oy+y)*w+ox+x)*4+3]>127)
     for frame,tile in enumerate(range(747,1200)):
         ox=tile%(w//8)*8;oy=tile//(w//8)*8
         for y in range(8):
@@ -56,5 +64,5 @@ def main():
                       max(rgba[((oy+y)*w+ox+x)*4:((oy+y)*w+ox+x)*4+3])>0)<<(31-x) for x in range(32))
         assert frames[22][y]==expected and not(expected&0xffff)
         assert y<16 or expected==0
-    print(f'PASS Prize campaign actors: {checks} gate pixels, repeated waiting mask, death tile, mutable terrain and trinket crop')
+    print(f'PASS Prize campaign actors: {checks} gate pixels, 512 pickup border alpha pixels, repeated waiting mask, death tile, mutable terrain and trinket crop')
 if __name__=='__main__':main()
