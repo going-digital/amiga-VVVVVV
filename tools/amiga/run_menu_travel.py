@@ -21,10 +21,10 @@ from test_player import FIELDS
 from tower_gameplay_data import energize_room
 
 
-def verify_travel(data,returning=False):
+def verify_travel(data,returning=False,ticks=64):
     at=data.index(b'V6MT\0\0\0\1')
     count=struct.unpack_from('>I',data,at+8)[0]
-    assert count==64,count
+    assert count==ticks,count
     snapshot=struct.unpack_from('>23i',data,at+12)
     records=[struct.unpack_from('>36i',data,at+104+144*i) for i in range(count)]
     core,_=libraries();anim,_=animations();colour,_=colours()
@@ -92,8 +92,8 @@ def verify_travel(data,returning=False):
         b=(r.index,s.player.x,s.player.y,t.tile,t.state,r.tele_events,animation.frame,w.save.x,w.save.y,
            w.save.room_x,w.save.room_y,r.tele_region.active,tele_tint,player_tint)
         assert record==d+a+b,(tick+1,record,d+a+b)
-    assert [(i+1,row[13]) for i,row in enumerate(records) if row[13]]==[(23,1),(38,2),(64,4)]
-    assert arrival.control and not arrival.state and not s.invisible and leg==1
+    assert [(i+1,row[13]) for i,row in enumerate(records) if row[13]]==[(tick,cue) for tick,cue in ((23,1),(38,2),(64,4)) if tick<=ticks]
+    if ticks==64:assert arrival.control and not arrival.state and not s.invisible and leg==1
     return count*36,(w.save.x,w.save.y,0,w.save.dir,*target,0,0)
 
 
@@ -101,11 +101,14 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build',type=Path,default=ROOT/'build/amiga-menu-travel')
     parser.add_argument('--unexplored',action='store_true')
+    parser.add_argument('--effects',action='store_true',help='Verify interactive shake, reserved Paula cues and audio drain before DOS')
+    parser.add_argument('--exit-pending',action='store_true',help='Quit during the final cue tail; verify queued arrival save before OS exit')
     parser.add_argument('--load-return',type=Path,help='Load a saved Energize record into an unseeded build, then return to Building')
     args=parser.parse_args();build=args.build.resolve()
     assert not (args.unexplored and args.load_return)
-    label='menu-return' if args.load_return else 'menu-unexplored' if args.unexplored else 'menu-travel'
-    disk=build/('capture-return-disk.adf' if args.load_return else 'capture-menu-disk.adf');disk.unlink(missing_ok=True)
+    assert not args.exit_pending or (args.effects and not args.unexplored and not args.load_return)
+    label='menu-exit' if args.exit_pending else 'menu-return' if args.load_return else 'menu-unexplored' if args.unexplored else 'menu-travel'
+    disk=build/('capture-exit-disk.adf' if args.exit_pending else 'capture-return-disk.adf' if args.load_return else 'capture-menu-disk.adf');disk.unlink(missing_ok=True)
     create_save_disk(build/'tower.adf',disk);cfg=config(build,disk)
     if args.load_return:
         disk.write_bytes(args.load_return.read_bytes())
@@ -113,12 +116,13 @@ def main():
     boot_before=(build/'tower.adf').read_bytes();disk_before=disk.read_bytes()
     dump=build/(label+'.bin');dump.unlink(missing_ok=True)
     env=dict(os.environ,COPPERLINE_DBG_AFTER='55',COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{dump}')
+    if args.effects:env['COPPERLINE_DBG_AFTER']='65'
     # The larger two-room executable boots later than the one-room menu
     # fixture. Allow the natural replay to settle before sending input.
     inputs=['--joy-after','35','down','200','--joy-after','35','fire','200',
             '--joy-after','36','left','200','--joy-after','37','fire','200']
     if args.load_return:
-        env['COPPERLINE_DBG_AFTER']='60'
+        env['COPPERLINE_DBG_AFTER']='70' if args.effects else '60'
         inputs=['--joy-after','35','fire','200','--click-after','35','right','200',
                 '--joy-after','42','down','200','--joy-after','42','fire','200',
                 '--joy-after','43','left','200','--joy-after','44','fire','200']
@@ -126,8 +130,17 @@ def main():
         # Saving while departure/arrival owns control must report busy;
         # only the final arrival event may enter the DOS save pause.
         inputs+=['--click-after','37.4','right','200','--click-after','39.6','right','200']
+    if args.exit_pending:inputs+=['--click-after','40.6','left','200']
+    elif args.effects and not args.unexplored and not args.load_return:
+        # A new selector must not postpone a completed-arrival save while
+        # its final cue drains. This press is also consumed without a flip.
+        inputs+=['--joy-after','40.65','down','200','--joy-after','40.65','fire','200']
+    if args.effects:
+        for name in ('paula','paula-0','paula-1','paula-2','paula-3','drivesounds'):
+            (build/(label+'-audio')/(name+'.wav')).unlink(missing_ok=True)
     with (build/(label+'.log')).open('w') as log:
         subprocess.run([EMU,'--config',str(cfg),'--floppy-drives','2','--noaudio',*inputs,
+            *(['--audio-stems',str(build/(label+'-audio')),'--audio-stems-mode','source,channel'] if args.effects else []),
             '--screenshot-after',str(int(env['COPPERLINE_DBG_AFTER'])+1),str(build/(label+'.png'))],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
     data=dump.read_bytes();at=data.index(b'V6TM\0\0\0\1')
     menu=dict(zip('opened changed closed travel selected paused_ticks before_hash after_hash initial_flips final_flips'.split(),struct.unpack_from('>10I',data,at+8)))
@@ -136,9 +149,13 @@ def main():
     assert menu['opened']==menu['changed']==1 and menu['selected']==int(bool(args.load_return)) and menu['paused_ticks']>30,menu
     assert menu['before_hash']==menu['after_hash'],menu
     assert menu['initial_flips']==menu['final_flips']==(0 if args.load_return else 1),menu
-    assert display['status']==1 and display['error']==display['missed']==0 and display['max_work_lines']<=250,display
-    assert display['chip_bytes']==95968,display
-    assert display['logic_ticks']==600,display
+    assert display['status']==(2 if args.exit_pending else 1) and display['error']==display['missed']==0 and display['max_work_lines']<=250,display
+    chip_bytes=95968
+    if args.effects:
+        manifest=json.loads((ROOT/'build/amiga-feasibility/teleporter-samples.json').read_text())
+        chip_bytes+=9602+256+sum(s['pcm_bytes'] for s in manifest['samples'])+2
+    assert display['chip_bytes']==chip_bytes,display
+    if not args.exit_pending:assert display['logic_ticks']==600,display
     assert display['logic_ticks']*34000+display['logic_remainder']==display['logic_frames']*19968
     at=data.index(b'V6MT\0\0\0\1')
     if args.unexplored:
@@ -167,18 +184,43 @@ def main():
         else:
             # Tie both rejected writes to source-validated script states,
             # rather than accepting a generic busy result from any phase.
-            at=data.index(b'V6MT\0\0\0\1');start_tick=events[-1][6]-64
+            at=data.index(b'V6ME\0\0\0\1');start_tick=struct.unpack_from('>I',data,at+8)[0]
+            at=data.index(b'V6MT\0\0\0\1')
             for i,event in enumerate(events[:2]):
                 tick=event[6]-start_tick
                 assert 1<=tick<=64,tick
                 state=struct.unpack_from('>36i',data,at+104+144*(tick-1))
                 assert (state[0]!=0 if i==0 else state[0]==0 and state[8]!=0),state
         assert struct.unpack_from('>7iI',read_record(disk),8)==checkpoint
+        if args.exit_pending:assert display['logic_ticks']==events[-1][6],(display,events)
     assert (build/'tower.adf').read_bytes()==boot_before
     report=dict(menu=menu,ui=ui,display=display,source_trace_fields=fields,events=events,
                 physical_menu_controls=True,unexplored_excluded=args.unexplored,boot_disk_unchanged=True,
                 completed_arrival_autosave=not args.unexplored)
     if args.load_return:report['loaded_room_admits_return']=True
+    if args.effects and not args.unexplored:
+        at=data.index(b'V6ME\0\0\0\1');effect=struct.unpack_from('>6I',data,at+8)
+        assert effect[1]==effect[0]+64 and effect[2]>effect[1] and effect[3]>0 and effect[4]==0 and effect[5]==int(args.exit_pending),effect
+        at=data.index(b'V6MH\0\0\0\1');count,seed=struct.unpack_from('>2I',data,at+8)
+        assert count==64,count
+        mt=data.index(b'V6MT\0\0\0\1');shake=[]
+        for tick in range(count):
+            row=struct.unpack_from('>3i',data,at+16+12*tick)
+            travel=struct.unpack_from('>36i',data,mt+104+144*tick)
+            assert row[0]==(travel[4] if travel[0] else travel[12]),(tick,row,travel)
+            expected=[]
+            for _ in range(2):
+                if row[0]:
+                    seed^=(seed<<13)&0xffffffff;seed^=seed>>17;seed^=(seed<<5)&0xffffffff
+                    numerator=(seed>>16)*7-262144
+                    expected.append(abs(numerator)//65536*(-1 if numerator<0 else 1))
+                else:expected.append(0)
+            assert row[1:]==tuple(expected),(tick,row,expected)
+            shake.append(row)
+        from teleporter_audio_capture import verify
+        verify(report,dump,build/(label+'-audio'),reserved=True,single=True,start_tick=effect[0])
+        report.update(shake_records=shake,effect_diagnostics=effect,audio_idle_before_DOS=True)
+        if args.exit_pending:report['queued_save_before_exit']=True
     (build/(label+'-capture.json')).write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native explored menu:',json.dumps(report))
 if __name__=='__main__':main()

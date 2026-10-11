@@ -3841,3 +3841,46 @@ combine the independently verified register shake/Paula cues with interactive
 captions and DOS pauses, then persist exploration with compatible record
 validation/recovery. Broader story progress and unsupported teleporters remain
 outside this slice. Music reconstruction remains parked.
+
+## Interactive shake/captions/audio and queued autosave — 11 October 2026
+
+The explored-menu slice now supports register-based shake together with its
+caption strip, translated sprites and two reserved Paula cue voices. The new
+caption Copper path shares DIW/DDF clipping, BPLCON1 and vertical translation,
+then restores foreground/background ring pointers at the correct source rows.
+Flash covers the caption too. Caption Chip addresses include the shake mask;
+inactive Copper lists have capacity for the combined sequence.
+
+Arrival SAVE queues persistence until the final cue drains, preserving playback
+and releasing all cue voices before DOS restores the OS display/interrupt/DMA
+state. Normal gameplay continues during this short wait. Save/load reports
+busy during scripts/cues, and pending autosave blocks reopening the selector.
+A quit during the tail is latched until the cue and save complete. DOS itself
+still contributes no gameplay time and preserves paused state/ticks. Loading
+clears shake and travel state without replaying arrival effects.
+
+`make -C amiga_version tower-menu-effects-capture` validates outbound,
+fresh-process load/return and queued-save exit. The three journeys match 6,912
+model fields, independently verify shake RNG/timers, complete all four source
+cues each, and pass captured PCM/duration/silence/hard-panning checks. Only
+channels 0/1 are used; channels 2/3 remain idle and policy violations are zero.
+OFS campaign bytes verify the original centre/direction/gravity for both rooms.
+The paired native caption/scene fixture compares 76,800 shifted pixels exactly
+and retains its disks, with another 2,304 model fields compared.
+
+Host checks cover 16,128 caption/scene DMA plans, 16,128 plain-scene plans,
+3,000 general sprite pixel cases, and 252 six-strip header shifts/restorations.
+The bounded teleporter fast path avoids repeated generic sprite validation;
+resident-first exploration lookup and conditional menu hashes reduce crossing
+and gameplay work. Combined fixtures use 147,556 Chip bytes, peak at 233 PAL
+lines for interactive travel and 242 for the shifted-caption fixture, and
+report zero errors/missed fields. The standalone staged shake/audio regression
+also passes at 223 lines. Artifacts are under
+`build/amiga-menu-effects{,-return}/` and `build/amiga-menu-pixels-*`.
+`tower-menu-effects-run` launches real controls with a retained private DF1 disk;
+seeding, movement replay, deterministic render RNG and capture holds remain
+confined to test builds.
+
+Next: persist the explored-room map with compatible campaign validation and
+recovery, then expand resident routes/story support. The existing 44-byte
+record still saves only the checkpoint/story fields. Music work remains parked.

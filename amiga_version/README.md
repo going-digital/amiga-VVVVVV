@@ -2638,3 +2638,50 @@ and report zero missed fields/errors. The original Building-only menu capture
 also passes. Register shake and Paula SFX remain verified in their staged
 fixture; combining them with interactive captions and DOS pauses is next.
 Music reconstruction remains parked.
+
+## Interactive register shake, captions and Paula effects
+
+`make -C amiga_version tower-menu-effects-run` adds register-based shake and
+source teleporter cues to the explored-menu slice. Foreground, backdrop, sprite
+headers and status captions share the same translation. The caption Copper
+path resumes both circular scene rings at their correct rows after its strip;
+flash replaces the complete translated scene, including the caption. The Chip
+layout now places caption buffers after the shake mask and reserves larger
+inactive Copper lists for their combined register sequence.
+
+Cues use reserved Paula channels 0/1 with hardware hard panning. Channels 2/3
+remain idle for future music. A completed arrival queues autosave, then normal
+play continues while the last cue drains. Once the voices are idle, DOS
+replacement/flush runs through the existing pause/resume path. Save/load reports
+busy while a cue or travel script owns the hardware; a new selector stays
+unavailable while autosave is pending. Quitting during that tail is latched:
+the cue and queued save complete before the executable returns to the OS.
+Loading resets shake/travel state without starting fresh effects.
+
+`make -C amiga_version tower-menu-effects-capture` verifies outbound travel,
+fresh-process load/return, and a quit during the final cue. Each journey matches
+2,304 model fields and independently sampled shake records. All four cues in
+each case complete without replacement, with zero channel-policy violations;
+captured PCM, durations, final silence and hard panning pass. Campaign bytes
+verify both source centres. Disk pauses preserve gameplay state/ticks and
+exclude DOS wall time from the accumulator; the short cue-drain wait remains
+ordinary gameplay time.
+
+A paired native pixel fixture holds a non-flash arrival with a visible busy
+caption, compares all 76,800 viewport pixels against a (1,-2) translation of
+an otherwise identical reference, and leaves both disks unchanged. The host
+caption oracle covers all 16,128 shake/ring-offset combinations, ring wraps,
+caption rows, scene resumption, flash coverage and invalid-input preservation.
+The six-strip header fast path matches the generic sprite routine for 252
+shift/restoration cases; the existing 3,000 sprite pixel cases still pass.
+Admission now computes exploration indices only for resident matches, and
+ordinary gameplay avoids unused menu-state hashes.
+
+Combined captures use 147,556 Chip bytes. Interactive travel peaks at 233 PAL
+work lines; the shifted-caption fixture peaks at 242, below the 250-line gate,
+with zero errors/missed fields. Reports, screenshots, RAM dumps and
+audio stems are in `build/amiga-menu-effects/`, `build/amiga-menu-effects-return/`
+and `build/amiga-menu-pixels-{reference,shifted}/`. The standalone staged
+shake/audio regression remains available as `tower-shake-audio-capture`.
+Exploration disk persistence and broader resident/story support remain pending.
+Music reconstruction is parked.

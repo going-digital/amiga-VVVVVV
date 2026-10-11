@@ -14,6 +14,7 @@ def main():
         *[str(ROOT/'amiga_version'/f) for f in ('screen_shake_dma.c','screen_shake_display.c')],'-o',str(path)],check=True)
     lib=C.CDLL(str(path));lib.v6_screen_shake_display.argtypes=[C.POINTER(C.c_uint16),C.POINTER(Plan),*([C.c_uint32]*3),C.c_uint,C.c_uint,C.c_int]
     lib.v6_screen_shake_sprite.argtypes=[C.POINTER(C.c_uint16),C.c_uint,C.c_int,C.c_int]
+    lib.v6_screen_shake_heads.argtypes=[C.POINTER(C.c_uint16),C.POINTER(C.c_uint16),C.c_uint,C.c_int,C.c_int]
     out=(C.c_uint16*64)();cases=0
     for x in range(-4,3):
         for y in range(-4,5):
@@ -78,8 +79,29 @@ def main():
         after=pixels(d)
         assert {k:v for k,v in after.items() if v}=={k:v for k,v in expected.items() if v}
         sprite_cases+=1
+    head_cases=0
+    for left,top in ((112,48),(36,68),(4,4),(222,142)):
+        for dx in range(-4,3):
+            for dy in range(-4,5):
+                template=(C.c_uint16*(6*196))()
+                start=52+max(16,top);stop=52+min(216,top+96)
+                for channel in range(6):
+                    horizontal=128+left+16*channel;at=channel*196
+                    template[at]=((start&255)<<8)|(horizontal>>1)
+                    template[at+1]=((stop&255)<<8)|((start&256)>>6)|((stop&256)>>7)|(horizontal&1)
+                    for i in range(2,2+2*(stop-start)):template[at+i]=rng.randrange(65536)
+                fast=type(template).from_buffer_copy(template);expected=type(template).from_buffer_copy(template)
+                lib.v6_screen_shake_heads(fast,template,196,dx,dy)
+                for channel in range(6):
+                    ptr=C.cast(C.byref(expected,channel*196*2),C.POINTER(C.c_uint16))
+                    assert lib.v6_screen_shake_sprite(ptr,196,dx,dy)
+                assert bytes(fast)==bytes(expected),(left,top,dx,dy)
+                # Restoration uses immutable heads, even after many prior shifts.
+                lib.v6_screen_shake_heads(fast,template,196,0,0)
+                assert bytes(fast)==bytes(template)
+                head_cases+=1
     out[:]=[0x1234]*64;p.x=99
     assert not lib.v6_screen_shake_display(out,C.byref(p),0x10000,0x15000,0x18000,0,0,0)
     assert list(out)==[0x1234]*64
-    print(f'PASS shake display: {cases} ring/register plans; {sprite_cases} sprite pixel translations')
+    print(f'PASS shake display: {cases} ring/register plans; {sprite_cases} sprite pixel translations; {head_cases} six-strip shifts/restorations')
 if __name__=='__main__':main()

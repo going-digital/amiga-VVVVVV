@@ -14,4 +14,11 @@
 #define V6_SHAKE_DISPLAY_WORDS 64
 unsigned v6_screen_shake_display(uint16_t *,const V6ScreenShakePlan *,
     uint32_t fg,uint32_t bg,uint32_t mask,unsigned fo,unsigned bo,int flash);
+/* Same translated scene with the ordinary 48-row dialogue strip. The strip
+ * shares fine scroll and vertical translation; flash covers it too. Caption
+ * needs one readable guard word for a negative-X fetch. Needs 128 words. */
+#define V6_SHAKE_CAPTION_WORDS 128
+unsigned v6_screen_shake_caption(uint16_t *,const V6ScreenShakePlan *,
+    uint32_t fg,uint32_t bg,uint32_t mask,unsigned fo,unsigned bo,int flash,
+    uint32_t caption,unsigned tint,unsigned c1,unsigned c3);
 #endif

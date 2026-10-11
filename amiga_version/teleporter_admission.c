@@ -24,8 +24,13 @@ int v6_teleporter_admit(const V6Exploration *e,const V6TeleporterDestination *r,
         for(j=0;j<V6_SOURCE_TELEPORTERS;++j)if(r[i].room_x==source[j].room_x && r[i].room_y==source[j].room_y)break;
         if(j==V6_SOURCE_TELEPORTERS)return 0;
     }
-    for(i=0;i<V6_SOURCE_TELEPORTERS;++i)if(v6_exploration_seen(e,source[i].room_x,source[i].room_y))
-        for(k=0;k<residents;++k)if(r[k].room_x==source[i].room_x && r[k].room_y==source[i].room_y){selected[n++]=source[i];break;}
+    /* Only resident matches need a room-bit lookup. Avoid seventeen absolute
+     * coordinate/index conversions on the native room-crossing frame. */
+    for(i=0;i<V6_SOURCE_TELEPORTERS;++i)
+        for(k=0;k<residents;++k)if(r[k].room_x==source[i].room_x && r[k].room_y==source[i].room_y) {
+            if(v6_exploration_seen(e,source[i].room_x,source[i].room_y))selected[n++]=source[i];
+            break;
+        }
     if(n>capacity)return 0;
     for(i=0;i<n;++i)out[i]=selected[i];
     *count=n;return 1;

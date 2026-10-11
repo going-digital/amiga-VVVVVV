@@ -10,6 +10,14 @@
 #error Exploration seeding is only for the bounded physical menu capture
 #endif
 #endif
+#ifdef V6_MENU_EFFECT_HOLD
+#if !defined(V6_TOWER_MENU_TRAVEL) || !defined(V6_TELE_MENU_CAPTURE) || !defined(V6_TOWER_SHAKE) || V6_MENU_EFFECT_HOLD < 1 || V6_MENU_EFFECT_HOLD > 64
+#error Effect pixel hold is only for the bounded interactive shake capture
+#endif
+#endif
+#if defined(V6_MENU_SHAKE_REFERENCE) && !defined(V6_MENU_EFFECT_HOLD)
+#error Unshifted effect reference requires the pixel hold fixture
+#endif
 #ifdef V6_TOWER_ARRIVAL_SAVE
 #if !defined(V6_BUILDING_SAVE) || !defined(V6_TOWER_ROUNDTRIP) || !defined(V6_TOWER_ENERGIZE) || !defined(V6_ENERGIZE_CAPTURE) || !defined(V6_TOWER_ARRIVAL)
 #error Arrival save requires the Building save and staged roundtrip fixtures
@@ -68,9 +76,11 @@ static unsigned tele_destination_count;
 #ifdef V6_TOWER_MENU_TRAVEL
 static const V6TeleporterDestination tele_residents[2]={{111,104},{110,105}};
 static V6TeleporterDestination menu_target;
-static unsigned menu_save_pending,menu_travel_active;
+static unsigned menu_save_pending,menu_travel_active,menu_exit_pending;
 static volatile struct {ULONG magic,version,count;LONG snapshot[23],records[128][36];}
     menu_travel_trace={0x56364d54,1,0,{0},{{0}}};
+static volatile struct {ULONG magic,version,values[6];}
+    menu_effect_diag={0x56364d45,1,{0}};
 #else
 static const V6TeleporterDestination tele_residents[1]={{111,104}};
 #endif
@@ -115,7 +125,11 @@ static const V6RescueSpeech ui_messages[UI_MESSAGE_COUNT]={
     {2,1,2,{"Checkpoint loaded","Continue playing"}},
     {3,1,3,{"Save/load failed","Current game retained","Check the save disk"}},
 #ifdef V6_TOWER_TELE_MENU
+#ifdef V6_TOWER_MENU_TRAVEL
+    {4,1,2,{"Save/load is busy","Wait for travel or close the menu"}}
+#else
     {4,1,2,{"Finish loading or close the menu","Then try save/load again"}}
+#endif
 #else
     {4,1,2,{"Finish dialogue or loading first","Then try save/load again"}}
 #endif
@@ -402,8 +416,8 @@ static volatile struct {ULONG magic,version,count,records[128][14];}
 #ifdef V6_TOWER_SHAKE
 #include "screen_shake_dma.h"
 #include "screen_shake_display.h"
-#if !defined(V6_TOWER_ROUNDTRIP) || defined(V6_TOWER_RESCUE) || defined(V6_TOWER_UI_SAVE)
-#error Shake capture currently supports the staged teleporter roundtrip only
+#if !defined(V6_TOWER_ROUNDTRIP) || defined(V6_TOWER_RESCUE) || (defined(V6_TOWER_UI_SAVE) && !defined(V6_TOWER_MENU_TRAVEL))
+#error Shake supports the staged roundtrip or interactive normal teleporter travel
 #endif
 static V6ScreenShake shake;
 static V6ScreenShakePlan shake_plan;
@@ -412,6 +426,10 @@ static int shake_timer;
 static UBYTE *shake_mask;
 static unsigned shake_heads[2];
 static struct { ULONG magic,version,count; LONG records[128][3]; } shake_trace={0x56365348,1,0,{{0}}};
+#ifdef V6_TOWER_MENU_TRAVEL
+static volatile struct {ULONG magic,version,count,seed;LONG records[64][3];}
+    menu_shake_trace={0x56364d48,1,0,0,{{0}}};
+#endif
 #endif
 #ifdef V6_TOWER_TRAVEL_AUDIO
 #include "paula_voice.h"
@@ -456,6 +474,14 @@ static void travel_audio_record(void)
     travel_audio_diag.values[6]=travel_audio_peak;
     travel_policy_diag.stolen=travel_stolen;
 }
+#ifdef V6_TOWER_MENU_TRAVEL
+static unsigned travel_audio_busy(void)
+{
+    unsigned i,n=0;
+    for(i=0;i<4;++i)if(V6_TRAVEL_SFX_MASK&(1U<<i))n+=travel_voices[i].audio.state!=V6_AUDIO_IDLE;
+    return n;
+}
+#endif
 #ifdef V6_TOWER_COEXIST_AUDIO
 #include "music_gain.h"
 #include "music_registers.h"
@@ -637,7 +663,11 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #define CAMERA_MAX 5856
 #ifdef V6_TOWER_PLAY
 #if defined(V6_TOWER_RESCUE) || defined(V6_TOWER_BUILDING)
+#if defined(V6_TOWER_SHAKE) && defined(V6_TOWER_UI_SAVE)
+#define LIST_WORDS 256
+#else
 #define LIST_WORDS 192
+#endif
 #else
 #define LIST_WORDS 128
 #endif
@@ -1002,10 +1032,8 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #ifdef V6_TOWER_SHAKE
         /* The fixture teleporter is away from viewport edges. Restore heads
          * after each translation; the bounds check excludes pixel clipping. */
-        if(shake_heads[index])for(word=0;word<6;++word) {
-            bank[word*V6_TELEPORTER_DMA_WORDS]=prepared[frame][word*V6_TELEPORTER_DMA_WORDS];
-            bank[word*V6_TELEPORTER_DMA_WORDS+1]=prepared[frame][word*V6_TELEPORTER_DMA_WORDS+1];
-        }
+        if(shake_heads[index] || shake_plan.x || shake_plan.y)
+            v6_screen_shake_heads(bank,prepared[frame],V6_TELEPORTER_DMA_WORDS,shake_plan.x,shake_plan.y);
         shake_heads[index]=shake_plan.x || shake_plan.y;
 #endif
         player_sprites[index].count=6;
@@ -1075,6 +1103,9 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #endif
 #ifdef V6_TOWER_SHAKE
         if((shake_plan.x || shake_plan.y) &&
+#ifdef V6_TOWER_BUILDING
+           !(route.rooms[route.index].teleporter && i<6) &&
+#endif
            !v6_screen_shake_sprite(sprite,sprite_words,shake_plan.x,shake_plan.y))return 0;
 #else
         (void)sprite_words;
@@ -1106,8 +1137,8 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #ifdef V6_TOWER_TELE_MENU
        || tele_menu.open
 #endif
-      )return v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
-        camera&255,bg_camera&255,(ULONG)(ui_captions+
+      ) {
+        ULONG caption=(ULONG)(ui_captions+
 #ifdef V6_TOWER_TELE_MENU
         (tele_menu.open?
 #ifdef V6_TOWER_MENU_TRAVEL
@@ -1119,8 +1150,18 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #else
         ui_status*V6_DIALOGUE_BYTES
 #endif
-        ),
-        0x6ff,DISPLAY_COLOUR(FG_PALETTE[1]),DISPLAY_COLOUR(FG_PALETTE[3]))!=0;
+        );
+#ifdef V6_TOWER_SHAKE
+        if(shake_timer && !session.noflashing) {
+            p=move(p,0x194,DISPLAY_COLOUR(0x010));p=move(p,0x196,DISPLAY_COLOUR(0x111));
+            return v6_screen_shake_caption(p,&shake_plan,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
+                (ULONG)shake_mask,camera&255,bg_camera&255,arrival_flash,caption,
+                0x6ff,DISPLAY_COLOUR(FG_PALETTE[1]),DISPLAY_COLOUR(FG_PALETTE[3]))!=0;
+        }
+#endif
+        return v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
+            camera&255,bg_camera&255,caption,0x6ff,DISPLAY_COLOUR(FG_PALETTE[1]),DISPLAY_COLOUR(FG_PALETTE[3]))!=0;
+    }
 #endif
 #ifdef V6_TOWER_SHAKE
     if(shake_timer && !session.noflashing) {
@@ -1162,6 +1203,9 @@ static ULONG ui_game_hash(void)
     HASH(arrival.state);HASH(arrival.delay);HASH(arrival.control);HASH(arrival.flash);HASH(arrival.shake);
     HASH(session.invisible);HASH(session.motion.ax);HASH(session.motion.pending_y);
     HASH(building_random);HASH(colour_random);
+#ifdef V6_TOWER_SHAKE
+    HASH(shake_random);HASH(shake_timer);HASH(shake_plan.x);HASH(shake_plan.y);
+#endif
 #endif
 #endif
 #undef HASH
@@ -1224,6 +1268,9 @@ static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
 #ifdef V6_TOWER_MENU_TRAVEL
     v6_teleporter_departure_init(&departure);v6_teleporter_arrival_init(&arrival);
     menu_save_pending=menu_travel_active=0;arrival_flash=0;session.invisible=0;
+#ifdef V6_TOWER_SHAKE
+    shake_timer=0;v6_screen_shake_init(&shake);v6_screen_shake_plan(&shake,0,0,0,&shake_plan);
+#endif
 #endif
 #endif
     return route_source();
@@ -1452,7 +1499,7 @@ static int run(void) {
 #ifdef V6_TOWER_RESCUE
     {
         unsigned i;
-        rescue_captions=chip+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES;
+        rescue_captions=rings[0]+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES;
         for(i=0;i<V6_RESCUE_SPEECHES;++i)
             if(!v6_dialogue_draw(rescue_captions+i*V6_DIALOGUE_BYTES,dialogue_font,&v6_rescue_speeches[i])) {
                 FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
@@ -1592,7 +1639,7 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_UI_SAVE
     {
-        unsigned i;ui_captions=chip+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES;
+        unsigned i;ui_captions=rings[0]+2*LAYER_BYTES+2*LIST_WORDS*2+PLAYER_DMA_BYTES+CAPTION_DMA_BYTES;
         for(i=0;i<UI_MESSAGE_COUNT;++i)if(!v6_dialogue_draw(ui_captions+i*V6_DIALOGUE_BYTES,dialogue_font,&ui_messages[i])) {
             FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
         }
@@ -1640,7 +1687,13 @@ static int run(void) {
 #ifdef V6_TOWER_CONTROLLER
     logic_frame=frames;
 #endif
-    while((*(volatile UBYTE *)0xbfe001&0x40) && !diag.error
+    while(
+#ifdef V6_TOWER_MENU_TRAVEL
+          (((*(volatile UBYTE *)0xbfe001&0x40) && !menu_exit_pending) || menu_save_pending)
+#else
+          (*(volatile UBYTE *)0xbfe001&0x40)
+#endif
+          && !diag.error
 #ifdef V6_TOWER_WORLD
           && !world.exit.room_x
 #endif
@@ -1660,6 +1713,12 @@ static int run(void) {
         {
             int right=(hw->potinp&0x0400)==0,fire=(*(volatile UBYTE *)0xbfe001&0x80)==0;
             unsigned action;
+#ifdef V6_TOWER_MENU_TRAVEL
+            /* A quit during the audio tail retains the completed-arrival
+             * save request. Latch it even when the mouse is released before
+             * the voices drain; return to the OS after the write finishes. */
+            if(menu_save_pending && !(*(volatile UBYTE *)0xbfe001&0x40))menu_exit_pending=1;
+#endif
 #ifdef V6_TOWER_UI_REPLAY
             right=fire=0;
             if(ui_test_phase==0) {right=fire=1;ui_test_phase=1;}
@@ -1673,9 +1732,21 @@ static int run(void) {
 #endif
             action=v6_save_controls_tick(&save_controls,right,fire);
 #ifdef V6_TOWER_MENU_TRAVEL
-            if(menu_save_pending){action=V6_SAVE_ACTION_SAVE;menu_save_pending=0;}
+            if(menu_save_pending) {
+#ifdef V6_TOWER_TRAVEL_AUDIO
+                if(travel_audio_busy())++menu_effect_diag.values[3];
+                else
 #endif
-            if(ui_fields)--ui_fields;
+                if(!route_loading && session.death_timer==-1 && !departure.state && !arrival.state && !tele_menu.open) {
+                    action=V6_SAVE_ACTION_SAVE;menu_save_pending=0;
+                }
+            }
+#endif
+            if(ui_fields
+#ifdef V6_MENU_EFFECT_HOLD
+               && menu_travel_trace.count<V6_MENU_EFFECT_HOLD
+#endif
+              )--ui_fields;
             if(action) {
                 ULONG before_hash=ui_game_hash(),before_frames=frames,before_ticks=diag.logic_ticks;
                 int result=5;
@@ -1693,10 +1764,22 @@ static int run(void) {
 #ifdef V6_TOWER_AUDIO
                    || cue_audio.state
 #endif
+#if defined(V6_TOWER_TRAVEL_AUDIO) && defined(V6_TOWER_MENU_TRAVEL)
+                   || travel_audio_busy()
+#endif
                   ) {
                     ++ui_diag.values[4];ui_status=4;ui_fields=200;
                 } else {
                     V6CheckpointSave c;V6HallwayStory story;
+#if defined(V6_TOWER_MENU_TRAVEL) && defined(V6_TOWER_TRAVEL_AUDIO)
+                    menu_effect_diag.values[4]=travel_audio_busy();
+#endif
+#ifdef V6_TOWER_MENU_TRAVEL
+                    if(action==V6_SAVE_ACTION_SAVE) {
+                        menu_effect_diag.values[2]=diag.logic_ticks;
+                        menu_effect_diag.values[5]=menu_exit_pending;
+                    }
+#endif
 #ifdef V6_TOWER_AUDIO
                     { V6AudioPlan plan;v6_audio_stop(&cue_audio,&plan);audio_apply(&plan);audio_record(); }
 #endif
@@ -1795,6 +1878,9 @@ static int run(void) {
              * can otherwise land between diagnostic counter publications. */
             if(diag.logic_ticks>=600)delta=0;
 #endif
+#ifdef V6_MENU_EFFECT_HOLD
+            if(menu_travel_trace.count>=V6_MENU_EFFECT_HOLD)delta=0;
+#endif
             elapsed+=delta*19968UL;diag.logic_frames+=delta;
             while(elapsed>=34000) {
                 elapsed-=34000;
@@ -1874,7 +1960,7 @@ static int run(void) {
                     int fire=(*(volatile UBYTE *)0xbfe001&0x80)==0;
                     int down=((joy&0x0100)!=0)!=((joy&1)!=0);
                     unsigned buttons=0,was_open=tele_menu.open,event;
-                    ULONG before=ui_game_hash();V6TeleporterDestination target;
+                    ULONG before=0;V6TeleporterDestination target;
                     if(!fire)tele_menu_fire=0;
                     else if(was_open)tele_menu_fire=1;
                     if(tele_menu.open) {
@@ -1884,10 +1970,13 @@ static int run(void) {
                     } else if(fire && !save_controls.suppress_fire && (down || tele_menu_fire)) {
                         buttons=V6_TELE_MENU_CONFIRM;tele_menu_fire=1;
                     }
+                    /* State snapshots matter only when opening or pausing
+                     * the selector, not on every ordinary gameplay tick. */
+                    if(was_open || (buttons&V6_TELE_MENU_CONFIRM))before=ui_game_hash();
                     v6_teleporter_menu_ready(&tele_menu,&route.tele_region,&session.player,
                         route.rooms[route.index].teleporter && session.death_timer==-1 && !route_loading
 #ifdef V6_TOWER_MENU_TRAVEL
-                        && !departure.state && arrival.control
+                        && !departure.state && arrival.control && !menu_save_pending
 #endif
                         );
                     event=v6_teleporter_menu_tick(&tele_menu,tele_destinations,tele_destination_count,
@@ -1904,8 +1993,19 @@ static int run(void) {
                         if(!v6_teleporter_departure_start(&departure,route.rooms[route.index].teleporter,&route.tele_region))diag.error=13;
                         else {
                             unsigned j;const LONG *body=(const LONG *)&session.player;
+#ifdef V6_MENU_EFFECT_HOLD
+                            /* Paired pixel captures share deterministic scene
+                             * animation/colour RNG irrespective of boot time. */
+                            building_random=1;colour_random=7;shake_random=19;
+                            building_animation.frame=1;building_animation.delay=building_animation.walking=0;
+#endif
                             menu_target=target;ui_fields=0;tele_menu.ready=0;++tele_menu_diag.values[3];
                             menu_travel_active=1;menu_travel_trace.count=0;
+                            for(j=0;j<6;++j)menu_effect_diag.values[j]=0;
+                            menu_effect_diag.values[0]=diag.logic_ticks;
+#ifdef V6_TOWER_SHAKE
+                            menu_shake_trace.count=0;menu_shake_trace.seed=shake_random;
+#endif
                             for(j=0;j<16;++j)menu_travel_trace.snapshot[j]=body[j];
                             menu_travel_trace.snapshot[16]=session.motion.ax;menu_travel_trace.snapshot[17]=session.motion.pending_y;
                             menu_travel_trace.snapshot[18]=building_animation.frame;menu_travel_trace.snapshot[19]=building_animation.delay;
@@ -2017,11 +2117,20 @@ static int run(void) {
                     }
                     v6_screen_shake_pre(&shake,shake_timer,samples);
                     v6_screen_shake_plan(&shake,shake_timer,session.noflashing,0,&shake_plan);
+#ifdef V6_MENU_SHAKE_REFERENCE
+                    v6_screen_shake_plan(&shake,0,session.noflashing,0,&shake_plan);
+#endif
                     if(session.noflashing)arrival_flash=0;
                     if(shake_trace.count<128) {
                         LONG *record=shake_trace.records[shake_trace.count++];
                         record[0]=shake_timer;record[1]=shake_plan.x;record[2]=shake_plan.y;
                     }
+#ifdef V6_TOWER_MENU_TRAVEL
+                    if(menu_travel_active && menu_shake_trace.count<64) {
+                        volatile LONG *record=menu_shake_trace.records[menu_shake_trace.count++];
+                        record[0]=shake_timer;record[1]=shake_plan.x;record[2]=shake_plan.y;
+                    }
+#endif
                 }
 #endif
 #ifdef V6_TOWER_MENU_TRAVEL
@@ -2060,7 +2169,9 @@ static int run(void) {
                     a[8]=session.player.vy;a[9]=session.player.ay;a[10]=session.player.old_x;
                     a[11]=session.player.old_y;a[12]=session.player.dir;a[13]=session.death_timer;
                 }
-                if(arrival.events&V6_ARRIVAL_SAVE)menu_save_pending=1;
+                if(arrival.events&V6_ARRIVAL_SAVE) {
+                    menu_save_pending=1;menu_effect_diag.values[1]=diag.logic_ticks+1;
+                }
 #endif
                 /* Graphics::renderfixedpost effect counters decay once per tick. */
                 if(arrival.flash>0)--arrival.flash;

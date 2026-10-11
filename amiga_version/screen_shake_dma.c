@@ -1,4 +1,14 @@
 #include "screen_shake_dma.h"
+void v6_screen_shake_heads(uint16_t *out,const uint16_t *base,unsigned stride,int x,int y)
+{
+    unsigned i,horizontal;int start,stop;uint16_t pos,ctl;
+    start=((base[0]>>8)|((base[1]&4)<<6))+y;
+    stop=((base[1]>>8)|((base[1]&2)<<7))+y;
+    horizontal=(base[0]&255)*2+(base[1]&1)+x;
+    pos=((start&255)<<8)|(horizontal>>1);
+    ctl=((stop&255)<<8)|((start&256)>>6)|((stop&256)>>7)|(horizontal&1);
+    for(i=0;i<6;++i,out+=stride,pos+=8){out[0]=pos;out[1]=ctl;}
+}
 int v6_screen_shake_sprite(uint16_t *d,unsigned words,int x,int y)
 {
     int start,stop,left,first,last,row;unsigned horizontal;uint16_t mask=0xffff;
