@@ -20,13 +20,14 @@ def read_record(path:Path,name=b'campaign.v6cs'):
     header=headers[0];assert sum(struct.unpack_from('>128I',image,header))&0xffffffff==0
     block=struct.unpack_from('>I',image,header+16)[0]*512
     size=struct.unpack_from('>I',image,block+12)[0]
-    assert struct.unpack_from('>I',image,block)[0]==8 and size in (44,96)
+    assert struct.unpack_from('>I',image,block)[0]==8 and size in (44,96,112)
     assert sum(struct.unpack_from('>128I',image,block))&0xffffffff==0
     record=image[block+24:block+24+size]
     magic,version,length=struct.unpack_from('>4sHH',record)
-    assert magic==b'V6CS' and length==size and version in ((1,) if size==44 else (2,3))
+    assert magic==b'V6CS' and length==size and version in ((1,) if size==44 else (4,) if size==112 else (2,3))
     assert zlib.crc32(record[:-4])==struct.unpack_from('>I',record,size-4)[0]
     if size==96:assert record[90:92]==b'\0\0'
+    if size==112:assert record[102]&0xf0==0 and record[103:108]==bytes(5)
     return record
 def legacy_record_fixture(path:Path,name=b'campaign.v6cs'):
     """Downgrade a disposable capture disk to a valid v1 checkpoint-only record."""
@@ -46,4 +47,26 @@ def legacy_record_fixture(path:Path,name=b'campaign.v6cs'):
             struct.pack_into('>I',image,offset+20,0)
             struct.pack_into('>I',image,offset+20,(-sum(struct.unpack_from('>128I',image,offset)))&0xffffffff)
         path.write_bytes(image);assert read_record(path,name)==legacy;return
+    raise AssertionError('Missing capture record')
+
+def replace_record_fixture(path:Path,record:bytes,name=b'campaign.v6cs'):
+    """Replace a single-block record on a disposable OFS capture disk."""
+    previous=read_record(path,name)
+    magic,version,length=struct.unpack_from('>4sHH',record)
+    assert magic==b'V6CS' and length==len(record) and (version,length) in ((1,44),(2,96),(3,96),(4,112))
+    assert zlib.crc32(record[:-4])==struct.unpack_from('>I',record,length-4)[0]
+    image=bytearray(path.read_bytes())
+    for header in range(0,len(image),512):
+        if struct.unpack_from('>I',image,header)[0]!=2 or struct.unpack_from('>I',image,header+508)[0]!=0xfffffffd:continue
+        n=image[header+432]
+        if image[header+433:header+433+n]!=name:continue
+        block=struct.unpack_from('>I',image,header+16)[0]*512
+        struct.pack_into('>I',image,header+324,length)
+        struct.pack_into('>I',image,block+12,length)
+        padded=max(length,len(previous))
+        image[block+24:block+24+padded]=record+bytes(padded-length)
+        for offset in (header,block):
+            struct.pack_into('>I',image,offset+20,0)
+            struct.pack_into('>I',image,offset+20,(-sum(struct.unpack_from('>128I',image,offset)))&0xffffffff)
+        path.write_bytes(image);assert read_record(path,name)==record;return
     raise AssertionError('Missing capture record')

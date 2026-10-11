@@ -77,6 +77,22 @@ def main():
     oldstate=[oldc,r,Yellow(),oldmap,Collect()]
     originals=[vector(oldstate,v) for v in (1,2,3)]+[encode(oldstate)]
     for blob in originals:decode(blob,oldstate)
+    # V4 alone admits the reviewed Prize checkpoint and its actual map bit.
+    prize_map=Exploration();prize_map.rooms[151>>3]=1<<(151&7)
+    prize=Checkpoint(236,134,1,1,111,107,443490)
+    prize_state=[prize,r,y,prize_map,bank]
+    prize_blob=encode(prize_state);decode(prize_blob,prize_state)
+    for offset,value in ((8,235),(12,135),(16,0),(20,2),(24,112),(28,108),(32,443491)):
+        bad=bytearray(prize_blob);struct.pack_into('>I',bad,offset,value);decode(resign(bad))
+    bad=bytearray(prize_blob);bad[40+(151>>3)]=0;decode(resign(bad))
+    prize.dir=0;decode(encode(prize_state),prize_state);prize.dir=1
+    for version in (1,2,3):decode(vector(prize_state,version))
+    legacy=(C.c_uint8*96)(*([165]*96))
+    lib.v6_campaign_progress_encode.argtypes=[C.c_void_p,C.c_size_t]+ptrs[:4]
+    assert not lib.v6_campaign_progress_encode(legacy,96,*refs(prize_state[:4]))
+    assert bytes(legacy)==bytes([165]*96)
+    # Exercise every transaction fault against the newly admitted room, too.
+    state=prize_state;updated=prize_blob
     def replace(io):return lib.v6_campaign_collection_replace(C.byref(io),b'save',b'temp',b'backup',*refs(state))
     def recover(fs,io=None):
         out=outputs();before=snapshot(out)
@@ -151,6 +167,6 @@ def main():
         source=(C.c_uint8*112).from_buffer_copy(updated)
         assert not lib.v6_campaign_collection_decode(*arguments,source,112)
         assert snapshot(out)==before
-    print(f'PASS collection saves: 100 bank vectors, 896 corruptions, V1..V3 migrations, {snapshots} interruption snapshots, {faults} replacement faults, {recovery_faults} recovery faults')
+    print(f'PASS collection saves: 100 bank vectors, 896 corruptions, canonical V4 Prize guards, V1..V3 migrations, {snapshots} interruption snapshots, {faults} replacement faults, {recovery_faults} recovery faults')
 
 if __name__=='__main__':main()

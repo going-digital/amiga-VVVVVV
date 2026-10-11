@@ -106,11 +106,14 @@ int v6_campaign_state_decode(V6CheckpointSave *out,V6HallwayStory *story,
 }
 
 static int progress_valid(const V6CheckpointSave *c,const V6HallwayStory *red,
-    const V6StationStory *yellow)
+    const V6StationStory *yellow,unsigned version)
 {
     V6CheckpointSave bounded=*c;
-    /* V3 station rooms retain all legacy coordinate/story guards. */
-    if(c->room_x==111 && (c->room_y==105 || c->room_y==106))bounded.room_y=104;
+    /* Keep legacy room admission unchanged. V4 alone admits Prize. */
+    if(c->room_x==111 && c->room_y==107 && version==4) {
+        if(c->x!=236 || c->y!=134 || c->gravity!=1 || c->id!=443490)return 0;
+        bounded.room_y=104;
+    } else if(c->room_x==111 && (c->room_y==105 || c->room_y==106))bounded.room_y=104;
     return valid(&bounded,red) && !yellow->time_trial && !yellow->translator_exploring
         && (yellow->rescue_triggered==0 || yellow->rescue_triggered==1)
         && (yellow->yellow_rescued==0 || yellow->yellow_rescued==1)
@@ -119,14 +122,14 @@ static int progress_valid(const V6CheckpointSave *c,const V6HallwayStory *red,
         && (!yellow->companion || yellow->yellow_rescued)
         && !(red->companion && yellow->companion);
 }
-int v6_campaign_progress_encode(uint8_t *out,size_t n,const V6CheckpointSave *c,
-    const V6HallwayStory *red,const V6StationStory *yellow,const V6Exploration *e)
+static int progress_encode(uint8_t *out,size_t n,const V6CheckpointSave *c,
+    const V6HallwayStory *red,const V6StationStory *yellow,const V6Exploration *e,unsigned version)
 {
     uint8_t p[V6_CAMPAIGN_STATE_BYTES];unsigned i,room;uint32_t flags;
-    if(!out || !c || !red || !yellow || !e || n!=sizeof(p) || !progress_valid(c,red,yellow))return 0;
+    if(!out || !c || !red || !yellow || !e || n!=sizeof(p) || !progress_valid(c,red,yellow,version))return 0;
     room=(unsigned)(c->room_y-100)*20+(unsigned)(c->room_x-100);
     if(!(e->rooms[room>>3] & (1U<<(room&7))))return 0;
-    p[0]='V';p[1]='6';p[2]='C';p[3]='S';p[4]=0;p[5]=3;p[6]=0;p[7]=sizeof(p);
+    p[0]='V';p[1]='6';p[2]='C';p[3]='S';p[4]=0;p[5]=(uint8_t)version;p[6]=0;p[7]=sizeof(p);
     put(p+8,(uint32_t)c->x);put(p+12,(uint32_t)c->y);put(p+16,(uint32_t)c->gravity);
     put(p+20,(uint32_t)c->dir);put(p+24,(uint32_t)c->room_x);put(p+28,(uint32_t)c->room_y);
     put(p+32,(uint32_t)c->id);
@@ -138,8 +141,8 @@ int v6_campaign_progress_encode(uint8_t *out,size_t n,const V6CheckpointSave *c,
     for(i=0;i<sizeof(p);++i)out[i]=p[i];
     return 1;
 }
-int v6_campaign_progress_decode(V6CheckpointSave *out,V6HallwayStory *red,
-    V6StationStory *yellow,V6Exploration *explored,const uint8_t *p,size_t n)
+static int progress_decode(V6CheckpointSave *out,V6HallwayStory *red,
+    V6StationStory *yellow,V6Exploration *explored,const uint8_t *p,size_t n,unsigned version)
 {
     V6CheckpointSave c;V6HallwayStory r;V6StationStory y={0,0,0,0,0};V6Exploration e;
     uint32_t f,id;unsigned i,room;
@@ -148,7 +151,7 @@ int v6_campaign_progress_decode(V6CheckpointSave *out,V6HallwayStory *red,
         if(!v6_campaign_state_decode(&c,&r,&e,p,n))return 0;
     } else {
         if(n!=V6_CAMPAIGN_STATE_BYTES || p[0]!='V' || p[1]!='6' || p[2]!='C' || p[3]!='S'
-           || p[4] || p[5]!=3 || p[6] || p[7]!=n || p[90] || p[91] || get(p+92)!=crc(p,92))return 0;
+           || p[4] || p[5]!=version || p[6] || p[7]!=n || p[90] || p[91] || get(p+92)!=crc(p,92))return 0;
         for(i=8;i<32;i+=4)if(get(p+i)>0x7fffffffU)return 0;
         id=get(p+32);if(id>0x7fffffffU && id!=0xffffffffU)return 0;
         c.x=(int)get(p+8);c.y=(int)get(p+12);c.gravity=(int)get(p+16);c.dir=(int)get(p+20);
@@ -156,7 +159,7 @@ int v6_campaign_progress_decode(V6CheckpointSave *out,V6HallwayStory *red,
         f=get(p+36);if(f&~63U)return 0;
         r.time_trial=r.translator_exploring=0;r.rescue_triggered=f&1;r.red_rescued=(f>>1)&1;r.companion=(f&4)?9:0;
         y.rescue_triggered=(f>>3)&1;y.yellow_rescued=(f>>4)&1;y.companion=(f&32)?7:0;
-        if(!progress_valid(&c,&r,&y))return 0;
+        if(!progress_valid(&c,&r,&y,version))return 0;
         for(i=0;i<V6_EXPLORED_BYTES;++i)e.rooms[i]=p[40+i];
         room=(unsigned)(c.room_y-100)*20+(unsigned)(c.room_x-100);
         if(!(e.rooms[room>>3] & (1U<<(room&7))))return 0;
@@ -166,13 +169,22 @@ int v6_campaign_progress_decode(V6CheckpointSave *out,V6HallwayStory *red,
     return 1;
 }
 
+/* Public V3 entry points retain their original admission and version guards. */
+int v6_campaign_progress_encode(uint8_t *out,size_t n,const V6CheckpointSave *c,
+    const V6HallwayStory *red,const V6StationStory *yellow,const V6Exploration *e)
+{ return progress_encode(out,n,c,red,yellow,e,3); }
+int v6_campaign_progress_decode(V6CheckpointSave *out,V6HallwayStory *red,
+    V6StationStory *yellow,V6Exploration *explored,const uint8_t *p,size_t n)
+{ return progress_decode(out,red,yellow,explored,p,n,3); }
+
 int v6_campaign_collection_encode(uint8_t *out,size_t n,const V6CheckpointSave *c,
     const V6HallwayStory *red,const V6StationStory *yellow,const V6Exploration *e,
     const V6Collect *collected)
 {
     uint8_t p[V6_CAMPAIGN_COLLECTION_BYTES];unsigned i;
     if(!out || !collected || n!=sizeof(p) || (collected->bits[12]&0xf0))return 0;
-    if(!v6_campaign_progress_encode(p,V6_CAMPAIGN_STATE_BYTES,c,red,yellow,e))return 0;
+    /* Validate the shared prefix in private scratch, then publish only V4. */
+    if(!progress_encode(p,V6_CAMPAIGN_STATE_BYTES,c,red,yellow,e,4))return 0;
     p[5]=4;p[7]=sizeof(p);
     for(i=0;i<V6_COLLECT_BYTES;++i)p[90+i]=collected->bits[i];
     for(i=103;i<108;++i)p[i]=0;
@@ -193,9 +205,9 @@ int v6_campaign_collection_decode(V6CheckpointSave *out,V6HallwayStory *red,
            || get(p+108)!=crc(p,108))return 0;
         for(i=103;i<108;++i)if(p[i])return 0;
         for(i=0;i<90;++i)previous[i]=p[i];
-        previous[5]=3;previous[7]=sizeof(previous);previous[90]=previous[91]=0;
+        previous[5]=4;previous[7]=sizeof(previous);previous[90]=previous[91]=0;
         put(previous+92,crc(previous,92));
-        if(!v6_campaign_progress_decode(&c,&r,&y,&e,previous,sizeof(previous)))return 0;
+        if(!progress_decode(&c,&r,&y,&e,previous,sizeof(previous),4))return 0;
         for(i=0;i<V6_COLLECT_BYTES;++i)bank.bits[i]=p[90+i];
     } else if(!v6_campaign_progress_decode(&c,&r,&y,&e,p,n))return 0;
     *out=c;*red=r;*yellow=y;

@@ -4543,3 +4543,47 @@ Next: implement the source pickup screen and room sound cues, connect V4 collect
 persistence to the menu, admit Prize's canonical save identity to V4, and verify
 pickup/save/load plus a fresh disk load before promoting this candidate into the
 regular station build. Music reconstruction remains parked.
+
+
+### Prize V4 menu persistence — 11 October 2026
+
+The Prize candidate now uses the V4 collection-save APIs for menu read,
+replacement and recovery. Loading publishes the validated collection bank before
+room actor recreation, so a saved trinket remains hidden. Existing V1–V3 records
+migrate with an empty bank; the regular station build retains its V3 API and
+continues to reject V4 records rather than discard collection progress.
+
+V4 alone admits Prize (111,107), requiring its canonical checkpoint 443490 at
+(236,134), gravity 1 and direction 0 or 1. Its actual exploration bit 151 must
+be present. The shared private prefix validation keeps V3 room admission and
+public version guards unchanged. Save-disk inspection now understands the
+112-byte record, collection spare bits, reserved bytes and CRC.
+
+`tower-prize-route-capture` exercises pickup, V4 save and load within the
+connected scene. The fixture deliberately clears the live collection bank before
+loading; the disk restores trinket 6 and hides the recreated actor. Both menu
+operations pause logic; save retains the game hash. Independent disk inspection
+checks the exact checkpoint/story prefix, actual Prize map bit and bank bytes.
+A fresh interactive boot physically loads the same disk and restores the Prize
+checkpoint with zero runtime pickups and the trinket hidden. Physical quit
+restores AmigaOS, and cold load leaves both disks unchanged.
+
+A disposable legacy fixture also physically loads a V3 Frown checkpoint and
+saves it as V4. The resulting record exactly preserves the checkpoint, yellow
+story and exploration prefix and contains an empty collection bank. The source
+V4 disk and boot disk remain unchanged. Host checks add canonical Prize vectors,
+wrong-position/gravity/identity/map rejection and older-version rejection; V4
+transaction checks cover 96 interruption snapshots, 192 replacement faults and
+264 recovery faults. All 100 collection identities and 896 bit corruptions still
+pass. The V3 codec and connected Shenanigan save/load/cold-load regressions pass.
+
+PAL A500 peaks are 265 lines for the connected replay, 204 for fresh Prize load
+and 197 for legacy migration, with zero errors/missed frames and 194,682 Chip
+bytes. The fixture injects player positions and collection state; it does not
+establish a complete normal-input room traversal. V4 persists collection, not
+mutable terrain: the death tile is retained within the running session, while
+a fresh boot starts from the normal-mode room tiles.
+
+Next: source pickup screen and room sound cues, followed by their pause/resume
+and audio verification before promoting Prize into the regular station build.
+Music reconstruction remains parked.

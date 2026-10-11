@@ -1005,8 +1005,8 @@ prize-capture: test-prize test-tile-edit
 	python3 $(ROOT)/tools/amiga/test_prize_export.py --build $(ROOT)/build/amiga-prize-replay
 	python3 $(ROOT)/tools/amiga/run_prize.py --build $(ROOT)/build/amiga-prize-replay --live $(ROOT)/build/amiga-prize
 
-# Prize route admission is separate until its pickup UI and V4 menu are wired.
-PRIZE_ROUTE_FLAGS = $(STATION_EFFECT_FLAGS) -DV6_TOWER_PRIZE
+# Prize remains a candidate until its pickup UI and room sound cues are wired.
+PRIZE_ROUTE_FLAGS = $(STATION_EFFECT_FLAGS) -DV6_TOWER_PRIZE -DV6_TOWER_COLLECTION_SAVE
 .PHONY: tower-prize-route tower-prize-route-run tower-prize-route-capture
 tower-prize-route: tower-assets
 	python3 -c 'from pathlib import Path; p=Path("$(ROOT)/build/amiga-feasibility"); b=(p/"loadmap.v6tr").read_bytes(); (p/"tower_map.h").write_text("static const unsigned char tower_map[]={"+",".join(map(str,b))+"};\n")'
@@ -1016,7 +1016,7 @@ tower-prize-route-run: tower-prize-route
 	python3 $(ROOT)/tools/amiga/run_interactive_save.py --build $(ROOT)/build/amiga-prize-route
 tower-prize-route-capture: tower-prize-route
 	$(MAKE) BUILD=$(ROOT)/build/amiga-prize-route-replay CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_ROUTE_CAPTURE" $(ROOT)/build/amiga-prize-route-replay/tower.adf
-	python3 $(ROOT)/tools/amiga/run_prize_route.py --build $(ROOT)/build/amiga-prize-route-replay
+	python3 $(ROOT)/tools/amiga/run_prize_route.py --build $(ROOT)/build/amiga-prize-route-replay --v4
 .PHONY: test-prize-route
 test-prize-route:
 	python3 $(ROOT)/tools/amiga/test_prize_route.py

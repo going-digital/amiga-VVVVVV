@@ -44,7 +44,7 @@ int v6_campaign_progress_decode(V6CheckpointSave *,V6HallwayStory *,V6StationSto
 /* V4: unchanged checkpoint/story/map prefix through byte 89; collection bank
  * at 90..102, zero reserved bytes 103..107, CRC32 at 108. Older reads seed an
  * empty collection bank. Older APIs reject V4, preventing collection loss.
- * Room admission remains V3's until Prize has a verified source bank/route.
+ * V4 additionally admits Prize (111,107), canonical checkpoint 443490.
  * All five outputs are published together; rejected input changes nothing. */
 #define V6_CAMPAIGN_COLLECTION_BYTES 112
 int v6_campaign_collection_encode(uint8_t *,size_t,const V6CheckpointSave *,

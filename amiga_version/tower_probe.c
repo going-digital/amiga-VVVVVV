@@ -1,3 +1,6 @@
+#if defined(V6_TOWER_COLLECTION_SAVE) && (!defined(V6_TOWER_PRIZE) || !defined(V6_STATION_MENU))
+#error Collection saves require the Prize route and station menu
+#endif
 #if defined(V6_STATION_TRAVEL_CAPTURE) && (!defined(V6_STATION_MENU) || !defined(V6_TELE_MENU_CAPTURE) || defined(V6_STATION_CAPTURE))
 #error Station travel capture requires the interactive station menu fixture
 #endif
@@ -5,7 +8,7 @@
 #error Station menu requires interactive station travel without the isolated save path
 #endif
 #if defined(V6_TOWER_STATION) && defined(V6_TOWER_UI_SAVE) && !defined(V6_STATION_MENU)
-#error Station UI saves require the V3 menu path
+#error Station UI saves require the station menu path
 #endif
 #if defined(V6_STATION_SAVE) && !defined(V6_TOWER_STATION)
 #error Station save requires the station room slice
@@ -106,6 +109,9 @@ static unsigned tele_destination_count;
 static V6Exploration ui_loaded_exploration;
 #ifdef V6_STATION_MENU
 static V6StationStory ui_loaded_yellow;
+#ifdef V6_TOWER_COLLECTION_SAVE
+static V6Collect ui_loaded_collection;
+#endif
 #endif
 static const V6TeleporterDestination tele_residents[2]={{111,104},{110,105}};
 static V6TeleporterDestination menu_target;
@@ -483,6 +489,8 @@ static unsigned shenanigan_ui_stage;
 static V6Terrain prize_terrain;
 static V6Prize station_prize;
 static V6Collect station_collected;
+static volatile struct {ULONG magic,version,room_index,pickups,visible;UBYTE bits[16];}
+    collection_diag={0x56364342,1,0,0,0,{0}};
 static unsigned prize_pickups,prize_patches,prize_sounds;
 static int prize_gate_drawn[2][3];
 static unsigned prize_drawn_patch[2];
@@ -1052,6 +1060,13 @@ static volatile struct {
 } world_trace={0x56365754,1,0,128,{{0}}};
 static void record_world(void)
 {
+#ifdef V6_TOWER_PRIZE
+    { unsigned i;
+      collection_diag.room_index=route.index;collection_diag.pickups=prize_pickups;
+      collection_diag.visible=route.index==8?station_prize.trinket.visible:0;
+      for(i=0;i<V6_COLLECT_BYTES;++i)collection_diag.bits[i]=station_collected.bits[i]; }
+#endif
+
     unsigned i;
     world_diag.values[0]=world.save.id;world_diag.values[1]=world.save.x;
     world_diag.values[2]=world.save.y;world_diag.values[3]=world.save.gravity;
@@ -1542,10 +1557,14 @@ static ULONG ui_game_hash(void)
 #ifdef V6_STATION_MENU
 static int ui_station_checkpoint_valid(const V6CheckpointSave *c,const V6HallwayStory *s)
 {
-    /* Only these four rooms run the yellow slice; red progress is retained,
+    /* Only resident station rooms run the yellow slice; red progress is retained,
      * but its active companion requires the separate red runtime. */
     return checkpoint_bank_valid(c) && !s->companion &&
-        ((c->room_x==111 && (c->room_y==104 || c->room_y==105 || c->room_y==106)) ||
+        ((c->room_x==111 && (c->room_y==104 || c->room_y==105 || c->room_y==106
+#ifdef V6_TOWER_COLLECTION_SAVE
+            || c->room_y==107
+#endif
+        )) ||
          (c->room_x==110 && c->room_y==105));
 }
 #endif
@@ -1557,10 +1576,15 @@ static int ui_load_checked(V6CheckpointSave *out,V6HallwayStory *story)
     V6Exploration map,bmap;
 #ifdef V6_STATION_MENU
     V6StationStory yellow,byellow;
+#ifdef V6_TOWER_COLLECTION_SAVE
+    V6Collect collected,bcollected;
+#endif
 #endif
 #endif
     if(a<0 || k<0)return V6_SAVE_IO;
-#ifdef V6_STATION_MENU
+#ifdef V6_TOWER_COLLECTION_SAVE
+    result=v6_campaign_collection_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s,&yellow,&map,&collected);
+#elif defined(V6_STATION_MENU)
     result=v6_campaign_progress_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s,&yellow,&map);
 #elif defined(V6_TOWER_MENU_TRAVEL)
     result=v6_campaign_state_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s,&map);
@@ -1576,7 +1600,9 @@ static int ui_load_checked(V6CheckpointSave *out,V6HallwayStory *story)
     if(s.companion || s.rescue_triggered || s.red_rescued)return V6_SAVE_CORRUPT;
 #endif
     if(a && k) {
-#ifdef V6_STATION_MENU
+#ifdef V6_TOWER_COLLECTION_SAVE
+        result=v6_campaign_collection_read(&v6_campaign_dos,save_backup,&b,&bs,&byellow,&bmap,&bcollected);
+#elif defined(V6_STATION_MENU)
         result=v6_campaign_progress_read(&v6_campaign_dos,save_backup,&b,&bs,&byellow,&bmap);
 #elif defined(V6_TOWER_MENU_TRAVEL)
         result=v6_campaign_state_read(&v6_campaign_dos,save_backup,&b,&bs,&bmap);
@@ -1592,7 +1618,9 @@ static int ui_load_checked(V6CheckpointSave *out,V6HallwayStory *story)
         if(bs.companion || bs.rescue_triggered || bs.red_rescued)return V6_SAVE_CORRUPT;
 #endif
     }
-#ifdef V6_STATION_MENU
+#ifdef V6_TOWER_COLLECTION_SAVE
+    return v6_campaign_collection_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story,&ui_loaded_yellow,&ui_loaded_exploration,&ui_loaded_collection);
+#elif defined(V6_STATION_MENU)
     return v6_campaign_progress_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story,&ui_loaded_yellow,&ui_loaded_exploration);
 #elif defined(V6_TOWER_MENU_TRAVEL)
     return v6_campaign_state_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story,&ui_loaded_exploration);
@@ -1604,7 +1632,7 @@ static int ui_save_checked(void)
 {
     V6CheckpointSave c;V6HallwayStory story;int result;
     int a,k;
-#ifdef V6_TOWER_PRIZE
+#if defined(V6_TOWER_PRIZE) && !defined(V6_TOWER_COLLECTION_SAVE)
     /* The legacy menu cannot represent collected flags. Retain the existing
      * disk until V4 is wired, including when the checkpoint is in another room. */
     { unsigned i;for(i=0;i<V6_COLLECT_BYTES;++i)
@@ -1613,8 +1641,13 @@ static int ui_save_checked(void)
     if(!checkpoint_bank_valid(&world.save))return V6_SAVE_INVALID;
 #ifdef V6_STATION_MENU
     if(!ui_station_checkpoint_valid(&world.save,&hallway_story))return V6_SAVE_INVALID;
+#ifdef V6_TOWER_COLLECTION_SAVE
+    { uint8_t bytes[V6_CAMPAIGN_COLLECTION_BYTES];
+      if(!v6_campaign_collection_encode(bytes,sizeof(bytes),&world.save,&hallway_story,&station_story,&tele_exploration,&station_collected))return V6_SAVE_INVALID; }
+#else
     { uint8_t bytes[V6_CAMPAIGN_STATE_BYTES];
       if(!v6_campaign_progress_encode(bytes,sizeof(bytes),&world.save,&hallway_story,&station_story,&tele_exploration))return V6_SAVE_INVALID; }
+#endif
 #elif defined(V6_TOWER_MENU_TRAVEL)
     { uint8_t bytes[V6_CAMPAIGN_STATE_BYTES];
       if(!v6_campaign_state_encode(bytes,sizeof(bytes),&world.save,&hallway_story,&tele_exploration))return V6_SAVE_INVALID; }
@@ -1624,7 +1657,9 @@ static int ui_save_checked(void)
     /* Existing records need source-bank validation before replacement recovery
      * can discard a backup, just as an explicit load does. */
     if(a || k) {result=ui_load_checked(&c,&story);if(result)return result;}
-#ifdef V6_STATION_MENU
+#ifdef V6_TOWER_COLLECTION_SAVE
+    return v6_campaign_collection_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story,&station_story,&tele_exploration,&station_collected);
+#elif defined(V6_STATION_MENU)
     return v6_campaign_progress_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story,&station_story,&tele_exploration);
 #elif defined(V6_TOWER_MENU_TRAVEL)
     return v6_campaign_state_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story,&tele_exploration);
@@ -1634,7 +1669,9 @@ static int ui_save_checked(void)
 }
 static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
 {
-#ifdef V6_TOWER_PRIZE
+#ifdef V6_TOWER_COLLECTION_SAVE
+    ui_copy(&station_collected,&ui_loaded_collection,sizeof(station_collected));
+#elif defined(V6_TOWER_PRIZE)
     /* Accepted V1..V3 records migrate with an empty collection bank. */
     v6_collect_clear(&station_collected);
 #endif
@@ -2227,7 +2264,12 @@ static int run(void) {
 #endif
 #ifdef V6_PRIZE_ROUTE_CAPTURE
             right=fire=0;
+            #ifdef V6_TOWER_COLLECTION_SAVE
+            if(prize_ui_stage==0 && diag.logic_ticks>=154) {right=1;prize_ui_stage=1;}
+            else if(prize_ui_stage==1 && diag.logic_ticks>=165) {right=fire=1;prize_ui_stage=2;}
+#else
             if(!prize_ui_stage && diag.logic_ticks>=188) {right=1;prize_ui_stage=1;}
+#endif
 #endif
 #ifdef V6_SHENANIGAN_CAPTURE
             right=fire=0;
@@ -2468,6 +2510,15 @@ static int run(void) {
                     session.death_timer=-1;session.life_timer=0;session.invisible=0;
                     session.motion.ax=0;session.motion.pending_y=y;
                 }
+#ifdef V6_TOWER_COLLECTION_SAVE
+                if(diag.logic_ticks==160) {
+                    v6_collect_clear(&station_collected);
+                    v6_prize_init(&station_prize,&route.room,&station_collected,world.save.id,134);
+                    v6_player_init(&session.player,236,134,1);
+                    session.death_timer=-1;session.life_timer=0;session.invisible=0;
+                    session.motion.ax=0;session.motion.pending_y=134;
+                }
+#endif
                 if(diag.logic_ticks==60 || diag.logic_ticks==115)v6_tower_session_die(&session);
 #endif
 #ifdef V6_SHENANIGAN_CAPTURE
