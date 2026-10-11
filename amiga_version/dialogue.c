@@ -1,9 +1,9 @@
 #include "dialogue.h"
 int v6_dialogue_draw(uint8_t *out,const uint8_t font[128][8],const V6RescueSpeech *speech)
 {
-    unsigned line,x,y,i,lengths[3],top;
+    unsigned line,x,y,i,lengths[V6_RESCUE_MAX_LINES],top;
     uint8_t *ink;
-    if(!out || !font || !speech || !speech->count || speech->count>3) return 0;
+    if(!out || !font || !speech || !speech->count || speech->count>V6_RESCUE_MAX_LINES) return 0;
     for(line=0;line<speech->count;++line) {
         const unsigned char *s=(const void *)speech->lines[line];
         if(!s) return 0;

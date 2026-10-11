@@ -5,13 +5,14 @@ int v6_rescue_start(V6RescueScript *v,const V6RescueProgram *normal,const V6Resc
     v->normal=normal;v->skip=skip;v->program=normal;v->draft=v->speech=0;
     v->pc=v->error=v->delay=v->waiting=v->bars=v->following=0;
     v->ui_serial=v->cues=v->flips=0;v->active=v->control=v->mood=1;
+    v->tile=0;v->tile_serial=0;
     v->skip_enabled=enabled!=0;v->fade=v->position=v->cue_speaker=0;
     return 1;
 }
-void v6_rescue_tick(V6RescueScript *v,V6HallwayStory *story,const V6RescueSignals *s)
+static void tick(V6RescueScript *v,int *rescued,int *companion,const V6RescueSignals *s)
 {
     unsigned budget=64,bars_changed=0,fade_changed=0;
-    if(!v || !v->active || !story || !s) return;
+    if(!v || !v->active || !rescued || !companion || !s) return;
     if(v->delay) { --v->delay;return; }
     if(v->waiting) {
         if(!s->advance) return;
@@ -34,10 +35,10 @@ void v6_rescue_tick(V6RescueScript *v,V6HallwayStory *story,const V6RescueSignal
         case V6_R_WAIT_BARS:
             if(bars_changed || !s->bars_ready) { --v->pc;return; }
             break;
-        case V6_R_RESCUED:story->red_rescued=1;break;
+        case V6_R_RESCUED:*rescued=1;break;
         case V6_R_CUE:v->cue_speaker=op->value;++v->cues;break;
         case V6_R_TEXT:
-            if(!op->speech || !op->speech->count || op->speech->count>3) goto failed;
+            if(!op->speech || !op->speech->count || op->speech->count>V6_RESCUE_MAX_LINES) goto failed;
             v->draft=op->speech;break;
         case V6_R_POSITION:v->position=op->value;break;
         case V6_R_SHOW:
@@ -52,11 +53,19 @@ void v6_rescue_tick(V6RescueScript *v,V6HallwayStory *story,const V6RescueSignal
             if(op->value<0 || op->value>32767) goto failed;
             if(op->value) { v->delay=(unsigned)op->value-1;return; }
             break;
-        case V6_R_COMPANION:story->companion=op->value;break;
+        case V6_R_COMPANION:*companion=op->value;break;
         case V6_R_FOLLOW:v->following=1;break;
+        case V6_R_TILE:
+            if(op->value<0 || op->value>255)goto failed;
+            v->tile=op->value;++v->tile_serial;break;
         default:goto failed;
         }
     }
 failed:
     v->error=1;v->active=v->waiting=0;v->speech=0;v->control=1;
 }
+
+void v6_rescue_tick(V6RescueScript *v,V6HallwayStory *story,const V6RescueSignals *s)
+{ if(story)tick(v,&story->red_rescued,&story->companion,s); }
+void v6_station_rescue_tick(V6RescueScript *v,V6StationStory *story,const V6RescueSignals *s)
+{ if(story)tick(v,&story->yellow_rescued,&story->companion,s); }

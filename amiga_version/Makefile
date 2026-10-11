@@ -454,7 +454,7 @@ tower-trigger-capture: tower-probe
 	$(MAKE) BUILD=$(ROOT)/build/amiga-tower-trigger-replay CPPFLAGS="-DV6_TOWER_CONTROLLER -DV6_TOWER_RECOVERY -DV6_TOWER_PLAY -DV6_TOWER_WORLD -DV6_TOWER_ROUTE -DV6_TOWER_PLAY_REPLAY -DV6_TOWER_TRIGGER_REPLAY" $(ROOT)/build/amiga-tower-trigger-replay/tower.adf
 	python3 $(ROOT)/tools/amiga/run_tower_probe.py --build $(ROOT)/build/amiga-tower-trigger-replay --trigger-route
 
-$(BUILD)/rescue_script.o: rescue_script.c rescue_script.h hallway_crew.h | $(BUILD)
+$(BUILD)/rescue_script.o: rescue_script.c rescue_script.h hallway_crew.h station_trigger.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/dialogue.o: dialogue.c dialogue.h rescue_script.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -887,3 +887,9 @@ test-station-trigger: $(BUILD)/station_trigger.o
 test-station-route:
 	python3 $(ROOT)/tools/amiga/test_station_route.py
 test: test-station-trigger test-station-route
+
+.PHONY: test-station-rescue
+test-station-rescue: $(BUILD)/rescue_script.o $(BUILD)/dialogue.o
+	python3 $(ROOT)/tools/amiga/test_station_rescue.py
+	$(CC) $(CFLAGS) -I$(ROOT)/build/amiga-station-rescue -c $(ROOT)/build/amiga-station-rescue/programs.c -o $(ROOT)/build/amiga-station-rescue/programs.o
+test: test-station-rescue

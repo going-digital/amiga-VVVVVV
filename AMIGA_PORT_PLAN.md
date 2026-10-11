@@ -3974,3 +3974,41 @@ Its yellow story flags, sprite, rescue dialogue and save support must be
 connected before the native route can expose it. Next: compile the source
 `rescueyellow`/`skipyellow` programs and support their ceiling/follow behavior,
 then integrate graphics and persistence. Music reconstruction remains parked.
+
+## Yellow rescue programs and four-line captions — 11 October 2026
+
+The source `rescueyellow` and `skipyellow` scripts now compile to bounded rescue
+programs. The shared runner has a yellow-story entry point, preserving separate
+rescue flags while reusing red's waits, dialogue, fades and delay handling.
+Yellow starts following before `untilbars`, requests absolute crew tile 6,
+marks yellow rescued, and finishes with source companion ID 7. Neither yellow
+path requests a player gravity flip. Tile requests have a serial so a future
+renderer can apply each command without repeatedly overwriting animation.
+
+The normal program retains all eleven source speeches, including its four-line
+explanation and trailing spaces. Caption descriptors and validation now support
+four lines inside the existing 48-row, 3,840-byte two-plane allocation; no
+additional Chip caption buffer is required. The red compiler defaults and
+opcode numbers remain compatible. Asset export emits separate yellow program
+headers/JSON; native room admission is still unchanged.
+
+`test-station-rescue` executes the actual generated C programs, checks every
+opcode/speech against the export, compares 28 original Script.cpp handler cases,
+completes both normal/skip paths, and checks the 29 delay wait ticks. It compares
+all 3,840 bytes of the four-line caption against an independent font/border
+oracle, including guards and invalid-input retention. Both runner and generated
+programs compile for the freestanding 68000. Existing red tests pass 48 handler
+cases, normal/skip completion and 65,536 caption Copper offset pairs. The
+station trigger/route source comparisons remain passing.
+
+Native `tower-rescue-capture` and `tower-rescue-skip-capture` retain matching
+128-tick source traces, cue audio and OS restoration. They use 92,310 Chip bytes,
+peak at 235/231 PAL work lines respectively, and report zero errors/missed
+fields. These are red regression captures, not native yellow playback.
+
+`tower-caption-pixel-test` also passes all six existing red speech captures,
+comparing 460,800 native viewport pixels exactly after the descriptor expansion.
+
+Next: Frown graphics, yellow crew spawn/follow/rendering, audio cue binding and
+persistent yellow story fields before exposing the new room in live play.
+Music reconstruction remains parked.

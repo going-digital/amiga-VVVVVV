@@ -26,6 +26,8 @@ def export(out):
     export_frown(out)
     from hallway_scripts import export as export_scripts
     export_scripts(out)
+    from station_scripts import export as export_station_scripts
+    export_station_scripts(out)
     return rows
 
 def hallway_rooms():

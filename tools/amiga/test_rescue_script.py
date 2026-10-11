@@ -6,9 +6,9 @@ import subprocess
 from test_player import ROOT,block
 from test_hallway_crew import Story
 from hallway_scripts import compile_script,scripts,export
-NAMES='IF_SKIP BARS FLOOR MOOD WAIT_BARS RESCUED CUE TEXT POSITION SHOW HIDE FADE WAIT_FADE DELAY COMPANION FOLLOW'.split()
+NAMES='IF_SKIP BARS FLOOR MOOD WAIT_BARS RESCUED CUE TEXT POSITION SHOW HIDE FADE WAIT_FADE DELAY COMPANION FOLLOW TILE'.split()
 class Speech(C.Structure):
-    _fields_=[('index',C.c_uint),('speaker',C.c_uint),('count',C.c_uint),('lines',C.c_char_p*3)]
+    _fields_=[('index',C.c_uint),('speaker',C.c_uint),('count',C.c_uint),('lines',C.c_char_p*4)]
 class Op(C.Structure):
     _fields_=[('op',C.c_uint),('value',C.c_int),('speech',C.POINTER(Speech))]
 class Program(C.Structure):
@@ -16,14 +16,14 @@ class Program(C.Structure):
 class Signals(C.Structure):
     _fields_=[(name,C.c_int) for name in ('bars_ready','fade_ready','onroof','advance')]
 class VM(C.Structure):
-    _fields_=[(name,C.POINTER(Program)) for name in ('normal','skip','program')]+[(name,C.POINTER(Speech)) for name in ('draft','speech')]+[(name,C.c_uint) for name in ('pc','active','error','delay','waiting','bars','control','mood','following','skip_enabled','ui_serial','cues','flips')]+[(name,C.c_int) for name in ('fade','position','cue_speaker')]
+    _fields_=[(name,C.POINTER(Program)) for name in ('normal','skip','program')]+[(name,C.POINTER(Speech)) for name in ('draft','speech')]+[(name,C.c_uint) for name in ('pc','active','error','delay','waiting','bars','control','mood','following','skip_enabled','ui_serial','cues','flips')]+[(name,C.c_int) for name in ('fade','position','cue_speaker')]+[('tile',C.c_int),('tile_serial',C.c_uint)]
 def programs():
     keep=[];result=[]
     for name in ('rescuered','skipred'):
         data=compile_script(scripts()[name]['lines']);speeches=(Speech*len(data['speeches']))()
         for index,desc in enumerate(data['speeches']):
             text=[line.encode() for line in desc['lines']];keep+=text
-            speeches[index]=Speech(index,desc['speaker']=='player',len(text),(C.c_char_p*3)(*(text+[None]*(3-len(text)))))
+            speeches[index]=Speech(index,desc['speaker']=='player',len(text),(C.c_char_p*4)(*(text+[None]*(4-len(text)))))
         ops=(Op*len(data['ops']))()
         for index,desc in enumerate(data['ops']):
             ptr=C.pointer(speeches[desc['speech']]) if desc['speech'] is not None else None
@@ -144,10 +144,10 @@ out[5]=graphics.fademode;out[6]=scriptdelay?scriptdelay-1:0;out[7]=position;out[
     assert all(value==0xaaaa for value in buf)
     core.v6_dialogue_draw.argtypes=[C.c_void_p,C.c_void_p,C.POINTER(Speech)]
     guard=(C.c_ubyte*3842)(*([0xaa]*3842));font=(C.c_ubyte*1024)()
-    invalid=Speech(0,0,1,(C.c_char_p*3)(b'x'*37,None,None))
+    invalid=Speech(0,0,1,(C.c_char_p*4)(b'x'*37,None,None))
     assert not core.v6_dialogue_draw(C.byref(guard,1),font,C.byref(invalid))
     assert all(value==0xaa for value in guard)
-    valid=Speech(0,0,1,(C.c_char_p*3)(b'Captain!',None,None))
+    valid=Speech(0,0,1,(C.c_char_p*4)(b'Captain!',None,None))
     assert core.v6_dialogue_draw(C.byref(guard,1),font,C.byref(valid))
     assert guard[0]==guard[3841]==0xaa
     report=dict(source_handler_cases=cases,copper_offset_pairs=65536,maximum_caption_words=maximum,speech_order=shown,delay_wait_ticks=wait,normal_and_skip_complete=True,scope='Compiled source rescue/skip scripts and actual Script.cpp state/wait handlers; captions verified separately')
