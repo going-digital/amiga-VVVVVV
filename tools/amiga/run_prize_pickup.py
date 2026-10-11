@@ -41,7 +41,7 @@ def main():
     assert ui['before_hash']==ui['after_hash'] and ui['ticks_before']==ui['ticks_after'],ui
     assert disk.read_bytes()==before and (build/'tower.adf').read_bytes()==boot
     report=dict(display=display,pickup=pickup,ui=ui,
-                scope='Held action through pickup reveal; world and Prize actors frozen, save rejected as busy, disks unchanged. Source-positioned bordered textboxes, wordy count and fully extended bars; textbox fading, interpolation remain outstanding. Source Prize effects complete while gameplay stays paused.')
+                scope='Held action through pickup reveal; world and Prize actors frozen, save rejected as busy, disks unchanged. Source-positioned bordered textboxes, wordy count and fully extended bars; textbox fading remains outstanding. Source Prize effects complete while gameplay stays paused.')
     (build/'pickup-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native Prize pickup:',json.dumps(report))
 

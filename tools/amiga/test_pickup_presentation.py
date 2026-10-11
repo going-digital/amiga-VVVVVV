@@ -66,7 +66,8 @@ struct Graphics {
  }
  void drawpixeltextbox(int,int,int,int,int,int,int);
 } graphics;
-int lerp(int,int b){return b;}
+float alpha=1;
+LERP
 BOX
 BARTIMER
 BARS
@@ -95,6 +96,8 @@ extern "C" {
    }
    std::memcpy(out,pixels,sizeof(pixels));
  }
+ int bar_position(int old,int current,unsigned phase){
+   alpha=phase/34000.0f;return current?(int)lerp((float)old,(float)current):0;}
  const char *words(int count){static std::string s;s=help.number_words(count,"wordy")+" out of Twenty";return s.c_str();}
  void bar_reset(){graphics.cutscenebarspos=graphics.oldcutscenebarspos=0;}
  void bar_tick(int show,int *out){graphics.showcutscenebars=show;graphics.cutscenebarstimer();
@@ -111,6 +114,7 @@ extern "C" {
         'PADWIDTH':method(textbox,'void textboxclass::padtowidth('),
         'CENTER':method(textbox,'void textboxclass::centertext('),
         'BOX':method(graphics,'void Graphics::drawpixeltextbox('),
+        'LERP':method((ROOT/'desktop_version/src/Graphics.h').read_text(),'float inline lerp(').replace('game.physics_frozen()','false'),
         'BARTIMER':method(graphics,'void Graphics::cutscenebarstimer('),
         'BARS':method(graphics,'void Graphics::cutscenebars('),
         'FIRST':method(game,'void foundtrinket_textbox1('),
@@ -166,6 +170,20 @@ extern "C" {
             assert core.v6_pickup_bar_row(mask,pos,bottom)
             for x in range(320):
                 assert bool(mask[x//8]&(128>>(x%8)))==bool(pixels[(224 if bottom else 0)*320+x])
+    core.v6_pickup_bar_position.argtypes=[C.POINTER(Draw),C.c_uint]
+    ref.bar_position.argtypes=[C.c_int,C.c_int,C.c_uint]
+    interpolation_checks=0
+    core.v6_pickup_draw_init(C.byref(s))
+    for show in [1]*18+[0]*18:
+        core.v6_pickup_draw_tick(C.byref(s),show)
+        for phase in range(0,34001,16):
+            actual=core.v6_pickup_bar_position(C.byref(s),phase)
+            expected=ref.bar_position(s.old_bars,s.bars,phase)
+            assert actual==expected,(s.old_bars,s.bars,phase,actual,expected)
+            interpolation_checks+=1
+        assert core.v6_pickup_bar_position(C.byref(s),34001)==s.bars
+    alpha_reset=ref.bar_position(0,0,34000)
+    assert alpha_reset==0
     ref.bar_reset();core.v6_pickup_draw_init(C.byref(s));expected=(C.c_int*2)()
     for show in [1]*22+[0]*22+[1]*7+[0]*22:
         ref.bar_tick(show,expected);core.v6_pickup_draw_tick(C.byref(s),show)
@@ -189,7 +207,7 @@ extern "C" {
                 expected[640+at]=bits
             assert list(dest)==expected,(y,bits)
     maximum,copper_checks=check_copper(core)
-    print(f'PASS pickup presentation: {checks} source textbox/composite pixels, 101 source English counts, 362 source bar widths, source bar timer, {copper_checks} Copper plans; maximum {maximum}/176 words')
+    print(f'PASS pickup presentation: {checks} source textbox/composite pixels, 101 source English counts, 362 source bar widths, source bar timer, {interpolation_checks} source interpolated positions, {copper_checks} Copper plans; maximum {maximum}/176 words')
 
 def check_copper(core):
     core.v6_pickup_copper.argtypes=[C.c_void_p,C.c_uint32,C.c_uint32,C.c_uint,C.c_uint,C.c_uint32,C.c_uint32,C.c_int,C.c_uint]

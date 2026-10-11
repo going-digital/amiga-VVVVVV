@@ -4729,3 +4729,32 @@ Next: pickup textbox fades and subframe bar interpolation, followed by broader
 normal-input campaign coverage. The connected Prize route remains a candidate,
 and soundtrack reconstruction remains parked. Simultaneous collapses still
 share the existing room event bit; per-entity cue multiplicity is outstanding.
+
+
+### PAL pickup bar interpolation
+
+Pickup bars now render between the previous and current fixed-tick positions
+using the remaining time in the 34 ms timestep. The source timer still advances
+25 pixels per tick and clamps at 361. Native unsigned multiplication/division
+matches source interpolation at reachable PAL phases without floating-point or
+libgcc helpers. The final zero-position tick hides retreating bars immediately,
+matching the source renderer's visibility condition.
+
+Both bank edge masks and the cached Copper strip selection use the interpolated
+position. In particular, the bottom strip begins only when the rendered width
+exceeds 40, rather than when the fixed-tick position reaches that threshold.
+
+`test-pickup-presentation` compares 76,536 positions against the extracted source
+lerp method across entry, clamping, retreat and all PAL-reachable phases, alongside
+the existing pixel, mask and Copper checks. Native route capture validates 52
+changed positions, intermediate values in both directions, monotonic movement,
+source phase arithmetic and final hiding. Audio PCM correlation, held-input
+pickup dismissal, V4 persistence, cold loading, V3 migration and quit pass.
+Native work peaks are 273 lines for replay, 233 for fresh V4 loading and 200 for
+migration, with zero errors or missed frames and unchanged 296,150 Chip bytes.
+
+Next: pickup textbox fades. Fade-out must preserve current room pixels around
+and between the boxes after gameplay resumes; the existing frozen strip snapshot
+cannot simply be kept on screen. Broader normal-input campaign traversal and
+per-entity simultaneous collapse sounds remain outstanding. Music reconstruction
+remains parked.

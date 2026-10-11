@@ -21,6 +21,9 @@ void v6_pickup_draw_init(V6PickupDraw *);
  * leaves state unchanged. Uses the source English wordy number format. */
 int v6_pickup_draw_count(V6PickupDraw *,unsigned count);
 void v6_pickup_draw_tick(V6PickupDraw *,int show_bars);
+/* Source render interpolation within the 34 ms fixed timestep. Elapsed is
+ * clamped to 34000 us. The final zero-position tick hides retreating bars. */
+unsigned v6_pickup_bar_position(const V6PickupDraw *,unsigned elapsed_us);
 /* Generate one row of the two source-positioned textboxes. Mask/ink are
  * 40 bytes each; border tiles are source alpha masks 40..47. */
 int v6_pickup_text_row(const V6PickupDraw *,unsigned row,uint8_t mask[40],

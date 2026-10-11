@@ -37,6 +37,26 @@ void v6_pickup_draw_tick(V6PickupDraw *s,int show)
     if(show){s->bars+=25;if(s->bars>361)s->bars=361;}
     else if(s->bars>0){s->bars-=25;if(s->bars<0)s->bars=0;}
 }
+unsigned v6_pickup_bar_position(const V6PickupDraw *s,unsigned elapsed)
+{
+    uint32_t position;
+    if(!s->bars)return 0;
+    if(s->bars==s->old_bars)return (unsigned)s->bars;
+    if(elapsed>34000)elapsed=34000;
+    /* Both products fit 32 bits and the quotient is at most 361. Native
+     * 68000 MULU/DIVU avoids a floating-point or libgcc division runtime. */
+    position=(uint32_t)(uint16_t)s->old_bars*(uint16_t)(34000-elapsed)+
+        (uint32_t)(uint16_t)s->bars*(uint16_t)elapsed;
+#ifdef __m68k__
+    {
+        uint16_t divisor=34000;
+        __asm volatile("divu.w %1,%0":"+d"(position):"d"(divisor):"cc");
+        return (uint16_t)position;
+    }
+#else
+    return position/34000;
+#endif
+}
 static void span(uint8_t *out,unsigned x,unsigned end)
 {
     unsigned a=x>>3,b=(end-1)>>3,i;

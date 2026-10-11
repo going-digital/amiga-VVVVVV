@@ -79,6 +79,19 @@ def main():
         positions=[min(25*(i+1),361) for i in range(pickup[1])]+[max(361-25*(i+1),0) for i in range(15)]
         assert [r[1] for r in presentation]==positions,presentation
         assert presentation[15][3]==1 and presentation[pickup[1]][3]==0,presentation
+        at=data.index(b'V6PI\0\0\0\1')
+        n=struct.unpack_from('>I',data,at+8)[0]
+        interpolated=[struct.unpack_from('>7I',data,at+12+i*28) for i in range(n)]
+        assert 30<n<96,n
+        for tick,frame,old,current,phase,position,bank in interpolated:
+            expected=(old*(34000-phase)+current*phase)//34000 if current else 0
+            assert phase<34000 and bank<2 and position==expected,(tick,frame,old,current,phase,position,bank)
+        positions=[r[5] for r in interpolated];peak=positions.index(361)
+        assert positions[-1]==0 and all(a<=b for a,b in zip(positions[:peak],positions[1:peak+1]))
+        assert all(a>=b for a,b in zip(positions[peak:],positions[peak+1:]))
+        assert any(r[2]<r[5]<r[3] for r in interpolated),interpolated
+        assert any(r[3]<r[5]<r[2] for r in interpolated),interpolated
+        print('PASS native pickup interpolation:',n,'changed PAL positions; source phases, smooth entry/retreat and final hide')
         from prize_audio_capture import verify
         verify(data,stems)
     assert any(row[0]==7 for row in rows[:20]) and any(row[0]==8 for row in rows[20:30])
@@ -167,5 +180,5 @@ def main():
                 scope='Connected route with test-only placements; pickup caption, frozen player/actors, held action dismissal, collection/terrain retention, optional V4 save/load and fresh physical-input disk load. No room audio or complete normal-input traversal.')
     (build/'prize-route-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native Prize route:',json.dumps(dict(display=display,trace_ticks=count,
-        pickup=pickup,scope='Source boundary handling with test-only checkpoint/gate/pickup placements; pickup pause/caption/dismissal and retained death terrain/collection. V4 disk persistence checked when requested; textbox fades/interpolation and full normal-input traversal excluded; source Prize effects verified with captured PCM.')))
+        pickup=pickup,scope='Source boundary handling with test-only checkpoint/gate/pickup placements; pickup pause/caption/dismissal and retained death terrain/collection. V4 disk persistence checked when requested; textbox fades and full normal-input traversal excluded; source PAL bar interpolation verified; source Prize effects verified with captured PCM.')))
 if __name__=='__main__':main()

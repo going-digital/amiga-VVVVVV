@@ -505,7 +505,9 @@ static UWORD pickup_mask[V6_PICKUP_PLANE_BYTES/2] __attribute__((aligned(4)));
 static UWORD pickup_ink[V6_PICKUP_PLANE_BYTES/2] __attribute__((aligned(4)));
 static unsigned pickup_rows[2],pickup_bar_rows[2];
 static unsigned pickup_bar_room[2],pickup_bar_camera[2];
-static unsigned pickup_bar_position[2];
+static unsigned pickup_bar_position[2],pickup_render_bars;
+static volatile struct {ULONG magic,version,count,records[96][7];}
+    pickup_interpolation={0x56365049,1,0,{{0}}};
 static UWORD pickup_bar_masks[2][2][20];
 static UWORD pickup_copper_cache[2][V6_PICKUP_COPPER_WORDS];
 static unsigned pickup_copper_key[2],pickup_copper_words[2];
@@ -1262,6 +1264,7 @@ static int pickup_prepare(UBYTE *ring,unsigned index,unsigned camera)
 {
     unsigned n,row,x,b,fo=camera&255,was_warm,position;
     UBYTE *bank;
+    pickup_render_bars=v6_pickup_bar_position(&pickup_draw,diag.logic_remainder);
     if(!pickup_banks)return 1;
     bank=pickup_banks+index*V6_PICKUP_BANK_BYTES;
     if(pickup_bar_room[index]!=route.index || pickup_bar_camera[index]!=fo) {
@@ -1282,7 +1285,13 @@ static int pickup_prepare(UBYTE *ring,unsigned index,unsigned camera)
             V6_PICKUP_BAR_PLANE_BYTES/2,(const UWORD *)(ring+((fo+(b?224:0)+row)&255)*40),
             V6_TOWER_PLANE_BYTES/2,pickup_blank,pickup_blank);
     }
-    position=pickup_draw.bars?pickup_draw.bars:25;
+    position=pickup_draw.bars?pickup_render_bars:25;
+    if((pickup_draw.bars || pickup_draw.old_bars) && pickup_interpolation.count<96 &&
+       (!pickup_interpolation.count || pickup_interpolation.records[pickup_interpolation.count-1][5]!=pickup_render_bars)) {
+        volatile ULONG *r=pickup_interpolation.records[pickup_interpolation.count++];
+        r[0]=diag.logic_ticks;r[1]=frames;r[2]=pickup_draw.old_bars;r[3]=pickup_draw.bars;
+        r[4]=diag.logic_remainder;r[5]=pickup_render_bars;r[6]=index;
+    }
     if(pickup_bar_rows[index]==32 && (was_warm || pickup_draw.bars) &&
        pickup_bar_position[index]!=position)for(b=0;b<2;++b) {
         UWORD mask[20];UBYTE *strip=bank+(b?V6_PICKUP_BOTTOM_OFFSET:0);
@@ -1584,15 +1593,15 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     if(!pickup_prepare(ring,index,camera))return 0;
     if(pickup_screen.visible || pickup_draw.bars) {
         unsigned key=(camera&255)|((bg_camera&255)<<8)|
-            (pickup_screen.visible<<16)|((pickup_draw.bars>40)<<17)|
-            ((pickup_draw.bars>0)<<18);
+            (pickup_screen.visible<<16)|((pickup_render_bars>40)<<17)|
+            ((pickup_render_bars>0)<<18);
         /* Bar width changes bitmap words, but its Copper segment changes
          * only when a strip appears/disappears or a ring offset changes. */
         if(!pickup_copper_words[index] || pickup_copper_key[index]!=key) {
             pickup_copper_words[index]=v6_pickup_copper(pickup_copper_cache[index],
                 (ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),camera&255,bg_camera&255,
                 (ULONG)(pickup_banks+index*V6_PICKUP_BANK_BYTES),(ULONG)pickup_zero,
-                pickup_screen.visible,pickup_draw.bars);
+                pickup_screen.visible,pickup_render_bars);
             pickup_copper_key[index]=key;
         }
         if(!pickup_copper_words[index])return 0;
