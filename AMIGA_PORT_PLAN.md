@@ -4268,6 +4268,31 @@ The existing Shenanigan prototype ADF rebuild passes. Next: versioned campaign
 save migration for collection progress, then the mixed disappearing/waiting
 platform scene and Prize route admission.
 
+### Collection save prerequisite — 11 October 2026
+
+Added independent V4 collection codec and transactional file APIs. The 112-byte
+record keeps the V3 checkpoint/story/map prefix, adds all 100 collection bits
+at bytes 90..102, reserves five zero bytes and checks CRC32 at byte 108. V1..V3
+reads migrate with an empty collection bank. Older APIs reject V4, including
+replacement attempts, so they cannot silently discard collection progress.
+Decode/recovery publish all five outputs only after successful validation.
+Room bounds remain those of V3; Prize is not admitted prematurely.
+
+`make -C amiga_version test-campaign-collection` passes independent BE/CRC
+vectors, 100 collection-bank round trips, 896 single-bit corruptions,
+canonical spare/reserved-bit guards, legacy migration, truncated/extra records,
+null/size/semantic guards, readback alteration and older-writer preservation.
+Fault coverage includes 96 interruption snapshots, 192 replacement failures
+and 264 recovery failures. Existing V1 replacement, V2 exploration and V3
+progress regressions pass. Both modules compile freestanding for the 68000
+without runtime-helper dependencies, and the combined-effects station ADF
+rebuild succeeds (`make -C amiga_version tower-station-effects`).
+
+This adds the save prerequisite; playable menu saves still use V3 and no
+collection pickups are active in that route yet. Next: bind the collection bank
+and V4 menu operations while integrating Prize's mixed disappearing/waiting
+platform scene, then verify native pickup, death, room reentry and cold load.
+
 
 ### Yellow dialogue and teleporter effects combined — 11 October 2026
 

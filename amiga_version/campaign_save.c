@@ -165,3 +165,41 @@ int v6_campaign_progress_decode(V6CheckpointSave *out,V6HallwayStory *red,
     for(i=0;i<V6_EXPLORED_BYTES;++i)((volatile uint8_t *)explored->rooms)[i]=e.rooms[i];
     return 1;
 }
+
+int v6_campaign_collection_encode(uint8_t *out,size_t n,const V6CheckpointSave *c,
+    const V6HallwayStory *red,const V6StationStory *yellow,const V6Exploration *e,
+    const V6Collect *collected)
+{
+    uint8_t p[V6_CAMPAIGN_COLLECTION_BYTES];unsigned i;
+    if(!out || !collected || n!=sizeof(p) || (collected->bits[12]&0xf0))return 0;
+    if(!v6_campaign_progress_encode(p,V6_CAMPAIGN_STATE_BYTES,c,red,yellow,e))return 0;
+    p[5]=4;p[7]=sizeof(p);
+    for(i=0;i<V6_COLLECT_BYTES;++i)p[90+i]=collected->bits[i];
+    for(i=103;i<108;++i)p[i]=0;
+    put(p+108,crc(p,108));
+    for(i=0;i<sizeof(p);++i)out[i]=p[i];
+    return 1;
+}
+int v6_campaign_collection_decode(V6CheckpointSave *out,V6HallwayStory *red,
+    V6StationStory *yellow,V6Exploration *explored,V6Collect *collected,
+    const uint8_t *p,size_t n)
+{
+    V6CheckpointSave c;V6HallwayStory r;V6StationStory y;V6Exploration e;
+    V6Collect bank;uint8_t previous[V6_CAMPAIGN_STATE_BYTES];unsigned i;
+    if(!out || !red || !yellow || !explored || !collected || !p)return 0;
+    for(i=0;i<V6_COLLECT_BYTES;++i)bank.bits[i]=0;
+    if(n==V6_CAMPAIGN_COLLECTION_BYTES) {
+        if(p[4] || p[5]!=4 || p[6] || p[7]!=n || (p[102]&0xf0)
+           || get(p+108)!=crc(p,108))return 0;
+        for(i=103;i<108;++i)if(p[i])return 0;
+        for(i=0;i<90;++i)previous[i]=p[i];
+        previous[5]=3;previous[7]=sizeof(previous);previous[90]=previous[91]=0;
+        put(previous+92,crc(previous,92));
+        if(!v6_campaign_progress_decode(&c,&r,&y,&e,previous,sizeof(previous)))return 0;
+        for(i=0;i<V6_COLLECT_BYTES;++i)bank.bits[i]=p[90+i];
+    } else if(!v6_campaign_progress_decode(&c,&r,&y,&e,p,n))return 0;
+    *out=c;*red=r;*yellow=y;
+    for(i=0;i<V6_EXPLORED_BYTES;++i)((volatile uint8_t *)explored->rooms)[i]=e.rooms[i];
+    for(i=0;i<V6_COLLECT_BYTES;++i)((volatile uint8_t *)collected->bits)[i]=bank.bits[i];
+    return 1;
+}

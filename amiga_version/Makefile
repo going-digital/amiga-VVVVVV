@@ -922,6 +922,10 @@ test-station-graphics: tower-assets
 	python3 $(ROOT)/tools/amiga/test_station_graphics.py
 
 .PHONY: test-campaign-progress tower-station-save tower-station-save-run tower-station-save-capture
+test-campaign-collection: $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o
+	python3 $(ROOT)/tools/amiga/test_campaign_collection.py
+.PHONY: test-campaign-collection
+test: test-campaign-collection
 test-campaign-progress: $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o
 	python3 $(ROOT)/tools/amiga/test_campaign_progress.py
 test: test-campaign-progress

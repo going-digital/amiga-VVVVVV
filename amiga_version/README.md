@@ -3050,6 +3050,14 @@ Next: combine yellow dialogue audio with the already proven teleporter shake
 and reserved-channel effects, then expand station room coverage. Music
 reconstruction remains parked.
 
+Collection prerequisites are now available in `trinkets.c/h` and the V4
+`v6_campaign_collection_*` codec/file APIs. V4 stores all 100 source collection
+flags in a 112-byte record; reads migrate V1..V3 with an empty bank, and older
+writers refuse V4. Run `make -C amiga_version test-trinkets test-campaign-collection`
+for pickup, migration and transactional fault coverage. The playable station
+menu still uses V3 until Prize for the Reckless and its collection bank are
+integrated. See the latest entries in `AMIGA_PORT_PLAN.md` for scope and next work.
+
 
 ### Yellow dialogue and teleporter effects combined — 11 October 2026
 

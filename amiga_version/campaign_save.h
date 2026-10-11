@@ -6,6 +6,7 @@
 #include "hallway_crew.h"
 #include "station_trigger.h"
 #include "teleporter_admission.h"
+#include "trinkets.h"
 /* Bounded route save, not desktop XML or a mid-cutscene snapshot.
  * 44 bytes: V6CS, BE16 version/length, seven BE32 checkpoint fields,
  * BE32 story flags, BE32 IEEE CRC32 of the preceding 40 bytes.
@@ -40,4 +41,14 @@ int v6_campaign_progress_encode(uint8_t *,size_t,const V6CheckpointSave *,
     const V6HallwayStory *,const V6StationStory *,const V6Exploration *);
 int v6_campaign_progress_decode(V6CheckpointSave *,V6HallwayStory *,V6StationStory *,
     V6Exploration *,const uint8_t *,size_t);
+/* V4: unchanged checkpoint/story/map prefix through byte 89; collection bank
+ * at 90..102, zero reserved bytes 103..107, CRC32 at 108. Older reads seed an
+ * empty collection bank. Older APIs reject V4, preventing collection loss.
+ * Room admission remains V3's until Prize has a verified source bank/route.
+ * All five outputs are published together; rejected input changes nothing. */
+#define V6_CAMPAIGN_COLLECTION_BYTES 112
+int v6_campaign_collection_encode(uint8_t *,size_t,const V6CheckpointSave *,
+    const V6HallwayStory *,const V6StationStory *,const V6Exploration *,const V6Collect *);
+int v6_campaign_collection_decode(V6CheckpointSave *,V6HallwayStory *,V6StationStory *,
+    V6Exploration *,V6Collect *,const uint8_t *,size_t);
 #endif
