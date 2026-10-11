@@ -150,6 +150,29 @@ out[5]=graphics.fademode;out[6]=scriptdelay?scriptdelay-1:0;out[7]=position;out[
     valid=Speech(0,0,1,(C.c_char_p*4)(b'Captain!',None,None))
     assert core.v6_dialogue_draw(C.byref(guard,1),font,C.byref(valid))
     assert guard[0]==guard[3841]==0xaa
-    report=dict(source_handler_cases=cases,copper_offset_pairs=65536,maximum_caption_words=maximum,speech_order=shown,delay_wait_ticks=wait,normal_and_skip_complete=True,scope='Compiled source rescue/skip scripts and actual Script.cpp state/wait handlers; captions verified separately')
+    core.v6_dialogue_replace_line.argtypes=[C.c_void_p,C.c_void_p,C.c_uint,C.c_uint,C.c_char_p]
+    font=(C.c_ubyte*1024)(*((i*73+19)&255 for i in range(1024)))
+    replacements=0
+    for count in range(1,5):
+        for line in range(count):
+            for length in range(37):
+                texts=[b'Other line']*count
+                texts[line]=b'W'*36
+                before=Speech(0,0,count,(C.c_char_p*4)(*texts))
+                assert core.v6_dialogue_draw(C.byref(guard,1),font,C.byref(before))
+                text=b'A'*length
+                assert core.v6_dialogue_replace_line(C.byref(guard,1),font,count,line,text)
+                texts[line]=text
+                after=Speech(0,0,count,(C.c_char_p*4)(*texts))
+                expected=(C.c_ubyte*3840)()
+                assert core.v6_dialogue_draw(expected,font,C.byref(after))
+                assert bytes(guard[1:3841])==bytes(expected)
+                assert guard[0]==guard[3841]==0xaa
+                replacements+=1
+    snapshot=bytes(guard)
+    for count,line,text in ((0,0,b'x'),(5,0,b'x'),(3,3,b'x'),(3,2,b'x'*37),(3,2,b'\x80'),(3,2,None)):
+        assert not core.v6_dialogue_replace_line(C.byref(guard,1),font,count,line,text)
+        assert bytes(guard)==snapshot
+    report=dict(source_handler_cases=cases,copper_offset_pairs=65536,maximum_caption_words=maximum,caption_line_replacements=replacements,speech_order=shown,delay_wait_ticks=wait,normal_and_skip_complete=True,scope='Compiled source rescue/skip scripts and actual Script.cpp state/wait handlers; captions verified separately')
     (out/'tests.json').write_text(json.dumps(report,indent=2)+'\n');print('PASS',report)
 if __name__=='__main__':main()

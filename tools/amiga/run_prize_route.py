@@ -61,6 +61,12 @@ def main():
     assert display['status']==1 and display['error']==display['missed']==0,display
     assert display['max_work_lines']<=280,display
     assert count==224,count
+    pickup=None
+    if args.v4:
+        at=data.index(b'V6PS\0\0\0\1')
+        pickup=struct.unpack_from('>12I',data,at+8)
+        assert pickup[:6]==(1,20,1,1,15,20),pickup
+        assert pickup[6]==pickup[7] and pickup[8:]==(0,0,1,152),pickup
     assert any(row[0]==7 for row in rows[:20]) and any(row[0]==8 for row in rows[20:30])
     assert all(row[11]==0 for row in rows if row[0]==8)
     assert any(row[0]==8 and row[14]==1 and row[13]>88 for row in rows)
@@ -143,9 +149,9 @@ def main():
     migration_display=migration_ui=None
     if args.v4:
         migration_display,migration_ui=check_legacy_migration(build,live,disk,record)
-    report=dict(display=display,profile=profile,quit_display=quit_display,ui=ui,sprite_channels=sprite_channels,cold_display=cold_display,cold_ui=cold_ui,cold_collection=cold_collection,migration_display=migration_display,migration_ui=migration_ui,records=rows,
-                scope='Connected route with test-only placements; collection/terrain retention, optional V4 save/load and fresh physical-input disk load. No pickup UI or complete normal-input traversal.')
+    report=dict(display=display,profile=profile,quit_display=quit_display,ui=ui,pickup=pickup,sprite_channels=sprite_channels,cold_display=cold_display,cold_ui=cold_ui,cold_collection=cold_collection,migration_display=migration_display,migration_ui=migration_ui,records=rows,
+                scope='Connected route with test-only placements; pickup caption, frozen player/actors, held action dismissal, collection/terrain retention, optional V4 save/load and fresh physical-input disk load. No room audio or complete normal-input traversal.')
     (build/'prize-route-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native Prize route:',json.dumps(dict(display=display,trace_ticks=count,
-        scope='Source boundary handling with test-only checkpoint/gate/pickup placements; death terrain patch and collection retained across reentry. V4 disk persistence checked when requested; pickup screen and full normal-input traversal excluded.')))
+        pickup=pickup,scope='Source boundary handling with test-only checkpoint/gate/pickup placements; pickup pause/caption/dismissal and retained death terrain/collection. V4 disk persistence checked when requested; room audio and full normal-input traversal excluded.')))
 if __name__=='__main__':main()

@@ -293,7 +293,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -O2 -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/prize.o $(BUILD)/platform_gate.o $(BUILD)/disappearing.o $(BUILD)/trinkets.o $(BUILD)/platform.o $(BUILD)/enemy.o $(BUILD)/station_trigger.o $(BUILD)/teleporter_admission.o $(BUILD)/screen_shake.o $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/trinket_screen.o $(BUILD)/prize.o $(BUILD)/platform_gate.o $(BUILD)/disappearing.o $(BUILD)/trinkets.o $(BUILD)/platform.o $(BUILD)/enemy.o $(BUILD)/station_trigger.o $(BUILD)/teleporter_admission.o $(BUILD)/screen_shake.o $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -1012,7 +1012,7 @@ prize-capture: test-prize test-tile-edit
 	python3 $(ROOT)/tools/amiga/run_prize.py --build $(ROOT)/build/amiga-prize-replay --live $(ROOT)/build/amiga-prize
 
 # Prize remains a candidate until its pickup UI and room sound cues are wired.
-PRIZE_ROUTE_FLAGS = $(STATION_EFFECT_FLAGS) -DV6_TOWER_PRIZE -DV6_TOWER_COLLECTION_SAVE
+PRIZE_ROUTE_FLAGS = $(STATION_EFFECT_FLAGS) -DV6_TOWER_PRIZE -DV6_TOWER_COLLECTION_SAVE -DV6_TOWER_PICKUP_SCREEN
 .PHONY: tower-prize-route tower-prize-route-run tower-prize-route-capture
 tower-prize-route: tower-assets
 	python3 -c 'from pathlib import Path; p=Path("$(ROOT)/build/amiga-feasibility"); b=(p/"loadmap.v6tr").read_bytes(); (p/"tower_map.h").write_text("static const unsigned char tower_map[]={"+",".join(map(str,b))+"};\n")'
@@ -1023,6 +1023,10 @@ tower-prize-route-run: tower-prize-route
 tower-prize-route-capture: tower-prize-route
 	$(MAKE) BUILD=$(ROOT)/build/amiga-prize-route-replay CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_ROUTE_CAPTURE" $(ROOT)/build/amiga-prize-route-replay/tower.adf
 	python3 $(ROOT)/tools/amiga/run_prize_route.py --build $(ROOT)/build/amiga-prize-route-replay --v4
+.PHONY: tower-prize-pickup-capture
+tower-prize-pickup-capture: tower-prize-route
+	$(MAKE) BUILD=$(ROOT)/build/amiga-prize-pickup CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_ROUTE_CAPTURE -DV6_PICKUP_CAPTURE_HOLD" $(ROOT)/build/amiga-prize-pickup/tower.adf
+	python3 $(ROOT)/tools/amiga/run_prize_pickup.py --build $(ROOT)/build/amiga-prize-pickup
 .PHONY: test-prize-route
 test-prize-route:
 	python3 $(ROOT)/tools/amiga/test_prize_route.py

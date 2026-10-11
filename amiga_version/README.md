@@ -3312,3 +3312,42 @@ a fresh boot starts from the normal-mode room tiles.
 Next: source pickup screen and room sound cues, followed by their pause/resume
 and audio verification before promoting Prize into the regular station build.
 Music reconstruction remains parked.
+
+
+### Connected Prize pickup caption — 11 October 2026
+
+The Prize candidate now connects the source-derived pickup controller to the
+live loop. The pickup tick finishes its entity/physics stages, then enables
+complete stop. Following game timesteps update the screen while leaving player,
+room actors, checkpoint, death state and camera unchanged. Text appears after
+15 ticks and dismissal requires a released/pressed action. Holding that action
+into resumed gameplay is filtered so it cannot also flip gravity. Save/load
+is busy while the pickup screen is active; loading resets transient screen state.
+
+The first presentation uses the existing three-line, gray caption overlay:
+Congratulations, the found-trinket message and the current collection count.
+The fixed caption is drawn before gameplay and only its count line changes on
+reveal. Drawing the entire bitmap during gameplay caused a native frame overrun;
+updating only the count restores the frame budget. Incremental caption tests
+compare 370 replacements, including shrinking text and empty lines, with complete
+bitmap redraws and verify invalid inputs leave the buffer unchanged.
+
+`make -C amiga_version tower-prize-route-capture` verifies the 15-tick reveal,
+20-tick fixture pause, one dismissal, unchanged player/actor hashes throughout
+pause, and no extra flips when action remains held for three resumed ticks.
+Existing V4 pickup/save/load, fresh physical-input load, V3 migration and physical
+quit checks pass. Native PAL peaks are 274 lines for the connected replay,
+205 for fresh Prize load and 198 for migration, with zero errors/missed frames
+and 198,522 Chip bytes.
+
+`make -C amiga_version tower-prize-pickup-capture` holds the action through the
+screen and produces `build/amiga-prize-pickup/pickup.png` for visual review.
+Its native capture verifies 320 paused timesteps with gameplay held at tick 152,
+a busy save rejection with the game hash unchanged, and both disks unchanged.
+The caption and count are legible in the reviewed screenshot. This fixture uses
+injected positions and buttons; a complete normal-input traversal is outstanding.
+
+Next: source-centered pickup textboxes and animated cutscene bars, then the
+source vanish/trinket audio cues on reserved Paula channels and integrated
+presentation/audio checks. Prize remains a candidate rather than replacing the
+regular station build. Music reconstruction remains parked.

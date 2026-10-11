@@ -9,4 +9,8 @@
 /* Immutable two-plane caption: opaque black (index 1), glyph/border (index 3).
  * Validate the complete speech before writing any byte. Font is 128x8 bytes. */
 int v6_dialogue_draw(uint8_t *,const uint8_t font[128][8],const V6RescueSpeech *);
+/* Replace one centered line of an already drawn caption with the same line
+ * count. Preserve the border and other rows; validate before writing. */
+int v6_dialogue_replace_line(uint8_t *,const uint8_t font[128][8],unsigned count,
+    unsigned line,const char *text);
 #endif

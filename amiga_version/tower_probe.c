@@ -489,6 +489,18 @@ static unsigned shenanigan_ui_stage;
 static V6Terrain prize_terrain;
 static V6Prize station_prize;
 static V6Collect station_collected;
+#ifdef V6_TOWER_PICKUP_SCREEN
+#ifndef V6_TOWER_UI_SAVE
+#error Pickup screen requires the caption/menu allocation
+#endif
+#include "trinket_screen.h"
+static V6TrinketScreen pickup_screen;
+typedef char PickupActorWordSize[(sizeof(V6Prize)%sizeof(ULONG))==0?1:-1];
+static UBYTE *pickup_caption;
+static unsigned pickup_held,pickup_pause_ticks;
+static volatile struct {ULONG magic,version,values[12];}
+    pickup_diag={0x56365053,1,{0}};
+#endif
 static volatile struct {ULONG magic,version,room_index,pickups,visible;UBYTE bits[16];}
     collection_diag={0x56364342,1,0,0,0,{0}};
 static unsigned prize_pickups,prize_patches,prize_sounds;
@@ -548,7 +560,16 @@ static int station_conveyor_tick(V6TowerRoute *r,void *context)
 static int prize_events(V6TowerRoute *r,unsigned events)
 {
     if(events&V6_PRIZE_FULL)return 0;
-    if(events&V6_PRIZE_PICKUP)++prize_pickups;
+    if(events&V6_PRIZE_PICKUP) {
+        ++prize_pickups;
+#ifdef V6_TOWER_PICKUP_SCREEN
+        /* No tracker is playing yet; audio adapter events are connected next. */
+        v6_trinket_screen_begin(&pickup_screen,&station_collected,0);
+        pickup_held=r->session->player.held;pickup_pause_ticks=0;
+        ++pickup_diag.values[0];
+        pickup_diag.values[6]=r->session->player.flips;
+#endif
+    }
     if(events&V6_PRIZE_SOUND)++prize_sounds;
     if(events&V6_PRIZE_TILE) {
         int changed=v6_terrain_set_tile(&prize_terrain,prize_tiles,0,0,18,9,59);
@@ -895,7 +916,12 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #define AUDIO_IRQ_MASK (INTF_AUD0|INTF_AUD1|INTF_AUD2|INTF_AUD3)
 #endif
 #ifdef V6_TOWER_UI_SAVE
-#define UI_DMA_BYTES (UI_MESSAGE_COUNT*V6_DIALOGUE_BYTES)
+#ifdef V6_TOWER_PICKUP_SCREEN
+#define PICKUP_DMA_BYTES V6_DIALOGUE_BYTES
+#else
+#define PICKUP_DMA_BYTES 0
+#endif
+#define UI_DMA_BYTES (UI_MESSAGE_COUNT*V6_DIALOGUE_BYTES+PICKUP_DMA_BYTES)
 #else
 #define UI_DMA_BYTES 0
 #endif
@@ -1449,6 +1475,13 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #endif
     }
 #endif
+#ifdef V6_TOWER_PICKUP_SCREEN
+    if(pickup_screen.visible) {
+        return v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
+            camera&255,bg_camera&255,(ULONG)pickup_caption,0xaaa,
+            DISPLAY_COLOUR(FG_PALETTE[1]),DISPLAY_COLOUR(FG_PALETTE[3]))!=0;
+    }
+#endif
 #ifdef V6_TOWER_RESCUE
     if(rescue_vm.speech || rescue_bars) {
         unsigned speech=rescue_vm.speech?rescue_vm.speech->index:0;
@@ -1669,6 +1702,9 @@ static int ui_save_checked(void)
 }
 static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
 {
+#ifdef V6_TOWER_PICKUP_SCREEN
+    v6_trinket_screen_init(&pickup_screen);pickup_held=0;pickup_pause_ticks=0;
+#endif
 #ifdef V6_TOWER_COLLECTION_SAVE
     ui_copy(&station_collected,&ui_loaded_collection,sizeof(station_collected));
 #elif defined(V6_TOWER_PRIZE)
@@ -2173,6 +2209,19 @@ static int run(void) {
             FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
         }
         ui_fields=250;ui_status=0;
+#ifdef V6_TOWER_PICKUP_SCREEN
+        pickup_caption=ui_captions+UI_MESSAGE_COUNT*V6_DIALOGUE_BYTES;
+        {
+            V6RescueSpeech speech;
+            speech.index=0;speech.speaker=1;speech.count=3;
+            speech.lines[0]="Congratulations!";speech.lines[1]="You have found a shiny trinket!";
+            speech.lines[2]="0 out of 20";speech.lines[3]=0;
+            if(!v6_dialogue_draw(pickup_caption,dialogue_font,&speech)) {
+                FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+            }
+        }
+        v6_trinket_screen_init(&pickup_screen);
+#endif
     }
 #endif
 #ifdef V6_TOWER_TRAVEL_AUDIO
@@ -2264,11 +2313,17 @@ static int run(void) {
 #endif
 #ifdef V6_PRIZE_ROUTE_CAPTURE
             right=fire=0;
+#ifdef V6_PICKUP_CAPTURE_HOLD
+            if(!prize_ui_stage && pickup_screen.visible && pickup_pause_ticks>=16) {
+                right=1;prize_ui_stage=3;
+            }
+#else
             #ifdef V6_TOWER_COLLECTION_SAVE
             if(prize_ui_stage==0 && diag.logic_ticks>=154) {right=1;prize_ui_stage=1;}
             else if(prize_ui_stage==1 && diag.logic_ticks>=165) {right=fire=1;prize_ui_stage=2;}
 #else
             if(!prize_ui_stage && diag.logic_ticks>=188) {right=1;prize_ui_stage=1;}
+#endif
 #endif
 #endif
 #ifdef V6_SHENANIGAN_CAPTURE
@@ -2301,6 +2356,9 @@ static int run(void) {
                 int result=5;
                 ++ui_diag.values[0];ui_diag.values[7]=action;
                 if(route_loading || session.death_timer!=-1
+#ifdef V6_TOWER_PICKUP_SCREEN
+                   || pickup_screen.state
+#endif
 #ifdef V6_TOWER_TELE_MENU
                    || tele_menu.open
 #ifdef V6_TOWER_MENU_TRAVEL
@@ -2499,6 +2557,10 @@ static int run(void) {
 #endif
 #ifdef V6_PRIZE_ROUTE_CAPTURE
                 input=0;
+#ifdef V6_TOWER_PICKUP_SCREEN
+                if(pickup_diag.values[3] && diag.logic_ticks>=pickup_diag.values[11] &&
+                   diag.logic_ticks<pickup_diag.values[11]+3)input=V6_FLIP;
+#endif
                 if(diag.logic_ticks==20 || diag.logic_ticks==25 || diag.logic_ticks==40 ||
                    diag.logic_ticks==95 || diag.logic_ticks==150 || diag.logic_ticks==175 ||
                    diag.logic_ticks==185 || diag.logic_ticks==190) {
@@ -2545,6 +2607,54 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_UI_SAVE
                 input=v6_save_controls_filter(&save_controls,input);
+#endif
+#ifdef V6_TOWER_PICKUP_SCREEN
+                if(pickup_screen.stopped) {
+                    ULONG before=ui_game_hash(),actor_hash=0,after_hash=0;
+                    unsigned i,events,action=(input&V6_FLIP)!=0;
+                    const volatile ULONG *actor=(const volatile ULONG *)&station_prize;
+#ifdef V6_PRIZE_ROUTE_CAPTURE
+                    /* Hold through the reveal, then release and press. */
+                    if(!pickup_pause_ticks)pickup_held=1;
+                    action=pickup_pause_ticks!=18;
+#ifdef V6_PICKUP_CAPTURE_HOLD
+                    action=1;
+#endif
+#endif
+                    for(i=0;i<sizeof(station_prize)/sizeof(ULONG);++i)actor_hash=(actor_hash<<5)-actor_hash+actor[i];
+                    if(v6_trinket_screen_input(&pickup_screen,action,pickup_held))pickup_held=1;
+                    if(!action)pickup_held=0;
+                    events=v6_trinket_screen_tick(&pickup_screen,0);
+                    ++pickup_pause_ticks;++pickup_diag.values[1];
+                    if(events&V6_TRINKET_SHOW) {
+                        char count[16];unsigned n=pickup_screen.count,pos=0,tens=0;
+                        if(n>=100){count[pos++]='1';n-=100;count[pos++]='0';}
+                        else {while(n>=10){++tens;n-=10;}if(tens)count[pos++]='0'+tens;}
+                        count[pos++]='0'+n;
+                        {const char *suffix=" out of 20";while(*suffix)count[pos++]=*suffix++;}
+                        count[pos]=0;
+                        if(!v6_dialogue_replace_line(pickup_caption,dialogue_font,3,2,count))diag.error=18;
+                        ++pickup_diag.values[2];pickup_diag.values[4]=pickup_pause_ticks;
+                    }
+                    if(events&V6_TRINKET_HIDE) {
+                        ++pickup_diag.values[3];pickup_diag.values[5]=pickup_pause_ticks;
+                        pickup_diag.values[7]=session.player.flips;
+                    }
+                    for(i=0;i<sizeof(station_prize)/sizeof(ULONG);++i)after_hash=(after_hash<<5)-after_hash+actor[i];
+                    if(before!=ui_game_hash() || actor_hash!=after_hash) {
+                        ++pickup_diag.values[8];diag.error=18;
+                    }
+                    pickup_diag.values[9]=pickup_screen.state;
+                    pickup_diag.values[10]=pickup_screen.count;
+                    pickup_diag.values[11]=diag.logic_ticks;
+                    /* UI consumes a game timestep; world trace ticks count
+                     * only active gameplay so replay placements stay stable. */
+                    continue;
+                }
+                if(pickup_held) {
+                    if(!(input&V6_FLIP))pickup_held=0;
+                    else input&=~V6_FLIP;
+                }
 #endif
 #ifdef V6_TOWER_TELE_MENU
                 {
@@ -2881,6 +2991,13 @@ static int run(void) {
 #endif
 #else
                 v6_tower_session_play_world(&session,&player_room,input,&world);
+#endif
+#ifdef V6_TOWER_PICKUP_SCREEN
+                /* Source updatestate follows entities and physics. The pickup
+                 * tick finishes before completestop applies to the next tick. */
+                if(pickup_screen.state==1000)v6_trinket_screen_tick(&pickup_screen,0);
+                if(pickup_diag.values[3] && diag.logic_ticks<pickup_diag.values[11]+3)
+                    pickup_diag.values[7]=session.player.flips;
 #endif
 #ifdef V6_PRIZE_ROUTE_CAPTURE
                 if(prize_route_trace.count<224) {
