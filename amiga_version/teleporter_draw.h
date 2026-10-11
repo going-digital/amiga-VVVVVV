@@ -11,4 +11,7 @@
  * Invalid input leaves DMA unchanged; fully clipped input emits zero heads. */
 int v6_teleporter_draw(uint16_t *dma,const uint16_t base[96][6],
     const uint16_t mask[96][6],int x,int y);
+/* Copy one complete prepared six-channel bank to inactive DMA memory.
+ * Buffers must be distinct and word-aligned, with the full fixed bank size. */
+void v6_teleporter_copy_dma(uint16_t *,const uint16_t *);
 #endif

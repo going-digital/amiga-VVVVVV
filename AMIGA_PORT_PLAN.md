@@ -4152,3 +4152,29 @@ station and save-enabled live disks are rebuilt with these changes.
 Next: connect V3 progress/yellow state to the main menu and route, improve the
 Energize frame headroom, and expand station rooms. Music reconstruction remains
 parked.
+
+## Energize frame headroom recovered — 11 October 2026
+
+Prepared Building Apport/Energize teleporter banks now copy to inactive Chip
+DMA memory using 98 blocks of six longwords on the 68000. The fixed bank is
+2,352 bytes; the assembly accepts word-aligned addresses without an unaligned
+C uint32_t cast, and retains a portable word-copy implementation for host tests.
+No sprite format, animation sequence or steady Chip allocation changes.
+
+The native Energize companion capture now peaks at 240 PAL lines with the
+copy-verification fixture enabled (238 without it), down from 268. It meets the
+250-line headroom target again, with zero errors/missed frames over 1,000 logic
+ticks and 116,214 steady Chip bytes. Its checker once again enforces 250 lines;
+the 640 original-source movement comparisons and x=138 resting point pass.
+
+Before takeover, the native fixture exercises 72 copies across all nine
+prepared frames of both teleporter banks and both two-/four-byte address
+alignments. It compares 84,672 words, input data and destination guards. The
+scratch Chip allocation is freed before gameplay. Host copy guards and the
+existing 1,080 source-pixel clipping/DMA compositions pass; native station save,
+fresh boot, early-quit rejection and malformed checkpoint checks also pass.
+Shared menu travel/effects, exit-pending autosave, V2/V1 return boots and the
+76,800-pixel translated caption/scene comparison pass after the DMA change.
+
+Next: connect V3 progress and yellow state to the main menu and route, then
+expand the station rooms. Music reconstruction remains parked.

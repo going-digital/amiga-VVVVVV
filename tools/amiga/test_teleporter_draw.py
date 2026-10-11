@@ -54,5 +54,12 @@ def main():
     for x,y in ((32768,0),(-32769,0),(0,32768),(0,-32769)):
         assert not core.v6_teleporter_draw(dma,converted[0],converted[1],x,y)
         assert set(dma)=={0xdead}
+    core.v6_teleporter_copy_dma.argtypes=[C.POINTER(C.c_uint16),C.POINTER(C.c_uint16)]
+    for offset in (1,2):
+        src=(C.c_uint16*1180)(*[((i*197)^0xa5a5)&65535 for i in range(1180)])
+        dst=(C.c_uint16*1180)(*([0xdead]*1180));before=bytes(src)
+        core.v6_teleporter_copy_dma(C.cast(C.byref(dst,offset*2),C.POINTER(C.c_uint16)),C.cast(C.byref(src,2),C.POINTER(C.c_uint16)))
+        assert list(dst)[offset:offset+1176]==list(src)[1:1177] and bytes(src)==before
+        assert all(v==0xdead for v in list(dst)[:offset]+list(dst)[offset+1176:])
     print(f'PASS teleporter draw: 10 source masks, {cases} clipping/DMA compositions, guard words and invalid-input preservation')
 if __name__=='__main__':main()

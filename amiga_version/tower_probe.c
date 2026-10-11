@@ -857,6 +857,29 @@ static volatile struct {
     ULONG magic,version,max_logic,max_render,peak_logic,peak_render,peak_tick,peak_rows;
 } profile={0x56365046,1,0,0,0,0,0,0};
 #endif
+#ifdef V6_STATION_COMPANION_CAPTURE
+static volatile struct { ULONG magic,version,copies,words; } dma_copy_diag={0x56364443,1,0,0};
+static int verify_dma_copy(void)
+{
+    enum { WORDS=V6_TELEPORTER_CHANNELS*V6_TELEPORTER_DMA_WORDS };
+    static UWORD source[WORDS+4] __attribute__((aligned(4)));
+    UWORD *dest=AllocMem((WORDS+4)*2,MEMF_CHIP);
+    unsigned bank,frame,so,offset,i;int ok=1;
+    if(!dest)return 0;
+    for(bank=0;bank<2 && ok;++bank)for(frame=1;frame<10 && ok;++frame)
+        for(so=1;so<=2 && ok;++so)for(offset=1;offset<=2 && ok;++offset) {
+            const UWORD *prepared=bank?energize_prepared[frame]:building_prepared[frame];
+            for(i=0;i<WORDS+4;++i){source[i]=0xbeef;dest[i]=0xdead;}
+            for(i=0;i<WORDS;++i)source[so+i]=prepared[i];
+            v6_teleporter_copy_dma(dest+offset,source+so);
+            for(i=0;i<WORDS;++i)if(dest[offset+i]!=prepared[i] || source[so+i]!=prepared[i])ok=0;
+            for(i=0;i<offset;++i)if(dest[i]!=0xdead)ok=0;
+            for(i=offset+WORDS;i<WORDS+4;++i)if(dest[i]!=0xdead)ok=0;
+            if(ok){++dma_copy_diag.copies;dma_copy_diag.words+=WORDS;}
+        }
+    FreeMem(dest,(WORDS+4)*2);return ok;
+}
+#endif
 #if defined(V6_TOWER_AUDIO) && defined(V6_TOWER_RESCUE)
 static void rescue_audio_tick(void)
 {
@@ -1105,16 +1128,11 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
         if(route.index==5)prepared=energize_prepared;
 #endif
         UWORD *bank=building_dma+index*(6*V6_TELEPORTER_DMA_WORDS);
-        unsigned word;int frame=building_animation.frame;
+        int frame=building_animation.frame;
         if(frame<1)frame=1;
         if(frame>9)frame=8;
         if(building_frames[index]!=frame) {
-            for(word=0;word<6*V6_TELEPORTER_DMA_WORDS;word+=8) {
-                bank[word]=prepared[frame][word];bank[word+1]=prepared[frame][word+1];
-                bank[word+2]=prepared[frame][word+2];bank[word+3]=prepared[frame][word+3];
-                bank[word+4]=prepared[frame][word+4];bank[word+5]=prepared[frame][word+5];
-                bank[word+6]=prepared[frame][word+6];bank[word+7]=prepared[frame][word+7];
-            }
+            v6_teleporter_copy_dma(bank,prepared[frame]);
             building_frames[index]=frame;
 #ifdef V6_TOWER_SHAKE
             shake_heads[index]=0;
@@ -1706,6 +1724,9 @@ static int run(void) {
                 FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
             }
     }
+#ifdef V6_STATION_COMPANION_CAPTURE
+    if(!verify_dma_copy()){FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;}
+#endif
 #endif
 #ifdef V6_TOWER_TELEPORTER_HOLD
     tele_dma=(UWORD *)(chip+CHIP_BYTES-TELE_DMA_BYTES);

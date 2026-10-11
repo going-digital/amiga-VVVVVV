@@ -25,3 +25,25 @@ int v6_teleporter_draw(uint16_t *dma,const uint16_t base[96][6],
     }
     return 1;
 }
+
+void v6_teleporter_copy_dma(uint16_t *out,const uint16_t *in)
+{
+#if defined(__m68k__)
+    /* Six longwords per block: 1176 words = 98 blocks. MOVEM accepts the
+     * two-byte alignment of our Chip banks; no uint32_t pointer cast. */
+#if (V6_TELEPORTER_CHANNELS*V6_TELEPORTER_DMA_WORDS*2)%24
+#error Teleporter DMA size must be a whole number of MOVEM blocks
+#endif
+    unsigned blocks=(V6_TELEPORTER_CHANNELS*V6_TELEPORTER_DMA_WORDS*2)/24-1;
+    __asm volatile(
+        "1: movem.l (%1)+,%%d0-%%d5\n\t"
+        "movem.l %%d0-%%d5,(%0)\n\t"
+        "lea 24(%0),%0\n\t"
+        "dbra %2,1b"
+        : "+a"(out),"+a"(in),"+d"(blocks)
+        : : "d0","d1","d2","d3","d4","d5","memory","cc");
+#else
+    unsigned i;
+    for(i=0;i<V6_TELEPORTER_CHANNELS*V6_TELEPORTER_DMA_WORDS;++i)out[i]=in[i];
+#endif
+}
