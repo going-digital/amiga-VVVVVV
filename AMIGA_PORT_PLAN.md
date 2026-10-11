@@ -4249,6 +4249,25 @@ Next: combine yellow dialogue audio with the already proven teleporter shake
 and reserved-channel effects, then expand station room coverage. Music
 reconstruction remains parked.
 
+### Prize pickup prerequisite — 11 October 2026
+
+Added the source trinket lifecycle and a packed 100-identity collection bank
+(`trinkets.c/h`). Collision arms the pickup; the following live entity update
+sets the collection bit, hides the entity and reports one event. Room recreation
+omits an already-collected trinket. The caller must preserve this bank across
+death and room changes, and handle the pickup sound/screen at the event.
+The 13-byte import rejects noncanonical spare bits without changing the bank.
+This is an independent prerequisite, not yet bound to the playable route or
+campaign disk saves; V3 records remain unchanged.
+
+`make -C amiga_version test-trinkets` passes 219,300 rectangle collision cases,
+all 100 identity pickups and reentries, bit isolation, repeated-update guards,
+packed round trips and 240 malformed-bank rejections under UBSan. The module
+also compiles for the freestanding 68000 without runtime-helper dependencies.
+The existing Shenanigan prototype ADF rebuild passes. Next: versioned campaign
+save migration for collection progress, then the mixed disappearing/waiting
+platform scene and Prize route admission.
+
 
 ### Yellow dialogue and teleporter effects combined — 11 October 2026
 

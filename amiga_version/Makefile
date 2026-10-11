@@ -66,6 +66,9 @@ $(BUILD)/platform.o: platform.c platform.h enemy.h blocks.h | $(BUILD)
 $(BUILD)/checkpoints.o: checkpoints.c checkpoints.h player.h | $(BUILD)
 	$(CC) $(CFLAGS) -O2 -c $< -o $@
 
+$(BUILD)/trinkets.o: trinkets.c trinkets.h player.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/prototype.elf: $(OBJECTS)
 	$(CC) $(LDFLAGS) $^ -o $@
 
@@ -86,7 +89,12 @@ test-terrain: | $(BUILD)
 	$(BUILD)/test_terrain
 
 .PHONY: test-terrain
-test: test-sprites test-terrain test-tile-edit test-tower-copper $(BUILD)/prototype_room.h
+test-trinkets: $(BUILD)/trinkets.o
+	cc -std=c99 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all -ffunction-sections -fdata-sections -Wl,-dead_strip -I. trinkets.c player.c $(ROOT)/tools/amiga/test_trinkets.c -o $(BUILD)/test_trinkets
+	$(BUILD)/test_trinkets
+
+.PHONY: test-trinkets
+test: test-trinkets test-sprites test-terrain test-tile-edit test-tower-copper $(BUILD)/prototype_room.h
 	python3 $(ROOT)/tools/amiga/pack_rooms.py --out $(BUILD) --scene $(SCENE)
 	python3 $(ROOT)/tools/amiga/test_rooms.py
 	python3 $(ROOT)/tools/amiga/test_tower_stream.py
