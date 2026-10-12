@@ -1,3 +1,6 @@
+#if defined(V6_MAP_INPUT_CAPTURE) && !defined(V6_VSTITCH_HINT_CAPTURE)
+#error Map control capture requires the resident upper V Stitch hint/save fixture
+#endif
 #if defined(V6_VSTITCH_HINT_LOAD) && !defined(V6_VSTITCH_HINT_CAPTURE)
 #error Hint fresh-boot load requires the V Stitch hint capture
 #endif
@@ -169,6 +172,27 @@ static const char save_backup[]="DF1:campaign.bak";
 #endif
 #include "rescue_script.h"
 static V6SaveControls save_controls;
+#ifdef V6_MAP_INPUT_CAPTURE
+#include <proto/cia.h>
+#include "keyboard.h"
+#include "map_menu.h"
+static struct Library *keyboard_resource;
+static V6Keyboard keyboard;
+static V6MapMenu map_menu;
+static unsigned map_action_held,map_previous_buttons;
+static ULONG map_pause_hash;
+static UBYTE *map_captions;
+static const V6RescueSpeech map_messages[6]={
+    {0,1,2,{"Map","Left/right: tabs; ENTER: return"}},
+    {1,1,2,{"Crew","Left/right: tabs; ENTER: return"}},
+    {2,1,2,{"Stats","Left/right: tabs; ENTER: return"}},
+    {3,1,3,{"Save tab","Space or fire: quicksave","ENTER: return to game"}},
+    {4,1,2,{"Game saved","ENTER: return to game"}},
+    {5,1,2,{"Save failed","ENTER: return to game"}}
+};
+static volatile struct {ULONG magic,version,values[12],count,records[128][8];}
+    map_diag={0x56364d49,1,{0},0,{{0}}};
+#endif
 static unsigned ui_status,ui_fields;
 static UBYTE *ui_captions;
 static volatile struct { ULONG magic,version,values[18]; } ui_diag={0x56365549,1,{0}};
@@ -1113,7 +1137,12 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #else
 #define PICKUP_DMA_BYTES 0
 #endif
-#define UI_DMA_BYTES (UI_MESSAGE_COUNT*V6_DIALOGUE_BYTES+PICKUP_DMA_BYTES)
+#ifdef V6_MAP_INPUT_CAPTURE
+#define MAP_DMA_BYTES (6*V6_DIALOGUE_BYTES)
+#else
+#define MAP_DMA_BYTES 0
+#endif
+#define UI_DMA_BYTES (MAP_DMA_BYTES+UI_MESSAGE_COUNT*V6_DIALOGUE_BYTES+PICKUP_DMA_BYTES)
 #else
 #define UI_DMA_BYTES 0
 #endif
@@ -1369,6 +1398,27 @@ static void trace_camera(const V6TowerCamera *c,int life,int delay)
 static V6TowerSession session;
 #endif
 static UWORD beam(void) { return (*(volatile ULONG *)0xdff004>>8)&511; }
+#ifdef V6_MAP_INPUT_CAPTURE
+static void keyboard_poll(void)
+{
+    /* The takeover masks PORTS. cia.resource samples/clears only SP and
+     * retains other pending CIA sources for the restored OS handlers. */
+    if(SetICR(keyboard_resource,8)&8) {
+        UBYTE serial=*(volatile UBYTE *)0xbfec01;
+        volatile UBYTE *cra=(volatile UBYTE *)0xbfee01;
+        UBYTE before=*cra;unsigned i;UWORD line;
+        *cra=before|0x40;
+        /* Three line boundaries guarantee at least two complete PAL lines
+         * (>127us), above the manual's 85us minimum, including frame wrap. */
+        for(i=0;i<3;++i) {line=beam();while(beam()==line){}}
+        /* Timer A can finish a one-shot during the handshake. Preserve its
+         * current control bits instead of restarting it with the old START. */
+        *cra=(*cra&0xbf)|(before&0x40);
+        v6_keyboard_receive(&keyboard,serial);
+        ++map_diag.values[0];map_diag.values[1]=v6_keyboard_decode(serial);
+    }
+}
+#endif
 static ULONG clock_lines(void) {
     ULONG a,b; UWORD y,pending;
     /* The beam may wrap before the VBlank handler increments frames.
@@ -1867,6 +1917,15 @@ west_sprite_refresh:
     }
 #endif
 #ifdef V6_TOWER_PICKUP_SCREEN
+#ifdef V6_MAP_INPUT_CAPTURE
+    if(map_menu.open) {
+        unsigned page=map_menu.page;
+        if(page==3 && (map_menu.saved || map_menu.failed))page=map_menu.saved?4:5;
+        return v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
+            camera&255,bg_camera&255,(ULONG)(map_captions+page*V6_DIALOGUE_BYTES),
+            0x6ff,DISPLAY_COLOUR(FG_PALETTE[1]),DISPLAY_COLOUR(FG_PALETTE[3]))!=0;
+    }
+#endif
     if(!pickup_prepare(ring,index,camera))return 0;
 #ifdef V6_VSTITCH_HINT_CAPTURE
     vstitch_prepare_bitmap(ring,index,camera);
@@ -2005,6 +2064,10 @@ static ULONG ui_game_hash(void)
 #ifdef V6_STATION_MENU
 #ifdef V6_VSTITCH_HINT_CAPTURE
     HASH(vstitch_seen);
+#ifdef V6_MAP_INPUT_CAPTURE
+    HASH(vstitch_hint.active);HASH(vstitch_hint.pending);HASH(vstitch_hint.visible);
+    HASH(vstitch_hint.timer);HASH(vstitch_hint.level);HASH(vstitch_hint.mode);
+#endif
 #endif
     HASH(station_story.companion);HASH(station_story.rescue_triggered);HASH(station_story.yellow_rescued);
     { unsigned i;ULONG map_hash=0;
@@ -2524,6 +2587,11 @@ static int run(void) {
 #endif
     __asm volatile("move.l 4.w,%0":"=r"(SysBase));
     if(SysBase->AttnFlags&AFF_68010) return 20;
+#ifdef V6_MAP_INPUT_CAPTURE
+    keyboard_resource=(struct Library *)OpenResource((CONST_STRPTR)"ciaa.resource");
+    if(!keyboard_resource)return 20;
+    v6_keyboard_init(&keyboard);v6_map_menu_init(&map_menu);
+#endif
     GfxBase=(struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library",0);
     if(!GfxBase) return 20;
     if(!(GfxBase->DisplayFlags&PAL)) { CloseLibrary((struct Library *)GfxBase);return 20; }
@@ -2758,6 +2826,12 @@ static int run(void) {
         ui_fields=250;ui_status=0;
 #ifdef V6_TOWER_PICKUP_SCREEN
         pickup_banks=ui_captions+UI_MESSAGE_COUNT*V6_DIALOGUE_BYTES;
+#ifdef V6_MAP_INPUT_CAPTURE
+        map_captions=pickup_banks+PICKUP_DMA_BYTES;
+        for(i=0;i<6;++i)if(!v6_dialogue_draw(map_captions+i*V6_DIALOGUE_BYTES,dialogue_font,&map_messages[i])) {
+            FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+        }
+#endif
         pickup_zero=pickup_banks+2*V6_PICKUP_BANK_BYTES;
         for(i=0;i<V6_PICKUP_PLANE_BYTES;++i)((volatile UBYTE *)pickup_zero)[i]=0;
         v6_pickup_draw_init(&pickup_draw);v6_pickup_fade_init(&pickup_fade);pickup_fade_shown=0;v6_pickup_draw_count(&pickup_draw,1);
@@ -2851,6 +2925,9 @@ static int run(void) {
 #endif
           ) {
         start=clock_lines();
+#ifdef V6_MAP_INPUT_CAPTURE
+        keyboard_poll();
+#endif
 #ifdef V6_TOWER_UI_SAVE
         {
             int right=(hw->potinp&0x0400)==0,fire=(*(volatile UBYTE *)0xbfe001&0x80)==0;
@@ -2896,6 +2973,10 @@ static int run(void) {
             }
 #endif
             action=v6_save_controls_tick(&save_controls,right,fire);
+#ifdef V6_MAP_INPUT_CAPTURE
+            if(map_menu.open && map_menu.save_pending)action=V6_SAVE_ACTION_SAVE;
+            else if(map_menu.open)action=V6_SAVE_ACTION_NONE;
+#endif
 #ifdef V6_TOWER_MENU_TRAVEL
             if(menu_save_pending) {
 #ifdef V6_TOWER_TRAVEL_AUDIO
@@ -2955,6 +3036,9 @@ static int run(void) {
                     __asm volatile("move.l %0,0x6c.w"::"r"(old_irq):"memory");
                     hw->cop1lc=(ULONG)GfxBase->copinit;hw->cop2lc=(ULONG)GfxBase->LOFlist;hw->copjmp1=0;
                     hw->adkcon=adk|0x8000;hw->dmacon=dma|0x8000;hw->intena=ints|0x8000;
+#ifdef V6_MAP_INPUT_CAPTURE
+                    SetICR(keyboard_resource,0);
+#endif
                     Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();diag.status=3;ui_os_paused=1;
                     ++ui_diag.values[5];
                     if(action==V6_SAVE_ACTION_SAVE)
@@ -2972,6 +3056,9 @@ static int run(void) {
                     }
                     if(result){++ui_diag.values[3];ui_status=3;}else{++ui_diag.values[action];ui_status=action;}
                     ui_fields=200;camera=session.camera.y;ui_copy(&controller,&session.camera,sizeof(controller));
+#ifdef V6_MAP_INPUT_CAPTURE
+                    v6_keyboard_init(&keyboard);
+#endif
                     /* Refill both banks while the OS owns the display. No DOS
                      * time is added to the private VBlank clock or accumulator. */
                     { unsigned i;for(i=0;i<2;++i) {
@@ -2997,6 +3084,12 @@ static int run(void) {
                     blank();previous=frames;logic_frame=frames;++ui_diag.values[6];
                 }
                 ui_diag.values[8]=result;ui_diag.values[9]=before_hash;ui_diag.values[10]=ui_game_hash();
+#ifdef V6_MAP_INPUT_CAPTURE
+                if(map_menu.save_pending) {
+                    v6_map_menu_save_result(&map_menu,result==0);
+                    ++map_diag.values[5];map_diag.values[6]=result;
+                }
+#endif
                 ui_diag.values[11]=before_frames;ui_diag.values[12]=frames;
                 ui_diag.values[13]=before_ticks;ui_diag.values[14]=diag.logic_ticks;
                 if(ui_trace.count<8) {
@@ -3088,6 +3181,43 @@ static int run(void) {
 #ifdef V6_TOWER_RECOVERY
 #ifdef V6_TOWER_PLAY
                 unsigned input=0;
+#ifdef V6_MAP_INPUT_CAPTURE
+                {
+                    unsigned buttons=v6_keyboard_map_buttons(&keyboard),was_open=map_menu.open,event;
+                    UWORD joy=hw->joy1dat;
+                    int fire=(*(volatile UBYTE *)0xbfe001&0x80)==0;
+                    if(joy&0x0200)buttons|=V6_MAP_LEFT;
+                    if(joy&2)buttons|=V6_MAP_RIGHT;
+                    if(fire)buttons|=V6_MAP_ACTION;
+                    if(!(buttons&V6_MAP_ACTION))map_action_held=0;
+                    event=v6_map_menu_tick(&map_menu,buttons,
+                        !route_loading && session.death_timer==-1 && !pickup_screen.state &&
+                        !tele_menu.open && !departure.state && !arrival.state && !rescue_vm.active &&
+                        !cue_audio.state && !travel_audio_busy(),0,0,0);
+                    if(event==V6_MAP_OPENED) {
+                        ++map_diag.values[2];map_pause_hash=ui_game_hash();ui_fields=0;
+                        map_diag.values[9]=diag.logic_ticks;
+                    }
+                    if(event==V6_MAP_CHANGED)++map_diag.values[3];
+                    if(event==V6_MAP_CLOSED) {
+                        ++map_diag.values[4];map_diag.values[10]=diag.logic_ticks;
+                        map_menu.mapheld=1; /* Closing transition's input latch. */
+                    }
+                    if(was_open || map_menu.open) {
+                        if(buttons&V6_MAP_ACTION)map_action_held=1;
+                        ++map_diag.values[7];
+                        if(ui_game_hash()!=map_pause_hash) {++map_diag.values[8];diag.error=21;}
+                        if(map_diag.count<128 && (event || buttons!=map_previous_buttons || !(map_diag.values[7]&15))) {
+                            volatile ULONG *r=map_diag.records[map_diag.count++];
+                            r[0]=diag.logic_ticks;r[1]=buttons;r[2]=event;r[3]=map_menu.open;
+                            r[4]=map_menu.page;r[5]=map_menu.saved;r[6]=map_menu.failed;r[7]=session.player.flips;
+                        }
+                        map_diag.values[11]=session.player.flips;
+                        map_previous_buttons=buttons;
+                        continue; /* Consume UI timestep without advancing the game. */
+                    }
+                }
+#endif
 #ifdef V6_TOWER_PLAY_REPLAY
 #ifdef V6_TOWER_WORLD
                 input=diag.logic_ticks<sizeof(tower_world_replay)?tower_world_replay[diag.logic_ticks]:0;
@@ -3145,6 +3275,16 @@ static int run(void) {
                 v6_vstitch_hint_tick(&vstitch_hint);
                 if(v6_vstitch_trigger_dispatch(&vstitch_hint,&vstitch_seen))vstitch_previous_level=5;
                 input=diag.logic_ticks<4?V6_LEFT:diag.logic_ticks<8?V6_RIGHT:0;
+#ifdef V6_MAP_INPUT_CAPTURE
+                /* Retain the eight-tick source fixture approach, then expose
+                 * ordinary physical controls for gameplay/dismissal checks. */
+                if(diag.logic_ticks>=8) {
+                    unsigned keys=v6_keyboard_map_buttons(&keyboard);UWORD joy=hw->joy1dat;
+                    if((keys&V6_MAP_LEFT)||(joy&0x0200))input|=V6_LEFT;
+                    if((keys&V6_MAP_RIGHT)||(joy&2))input|=V6_RIGHT;
+                    if((keys&V6_MAP_ACTION)||!(*(volatile UBYTE *)0xbfe001&0x80))input|=V6_FLIP;
+                }
+#endif
 #elif defined(V6_VSTITCH_INPUT_CAPTURE)
                 input=v6_prize_checkpoint_replay(diag.logic_ticks);
 #else
@@ -3203,6 +3343,9 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_UI_SAVE
                 input=v6_save_controls_filter(&save_controls,input);
+#endif
+#ifdef V6_MAP_INPUT_CAPTURE
+                if(map_action_held)input&=~V6_FLIP;
 #endif
 #ifdef V6_TOWER_PICKUP_SCREEN
                 if(pickup_screen.stopped) {
@@ -3835,6 +3978,9 @@ tele_menu_paused:
     __asm volatile("move.l %0,0x6c.w"::"r"(old_irq):"memory");
     hw->cop1lc=(ULONG)GfxBase->copinit;hw->cop2lc=(ULONG)GfxBase->LOFlist;hw->copjmp1=0;
     hw->adkcon=adk|0x8000;hw->dmacon=dma|0x8000;hw->intena=ints|0x8000;
+#ifdef V6_MAP_INPUT_CAPTURE
+    SetICR(keyboard_resource,0);
+#endif
     Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();diag.status=2;
 #ifdef V6_TOWER_UI_SAVE
     }

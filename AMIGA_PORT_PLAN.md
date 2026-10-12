@@ -11,8 +11,10 @@ pickup pause/caption/jingle/dismissal, 278 PAL work lines and zero missed frames
 The west rooms remain capture-only. V Stitch's upper map-hint lifecycle and timed grey ENTER caption now pass source
 comparisons and native captures. V5 now preserves flag 13 through actual DF1
 save and fresh-boot recovery. The normal four-tab map input core now matches
-desktop controls. Next: connect keyboard input and map presentation, then general
-room admission. See "Normal map menu controls" below.
+desktop controls, and a physical keyboard/caption fixture connects ENTER,
+paused tab navigation and Space quicksave to native DF1 persistence. Next:
+full map presentation and transitions, then general room admission. See
+"Native keyboard and map control fixture" below.
 
 Earlier milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
@@ -5272,3 +5274,47 @@ gameplay, render transitions/tabs, dispatch the existing checked save path, and
 restore gameplay after dismissal. Ship warp, special modes and pause/quit pages
 remain outside this bounded core. Next: Amiga keyboard input and map rendering,
 followed by physical ENTER/save/dismissal captures and general room admission.
+
+### Native keyboard and map control fixture (12 October 2026)
+
+`keyboard.c` decodes the inverted, rotated CIA-A serial byte and keeps physical
+keys separate before combining bindings. Return and keypad ENTER open/dismiss;
+left/right arrows navigate, and Space/Z/V or joystick fire act. Key-up events
+release only their own key. Lost-sync, overflow, self-test failure and a new
+power-up stream clear stale state. The host suite checks all 256 transmission
+vectors and 20,010 physical-key/protocol events under undefined-behaviour
+sanitization. The existing 6,144 desktop map-control comparisons still pass.
+
+The native `V6_MAP_INPUT_CAPTURE` candidate starts at upper V Stitch, retains
+its eight-tick source approach, then accepts physical movement/flip controls.
+During hardware takeover it samples only the serial pending bit through
+`ciaa.resource/SetICR`; other CIA pending bits remain with the resource. The
+handshake spans three PAL line boundaries, exceeding 85 microseconds, and
+restores serial input without restarting a Timer A one-shot that finished
+during the pulse. Resource state is sampled again when handing control back
+to the OS. The protocol and timing follow Commodore's
+[keyboard interface](https://www.theflatnet.de/pub/cbm/amiga/AmigaDevDocs/hard_g.html)
+and [CIA register reference](https://www.theflatnet.de/pub/cbm/amiga/AmigaDevDocs/hard_f.html);
+resource access follows the [CIA resource documentation](https://wiki.amigaos.net/wiki/CIA_Resource).
+
+`make -C amiga_version tower-map-input-capture` uses physical Return, keypad
+ENTER, left arrow, Space and joystick fire. Opening does not save. Left wraps
+from Map to Save; Space writes one source-bank-validated V5 record on DF1.
+A second Space press cannot repeat that attempt. Holding fire across dismissal
+causes no gravity flip. Gameplay and hint state remain unchanged throughout
+menu ticks, and the 96-tick player/hint trace still matches all 1,536 fields.
+An additional physical-key run opens during the visible hint at game tick 17,
+holds for 118 UI ticks and dismisses at the same game tick; its full player/hint
+trace also matches the source after resuming.
+A separate fresh executable loads the keyboard-produced save and suppresses
+the already-seen hint. Another run dismisses and exits to the OS without
+touching DF1. A Chip dump matches all six caption bitmaps (23,040 bytes), and
+the Save-tab screenshot has been inspected.
+
+This is a caption-only four-tab control fixture: full explored-map/crew/stats
+content, menu sliding transitions, general campaign admission, ship warp and
+pause/quit pages remain pending. It adds 23,040 Chip bytes for six immutable
+captions (319,190 total); the measured capture peaks at 163 PAL work lines
+with zero missed frames/errors. The native ELF has no undefined symbols.
+`tower-map-input-run` opens the bounded interactive fixture with a retained
+private save disk. Music reconstruction remains paused.

@@ -13,8 +13,8 @@ floor checkpoint. **Traffic Jam (115,103)** adds three wide moving enemies;
 its seven-channel capture now passes the video headroom gate.
 **Stop and Reflect (112,106)** adds three moving platforms and a verified
 vertical ride replay. **Just Pick Yourself Down (117,109)** adds an original
-horizontal platform and two working checkpoints. General scripts, wider campaign progression, keyboard controls and
-music remain unimplemented; the separate Seeing Red rescue fixture described
+horizontal platform and two working checkpoints. General scripts, wider campaign progression, keyboard controls in this initial slice and
+music remain unimplemented; the separate keyboard/map control and Seeing Red rescue fixtures described
 below now runs its bounded script and follower. See [the port plan](../AMIGA_PORT_PLAN.md).
 
 ## Build and run
@@ -3946,3 +3946,34 @@ passes 21,120 fields at 278 lines with zero errors/misses.
 Next: interactive ENTER map/quicksave handling and the remaining general
 campaign/renderer admission. ENTER remains the selected hint label. Music stays
 paused pending original tracker files.
+
+## Native keyboard and map control fixture
+
+```sh
+make -C amiga_version tower-map-input-capture
+make -C amiga_version tower-map-input-run
+```
+
+This bounded candidate starts at V Stitch's upper checkpoint and retains the
+first eight source replay ticks before accepting physical controls. Return or
+keypad ENTER opens/dismisses the menu; left/right arrows move in gameplay and
+select menu tabs. Space/Z/V or joystick fire flips in gameplay and requests
+quicksave on the Save tab. Left mouse exits. The interactive launcher retains
+`build/amiga-map-input/map-play-save.adf` as its private writable DF1 disk;
+right-mouse save and fire/right-mouse load remain available outside the menu.
+
+The four tabs currently use caption placeholders; the full explored map,
+crew/stats content and sliding transitions are the next rendering work. Menu
+ticks pause gameplay and the timed map hint. Opening does not save. An attempted
+save cannot repeat until the next menu opening, and held action input remains
+consumed through dismissal until release.
+
+The capture checks physical Return/keypad ENTER, left arrow, Space, real V5
+DF1 persistence and fresh-boot suppression of the seen hint, held-fire dismissal,
+and clean OS return. A separate run freezes the visible hint for 118 menu
+ticks and resumes with the source-exact timer. All 1,536 initial player/hint fields match the source;
+the native caption bank matches 23,040 expected bitmap bytes. The measured
+build uses 319,190 Chip bytes and peaks at 163 PAL work lines with zero missed
+frames/errors. Reports and the inspected `map-save-tab.png` are in
+`build/amiga-map-input`. This remains a resident control fixture, not general
+campaign/map admission.
