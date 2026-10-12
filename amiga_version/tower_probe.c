@@ -1,3 +1,9 @@
+#if defined(V6_MAP_DISPLAY_CAPTURE) && !defined(V6_MAP_INPUT_CAPTURE)
+#error Map display requires the physical keyboard/menu fixture
+#endif
+#if defined(V6_MAP_DIRTY_CAPTURE) && !defined(V6_MAP_DISPLAY_CAPTURE)
+#error Map refresh stress fixture requires the map display
+#endif
 #if defined(V6_MAP_INPUT_CAPTURE) && !defined(V6_VSTITCH_HINT_CAPTURE)
 #error Map control capture requires the resident upper V Stitch hint/save fixture
 #endif
@@ -9,6 +15,13 @@
 #endif
 #if defined(V6_PRIZE_RETURN_INPUT_CAPTURE) && (!defined(V6_VSTITCH_INPUT_CAPTURE) || !defined(V6_TOWER_PICKUP_SCREEN))
 #error West return capture requires the lower V Stitch approach and pickup controller
+#endif
+#ifdef V6_MAP_DISPLAY_CAPTURE
+#define MAP_AUX_TRACE_ROWS(n) 1
+#define MAP_AUX_TRACE_ENABLED 0
+#else
+#define MAP_AUX_TRACE_ROWS(n) (n)
+#define MAP_AUX_TRACE_ENABLED 1
 #endif
 /* The long west replay and upper-hint replay own dedicated traces. Auxiliary fixture
  * traces retain a header/one slot but are disabled to fit the stock 1 MB boot. */
@@ -192,6 +205,16 @@ static const V6RescueSpeech map_messages[6]={
 };
 static volatile struct {ULONG magic,version,values[12],count,records[128][8];}
     map_diag={0x56364d49,1,{0},0,{{0}}};
+#ifdef V6_MAP_DISPLAY_CAPTURE
+#include "map_draw.h"
+#include "map_assets.h"
+static UBYTE *map_bitmap;
+static void ui_copy(void *,const void *,unsigned);
+static V6Exploration map_bitmap_exploration;
+static unsigned map_bitmap_rows,map_cursor_state,map_cursor_delay;
+static volatile struct {ULONG magic,version,values[5],count,records[128][6];}
+    map_display_diag={0x56364d50,1,{0},0,{{0}}};
+#endif
 #endif
 static unsigned ui_status,ui_fields;
 static UBYTE *ui_captions;
@@ -555,7 +578,7 @@ static V6PickupDraw pickup_draw;
 static V6PickupFade pickup_fade;
 static unsigned pickup_fade_shown;
 static ULONG pickup_colours;
-static volatile struct {ULONG magic,version,count,records[64][8];}
+static volatile struct {ULONG magic,version,count,records[MAP_AUX_TRACE_ROWS(64)][8];}
     pickup_fade_diag={0x56364646,1,0,{{0}}};
 static UBYTE *pickup_banks,*pickup_zero;
 static UWORD pickup_mask[V6_PICKUP_PLANE_BYTES/2] __attribute__((aligned(4)));
@@ -563,7 +586,7 @@ static UWORD pickup_ink[V6_PICKUP_PLANE_BYTES/2] __attribute__((aligned(4)));
 static unsigned pickup_rows[2],pickup_bar_rows[2];
 static unsigned pickup_bar_room[2],pickup_bar_camera[2];
 static unsigned pickup_bar_position[2],pickup_render_bars;
-static volatile struct {ULONG magic,version,count,records[96][7];}
+static volatile struct {ULONG magic,version,count,records[MAP_AUX_TRACE_ROWS(96)][7];}
     pickup_interpolation={0x56365049,1,0,{{0}}};
 static UWORD pickup_bar_masks[2][2][20];
 typedef ULONG PickupCopperLong __attribute__((__may_alias__));
@@ -574,7 +597,7 @@ static ULONG pickup_copper_colours[4];
 static const UWORD pickup_blank[20] __attribute__((aligned(4)))={0};
 static ULONG pickup_world_hash,pickup_actor_snapshot[sizeof(V6Prize)/sizeof(ULONG)];
 static unsigned pickup_hash_valid;
-static volatile struct {ULONG magic,version,count,values[8],records[256][5];}
+static volatile struct {ULONG magic,version,count,values[8],records[MAP_AUX_TRACE_ROWS(256)][5];}
     pickup_presentation={0x56365042,1,0,{0},{{0}}};
 static unsigned pickup_held,pickup_pause_ticks;
 static volatile struct {ULONG magic,version,values[12];}
@@ -607,7 +630,7 @@ static unsigned prize_ui_stage,prize_pickup_release;
 #ifndef PRIZE_TRACE_FIELDS
 #define PRIZE_TRACE_FIELDS 24
 #endif
-static volatile struct {ULONG magic,version,count;LONG records[PRIZE_INPUT_TICKS][PRIZE_TRACE_FIELDS];}
+static volatile struct {ULONG magic,version,count;LONG records[MAP_AUX_TRACE_ROWS(PRIZE_INPUT_TICKS)][PRIZE_TRACE_FIELDS];}
     prize_route_trace={
 #ifdef V6_PRIZE_INPUT_CAPTURE
         0x5636504e,
@@ -1138,7 +1161,12 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #define PICKUP_DMA_BYTES 0
 #endif
 #ifdef V6_MAP_INPUT_CAPTURE
-#define MAP_DMA_BYTES (6*V6_DIALOGUE_BYTES)
+#ifdef V6_MAP_DISPLAY_CAPTURE
+#define MAP_BITMAP_DMA_BYTES V6_MAP_BITMAP_BYTES
+#else
+#define MAP_BITMAP_DMA_BYTES 0
+#endif
+#define MAP_DMA_BYTES (6*V6_DIALOGUE_BYTES+MAP_BITMAP_DMA_BYTES)
 #else
 #define MAP_DMA_BYTES 0
 #endif
@@ -1497,7 +1525,7 @@ static void pickup_draw_tick(void)
     }
     v6_pickup_fade_tick(&pickup_fade);
     v6_pickup_draw_tick(&pickup_draw,pickup_screen.bars);
-    if((pickup_draw.bars || pickup_draw.old_bars) && pickup_presentation.count<256) {
+    if(MAP_AUX_TRACE_ENABLED && (pickup_draw.bars || pickup_draw.old_bars) && pickup_presentation.count<256) {
         volatile ULONG *r=pickup_presentation.records[pickup_presentation.count++];
         r[0]=pickup_screen.state;r[1]=pickup_draw.bars;r[2]=pickup_draw.old_bars;
         r[3]=pickup_screen.visible;r[4]=diag.logic_ticks;
@@ -1514,7 +1542,7 @@ static int pickup_prepare(UBYTE *ring,unsigned index,unsigned camera)
     pickup_colours=v6_pickup_fade_colours(&pickup_fade,diag.logic_remainder);
     pickup_render_bars=v6_pickup_bar_position(&pickup_draw,diag.logic_remainder);
     if(!pickup_banks)return 1;
-    if(pickup_fade_diag.count<64 && (pickup_fade.visible || pickup_fade_diag.count) &&
+    if(MAP_AUX_TRACE_ENABLED && pickup_fade_diag.count<64 && (pickup_fade.visible || pickup_fade_diag.count) &&
        (!pickup_fade_diag.count || pickup_fade_diag.records[pickup_fade_diag.count-1][6]!=pickup_colours)) {
         volatile ULONG *r=pickup_fade_diag.records[pickup_fade_diag.count++];
         r[0]=diag.logic_ticks;r[1]=pickup_fade.mode;r[2]=pickup_fade.old_level;
@@ -1542,7 +1570,7 @@ static int pickup_prepare(UBYTE *ring,unsigned index,unsigned camera)
             V6_TOWER_PLANE_BYTES/2,pickup_blank,pickup_blank);
     }
     position=pickup_draw.bars?pickup_render_bars:25;
-    if((pickup_draw.bars || pickup_draw.old_bars) && pickup_interpolation.count<96 &&
+    if(MAP_AUX_TRACE_ENABLED && (pickup_draw.bars || pickup_draw.old_bars) && pickup_interpolation.count<96 &&
        (!pickup_interpolation.count || pickup_interpolation.records[pickup_interpolation.count-1][5]!=pickup_render_bars)) {
         volatile ULONG *r=pickup_interpolation.records[pickup_interpolation.count++];
         r[0]=diag.logic_ticks;r[1]=frames;r[2]=pickup_draw.old_bars;r[3]=pickup_draw.bars;
@@ -1593,6 +1621,45 @@ static void vstitch_prepare_bitmap(UBYTE *ring,unsigned index,unsigned camera)
 static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsigned *drawn) {
     UWORD *p=list;unsigned i,background_rows,copied,bg_camera=background_camera(camera);
     copied=0;
+#ifdef V6_MAP_DISPLAY_CAPTURE
+    if(map_bitmap) {
+        unsigned changed=0;
+        for(i=0;i<V6_EXPLORED_BYTES;++i)if(map_bitmap_exploration.rooms[i]!=tele_exploration.rooms[i])changed=1;
+        if(changed) {
+            map_bitmap_rows=0;
+            ui_copy(&map_bitmap_exploration,&tele_exploration,sizeof(tele_exploration));
+        }
+        if(map_bitmap_rows<240) {
+            UBYTE row[200];unsigned plane;
+            if(!v6_map_draw_template_row(row,map_bitmap_rows,&map_bitmap_exploration,map_template_rle,sizeof(map_template_rle),map_template_offsets,map_fog_bits))return 0;
+            for(plane=0;plane<5;++plane)for(i=0;i<40;++i)
+                map_bitmap[plane*V6_MAP_PLANE_BYTES+map_bitmap_rows*40+i]=row[plane*40+i];
+            ++map_bitmap_rows;++map_display_diag.values[0];
+        }
+        if(map_menu.open && map_menu.page==0 && route.index==9 && map_bitmap_rows==240) {
+            uint32_t rows[32];uint16_t palette[32];int x,y;
+            unsigned mode=v6_map_cursor_mode(map_cursor_state,map_cursor_delay,session.noflashing);
+            uint32_t sprite=(ULONG)player_sprites[index].dma;
+            map_display_diag.values[2]=(ULONG)map_bitmap;
+            map_display_diag.values[3]=sprite;
+            map_display_diag.values[4]=(ULONG)pickup_zero;
+            v6_sprites_begin(&player_sprites[index],player_sprites[index].dma);
+            if(!v6_map_cursor_rows(rows,mode,112,107,&x,&y))return 0;
+            if(mode && v6_sprites_add_rect(&player_sprites[index],rows,x,y,0,12,9,mode==1?0xfff:0x1ee)<0)return 0;
+            for(i=0;i<32;++i)palette[i]=map_palette[i];
+            palette[17]=mode==1?0xfff:0x1ee;
+            if(!v6_map_copper(list,(ULONG)map_bitmap,palette,(ULONG)pickup_zero,sprite))return 0;
+            if(drawn)*drawn=0;
+            ++map_display_diag.values[1];map_display_diag.values[2]=(ULONG)map_bitmap;
+            map_display_diag.values[3]=x;map_display_diag.values[4]=y;
+            if(map_display_diag.count<128) {
+                volatile ULONG *r=map_display_diag.records[map_display_diag.count++];
+                r[0]=map_cursor_state;r[1]=map_cursor_delay;r[2]=mode;r[3]=index;r[4]=sprite;r[5]=palette[17];
+            }
+            return 1;
+        }
+    }
+#endif
 #ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
     if((route.index==10 || route.index==11) && west_copper_ready[index] &&
        !camera && !shake_timer && !ui_fields && !rescue_fade && !rescue_vm.speech && !rescue_bars &&
@@ -2831,6 +2898,18 @@ static int run(void) {
         for(i=0;i<6;++i)if(!v6_dialogue_draw(map_captions+i*V6_DIALOGUE_BYTES,dialogue_font,&map_messages[i])) {
             FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
         }
+#ifdef V6_MAP_DISPLAY_CAPTURE
+        map_bitmap=map_captions+6*V6_DIALOGUE_BYTES;
+        ui_copy(&map_bitmap_exploration,&tele_exploration,sizeof(tele_exploration));
+        for(i=0;i<240;++i) {
+            UBYTE row[200];unsigned p,x;
+            if(!v6_map_draw_template_row(row,i,&map_bitmap_exploration,map_template_rle,sizeof(map_template_rle),map_template_offsets,map_fog_bits)) {
+                FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+            }
+            for(p=0;p<5;++p)for(x=0;x<40;++x)map_bitmap[p*V6_MAP_PLANE_BYTES+i*40+x]=row[p*40+x];
+        }
+        map_bitmap_rows=240;map_display_diag.values[0]=240;
+#endif
 #endif
         pickup_zero=pickup_banks+2*V6_PICKUP_BANK_BYTES;
         for(i=0;i<V6_PICKUP_PLANE_BYTES;++i)((volatile UBYTE *)pickup_zero)[i]=0;
@@ -3197,6 +3276,9 @@ static int run(void) {
                     if(event==V6_MAP_OPENED) {
                         ++map_diag.values[2];map_pause_hash=ui_game_hash();ui_fields=0;
                         map_diag.values[9]=diag.logic_ticks;
+#ifdef V6_MAP_DISPLAY_CAPTURE
+                        map_cursor_state=map_cursor_delay=0;
+#endif
                     }
                     if(event==V6_MAP_CHANGED)++map_diag.values[3];
                     if(event==V6_MAP_CLOSED) {
@@ -3204,6 +3286,9 @@ static int run(void) {
                         map_menu.mapheld=1; /* Closing transition's input latch. */
                     }
                     if(was_open || map_menu.open) {
+#ifdef V6_MAP_DISPLAY_CAPTURE
+                        v6_map_cursor_tick(&map_cursor_state,&map_cursor_delay);
+#endif
                         if(buttons&V6_MAP_ACTION)map_action_held=1;
                         ++map_diag.values[7];
                         if(ui_game_hash()!=map_pause_hash) {++map_diag.values[8];diag.error=21;}
@@ -3217,6 +3302,12 @@ static int run(void) {
                         continue; /* Consume UI timestep without advancing the game. */
                     }
                 }
+#endif
+#ifdef V6_MAP_DIRTY_CAPTURE
+                /* Fixture-only exploration of the adjacent resident Prize
+                 * room: stress hidden-bank refresh without teleporting the
+                 * player or changing the source physics/hint replay. */
+                if(diag.logic_ticks==100 && !v6_exploration_visit(&tele_exploration,111,107))diag.error=21;
 #endif
 #ifdef V6_TOWER_PLAY_REPLAY
 #ifdef V6_TOWER_WORLD
@@ -3789,7 +3880,7 @@ static int run(void) {
                     pickup_diag.values[7]=session.player.flips;
 #endif
 #if defined(V6_PRIZE_ROUTE_CAPTURE) || defined(V6_PRIZE_INPUT_CAPTURE)
-                if(prize_route_trace.count<PRIZE_INPUT_TICKS) {
+                if(MAP_AUX_TRACE_ENABLED && prize_route_trace.count<PRIZE_INPUT_TICKS) {
                     volatile LONG *d=prize_route_trace.records[prize_route_trace.count++];
                     unsigned i;
                     d[0]=route.index;d[1]=session.player.x;d[2]=session.player.y;

@@ -11,10 +11,11 @@ pickup pause/caption/jingle/dismissal, 278 PAL work lines and zero missed frames
 The west rooms remain capture-only. V Stitch's upper map-hint lifecycle and timed grey ENTER caption now pass source
 comparisons and native captures. V5 now preserves flag 13 through actual DF1
 save and fresh-boot recovery. The normal four-tab map input core now matches
-desktop controls, and a physical keyboard/caption fixture connects ENTER,
-paused tab navigation and Space quicksave to native DF1 persistence. Next:
-full map presentation and transitions, then general room admission. See
-"Native keyboard and map control fixture" below.
+desktop controls, and physical keyboard handling connects ENTER, paused tab
+navigation and Space quicksave to native DF1 persistence. The bounded V Stitch
+map now displays the original minimap, exploration fog and flashing current-room
+outline. Next: menu transitions and remaining tab content, then general room
+admission. See "Native explored map display" below.
 
 Earlier milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
@@ -5318,3 +5319,55 @@ captions (319,190 total); the measured capture peaks at 163 PAL work lines
 with zero missed frames/errors. The native ELF has no undefined symbols.
 `tower-map-input-run` opens the bounded interactive fixture with a retained
 private save disk. Music reconstruction remains paused.
+
+### Native explored map display (12 October 2026)
+
+The `V6_MAP_DISPLAY_CAPTURE` candidate replaces the Map tab caption with a
+five-plane 320x240 screen. It uses the original 240x180 `minimap.png` at (40,21),
+the original 12x9 `covered.png` for each unexplored room, source alpha border
+tiles, the V Stitch title and the four source-positioned footer tabs. Source
+RGB components are rounded to RGB12 without reducing the palette; 29 colours
+fit within five bitplanes. Palette slot 17 is reserved for the current-room
+sprite, avoiding bitmap/sprite colour conflicts. Other tabs retain their
+bounded control captions.
+
+`test-map-draw` extracts desktop `Render.cpp` map/fog/cursor statements,
+`Graphics.cpp` textbox/tab drawing and `RenderFixed.cpp` cursor timing. The raw,
+pixel-run and packed-template renderers match 32,102,400 source pixels each,
+including every one-room exploration mask. It also verifies 1,900 non-tower
+cursor placements, 2,000 timer updates, 27 complete five-plane DMA schedules,
+and rejection of malformed runs/rows/colours/addresses without output mutation.
+The cursor's long-running /15 blink phase is preserved with a bounded counter.
+
+The native all-revealed template compresses to 27,116 run/count bytes plus
+482 bytes of row offsets and 90 bytes of original fog masks. The native linker
+excludes the raw image and pixel-run host reference arrays. Unused pickup/Prize
+diagnostic record arrays are reduced only in this map-display candidate so it
+can boot within the stock 1 MB allocation. One 48,000-byte Chip bitmap is built
+while the OS owns the screen. Changes to exploration invalidate it and rebuild
+one hidden row per field, decoding packed bytes and applying two-byte fog
+masks rather than doing pixel/font/border work during gameplay. It is never
+modified while presented. Both existing inactive sprite banks and Copper lists
+are reused for the flashing white double outline/cyan inner outline. Normal
+single-playfield priority uses PF2P, following the
+[hardware priority reference](https://www.theflatnet.de/pub/cbm/amiga/AmigaDevDocs/hard_7.html).
+The target's palette validation uses explicit word reads to avoid an observed
+m68k GCC 14 byte-loop transformation that rejected valid RGB12 low bytes.
+
+`tower-map-display-capture` checks physical ENTER/keypad ENTER, tab navigation,
+Space quicksave, held-fire dismissal and unchanged player/hint state. All
+1,536 initial source fields pass. A real Chip dump matches the complete
+48,000-byte source-derived bitmap, both Copper lists and cursor DMA descriptors;
+the screenshot verifies that the outline appears in front of opaque map tiles.
+The private boot/save disks remain unchanged during the visual capture.
+`tower-map-display-dirty-capture` injects one adjacent resident-room exploration
+bit at game tick 100 without moving the player. All 240 refreshed rows match
+the source, both explored cells appear in the map, and V5 preserves both bits.
+This is a controlled refresh stress fixture, not a traversal claim. The builds
+use 367,190 Chip bytes and peak at 167 lines normally / 272 during refresh,
+with zero missed frames/errors and no undefined ELF symbols.
+
+`tower-map-display-run` launches the bounded interactive build. Full menu
+transitions, palette glow (this capture uses source glow=0), crew/stats content,
+ship warp, tower-column cursor, legends and general campaign admission remain
+pending. Music stays paused pending original tracker files.

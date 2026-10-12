@@ -3977,3 +3977,32 @@ build uses 319,190 Chip bytes and peaks at 163 PAL work lines with zero missed
 frames/errors. Reports and the inspected `map-save-tab.png` are in
 `build/amiga-map-input`. This remains a resident control fixture, not general
 campaign/map admission.
+
+## Native explored map display
+
+```sh
+make -C amiga_version tower-map-display-capture
+make -C amiga_version tower-map-display-dirty-capture
+make -C amiga_version tower-map-display-run
+```
+
+This extends the upper V Stitch keyboard fixture with the original minimap,
+unexplored-room fog, room title, border and footer tabs. ENTER opens the map;
+left/right select tabs, and Space/Z/V or fire quicksaves on Save. Other tabs
+still use the control captions. The launcher retains its private DF1 disk in
+`build/amiga-map-display/map-play-save.adf`.
+
+The five-plane display preserves the source colours after RGB12 rounding.
+A cursor-only palette slot and the existing sprite banks supply the original
+flashing room outline. A packed template and fog masks let changes to the
+50-byte exploration bank rebuild one hidden row per field. Source comparisons
+cover 32.1 million pixels for each renderer path and all 400 single-room masks.
+Native dumps match the complete 48,000-byte screen, both Copper lists and
+cursor DMA; the inspected screenshot is `build/amiga-map-display/explored-map.png`.
+
+The normal capture peaks at 167 PAL work lines. The controlled refresh fixture
+adds an adjacent resident-room exploration bit without moving the player and
+peaks at 272 lines; both pass with zero missed frames/errors and 367,190 Chip
+bytes on the 512K Chip/512K Slow A500. Keyboard menu/save/dismissal and source
+player/hint comparisons also pass. Menu transitions, palette glow, crew/stats
+content, tower cursor, legends and general campaign admission remain pending.
