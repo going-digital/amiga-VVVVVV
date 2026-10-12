@@ -8,9 +8,9 @@ campaign-route work. The native checkpoint-preserving west loop now connects the
 V Stitch lower checkpoint approach to the Prize trinket pickup through A Deception,
 Down Under and Shenanigan. Its 660 ticks match the host, with source actor drawing,
 pickup pause/caption/jingle/dismissal, 278 PAL work lines and zero missed frames.
-The west rooms remain capture-only. V Stitch's upper map-hint lifecycle now has
-a source-verified core and native replay. Next: its timed grey caption and flag-13
-persistence, then general room/save admission. See "V Stitch upper hint lifecycle"
+The west rooms remain capture-only. V Stitch's upper map-hint lifecycle and timed grey ENTER caption now pass source
+comparisons and native captures. Next: flag-13 persistence and interactive input
+handling, then general room/save admission. See "V Stitch timed grey caption"
 below.
 
 Earlier milestone (7 October 2026): Building Apport's resident route is
@@ -5176,3 +5176,36 @@ lines with zero errors/misses.
 
 Next: render the timed grey caption at the source position, then add flag-13
 persistence and complete general campaign/save admission. Music remains paused.
+
+### V Stitch timed grey caption — 12 October 2026
+
+The upper map/quicksave hint now renders the user-selected ENTER label. Extracted
+source balanced wrapping gives two lines ("Press ENTER to view" / "map and
+quicksave"), a centered 200x33 box at (60,155), two-character side padding and
+one-pixel line spacing. `vstitch_hint_draw.c` preserves the original alpha border
+tiles 40–47. Source grey is RGB 174; fill is r/6 and glyph/border brightness
+interpolates between fixed updates over 34ms before OCS colour quantization.
+The timer and five-update fades still leave movement running.
+
+The display uses a five-plane strip only at y=155..187, with the original
+foreground/background elsewhere. Existing pickup banks and the zero background
+plane supply the DMA storage. Both immutable room compositions are prepared
+before gameplay; only the Copper palette changes during the fade. Room entry
+invalidates the compositions. This adds no Chip allocation: 296,150 bytes.
+
+`test-vstitch-hint-draw` compares 337,920 box/font pixels against the original
+wrapping, padding and border-drawing methods, 32,048 interpolated source-grey
+palettes, and 680 complete foreground/background DMA schedules, including all
+ring offsets and wrap/strip boundaries. Invalid inputs preserve their outputs.
+The native upper replay passes all 1,536 world/hint fields and 111 presentation
+frames at 158 PAL work lines, with zero errors/missed frames. A second capture
+lands while the caption is visible; both Chip banks match 7,920 source-derived
+bytes across all three planes, including room artwork outside the box. The
+screenshot passes visual inspection. Both disks remain unchanged; the ELF has
+no undefined symbols. The retained 660-tick west return/pickup capture also
+passes all 21,120 fields at 278 lines with zero errors/missed frames.
+
+This remains an English, fixed-room capture. ENTER is the agreed hint label;
+interactive map/quicksave input handling and campaign flag-13 persistence remain
+pending, together with general V Stitch/west-room admission. Next: persist the
+one-shot flag through save/load and complete the remaining admission work.

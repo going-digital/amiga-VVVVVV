@@ -293,7 +293,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -O2 -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/vstitch_trigger.o $(BUILD)/prize_return.o $(BUILD)/prize_return_sprite.o $(BUILD)/prize_return_draw.o $(BUILD)/pixel_collision.o $(BUILD)/pickup_fade.o $(BUILD)/pickup_draw.o $(BUILD)/pickup_copper.o $(BUILD)/trinket_screen.o $(BUILD)/prize.o $(BUILD)/platform_gate.o $(BUILD)/disappearing.o $(BUILD)/trinkets.o $(BUILD)/platform.o $(BUILD)/enemy.o $(BUILD)/station_trigger.o $(BUILD)/teleporter_admission.o $(BUILD)/screen_shake.o $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/vstitch_hint_draw.o $(BUILD)/vstitch_hint_copper.o $(BUILD)/vstitch_trigger.o $(BUILD)/prize_return.o $(BUILD)/prize_return_sprite.o $(BUILD)/prize_return_draw.o $(BUILD)/pixel_collision.o $(BUILD)/pickup_fade.o $(BUILD)/pickup_draw.o $(BUILD)/pickup_copper.o $(BUILD)/trinket_screen.o $(BUILD)/prize.o $(BUILD)/platform_gate.o $(BUILD)/disappearing.o $(BUILD)/trinkets.o $(BUILD)/platform.o $(BUILD)/enemy.o $(BUILD)/station_trigger.o $(BUILD)/teleporter_admission.o $(BUILD)/screen_shake.o $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -1136,6 +1136,15 @@ $(BUILD)/vstitch_trigger.o: vstitch_trigger.c vstitch_trigger.h player.h | $(BUI
 test-vstitch-trigger: $(BUILD)/vstitch_trigger.o
 	python3 $(ROOT)/tools/amiga/test_vstitch_trigger.py
 test: test-vstitch-trigger
-tower-vstitch-hint-capture: tower-assets test-vstitch-trigger
+tower-vstitch-hint-capture: tower-assets test-vstitch-trigger test-vstitch-hint-draw
 	$(MAKE) BUILD=$(ROOT)/build/amiga-vstitch-hint CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_VSTITCH_INPUT_CAPTURE -DV6_VSTITCH_HINT_CAPTURE" $(ROOT)/build/amiga-vstitch-hint/tower.adf
 	python3 $(ROOT)/tools/amiga/run_vstitch_hint.py --build $(ROOT)/build/amiga-vstitch-hint
+
+$(BUILD)/vstitch_hint_draw.o: vstitch_hint_draw.c vstitch_hint_draw.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+$(BUILD)/vstitch_hint_copper.o: vstitch_hint_copper.c vstitch_hint_draw.h tower_draw.h pickup_draw.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+.PHONY: test-vstitch-hint-draw
+test-vstitch-hint-draw: $(BUILD)/vstitch_hint_draw.o $(BUILD)/vstitch_hint_copper.o
+	python3 $(ROOT)/tools/amiga/test_vstitch_hint_draw.py
+test: test-vstitch-hint-draw

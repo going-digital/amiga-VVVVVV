@@ -613,8 +613,14 @@ static volatile struct {ULONG magic,version,count;LONG records[PRIZE_INPUT_TICKS
 static V6Terrain vstitch_terrain;
 #ifdef V6_VSTITCH_HINT_CAPTURE
 #include "vstitch_trigger.h"
+#include "vstitch_hint_draw.h"
 static V6VStitchTrigger vstitch_hint;
 static int vstitch_seen;
+static unsigned vstitch_previous_level,vstitch_bitmap_ready[2];
+static UWORD vstitch_mask[V6_HINT_BYTES/2] __attribute__((aligned(4)));
+static UWORD vstitch_ink[V6_HINT_BYTES/2] __attribute__((aligned(4)));
+static volatile struct {ULONG magic,version,count,compositions;LONG records[128][7];}
+    vstitch_draw_trace={0x56365644,1,0,0,{{0}}};
 static volatile struct {ULONG magic,version,count;LONG records[96][16];}
     vstitch_hint_trace={0x56365648,1,0,{{0}}};
 #endif
@@ -1218,6 +1224,7 @@ static int route_source(void)
 #endif
 #ifdef V6_VSTITCH_HINT_CAPTURE
     v6_vstitch_trigger_enter(&vstitch_hint,route.rooms[route.index].x,route.rooms[route.index].y,0);
+    vstitch_bitmap_ready[0]=vstitch_bitmap_ready[1]=0;
 #endif
     route_loading=2;route_budget=1;
 #ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
@@ -1512,6 +1519,19 @@ static int pickup_prepare(UBYTE *ring,unsigned index,unsigned camera)
     pickup_presentation.values[2]=pickup_rows[0];pickup_presentation.values[3]=pickup_rows[1];
     pickup_presentation.values[4]=pickup_bar_rows[0];pickup_presentation.values[5]=pickup_bar_rows[1];
     return 1;
+}
+#endif
+#ifdef V6_VSTITCH_HINT_CAPTURE
+static void vstitch_prepare_bitmap(UBYTE *ring,unsigned index,unsigned camera)
+{
+    unsigned row;UBYTE *bank;
+    if(!pickup_banks || route.index!=9 || vstitch_bitmap_ready[index])return;
+    bank=pickup_banks+index*V6_PICKUP_BANK_BYTES+V6_PICKUP_TEXT_OFFSET;
+    for(row=0;row<V6_HINT_HEIGHT;++row)
+        v6_pickup_compose_row((UWORD *)(bank+row*40),V6_PICKUP_PLANE_BYTES/2,
+            (const UWORD *)(ring+((camera+V6_HINT_TOP+row)&255)*40),V6_TOWER_PLANE_BYTES/2,
+            vstitch_mask+row*20,vstitch_ink+row*20);
+    vstitch_bitmap_ready[index]=1;++vstitch_draw_trace.compositions;
 }
 #endif
 static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsigned *drawn) {
@@ -1842,6 +1862,21 @@ west_sprite_refresh:
 #endif
 #ifdef V6_TOWER_PICKUP_SCREEN
     if(!pickup_prepare(ring,index,camera))return 0;
+#ifdef V6_VSTITCH_HINT_CAPTURE
+    vstitch_prepare_bitmap(ring,index,camera);
+    if(vstitch_hint.visible && route.index==9) {
+        ULONG colours=v6_vstitch_hint_colours(vstitch_previous_level,vstitch_hint.level,diag.logic_remainder);
+        if(!colours || !vstitch_bitmap_ready[index])return 0;
+        if(vstitch_draw_trace.count<128) {
+            volatile LONG *h=vstitch_draw_trace.records[vstitch_draw_trace.count++];
+            h[0]=diag.logic_ticks;h[1]=vstitch_previous_level;h[2]=vstitch_hint.level;
+            h[3]=diag.logic_remainder;h[4]=colours;h[5]=index;h[6]=vstitch_hint.visible;
+        }
+        return v6_vstitch_hint_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),camera&255,bg_camera&255,
+            (ULONG)(pickup_banks+index*V6_PICKUP_BANK_BYTES+V6_PICKUP_TEXT_OFFSET),(ULONG)pickup_zero,
+            colours>>16,colours&0xffff)!=0;
+    }
+#endif
     if(pickup_fade.visible || pickup_draw.bars) {
         unsigned cache=index*2+pickup_fade.visible;
         unsigned key=(camera&255)|((bg_camera&255)<<8)|
@@ -2697,6 +2732,15 @@ static int run(void) {
             }
         }
         v6_trinket_screen_init(&pickup_screen);
+#ifdef V6_VSTITCH_HINT_CAPTURE
+        for(i=0;i<V6_HINT_HEIGHT;++i)if(!v6_vstitch_hint_row(i,(UBYTE *)vstitch_mask+i*40,
+            (UBYTE *)vstitch_ink+i*40,dialogue_font,pickup_border)) {
+            FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+        }
+        /* Fixed room art: compose the first bank before takeover and the
+         * second during normal boot warming, before gameplay measurements. */
+        vstitch_prepare_bitmap(rings[0],0,camera);ui_fields=0;
+#endif
 #endif
     }
 #endif
@@ -3060,8 +3104,9 @@ static int run(void) {
 #elif defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE)
                 input=v6_prize_collection_replay(diag.logic_ticks);
 #elif defined(V6_VSTITCH_HINT_CAPTURE)
+                vstitch_previous_level=vstitch_hint.level;
                 v6_vstitch_hint_tick(&vstitch_hint);
-                v6_vstitch_trigger_dispatch(&vstitch_hint,&vstitch_seen);
+                if(v6_vstitch_trigger_dispatch(&vstitch_hint,&vstitch_seen))vstitch_previous_level=5;
                 input=diag.logic_ticks<4?V6_LEFT:diag.logic_ticks<8?V6_RIGHT:0;
 #elif defined(V6_VSTITCH_INPUT_CAPTURE)
                 input=v6_prize_checkpoint_replay(diag.logic_ticks);
