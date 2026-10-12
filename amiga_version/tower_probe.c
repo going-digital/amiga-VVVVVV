@@ -1,9 +1,12 @@
+#if defined(V6_VSTITCH_HINT_CAPTURE) && (!defined(V6_VSTITCH_INPUT_CAPTURE) || defined(V6_PRIZE_RETURN_INPUT_CAPTURE))
+#error Upper hint capture requires V Stitch and excludes the west return replay
+#endif
 #if defined(V6_PRIZE_RETURN_INPUT_CAPTURE) && (!defined(V6_VSTITCH_INPUT_CAPTURE) || !defined(V6_TOWER_PICKUP_SCREEN))
 #error West return capture requires the lower V Stitch approach and pickup controller
 #endif
-/* The long west replay owns its 32-field world trace. Auxiliary fixture
+/* The long west replay and upper-hint replay own dedicated traces. Auxiliary fixture
  * traces retain a header/one slot but are disabled to fit the stock 1 MB boot. */
-#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+#if defined(V6_PRIZE_RETURN_INPUT_CAPTURE) || defined(V6_VSTITCH_HINT_CAPTURE)
 #define AUX_TRACE_ENABLED 0
 #define AUX_TRACE_ROWS(n) 1
 #else
@@ -558,7 +561,9 @@ static volatile struct {ULONG magic,version,count,records[256][8];}
     pickup_frame_trace={0x56365058,1,0,{{0}}};
 static unsigned prize_ui_stage,prize_pickup_release;
 #endif
-#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
+#ifdef V6_VSTITCH_HINT_CAPTURE
+#define PRIZE_INPUT_TICKS 96
+#elif defined(V6_PRIZE_RETURN_INPUT_CAPTURE)
 #define PRIZE_INPUT_TICKS 660
 #define PRIZE_TRACE_FIELDS 32
 #elif defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE)
@@ -588,6 +593,8 @@ static volatile struct {ULONG magic,version,count;LONG records[PRIZE_INPUT_TICKS
 #include "../tools/amiga/prize_return_replay.h"
 #elif defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE)
 #include "../tools/amiga/prize_collection_replay.h"
+#elif defined(V6_VSTITCH_HINT_CAPTURE)
+/* Dedicated upper-checkpoint input schedule below. */
 #elif defined(V6_VSTITCH_INPUT_CAPTURE)
 #include "../tools/amiga/prize_checkpoint_replay.h"
 #else
@@ -604,6 +611,13 @@ static volatile struct {ULONG magic,version,count;LONG records[PRIZE_INPUT_TICKS
 #ifdef V6_VSTITCH_INPUT_CAPTURE
 #include "vstitch_assets.h"
 static V6Terrain vstitch_terrain;
+#ifdef V6_VSTITCH_HINT_CAPTURE
+#include "vstitch_trigger.h"
+static V6VStitchTrigger vstitch_hint;
+static int vstitch_seen;
+static volatile struct {ULONG magic,version,count;LONG records[96][16];}
+    vstitch_hint_trace={0x56365648,1,0,{{0}}};
+#endif
 #define VSTITCH_FG(value,fallback) (route.index==9?(value):(fallback))
 #else
 #define VSTITCH_FG(value,fallback) (fallback)
@@ -748,7 +762,11 @@ static int prize_death(V6TowerRoute *r,void *context)
 static int station_route_step(V6TowerRoute *r,unsigned input,V6TowerRoutePhase phase,void *context)
 {
     V6TowerRouteHooks hooks={phase,prize_entities,prize_contacts,prize_death};
-    return v6_tower_route_step_hooks(r,input,&hooks,context);
+    int ok=v6_tower_route_step_hooks(r,input,&hooks,context);
+#ifdef V6_VSTITCH_HINT_CAPTURE
+    if(ok && r->index==9)v6_vstitch_trigger_contact(&vstitch_hint,&r->session->player);
+#endif
+    return ok;
 }
 #else
 #define station_route_step v6_tower_route_step_phase
@@ -1198,6 +1216,9 @@ static int route_source(void)
 #ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
     west_copper_ready[0]=west_copper_ready[1]=0;
 #endif
+#ifdef V6_VSTITCH_HINT_CAPTURE
+    v6_vstitch_trigger_enter(&vstitch_hint,route.rooms[route.index].x,route.rooms[route.index].y,0);
+#endif
     route_loading=2;route_budget=1;
 #ifdef V6_PRIZE_RETURN_INPUT_CAPTURE
     if(route.index==10 || route.index==11)route_budget=0;
@@ -1310,7 +1331,7 @@ static void record_world(void)
 }
 #endif
 #ifdef V6_TOWER_RECOVERY
-#if !defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE) && !defined(V6_PRIZE_RETURN_INPUT_CAPTURE)
+#if !defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE) && !defined(V6_PRIZE_RETURN_INPUT_CAPTURE) && !defined(V6_VSTITCH_HINT_CAPTURE)
 /* The pickup input capture has its own world trace and a fixed-zero camera. */
 /* Test-only bounded trace: all camera fields plus callback state. Stored
  * outside the Chip allocation; count is published after a complete record. */
@@ -2295,6 +2316,9 @@ static int run(void) {
     rescue_vm.following=1;rescue_vm.mood=0;
 #ifdef V6_PRIZE_COLLECTION_INPUT_CAPTURE
     world.save=(V6CheckpointSave){236,134,1,1,111,107,443490};
+#elif defined(V6_VSTITCH_HINT_CAPTURE)
+    v6_vstitch_trigger_init(&vstitch_hint);vstitch_seen=0;
+    world.save=(V6CheckpointSave){60,73,0,1,112,107,443501};
 #elif defined(V6_VSTITCH_INPUT_CAPTURE)
     world.save=(V6CheckpointSave){276,185,0,1,112,107,443500};
 #else
@@ -3035,6 +3059,10 @@ static int run(void) {
                 }
 #elif defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE)
                 input=v6_prize_collection_replay(diag.logic_ticks);
+#elif defined(V6_VSTITCH_HINT_CAPTURE)
+                v6_vstitch_hint_tick(&vstitch_hint);
+                v6_vstitch_trigger_dispatch(&vstitch_hint,&vstitch_seen);
+                input=diag.logic_ticks<4?V6_LEFT:diag.logic_ticks<8?V6_RIGHT:0;
 #elif defined(V6_VSTITCH_INPUT_CAPTURE)
                 input=v6_prize_checkpoint_replay(diag.logic_ticks);
 #else
@@ -3565,6 +3593,17 @@ static int run(void) {
                     d[12]=route.room.block_count;d[13]=station_conveyor_phase;
                 }
 #endif
+#ifdef V6_VSTITCH_HINT_CAPTURE
+                if(vstitch_hint_trace.count<96) {
+                    volatile LONG *h=vstitch_hint_trace.records[vstitch_hint_trace.count++];
+                    h[0]=session.player.x;h[1]=session.player.y;h[2]=session.player.gravity;
+                    h[3]=session.death_timer;h[4]=world.save.id;h[5]=vstitch_seen;
+                    h[6]=vstitch_hint.active;h[7]=vstitch_hint.pending;h[8]=vstitch_hint.visible;
+                    h[9]=vstitch_hint.timer;h[10]=vstitch_hint.level;h[11]=vstitch_hint.mode;
+                    h[12]=vstitch_hint.contacts;h[13]=vstitch_hint.hints;
+                    h[14]=session.player.flips;h[15]=input;
+                }
+#endif
                 record_world();
 #else
                 v6_tower_session_play(&session,&player_room,input,0,0);
@@ -3578,7 +3617,7 @@ static int run(void) {
                 diag.recovery_calls=session.life_calls;
                 diag.recovery_life=session.life_timer;diag.recovery_delay=session.resume_delay;
                 diag.recovery_seek_frames=session.camera.seek_frames;
-#if !defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE) && !defined(V6_PRIZE_RETURN_INPUT_CAPTURE)
+#if !defined(V6_PRIZE_COLLECTION_INPUT_CAPTURE) && !defined(V6_PRIZE_RETURN_INPUT_CAPTURE) && !defined(V6_VSTITCH_HINT_CAPTURE)
                 if(camera_trace.count<CAMERA_TRACE_TICKS) {
                     volatile int32_t *r=camera_trace.players[camera_trace.count];
                     r[0]=session.player.x;r[1]=session.player.y;r[2]=session.player.vx;r[3]=session.player.vy;

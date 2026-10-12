@@ -3839,3 +3839,37 @@ remain enabled. Default capture buffers and campaign room/save banks are unchang
 
 The new rooms remain capture-only. Next: the V Stitch upper timed trigger and
 general campaign/save admission.
+
+### V Stitch upper hint lifecycle — 12 October 2026
+
+The upper trigger is source state 8, not a blocking dialogue. V Stitch creates
+its (0,0,112,112) trigger whenever cutscenes are enabled, even after flag 13 has
+been set. Player-box intersection queues state 8; the next state pass removes
+the trigger, sets flag 13 once and creates the grey map/quicksave hint at y=155.
+It leaves control and movement running. Room reentry rearms the block, but a
+retained flag suppresses another hint. `vstitch_trigger.c` implements the request
+and textbox lifecycle; the caller owns flag persistence. Textbox updates precede
+gameplay: the source 60-update timer counts during the five fade-in updates;
+expiry starts five fade-out updates. The hint disappears on update 65. Its level is represented in tenths,
+matching the source float phase transitions without adding target float code.
+
+`test-vstitch-trigger` compiles the original checktrigger, room entry, state-8
+case and textbox update methods independently. It compares 21,593 strict edge
+positions, cutscene/room-entry gates, flag suppression, dispatch/removal timing,
+65 textbox updates and reentry. Both models run with undefined-behavior checks.
+
+`make -C amiga_version tower-vstitch-hint-capture` starts at upper checkpoint
+443501 (60,73,g0) and uses ordinary left/right inputs, followed by release. Its
+96-tick, 16-field trace passes all 1,536 comparisons at 155 PAL work lines,
+zero errors/missed frames and 296,150 Chip bytes. Both disks remain unchanged
+and the ELF has no undefined symbols. The trace compares player motion against original desktop methods
+and hint state against the extracted trigger/state/textbox reference. The first
+contact queues the request; the next tick creates the hint. Movement continues
+while the timer runs, with no death or added flip. This is a capture-only lifecycle
+integration: caption pixels, the map/quicksave input binding, campaign flag-13
+persistence and general V Stitch room admission remain pending. The existing
+660-tick west return/pickup regression also passes all 21,120 fields at 278
+lines with zero errors/misses.
+
+Next: render the timed grey caption at the source position, then add flag-13
+persistence and complete general campaign/save admission. Music remains paused.
