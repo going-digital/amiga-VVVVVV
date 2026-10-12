@@ -1148,3 +1148,14 @@ $(BUILD)/vstitch_hint_copper.o: vstitch_hint_copper.c vstitch_hint_draw.h tower_
 test-vstitch-hint-draw: $(BUILD)/vstitch_hint_draw.o $(BUILD)/vstitch_hint_copper.o
 	python3 $(ROOT)/tools/amiga/test_vstitch_hint_draw.py
 test: test-vstitch-hint-draw
+
+.PHONY: test-campaign-hint
+test-campaign-hint: $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o
+	python3 $(ROOT)/tools/amiga/test_campaign_hint.py
+test: test-campaign-hint
+
+.PHONY: tower-vstitch-hint-save-capture
+tower-vstitch-hint-save-capture: tower-assets test-campaign-hint test-vstitch-trigger test-vstitch-hint-draw
+	$(MAKE) BUILD=$(ROOT)/build/amiga-vstitch-hint CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_VSTITCH_INPUT_CAPTURE -DV6_VSTITCH_HINT_CAPTURE" $(ROOT)/build/amiga-vstitch-hint/tower.adf
+	$(MAKE) BUILD=$(ROOT)/build/amiga-vstitch-hint-load CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_VSTITCH_INPUT_CAPTURE -DV6_VSTITCH_HINT_CAPTURE -DV6_VSTITCH_HINT_LOAD" $(ROOT)/build/amiga-vstitch-hint-load/tower.adf
+	python3 $(ROOT)/tools/amiga/run_vstitch_hint_save.py --build $(ROOT)/build/amiga-vstitch-hint --load-build $(ROOT)/build/amiga-vstitch-hint-load

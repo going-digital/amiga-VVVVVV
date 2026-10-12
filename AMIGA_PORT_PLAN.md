@@ -9,9 +9,9 @@ V Stitch lower checkpoint approach to the Prize trinket pickup through A Decepti
 Down Under and Shenanigan. Its 660 ticks match the host, with source actor drawing,
 pickup pause/caption/jingle/dismissal, 278 PAL work lines and zero missed frames.
 The west rooms remain capture-only. V Stitch's upper map-hint lifecycle and timed grey ENTER caption now pass source
-comparisons and native captures. Next: flag-13 persistence and interactive input
-handling, then general room/save admission. See "V Stitch timed grey caption"
-below.
+comparisons and native captures. V5 now preserves flag 13 through actual DF1
+save and fresh-boot recovery. Next: interactive ENTER handling and general room
+admission. See "V5 map-hint persistence and native fresh boot" below.
 
 Earlier milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
@@ -5209,3 +5209,43 @@ This remains an English, fixed-room capture. ENTER is the agreed hint label;
 interactive map/quicksave input handling and campaign flag-13 persistence remain
 pending, together with general V Stitch/west-room admission. Next: persist the
 one-shot flag through save/load and complete the remaining admission work.
+
+### V5 map-hint persistence and native fresh boot — 12 October 2026
+
+V5 retains the 112-byte save layout and stores source flag 13 as story bit 64.
+The checkpoint/map/collection layout and five reserved bytes stay unchanged.
+New hint APIs read V1–V5, migrating older records with the hint unseen; old APIs
+still reject V5 and cannot replace a committed V5 record. Hint state remains
+separate from the existing red/yellow story ABI. All six decoded outputs publish
+only after complete validation. Temporary verification, backup recovery and
+exact-byte promotion checks use the existing transactional file backend.
+
+The V5 codec additionally accepts V Stitch's source checkpoint spawns: lower
+(276,185,g0,id443500) and upper (60,73,g0,id443501), with either source direction
+and the actual explored-room bit 152. Other coordinates, gravity and identities
+are rejected. Renderer/source-bank validation is still mandatory. This extends
+the bounded hint capture's disk bank; it does not admit the room into the default
+campaign or admit the west rooms to disk saves.
+
+`test-campaign-hint` compares independent BE/CRC vectors, both checkpoints,
+100 collection vectors, 896 corruptions, truncations, signed/boolean guards,
+V1–V4 migration including existing yellow/collection progress, and old-API
+refusal. It verifies 120 interrupted transaction snapshots, 240 replacement
+faults and 330 recovery faults. V1 save, V2 full-state disk, V3 progress and V4
+collection regression suites all pass.
+
+`make -C amiga_version tower-vstitch-hint-save-capture` uses a physical emulated
+right-mouse save after the original upper hint. Actual DF1 bytes contain V5,
+checkpoint 443501, story flags 120 (completed yellow rescue/companion plus the
+hint), the source map bit and a valid CRC. A separate executable/fresh boot
+recovers that disk before gameplay, validates the source bank, restores flag 13
+and suppresses the caption: 111 presentation frames on the first boot, zero on
+reload. Both 96-tick traces pass all 3,072 fields; movement remains correct.
+The save/load captures peak at 158/151 PAL work lines with zero errors/missed
+frames and 296,150 Chip bytes. The boot disks and loaded save disk stay unchanged;
+the ELF has no undefined symbols. The retained west return/pickup capture still
+passes 21,120 fields at 278 lines with zero errors/misses.
+
+Next: interactive ENTER map/quicksave handling and the remaining general
+campaign/renderer admission. ENTER remains the selected hint label. Music stays
+paused pending original tracker files.

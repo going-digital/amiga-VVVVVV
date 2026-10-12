@@ -51,4 +51,14 @@ int v6_campaign_collection_encode(uint8_t *,size_t,const V6CheckpointSave *,
     const V6HallwayStory *,const V6StationStory *,const V6Exploration *,const V6Collect *);
 int v6_campaign_collection_decode(V6CheckpointSave *,V6HallwayStory *,V6StationStory *,
     V6Exploration *,V6Collect *,const uint8_t *,size_t);
+/* V5 retains 112 bytes, adding source flag 13 as story bit 64. Reads migrate
+ * V1..V4 with map_hint_seen=0; older APIs reject V5. V5 additionally accepts
+ * V Stitch's canonical lower/upper checkpoints. Renderer/source-bank admission
+ * remains a caller responsibility. All six outputs publish atomically. */
+typedef struct { int map_hint_seen; } V6CampaignHints;
+#define V6_CAMPAIGN_HINT_BYTES V6_CAMPAIGN_COLLECTION_BYTES
+int v6_campaign_hint_encode(uint8_t *,size_t,const V6CheckpointSave *,
+    const V6HallwayStory *,const V6StationStory *,const V6Exploration *,const V6Collect *,const V6CampaignHints *);
+int v6_campaign_hint_decode(V6CheckpointSave *,V6HallwayStory *,V6StationStory *,
+    V6Exploration *,V6Collect *,V6CampaignHints *,const uint8_t *,size_t);
 #endif

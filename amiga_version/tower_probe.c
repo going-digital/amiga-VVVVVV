@@ -1,3 +1,6 @@
+#if defined(V6_VSTITCH_HINT_LOAD) && !defined(V6_VSTITCH_HINT_CAPTURE)
+#error Hint fresh-boot load requires the V Stitch hint capture
+#endif
 #if defined(V6_VSTITCH_HINT_CAPTURE) && (!defined(V6_VSTITCH_INPUT_CAPTURE) || defined(V6_PRIZE_RETURN_INPUT_CAPTURE))
 #error Upper hint capture requires V Stitch and excludes the west return replay
 #endif
@@ -132,6 +135,9 @@ static V6Exploration ui_loaded_exploration;
 static V6StationStory ui_loaded_yellow;
 #ifdef V6_TOWER_COLLECTION_SAVE
 static V6Collect ui_loaded_collection;
+#ifdef V6_VSTITCH_HINT_CAPTURE
+static V6CampaignHints ui_loaded_hints;
+#endif
 #endif
 #endif
 static const V6TeleporterDestination tele_residents[2]={{111,104},{110,105}};
@@ -1997,6 +2003,9 @@ static ULONG ui_game_hash(void)
     HASH(companion.body.x);HASH(companion.body.y);HASH(companion.body.vx);HASH(companion.body.vy);
     HASH(companion.follow_steps);HASH(rescue_vm.pc);HASH(rescue_vm.active);
 #ifdef V6_STATION_MENU
+#ifdef V6_VSTITCH_HINT_CAPTURE
+    HASH(vstitch_seen);
+#endif
     HASH(station_story.companion);HASH(station_story.rescue_triggered);HASH(station_story.yellow_rescued);
     { unsigned i;ULONG map_hash=0;
       for(i=0;i<sizeof(tele_exploration);++i) {
@@ -2037,7 +2046,11 @@ static int ui_station_checkpoint_valid(const V6CheckpointSave *c,const V6Hallway
             || c->room_y==107
 #endif
         )) ||
-         (c->room_x==110 && c->room_y==105));
+         (c->room_x==110 && c->room_y==105)
+#ifdef V6_VSTITCH_HINT_CAPTURE
+         || (c->room_x==112 && c->room_y==107)
+#endif
+         );
 }
 #endif
 static int ui_load_checked(V6CheckpointSave *out,V6HallwayStory *story)
@@ -2050,11 +2063,16 @@ static int ui_load_checked(V6CheckpointSave *out,V6HallwayStory *story)
     V6StationStory yellow,byellow;
 #ifdef V6_TOWER_COLLECTION_SAVE
     V6Collect collected,bcollected;
+#ifdef V6_VSTITCH_HINT_CAPTURE
+    V6CampaignHints hints,bhints;
+#endif
 #endif
 #endif
 #endif
     if(a<0 || k<0)return V6_SAVE_IO;
-#ifdef V6_TOWER_COLLECTION_SAVE
+#ifdef V6_VSTITCH_HINT_CAPTURE
+    result=v6_campaign_hint_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s,&yellow,&map,&collected,&hints);
+#elif defined(V6_TOWER_COLLECTION_SAVE)
     result=v6_campaign_collection_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s,&yellow,&map,&collected);
 #elif defined(V6_STATION_MENU)
     result=v6_campaign_progress_read(&v6_campaign_dos,a?save_name:save_backup,&c,&s,&yellow,&map);
@@ -2072,7 +2090,9 @@ static int ui_load_checked(V6CheckpointSave *out,V6HallwayStory *story)
     if(s.companion || s.rescue_triggered || s.red_rescued)return V6_SAVE_CORRUPT;
 #endif
     if(a && k) {
-#ifdef V6_TOWER_COLLECTION_SAVE
+#ifdef V6_VSTITCH_HINT_CAPTURE
+        result=v6_campaign_hint_read(&v6_campaign_dos,save_backup,&b,&bs,&byellow,&bmap,&bcollected,&bhints);
+#elif defined(V6_TOWER_COLLECTION_SAVE)
         result=v6_campaign_collection_read(&v6_campaign_dos,save_backup,&b,&bs,&byellow,&bmap,&bcollected);
 #elif defined(V6_STATION_MENU)
         result=v6_campaign_progress_read(&v6_campaign_dos,save_backup,&b,&bs,&byellow,&bmap);
@@ -2090,7 +2110,9 @@ static int ui_load_checked(V6CheckpointSave *out,V6HallwayStory *story)
         if(bs.companion || bs.rescue_triggered || bs.red_rescued)return V6_SAVE_CORRUPT;
 #endif
     }
-#ifdef V6_TOWER_COLLECTION_SAVE
+#ifdef V6_VSTITCH_HINT_CAPTURE
+    return v6_campaign_hint_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story,&ui_loaded_yellow,&ui_loaded_exploration,&ui_loaded_collection,&ui_loaded_hints);
+#elif defined(V6_TOWER_COLLECTION_SAVE)
     return v6_campaign_collection_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story,&ui_loaded_yellow,&ui_loaded_exploration,&ui_loaded_collection);
 #elif defined(V6_STATION_MENU)
     return v6_campaign_progress_recover(&v6_campaign_dos,save_name,save_temp,save_backup,out,story,&ui_loaded_yellow,&ui_loaded_exploration);
@@ -2113,7 +2135,10 @@ static int ui_save_checked(void)
     if(!checkpoint_bank_valid(&world.save))return V6_SAVE_INVALID;
 #ifdef V6_STATION_MENU
     if(!ui_station_checkpoint_valid(&world.save,&hallway_story))return V6_SAVE_INVALID;
-#ifdef V6_TOWER_COLLECTION_SAVE
+#ifdef V6_VSTITCH_HINT_CAPTURE
+    { uint8_t bytes[V6_CAMPAIGN_HINT_BYTES];V6CampaignHints hints={vstitch_seen};
+      if(!v6_campaign_hint_encode(bytes,sizeof(bytes),&world.save,&hallway_story,&station_story,&tele_exploration,&station_collected,&hints))return V6_SAVE_INVALID; }
+#elif defined(V6_TOWER_COLLECTION_SAVE)
     { uint8_t bytes[V6_CAMPAIGN_COLLECTION_BYTES];
       if(!v6_campaign_collection_encode(bytes,sizeof(bytes),&world.save,&hallway_story,&station_story,&tele_exploration,&station_collected))return V6_SAVE_INVALID; }
 #else
@@ -2129,7 +2154,10 @@ static int ui_save_checked(void)
     /* Existing records need source-bank validation before replacement recovery
      * can discard a backup, just as an explicit load does. */
     if(a || k) {result=ui_load_checked(&c,&story);if(result)return result;}
-#ifdef V6_TOWER_COLLECTION_SAVE
+#ifdef V6_VSTITCH_HINT_CAPTURE
+    { V6CampaignHints hints={vstitch_seen};
+      return v6_campaign_hint_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story,&station_story,&tele_exploration,&station_collected,&hints); }
+#elif defined(V6_TOWER_COLLECTION_SAVE)
     return v6_campaign_collection_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story,&station_story,&tele_exploration,&station_collected);
 #elif defined(V6_STATION_MENU)
     return v6_campaign_progress_replace(&v6_campaign_dos,save_name,save_temp,save_backup,&world.save,&hallway_story,&station_story,&tele_exploration);
@@ -2172,6 +2200,9 @@ static int ui_apply_load(const V6CheckpointSave *c,const V6HallwayStory *story)
 #endif
 #else
     (void)story;
+#endif
+#ifdef V6_VSTITCH_HINT_CAPTURE
+    v6_vstitch_trigger_init(&vstitch_hint);vstitch_seen=ui_loaded_hints.map_hint_seen;
 #endif
     v6_tower_session_init(&session,c->x,c->y,c->gravity,c->dir);
     if(!v6_tower_route_load(&route,c->room_x,c->room_y,1))return 0;
@@ -2481,6 +2512,12 @@ static int run(void) {
 #endif
 #ifdef V6_TOWER_MENU_TRAVEL
     v6_teleporter_departure_init(&departure);v6_teleporter_arrival_init(&arrival);
+#endif
+#ifdef V6_VSTITCH_HINT_LOAD
+    { V6CheckpointSave loaded;V6HallwayStory story;
+      if(ui_load_checked(&loaded,&story)!=V6_SAVE_OK || !ui_apply_load(&loaded,&story))return 20;
+      camera=session.camera.y;controller=session.camera;
+    }
 #endif
     diag.step=0;diag.route_min=0;diag.route_max=5368;
     (void)direction;

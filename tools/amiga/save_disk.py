@@ -24,7 +24,7 @@ def read_record(path:Path,name=b'campaign.v6cs'):
     assert sum(struct.unpack_from('>128I',image,block))&0xffffffff==0
     record=image[block+24:block+24+size]
     magic,version,length=struct.unpack_from('>4sHH',record)
-    assert magic==b'V6CS' and length==size and version in ((1,) if size==44 else (4,) if size==112 else (2,3))
+    assert magic==b'V6CS' and length==size and version in ((1,) if size==44 else (4,5) if size==112 else (2,3))
     assert zlib.crc32(record[:-4])==struct.unpack_from('>I',record,size-4)[0]
     if size==96:assert record[90:92]==b'\0\0'
     if size==112:assert record[102]&0xf0==0 and record[103:108]==bytes(5)
@@ -53,7 +53,7 @@ def replace_record_fixture(path:Path,record:bytes,name=b'campaign.v6cs'):
     """Replace a single-block record on a disposable OFS capture disk."""
     previous=read_record(path,name)
     magic,version,length=struct.unpack_from('>4sHH',record)
-    assert magic==b'V6CS' and length==len(record) and (version,length) in ((1,44),(2,96),(3,96),(4,112))
+    assert magic==b'V6CS' and length==len(record) and (version,length) in ((1,44),(2,96),(3,96),(4,112),(5,112))
     assert zlib.crc32(record[:-4])==struct.unpack_from('>I',record,length-4)[0]
     image=bytearray(path.read_bytes())
     for header in range(0,len(image),512):

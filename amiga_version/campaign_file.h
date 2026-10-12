@@ -43,4 +43,9 @@ int v6_campaign_collection_read(const V6CampaignIO *,const char *,V6CheckpointSa
 int v6_campaign_collection_write_new(const V6CampaignIO *,const char *,const char *,const V6CheckpointSave *,const V6HallwayStory *,const V6StationStory *,const V6Exploration *,const V6Collect *);
 int v6_campaign_collection_recover(const V6CampaignIO *,const char *,const char *,const char *,V6CheckpointSave *,V6HallwayStory *,V6StationStory *,V6Exploration *,V6Collect *);
 int v6_campaign_collection_replace(const V6CampaignIO *,const char *,const char *,const char *,const V6CheckpointSave *,const V6HallwayStory *,const V6StationStory *,const V6Exploration *,const V6Collect *);
+/* Hint operations read V1..V5 and write V5; identical atomic path/fault rules. */
+int v6_campaign_hint_read(const V6CampaignIO *,const char *,V6CheckpointSave *,V6HallwayStory *,V6StationStory *,V6Exploration *,V6Collect *,V6CampaignHints *);
+int v6_campaign_hint_write_new(const V6CampaignIO *,const char *,const char *,const V6CheckpointSave *,const V6HallwayStory *,const V6StationStory *,const V6Exploration *,const V6Collect *,const V6CampaignHints *);
+int v6_campaign_hint_recover(const V6CampaignIO *,const char *,const char *,const char *,V6CheckpointSave *,V6HallwayStory *,V6StationStory *,V6Exploration *,V6Collect *,V6CampaignHints *);
+int v6_campaign_hint_replace(const V6CampaignIO *,const char *,const char *,const char *,const V6CheckpointSave *,const V6HallwayStory *,const V6StationStory *,const V6Exploration *,const V6Collect *,const V6CampaignHints *);
 #endif
