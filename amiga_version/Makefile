@@ -559,6 +559,14 @@ tower-save-replacement-capture: tower-probe test-campaign-replace
 $(BUILD)/save_controls.o: save_controls.c save_controls.h | $(BUILD)
 	$(CC) $(CFLAGS) -O2 -c $< -o $@
 
+$(BUILD)/map_menu.o: map_menu.c map_menu.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+
+.PHONY: test-map-menu
+test-map-menu: $(BUILD)/map_menu.o
+	python3 $(ROOT)/tools/amiga/test_map_menu.py
+test: test-map-menu
+
 .PHONY: test-save-controls tower-interactive-save tower-interactive-save-run tower-interactive-save-capture
 test-save-controls: $(BUILD)/save_controls.o
 	python3 $(ROOT)/tools/amiga/test_save_controls.py

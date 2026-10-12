@@ -10,8 +10,9 @@ Down Under and Shenanigan. Its 660 ticks match the host, with source actor drawi
 pickup pause/caption/jingle/dismissal, 278 PAL work lines and zero missed frames.
 The west rooms remain capture-only. V Stitch's upper map-hint lifecycle and timed grey ENTER caption now pass source
 comparisons and native captures. V5 now preserves flag 13 through actual DF1
-save and fresh-boot recovery. Next: interactive ENTER handling and general room
-admission. See "V5 map-hint persistence and native fresh boot" below.
+save and fresh-boot recovery. The normal four-tab map input core now matches
+desktop controls. Next: connect keyboard input and map presentation, then general
+room admission. See "Normal map menu controls" below.
 
 Earlier milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
@@ -5249,3 +5250,25 @@ passes 21,120 fields at 278 lines with zero errors/misses.
 Next: interactive ENTER map/quicksave handling and the remaining general
 campaign/renderer admission. ENTER remains the selected hint label. Music stays
 paused pending original tracker files.
+
+### Normal map menu controls (12 October 2026)
+
+`map_menu.c` implements the bounded normal campaign's four tabs. ENTER opens
+the map without writing a save; action on tab 3 requests quicksave. This follows
+desktop `Input.cpp`, rather than treating the hint as an automatic save binding.
+The core preserves separate map/action latches, transition input suppression,
+left-before-right priority, action-before-tab-wrap ordering, script locking on
+the Save tab, and one completed save attempt per opening. The caller supplies
+save completion, with a pending latch preventing duplicates during disk IO.
+
+`make -C amiga_version test-map-menu` compares 6,144 combinations against
+extracted desktop navigation and Save-tab statements under undefined-behaviour
+sanitization. Opening, held transition/release behavior, failure completion and
+asynchronous duplicate suppression also pass. The 68000 object compiles with
+warnings as errors and no undefined symbols; existing mouse save controls pass.
+
+This is a control core, not yet a native interactive map. The caller must pause
+gameplay, render transitions/tabs, dispatch the existing checked save path, and
+restore gameplay after dismissal. Ship warp, special modes and pause/quit pages
+remain outside this bounded core. Next: Amiga keyboard input and map rendering,
+followed by physical ENTER/save/dismissal captures and general room admission.
