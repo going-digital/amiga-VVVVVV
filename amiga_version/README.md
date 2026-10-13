@@ -4117,3 +4117,16 @@ Final prompt and actual write-protected failure captures both pass at 214/280
 lines with zero missed frames/errors. Both full Chip bitmaps and both Copper
 lists match; DF1 stays unchanged, gameplay remains frozen, and a second action
 cannot retry the failed save.
+
+## Save receipt data model — 13 October 2026
+
+`make -C amiga_version test-save-summary` checks source clock rollover,
+M:SS/H:MM:SS formatting, the complete 100-bit collection count and six-bit crew
+snapshots. A failed save retains the prior successful summary. The clock must
+advance during menu fixed updates as well as gameplay; exclude DOS/unfocused
+time. Capture summary data at the Save action, before the tick's clock update.
+
+Verified against 6,720 original clock updates, 2,240 times and 14,720 snapshots
+under UBSan, with a clean 68000 compile and no unresolved symbols. The model is
+session-only and not yet connected to native timekeeping or the receipt renderer;
+V5 has no clock/full crew summary fields. Native success still uses its caption.

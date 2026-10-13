@@ -1241,3 +1241,10 @@ tower-save-display-run: tower-save-display
 test-save-dma: test-save-draw
 	python3 $(ROOT)/tools/amiga/test_save_dma.py
 test: test-save-dma
+
+$(BUILD)/save_summary.o: save_summary.c save_summary.h trinkets.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+.PHONY: test-save-summary
+test-save-summary: $(BUILD)/save_summary.o
+	python3 $(ROOT)/tools/amiga/test_save_summary.py
+test: test-save-summary

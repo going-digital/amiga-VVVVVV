@@ -5532,3 +5532,26 @@ Final native prompt and real write-protected failure captures both pass at
 28,800-byte Chip bitmaps and validates both active/inactive three-plane Copper
 lists. The failure attempt returns to the game UI, leaves DF1 unchanged, freezes
 the game hash/ticks, and ignores the subsequent action instead of retrying.
+
+### Source Save receipt data model (13 October 2026)
+
+`save_summary` now provides the source's 30-update clock, English M:SS/H:MM:SS
+formatting, and a Save-action snapshot of clock, checkpoint room, all 100
+collection identities and six caller-supplied crew flags. The original focused
+loop advances the clock during menu ticks too; gameplay-only tick counts cannot
+supply the receipt's time. DOS suspension/unfocused time is excluded by the
+caller. Snapshot before the end-of-tick update and publish only after successful
+I/O; failure retains the preceding successful summary.
+
+`test-save-summary` compares 6,720 clock updates, 2,240 formatted times and
+14,720 count/crew snapshots against original Game.cpp/UtilityClass.cpp statements
+under UBSan. Invalid clock/coordinate/collection/crew data preserves output.
+The portable clock is bounded to 65,535 hours and rejects overflow unchanged;
+canonical source comparisons stop before that overflow. The module compiles for
+68000 with warnings treated as errors and no unresolved symbols.
+
+This model is not yet wired into native timekeeping, and V5 still contains no
+clock or full crew summary fields. No crew status is inferred from the incomplete
+hallway/station story structures. Next connect actual native clock/crew data,
+then source receipt drawing and retained-summary persistence. Native successful
+Save continues to use the prior caption until those pieces are verified.
