@@ -2,7 +2,7 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
-Current direction (12 October 2026): music reconstruction remains paused while
+Current direction (13 October 2026): music reconstruction remains paused while
 waiting for original tracker files from Magnus Palsson. Continue engine and
 campaign-route work. The native checkpoint-preserving west loop now connects the
 V Stitch lower checkpoint approach to the Prize trinket pickup through A Deception,
@@ -14,8 +14,8 @@ save and fresh-boot recovery. The normal four-tab map input core now matches
 desktop controls, and physical keyboard handling connects ENTER, paused tab
 navigation and Space quicksave to native DF1 persistence. The bounded V Stitch
 map now displays the original minimap, exploration fog and flashing current-room
-outline. Next: native menu transition presentation and remaining tab content, then general room
-admission. See "Native explored map display" below.
+outline and a bounded stationary-room map slide. Next: remaining tab content and
+its presentation, then general room admission. See "Native explored map display" below.
 
 Earlier milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
@@ -5418,3 +5418,38 @@ Verification: `test-map-transition`, `test-map-menu`, and the full native
 with zero missed frames/errors and unchanged 367,190-byte Chip allocation.
 All 48,000 map bytes match the source; the visual cursor check observes 168
 white pixels. The linked 68000 ELF has no undefined symbols.
+
+### Native stationary V Stitch map slide (13 October 2026)
+
+The map page now visibly slides over frozen V Stitch gameplay using a Copper
+band split. The interpolated 34ms transition offset selects the first map line;
+the map bitmap begins at row zero below it. The gameplay foreground retains
+camera zero, while the background keeps its independent offset-200 ring wrap.
+Copper handles the PAL line-255 epoch and switches three-plane dual playfield
+to five-plane map DMA without blitting or allocating another bitmap.
+
+World sprites are clipped to the upper band in the inactive sprite bank. The
+map cursor translates with the menu and clips at the viewport bottom; it uses
+the unused eighth sprite block, routed to sprite channel zero below the split.
+The source menu's first two black rows give Copper time to install the full
+palette before the title. The stationary fixture requires fewer than seven
+world sprite blocks. Other tabs still use caption placeholders; their visible
+sliding and full content, moving-room/camera admission, frozen hint overlays,
+palette glow, tower cursor and legends remain pending.
+
+Host checks cover 67,637 Copper schedules (every background offset and partial
+map offset, plus address boundaries), 57,360 sprite clips and invalid-input
+immutability under UBSan. Another 1,280 cursor placements cover the full menu
+viewport, including rows 216..239 excluded by the gameplay sprite helper. Native capture now checks interpolated offsets and
+actual Copper/map pointers, compares 6,578 translated title/frame pixels in
+each direction against the full map, and checks the translated cursor DMA and
+rendered cyan pixels. Existing source physics, ten-tick input/pause gates,
+held-arrow suppression, actual DF1 save, 48,000 map bytes and cursor priority
+checks remain required. The normal capture peaks at 221/280 PAL work lines,
+with zero missed frames/errors and unchanged 367,190-byte Chip allocation.
+
+The final exploration-refresh capture rebuilds 480 rows and preserves both
+explored bits in V5, peaks at 272/280 lines, and has zero missed frames/errors.
+Its closing screenshot contains 76 cyan cursor pixels; both inactive cursor
+banks have the translated source position. Host checks and both linked 68000
+ELFs pass with no undefined symbols. Chip allocation remains unchanged.

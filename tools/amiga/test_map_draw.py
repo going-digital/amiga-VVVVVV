@@ -152,7 +152,7 @@ def main():
       for blank in (0,0x20000,0xfffffc):
        for cursor in (0,0x21000,0x1000000-136):
         n=lib.v6_map_copper(copper,bitmap,palette,blank,cursor);assert n==138 and copper[138]==0xa5a5
-        regs=dict(zip(copper[2:n-2:2],copper[3:n-2:2]))
+        regs=dict(zip(copper[:n-2:2],copper[1:n-2:2]))
         assert regs[0x100]==0x5200 and regs[0x104]==0x20 and regs[0x108]==regs[0x10a]==0
         for plane in range(5):
             ptr=regs[0xe0+plane*4]<<16|regs[0xe2+plane*4]

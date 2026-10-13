@@ -4033,3 +4033,32 @@ Verified native capture: peak 169/280 PAL work lines, zero missed frames/errors,
 367,190 Chip bytes; all 48,000 map bytes match the source and the cursor overlay
 passes the rendered screenshot check. The 68000 executable has no undefined
 symbols.
+
+## Native stationary map slide — 13 October 2026
+
+`tower-map-display-run` now slides the map page over stationary V Stitch
+through a Copper split. Frozen gameplay stays above the interpolated offset,
+and map row zero starts below it. The background ring wrap and PAL line-255
+boundary are preserved. World sprites clip at the split and move to channels 1..7 with their colour
+encoding preserved. The map cursor moves with the map, uses an existing spare
+sprite block on hardware channel zero, and clips against all 240 menu rows.
+Sprite pointers are installed before control DMA, including the full-map endpoint. No additional Chip memory
+or blitter copy is needed.
+
+`test-map-slide` verifies 67,637 Copper schedules and 57,360 sprite clips.
+`tower-map-display-capture` additionally compares translated opening/closing
+header pixels against the full map and verifies cursor DMA translation and
+rendered visibility. The normal run peaks at 221/280 PAL work lines with zero
+missed frames/errors, using the same 367,190 Chip bytes. Opening and closing
+screenshots are `build/amiga-map-display/map-slide-opening.png` and
+`map-slide-closing.png`. The capture selects a visible white-cursor blink frame
+instead of assuming one startup phase for every fixture.
+
+This admission covers the map page in the stationary room with fewer than seven
+world sprite blocks. Other tabs retain caption placeholders; their slides,
+frozen hint overlays, moving cameras and general campaign presentation remain
+pending.
+
+The final exploration-refresh fixture peaks at 272/280 lines with zero missed
+frames/errors and preserves both explored cells in V5. Its closing capture
+verifies both translated cursor DMA banks and 76 rendered cyan pixels.

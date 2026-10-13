@@ -208,6 +208,10 @@ static volatile struct {ULONG magic,version,values[12],count,records[128][8];}
 #ifdef V6_MAP_DISPLAY_CAPTURE
 #include "map_draw.h"
 #include "map_transition.h"
+#include "map_slide.h"
+static unsigned map_slide_offset;
+static volatile struct {ULONG magic,version,count,records[96][5];}
+    map_slide_diag={0x56364d53,1,0,{{0}}};
 static V6MapTransition map_transition;
 static volatile struct {ULONG magic,version,count,records[64][7];}
     map_transition_diag={0x56364d54,1,0,{{0}}};
@@ -1640,7 +1644,8 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
                 map_bitmap[plane*V6_MAP_PLANE_BYTES+map_bitmap_rows*40+i]=row[plane*40+i];
             ++map_bitmap_rows;++map_display_diag.values[0];
         }
-        if(map_transition.active && map_menu.page==0 && route.index==9 && map_bitmap_rows==240) {
+        map_slide_offset=map_transition.active?v6_map_transition_offset(&map_transition,(UWORD)diag.logic_remainder/1000):240;
+        if(map_transition.active && !map_slide_offset && map_menu.page==0 && route.index==9 && map_bitmap_rows==240) {
             uint32_t rows[32];uint16_t palette[32];int x,y;
             unsigned mode=v6_map_cursor_mode(map_cursor_state,map_cursor_delay,session.noflashing);
             uint32_t sprite=(ULONG)player_sprites[index].dma;
@@ -1987,11 +1992,49 @@ west_sprite_refresh:
 #endif
     }
 #endif
+#ifdef V6_MAP_DISPLAY_CAPTURE
+    if(map_transition.active && map_menu.page==0 && route.index==9 && map_bitmap_rows==240 && map_slide_offset>0 && map_slide_offset<240) {
+        uint16_t palette[32];uint32_t rows[32];int x,y;
+        unsigned mode=v6_map_cursor_mode(map_cursor_state,map_cursor_delay,session.noflashing),words;
+        ULONG cursor=(ULONG)(player_sprites[index].dma+7*V6_SPRITE_WORDS);
+        if(camera || player_sprites[index].count>=7)return 0;
+        for(i=0;i<7;++i) {
+            v6_map_slide_clip(player_sprites[index].dma+i*V6_SPRITE_WORDS,map_slide_offset);
+            v6_map_slide_channel(player_sprites[index].dma+i*V6_SPRITE_WORDS,i+1);
+        }
+        /* Only clear the reserved block: v6_sprites_begin clears all eight. */
+        for(i=0;i<V6_SPRITE_WORDS;++i)player_sprites[index].dma[7*V6_SPRITE_WORDS+i]=0;
+        if(!v6_map_cursor_rows(rows,mode,112,107,&x,&y))return 0;
+        y+=(int)map_slide_offset;
+        if(mode)v6_map_slide_cursor((UWORD *)cursor,rows,(unsigned)x,(unsigned)y);
+        for(i=0;i<32;++i)palette[i]=map_palette[i];
+        palette[17]=mode==1?0xfff:0x1ee;
+        /* Reserve hardware sprite 0 before its first control DMA fetch.
+           Remap the frozen actors to channels 1..7, retaining their colours. */
+        for(i=1;i<8;++i) {
+            ULONG actor=(ULONG)(player_sprites[index].dma+(i-1)*V6_SPRITE_WORDS);
+            p=move(p,0x120+i*4,actor>>16);p=move(p,0x122+i*4,actor);
+            if(i<=player_sprites[index].count)p=move(p,v6_sprite_colour_register(i),player_sprites[index].colours[i-1]);
+        }
+        words=v6_map_slide_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
+            bg_camera&255,(ULONG)map_bitmap,palette,(ULONG)pickup_zero,cursor,map_slide_offset);
+        if(!words || (unsigned)(p-list)+words>LIST_WORDS)return 0;
+        if(map_slide_diag.count<96) {
+            volatile ULONG *r=map_slide_diag.records[map_slide_diag.count++];
+            r[0]=map_slide_offset;r[1]=index;r[2]=(ULONG)list;r[3]=(ULONG)ring;r[4]=cursor;
+        }
+        return 1;
+    }
+#endif
 #ifdef V6_TOWER_PICKUP_SCREEN
 #ifdef V6_MAP_INPUT_CAPTURE
-    if(map_menu.open
+    if((map_menu.open
 #ifdef V6_MAP_DISPLAY_CAPTURE
-       || map_transition.active
+        || map_transition.active
+#endif
+       )
+#ifdef V6_MAP_DISPLAY_CAPTURE
+       && !(map_menu.page==0 && map_slide_offset==240)
 #endif
       ) {
         unsigned page=map_menu.page;

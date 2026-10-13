@@ -43,6 +43,15 @@ def main():
             assert offset==wanted and direction==closing and done==int(closing and tick==9),group
             assert previous==(min(240,25*tick) if closing else max(0,240-25*tick)),group
             assert active==int(not done),group
+    slide_at=data.index(b'V6MS\0\0\0\1')
+    slide_count=struct.unpack_from('>I',data,slide_at+8)[0]
+    slides=[struct.unpack_from('>5I',data,slide_at+12+20*i) for i in range(slide_count)]
+    offsets=[r[0] for r in slides]
+    assert 30<=slide_count<96 and all(0<o<240 for o in offsets),slides
+    assert min(offsets)<15 and max(offsets)>220,offsets
+    assert any(b>a for a,b in zip(offsets,offsets[1:])),offsets
+    assert any(b<a for a,b in zip(offsets,offsets[1:])),offsets
+    assert all(bank in (0,1) and cursor%2==0 for _,bank,_,_,cursor in slides),slides
     display_values=struct.unpack_from('>5I',data,at+8);count=struct.unpack_from('>I',data,at+28)[0]
     frames=[struct.unpack_from('>6I',data,at+32+24*i) for i in range(count)]
     assert display_values[0]==(480 if a.dirty else 240) and display_values[1]>=128 and display_values[3:]==(184,84),display_values
@@ -56,10 +65,16 @@ def main():
     assert struct.unpack_from('>I',record,36)[0]==120
     assert sum(b.bit_count() for b in record[40:90])==(2 if a.dirty else 1)
     before=disk.read_bytes();cfg=config(build,disk);dump=build/'map-display-chip.bin'
-    env=dict(os.environ,COPPERLINE_DBG_AFTER='62.48',COPPERLINE_DBG_RAMDUMP=f'0:80000:{dump}')
-    with (build/'map-display-visual.log').open('w') as log:
-        subprocess.run([EMU,'--config',str(cfg),'--floppy-drives','2','--noaudio',
-            '--key-after','62','0x44','2000','--screenshot-after','62.49',str(build/'explored-map.png')],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+    # Choose a visible white blink frame; startup length can shift the PAL
+    # phase between normal and exploration-refresh fixtures.
+    for capture_time in (62.48,62.52,62.56,62.60,62.64,62.68,62.72,62.76):
+        env=dict(os.environ,COPPERLINE_DBG_AFTER=str(capture_time),COPPERLINE_DBG_RAMDUMP=f'0:80000:{dump}')
+        with (build/'map-display-visual.log').open('w') as log:
+            subprocess.run([EMU,'--config',str(cfg),'--floppy-drives','2','--noaudio',
+                '--key-after','62','0x44','2000','--screenshot-after',str(capture_time+.01),str(build/'explored-map.png')],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+        _,preview=subprocess.check_output([str(build.parents[1]/'build/amiga-feasibility/png_rgba'),str(build/'explored-map.png')]).split(b'\n',1)
+        if sum(preview[i:i+3]==b'\xff\xff\xff' for i in range(0,len(preview),4))>=100:break
+    else:raise AssertionError('No visible white cursor frame in the complete blink window')
     pixels=(C.c_uint8*76800)();source.reference_pixels.argtypes=[C.POINTER(C.c_uint8),C.POINTER(C.c_uint8)]
     exploration=(C.c_uint8*50).from_buffer_copy(record[40:90]);source.reference_pixels(exploration,pixels)
     bitmap=bytes(sum(((pixels[y*320+x*8+i]>>p)&1)<<(7-i) for i in range(8)) for p in range(5) for y in range(240) for x in range(40))
@@ -70,7 +85,7 @@ def main():
     while True:
         at=chip.find(bytes.fromhex('2c01fffe01005200'),at)
         if at<0:break
-        words=struct.unpack_from('>138H',chip,at);registers=dict(zip(words[::2],words[1::2]))
+        words=struct.unpack_from('>138H',chip,at-64);registers=dict(zip(words[::2],words[1::2]))
         assert registers[0x104]==0x20 and registers[0x108]==registers[0x10a]==0
         for plane in range(5):assert registers[0xe0+plane*4]<<16|registers[0xe2+plane*4]==offset+plane*9600
         for i,c in enumerate(palette):
@@ -91,9 +106,51 @@ def main():
     # Palette 17 is cursor-only. The full outline must remain in front of
     # opaque fog/map tiles, not merely show through black minimap pixels.
     assert white_pixels>=100,white_pixels
+    # Compare actual opening/closing map header pixels with the full map,
+    # translated vertically. The viewport starts at screenshot row 32 and
+    # PAL output doubles logical rows; compare the title/frame before cursor.
+    header,full_photo=subprocess.check_output([str(build.parents[1]/'build/amiga-feasibility/png_rgba'),str(build/'explored-map.png')]).split(b'\n',1)
+    width,height=map(int,header.split());visual_slides=[]
+    for name,time,keys in [('opening','62.12',[]),('closing','63.72',['--key-after','63.6','0x44','500'])]:
+        image=build/('map-slide-'+name+'.png');partial=build/('map-slide-'+name+'.bin')
+        env=dict(os.environ,COPPERLINE_DBG_AFTER=time,COPPERLINE_DBG_RAMDUMP=f'0:80000:{partial}')
+        with (build/('map-slide-'+name+'.log')).open('w') as log:
+            subprocess.run([EMU,'--config',str(cfg),'--floppy-drives','2','--noaudio',
+                '--key-after','62','0x44','1000',*keys,'--screenshot-after',str(float(time)+.01),str(image)],
+                env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+        _,photo=subprocess.check_output([str(build.parents[1]/'build/amiga-feasibility/png_rgba'),str(image)]).split(b'\n',1)
+        matches=[]
+        for shift in range(1,200):
+            if all(full_photo[(32+y)*width*4+x*4:(32+y)*width*4+x*4+3]==photo[(32+shift*2+y)*width*4+x*4:(32+shift*2+y)*width*4+x*4+3]
+                   for y in range(2,48) for x in range(80,650,4)):
+                matches.append(shift)
+        assert len(matches)==1,(name,matches)
+        chip_partial=partial.read_bytes();boundaries=[];cursor_visible=0
+        for address in {r[2] for r in slides}:
+            words=struct.unpack_from('>384H',chip_partial,address);epoch=0;line=None;registers={}
+            for r,v in zip(words[::2],words[1::2]):
+                if r==0xffff:break
+                if r&1:
+                    if r==0xffdf:epoch=256;line=255
+                    else:line=epoch+(r>>8)
+                else:
+                    registers[r]=v
+                    if r==0x100 and v==0x5200:boundaries.append(line-51)
+            assert registers[0x100]==0x5200 and registers[0x104]==0x20,registers
+            for plane in range(5):assert registers[0xe0+plane*4]*65536+registers[0xe2+plane*4]==offset+plane*9600
+            cursor_pointer=registers[0x120]*65536+registers[0x122]
+            pos,ctl=struct.unpack_from('>2H',chip_partial,cursor_pointer)
+            if pos:
+                start=(pos>>8)|((ctl&4)<<6);end=(ctl>>8)|((ctl&2)<<7)
+                assert start==52+84+boundaries[-1] and end==min(292,start+9),(name,start,end,boundaries)
+                cursor_visible+=1
+        assert any(abs(matches[0]-b)<=25 for b in boundaries),(name,matches,boundaries)
+        cyan=sum(photo[i:i+3]==b'\x11\xee\xee' for i in range(0,len(photo),4))
+        if name=='closing':assert cursor_visible and cyan>=40,(cursor_visible,cyan)
+        visual_slides.append(dict(cursor_banks=cursor_visible,cursor_cyan_pixels=cyan,direction=name,offset=matches[0],copper_offsets=boundaries,compared_pixels=46*len(range(80,650,4))))
     assert disk.read_bytes()==before and (build/'tower.adf').read_bytes()==boot
-    report=dict(transition_frames=transitions,controls=result,map_values=display_values,cursor_frames=frames,bitmap_address=offset,copper_lists=lists,visible_cursor_banks=shown,cursor_white_pixels=white_pixels,compared_bytes=len(bitmap),source_explored_rooms=sum(b.bit_count() for b in record[40:90]),
-        scope='Original normal-world minimap/fog/frame/tabs and room title, RGB12 quantization with no colour reduction at source glow=0. Resident V Stitch current-room sprite cursor. Original ten-tick native transition input lock and world pause; visible movement remains pending. Other tabs retain control captions; palette glow, tower cursor, legends and general room admission remain pending.')
+    report=dict(slide_frames=slides,visual_slides=visual_slides,transition_frames=transitions,controls=result,map_values=display_values,cursor_frames=frames,bitmap_address=offset,copper_lists=lists,visible_cursor_banks=shown,cursor_white_pixels=white_pixels,compared_bytes=len(bitmap),source_explored_rooms=sum(b.bit_count() for b in record[40:90]),
+        scope='Original normal-world minimap/fog/frame/tabs and room title, RGB12 quantization with no colour reduction at source glow=0. Resident V Stitch current-room sprite cursor. Original ten-tick native transition input lock, world pause and stationary V Stitch map slide. Gameplay sprites clip at the boundary; map cursor translates with the menu. Other tabs retain control captions; palette glow, tower cursor, legends and general room admission remain pending.')
     (build/'map-display-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native explored map:',json.dumps(dict(display=d,bitmap_address=offset,compared_bytes=len(bitmap),cursor_frames=len(frames),explored_rooms=report['source_explored_rooms'],scope=report['scope'])))
 if __name__=='__main__':main()
