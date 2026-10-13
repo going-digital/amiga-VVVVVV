@@ -5393,3 +5393,28 @@ Next implement the native Copper band boundary: retain the frozen three-plane
 gameplay above the offset and display the five-plane map below it, advancing the
 map's source row from zero. Verify timing, sprite clipping, held-key behavior,
 world pause, and the PAL work-line budget before admitting native animation.
+
+### Native map transition pause and input gates (13 October 2026)
+
+The bounded map-display candidate now uses `map_transition` at the native 34ms
+logic boundary. The opening input gate lasts ten updates; the closing pause
+retains the menu presentation and freezes gameplay/hint state for ten updates,
+then restores the held ENTER latch. Mouse save/load controls remain blocked
+through closing. A separate active transition state prevents the menu input
+core's immediate `open=0` dismissal from advancing the game prematurely.
+
+The `V6MT` native trace records old/new offsets, closing/active state, physical
+buttons and completion. The capture checks both ten-update cycles twice and
+injects a held left arrow during opening to verify that it cannot skip to a tab
+when the lock expires. Source physics, actual Save-tab DF1 save, game/hash pause,
+full map pixels, cursor DMA and palette priority remain required checks.
+
+The render offset is not yet applied to native Copper DMA; visible sliding is
+still the next rendering step. Other tabs retain caption placeholders, and
+script/teleporter return paths and general campaign admission remain pending.
+
+Verification: `test-map-transition`, `test-map-menu`, and the full native
+`tower-map-display-capture` pass. The native run peaks at 169/280 work lines,
+with zero missed frames/errors and unchanged 367,190-byte Chip allocation.
+All 48,000 map bytes match the source; the visual cursor check observes 168
+white pixels. The linked 68000 ELF has no undefined symbols.

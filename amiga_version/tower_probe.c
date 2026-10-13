@@ -207,6 +207,10 @@ static volatile struct {ULONG magic,version,values[12],count,records[128][8];}
     map_diag={0x56364d49,1,{0},0,{{0}}};
 #ifdef V6_MAP_DISPLAY_CAPTURE
 #include "map_draw.h"
+#include "map_transition.h"
+static V6MapTransition map_transition;
+static volatile struct {ULONG magic,version,count,records[64][7];}
+    map_transition_diag={0x56364d54,1,0,{{0}}};
 #include "map_assets.h"
 static UBYTE *map_bitmap;
 static void ui_copy(void *,const void *,unsigned);
@@ -1636,7 +1640,7 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
                 map_bitmap[plane*V6_MAP_PLANE_BYTES+map_bitmap_rows*40+i]=row[plane*40+i];
             ++map_bitmap_rows;++map_display_diag.values[0];
         }
-        if(map_menu.open && map_menu.page==0 && route.index==9 && map_bitmap_rows==240) {
+        if(map_transition.active && map_menu.page==0 && route.index==9 && map_bitmap_rows==240) {
             uint32_t rows[32];uint16_t palette[32];int x,y;
             unsigned mode=v6_map_cursor_mode(map_cursor_state,map_cursor_delay,session.noflashing);
             uint32_t sprite=(ULONG)player_sprites[index].dma;
@@ -1985,7 +1989,11 @@ west_sprite_refresh:
 #endif
 #ifdef V6_TOWER_PICKUP_SCREEN
 #ifdef V6_MAP_INPUT_CAPTURE
-    if(map_menu.open) {
+    if(map_menu.open
+#ifdef V6_MAP_DISPLAY_CAPTURE
+       || map_transition.active
+#endif
+      ) {
         unsigned page=map_menu.page;
         if(page==3 && (map_menu.saved || map_menu.failed))page=map_menu.saved?4:5;
         return v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
@@ -2658,6 +2666,9 @@ static int run(void) {
     keyboard_resource=(struct Library *)OpenResource((CONST_STRPTR)"ciaa.resource");
     if(!keyboard_resource)return 20;
     v6_keyboard_init(&keyboard);v6_map_menu_init(&map_menu);
+#ifdef V6_MAP_DISPLAY_CAPTURE
+    v6_map_transition_init(&map_transition);
+#endif
 #endif
     GfxBase=(struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library",0);
     if(!GfxBase) return 20;
@@ -3054,7 +3065,11 @@ static int run(void) {
             action=v6_save_controls_tick(&save_controls,right,fire);
 #ifdef V6_MAP_INPUT_CAPTURE
             if(map_menu.open && map_menu.save_pending)action=V6_SAVE_ACTION_SAVE;
-            else if(map_menu.open)action=V6_SAVE_ACTION_NONE;
+            else if(map_menu.open
+#ifdef V6_MAP_DISPLAY_CAPTURE
+                    || map_transition.active
+#endif
+                   )action=V6_SAVE_ACTION_NONE;
 #endif
 #ifdef V6_TOWER_MENU_TRAVEL
             if(menu_save_pending) {
@@ -3263,6 +3278,9 @@ static int run(void) {
 #ifdef V6_MAP_INPUT_CAPTURE
                 {
                     unsigned buttons=v6_keyboard_map_buttons(&keyboard),was_open=map_menu.open,event;
+#ifdef V6_MAP_DISPLAY_CAPTURE
+                    unsigned was_active=map_transition.active;
+#endif
                     UWORD joy=hw->joy1dat;
                     int fire=(*(volatile UBYTE *)0xbfe001&0x80)==0;
                     if(joy&0x0200)buttons|=V6_MAP_LEFT;
@@ -3272,22 +3290,47 @@ static int run(void) {
                     event=v6_map_menu_tick(&map_menu,buttons,
                         !route_loading && session.death_timer==-1 && !pickup_screen.state &&
                         !tele_menu.open && !departure.state && !arrival.state && !rescue_vm.active &&
-                        !cue_audio.state && !travel_audio_busy(),0,0,0);
+                        !cue_audio.state && !travel_audio_busy(),
+#ifdef V6_MAP_DISPLAY_CAPTURE
+                        v6_map_transition_input_locked(&map_transition),
+#else
+                        0,
+#endif
+                        0,0);
                     if(event==V6_MAP_OPENED) {
                         ++map_diag.values[2];map_pause_hash=ui_game_hash();ui_fields=0;
                         map_diag.values[9]=diag.logic_ticks;
 #ifdef V6_MAP_DISPLAY_CAPTURE
                         map_cursor_state=map_cursor_delay=0;
+                        v6_map_transition_open(&map_transition);
 #endif
                     }
                     if(event==V6_MAP_CHANGED)++map_diag.values[3];
                     if(event==V6_MAP_CLOSED) {
                         ++map_diag.values[4];map_diag.values[10]=diag.logic_ticks;
                         map_menu.mapheld=1; /* Closing transition's input latch. */
+#ifdef V6_MAP_DISPLAY_CAPTURE
+                        v6_map_transition_close(&map_transition);
+#endif
                     }
-                    if(was_open || map_menu.open) {
+                    if(was_open || map_menu.open
+#ifdef V6_MAP_DISPLAY_CAPTURE
+                       || was_active || map_transition.active
+#endif
+                      ) {
 #ifdef V6_MAP_DISPLAY_CAPTURE
                         v6_map_cursor_tick(&map_cursor_state,&map_cursor_delay);
+                        {
+                            unsigned moving=v6_map_transition_input_locked(&map_transition);
+                            unsigned closing=map_transition.closing;
+                            unsigned done=v6_map_transition_tick(&map_transition);
+                            if(done)map_menu.mapheld=1;
+                            if((moving || event) && map_transition_diag.count<64) {
+                                volatile ULONG *r=map_transition_diag.records[map_transition_diag.count++];
+                                r[0]=diag.logic_ticks;r[1]=map_transition.previous;r[2]=map_transition.offset;
+                                r[3]=closing;r[4]=map_transition.active;r[5]=buttons;r[6]=done;
+                            }
+                        }
 #endif
                         if(buttons&V6_MAP_ACTION)map_action_held=1;
                         ++map_diag.values[7];

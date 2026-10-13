@@ -4006,3 +4006,30 @@ peaks at 272 lines; both pass with zero missed frames/errors and 367,190 Chip
 bytes on the 512K Chip/512K Slow A500. Keyboard menu/save/dismissal and source
 player/hint comparisons also pass. Menu transitions, palette glow, crew/stats
 content, tower cursor, legends and general campaign admission remain pending.
+
+## Native map transition pause and input gates — 13 October 2026
+
+The bounded `tower-map-display` candidate now runs the portable normal-menu
+transition model at the existing 34ms logic timestep. Opening locks navigation
+for ten updates. Closing keeps the game and hint frozen for ten updates and
+retains the ENTER latch on return; held ACTION remains suppressed until release.
+The map or tab caption stays visible during the closing pause. Right-mouse
+save/load controls are suppressed while the transition remains active.
+
+`tower-map-display-capture` checks two complete opening/closing cycles through
+`V6MT` records: exact 25-pixel endpoint updates (including the final 15 pixels),
+unchanged game ticks, and completion at update ten. A left arrow held during
+opening must not change tabs when the opening lock expires. Existing physical
+ENTER/keypad ENTER, Save-tab, world/hash, source physics, bitmap and cursor checks
+remain part of the capture. The original control-only `tower-map-input` fixture
+retains its previous scope and trace behavior.
+
+Visible vertical movement is still pending. The display currently presents the
+full map or caption during the modeled transition; the offset has not yet been
+applied to the Copper list. This milestone admits native input/pause timing,
+not the sliding animation or script/teleporter return paths.
+
+Verified native capture: peak 169/280 PAL work lines, zero missed frames/errors,
+367,190 Chip bytes; all 48,000 map bytes match the source and the cursor overlay
+passes the rendered screenshot check. The 68000 executable has no undefined
+symbols.

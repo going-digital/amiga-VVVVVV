@@ -15,7 +15,8 @@ def main():
     a=p.parse_args();build=a.build.resolve();ref=expected();source=libraries()
     disk=build/'map-display-save.adf';disk.unlink(missing_ok=True);create_save_disk(build/'tower.adf',disk)
     boot=(build/'tower.adf').read_bytes()
-    inputs=['--key-after','62','0x44','2000','--key-after','65','0x4f','800',
+    inputs=['--key-after','62','0x44','2000','--key-after','62.1','0x4f','1200',
+        '--key-after','65','0x4f','800',
         '--key-after','66','0x40','1200','--key-after','74','0x40','600',
         '--joy-after','77.5','fire','1500','--key-after','78','0x44','2000',
         '--key-after','82','0x43','1000','--key-after','85','0x44','500']
@@ -27,6 +28,21 @@ def main():
     assert ui['actions']==ui['saves']==1 and ui['loads']==ui['errors']==ui['busy']==0,ui
     assert ui['before_hash']==ui['after_hash'] and ui['ticks_before']==ui['ticks_after'],ui
     data=(build/'map-display.bin').read_bytes();at=data.index(b'V6MP\0\0\0\1')
+    transition_at=data.index(b'V6MT\0\0\0\1')
+    transition_count=struct.unpack_from('>I',data,transition_at+8)[0]
+    transitions=[struct.unpack_from('>7I',data,transition_at+12+28*i) for i in range(transition_count)]
+    moving=[r for r in transitions if r[1]!=r[2]]
+    assert len(moving)==40,transitions
+    assert any(r[5]&2 for r in moving[:10]),moving[:10] # Held arrow during opening is ignored.
+    for cycle in range(4):
+        group=moving[cycle*10:(cycle+1)*10]
+        closing=cycle%2
+        assert len({r[0] for r in group})==1,group # Frozen gameplay throughout.
+        for tick,(_,previous,offset,direction,active,buttons,done) in enumerate(group):
+            wanted=min(240,25*(tick+1)) if closing else max(0,240-25*(tick+1))
+            assert offset==wanted and direction==closing and done==int(closing and tick==9),group
+            assert previous==(min(240,25*tick) if closing else max(0,240-25*tick)),group
+            assert active==int(not done),group
     display_values=struct.unpack_from('>5I',data,at+8);count=struct.unpack_from('>I',data,at+28)[0]
     frames=[struct.unpack_from('>6I',data,at+32+24*i) for i in range(count)]
     assert display_values[0]==(480 if a.dirty else 240) and display_values[1]>=128 and display_values[3:]==(184,84),display_values
@@ -40,10 +56,10 @@ def main():
     assert struct.unpack_from('>I',record,36)[0]==120
     assert sum(b.bit_count() for b in record[40:90])==(2 if a.dirty else 1)
     before=disk.read_bytes();cfg=config(build,disk);dump=build/'map-display-chip.bin'
-    env=dict(os.environ,COPPERLINE_DBG_AFTER='62.42',COPPERLINE_DBG_RAMDUMP=f'0:80000:{dump}')
+    env=dict(os.environ,COPPERLINE_DBG_AFTER='62.48',COPPERLINE_DBG_RAMDUMP=f'0:80000:{dump}')
     with (build/'map-display-visual.log').open('w') as log:
         subprocess.run([EMU,'--config',str(cfg),'--floppy-drives','2','--noaudio',
-            '--key-after','62','0x44','2000','--screenshot-after','62.43',str(build/'explored-map.png')],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+            '--key-after','62','0x44','2000','--screenshot-after','62.49',str(build/'explored-map.png')],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
     pixels=(C.c_uint8*76800)();source.reference_pixels.argtypes=[C.POINTER(C.c_uint8),C.POINTER(C.c_uint8)]
     exploration=(C.c_uint8*50).from_buffer_copy(record[40:90]);source.reference_pixels(exploration,pixels)
     bitmap=bytes(sum(((pixels[y*320+x*8+i]>>p)&1)<<(7-i) for i in range(8)) for p in range(5) for y in range(240) for x in range(40))
@@ -76,8 +92,8 @@ def main():
     # opaque fog/map tiles, not merely show through black minimap pixels.
     assert white_pixels>=100,white_pixels
     assert disk.read_bytes()==before and (build/'tower.adf').read_bytes()==boot
-    report=dict(controls=result,map_values=display_values,cursor_frames=frames,bitmap_address=offset,copper_lists=lists,visible_cursor_banks=shown,cursor_white_pixels=white_pixels,compared_bytes=len(bitmap),source_explored_rooms=sum(b.bit_count() for b in record[40:90]),
-        scope='Original normal-world minimap/fog/frame/tabs and room title, RGB12 quantization with no colour reduction at source glow=0. Resident V Stitch current-room sprite cursor. Other tabs retain control captions; transitions, palette glow, tower cursor, legends and general room admission remain pending.')
+    report=dict(transition_frames=transitions,controls=result,map_values=display_values,cursor_frames=frames,bitmap_address=offset,copper_lists=lists,visible_cursor_banks=shown,cursor_white_pixels=white_pixels,compared_bytes=len(bitmap),source_explored_rooms=sum(b.bit_count() for b in record[40:90]),
+        scope='Original normal-world minimap/fog/frame/tabs and room title, RGB12 quantization with no colour reduction at source glow=0. Resident V Stitch current-room sprite cursor. Original ten-tick native transition input lock and world pause; visible movement remains pending. Other tabs retain control captions; palette glow, tower cursor, legends and general room admission remain pending.')
     (build/'map-display-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native explored map:',json.dumps(dict(display=d,bitmap_address=offset,compared_bytes=len(bitmap),cursor_frames=len(frames),explored_rooms=report['source_explored_rooms'],scope=report['scope'])))
 if __name__=='__main__':main()
