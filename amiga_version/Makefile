@@ -293,7 +293,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -O2 -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/map_slide.o $(BUILD)/map_transition.o $(BUILD)/map_draw.o $(BUILD)/keyboard.o $(BUILD)/map_menu.o $(BUILD)/vstitch_hint_draw.o $(BUILD)/vstitch_hint_copper.o $(BUILD)/vstitch_trigger.o $(BUILD)/prize_return.o $(BUILD)/prize_return_sprite.o $(BUILD)/prize_return_draw.o $(BUILD)/pixel_collision.o $(BUILD)/pickup_fade.o $(BUILD)/pickup_draw.o $(BUILD)/pickup_copper.o $(BUILD)/trinket_screen.o $(BUILD)/prize.o $(BUILD)/platform_gate.o $(BUILD)/disappearing.o $(BUILD)/trinkets.o $(BUILD)/platform.o $(BUILD)/enemy.o $(BUILD)/station_trigger.o $(BUILD)/teleporter_admission.o $(BUILD)/screen_shake.o $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/save_page.o $(BUILD)/map_slide.o $(BUILD)/map_transition.o $(BUILD)/map_draw.o $(BUILD)/keyboard.o $(BUILD)/map_menu.o $(BUILD)/vstitch_hint_draw.o $(BUILD)/vstitch_hint_copper.o $(BUILD)/vstitch_trigger.o $(BUILD)/prize_return.o $(BUILD)/prize_return_sprite.o $(BUILD)/prize_return_draw.o $(BUILD)/pixel_collision.o $(BUILD)/pickup_fade.o $(BUILD)/pickup_draw.o $(BUILD)/pickup_copper.o $(BUILD)/trinket_screen.o $(BUILD)/prize.o $(BUILD)/platform_gate.o $(BUILD)/disappearing.o $(BUILD)/trinkets.o $(BUILD)/platform.o $(BUILD)/enemy.o $(BUILD)/station_trigger.o $(BUILD)/teleporter_admission.o $(BUILD)/screen_shake.o $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -1226,3 +1226,18 @@ test: test-save-page
 test-save-draw: $(BUILD)/map_draw.o test-save-page
 	python3 $(ROOT)/tools/amiga/test_save_draw.py
 test: test-save-draw
+
+.PHONY: tower-save-display tower-save-display-capture tower-save-display-run
+tower-save-display: tower-map-display test-save-dma
+	python3 $(ROOT)/tools/amiga/convert_save_assets.py --out $(ROOT)/build/amiga-feasibility
+	$(MAKE) BUILD=$(ROOT)/build/amiga-save-display CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_VSTITCH_INPUT_CAPTURE -DV6_VSTITCH_HINT_CAPTURE -DV6_MAP_INPUT_CAPTURE -DV6_MAP_DISPLAY_CAPTURE -DV6_SAVE_DISPLAY_CAPTURE" $(ROOT)/build/amiga-save-display/tower.adf
+tower-save-display-capture: tower-save-display
+	python3 $(ROOT)/tools/amiga/run_map_display.py --build $(ROOT)/build/amiga-save-display --save-pages
+	python3 $(ROOT)/tools/amiga/run_save_display.py --build $(ROOT)/build/amiga-save-display
+tower-save-display-run: tower-save-display
+	python3 $(ROOT)/tools/amiga/run_map_input.py --build $(ROOT)/build/amiga-save-display --run
+
+.PHONY: test-save-dma
+test-save-dma: test-save-draw
+	python3 $(ROOT)/tools/amiga/test_save_dma.py
+test: test-save-dma

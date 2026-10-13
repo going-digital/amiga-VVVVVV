@@ -38,6 +38,8 @@ int v6_map_cursor_rows(uint32_t rows[32],unsigned mode,int room_x,int room_y,int
  * Blank sprite pointers supplied by caller; optional sprite 0 overrides it.
  * 140 words are sufficient. Invalid arguments leave output untouched. */
 #define V6_MAP_COPPER_WORDS 140
+/* Same list for admitted three/five-plane menus; capacity remains 140. */
+unsigned v6_menu_copper(uint16_t *,uint32_t,const uint16_t palette[32],uint32_t,uint32_t,unsigned);
 unsigned v6_map_copper(uint16_t *,uint32_t bitmap,const uint16_t palette[32],uint32_t blank,uint32_t cursor);
 /* Source Save page prompt or failure message, Latin 8px font,
  * normal orientation and glow zero. Receipt, restricted modes, last summary, script-only and ship tabs are not admitted.

@@ -185,6 +185,9 @@ static const char save_backup[]="DF1:campaign.bak";
 #endif
 #include "rescue_script.h"
 static V6SaveControls save_controls;
+#if defined(V6_SAVE_DISPLAY_CAPTURE) && !defined(V6_MAP_DISPLAY_CAPTURE)
+#error Save display requires the bounded map display fixture
+#endif
 #ifdef V6_MAP_INPUT_CAPTURE
 #include <proto/cia.h>
 #include "keyboard.h"
@@ -217,6 +220,13 @@ static volatile struct {ULONG magic,version,count,records[64][7];}
     map_transition_diag={0x56364d54,1,0,{{0}}};
 #include "map_assets.h"
 static UBYTE *map_bitmap;
+#ifdef V6_SAVE_DISPLAY_CAPTURE
+#include "save_assets.h"
+#include <dos/dosextens.h>
+static UBYTE *save_bitmap;
+static volatile struct {ULONG magic,version,values[4];}
+    save_display_diag={0x56365344,1,{0}};
+#endif
 static void ui_copy(void *,const void *,unsigned);
 static V6Exploration map_bitmap_exploration;
 static unsigned map_bitmap_rows,map_cursor_state,map_cursor_delay;
@@ -1170,7 +1180,11 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #endif
 #ifdef V6_MAP_INPUT_CAPTURE
 #ifdef V6_MAP_DISPLAY_CAPTURE
+#ifdef V6_SAVE_DISPLAY_CAPTURE
+#define MAP_BITMAP_DMA_BYTES (V6_MAP_BITMAP_BYTES+2*V6_SAVE_BITMAP_BYTES)
+#else
 #define MAP_BITMAP_DMA_BYTES V6_MAP_BITMAP_BYTES
+#endif
 #else
 #define MAP_BITMAP_DMA_BYTES 0
 #endif
@@ -1630,6 +1644,18 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     UWORD *p=list;unsigned i,background_rows,copied,bg_camera=background_camera(camera);
     copied=0;
 #ifdef V6_MAP_DISPLAY_CAPTURE
+#ifdef V6_SAVE_DISPLAY_CAPTURE
+    if(save_bitmap && map_transition.active && map_menu.page==3 && !map_menu.saved && route.index==9) {
+        unsigned failed=map_menu.failed!=0;
+        if(!v6_menu_copper(list,(ULONG)(save_bitmap+failed*V6_SAVE_BITMAP_BYTES),
+            save_palette,(ULONG)pickup_zero,(ULONG)pickup_zero,3))return 0;
+        ++save_display_diag.values[failed];
+        save_display_diag.values[2]=(ULONG)save_bitmap;
+        save_display_diag.values[3]=(ULONG)(save_bitmap+V6_SAVE_BITMAP_BYTES);
+        if(drawn)*drawn=0;
+        return 1;
+    }
+#endif
     if(map_bitmap) {
         unsigned changed=0;
         for(i=0;i<V6_EXPLORED_BYTES;++i)if(map_bitmap_exploration.rooms[i]!=tele_exploration.rooms[i])changed=1;
@@ -2963,6 +2989,13 @@ static int run(void) {
             for(p=0;p<5;++p)for(x=0;x<40;++x)map_bitmap[p*V6_MAP_PLANE_BYTES+i*40+x]=row[p*40+x];
         }
         map_bitmap_rows=240;map_display_diag.values[0]=240;
+#ifdef V6_SAVE_DISPLAY_CAPTURE
+        save_bitmap=map_bitmap+V6_MAP_BITMAP_BYTES;
+        if(!v6_save_page_unpack(save_bitmap,save_prompt_rle,sizeof(save_prompt_rle)) ||
+           !v6_save_page_unpack(save_bitmap+V6_SAVE_BITMAP_BYTES,save_failure_rle,sizeof(save_failure_rle))) {
+            FreeMem(chip,CHIP_BYTES);CloseLibrary((struct Library *)GfxBase);return 20;
+        }
+#endif
 #endif
 #endif
         pickup_zero=pickup_banks+2*V6_PICKUP_BANK_BYTES;
@@ -3178,6 +3211,11 @@ static int run(void) {
 #endif
                     Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();diag.status=3;ui_os_paused=1;
                     ++ui_diag.values[5];
+#ifdef V6_SAVE_DISPLAY_CAPTURE
+                    struct Process *save_process=(struct Process *)FindTask(0);
+                    APTR save_window=save_process->pr_WindowPtr;
+                    save_process->pr_WindowPtr=(APTR)-1;
+#endif
                     if(action==V6_SAVE_ACTION_SAVE)
                         result=ui_save_checked();
                     else {
@@ -3188,7 +3226,11 @@ static int run(void) {
                     /* DOS may acknowledge cached changes before physical
                      * disk writes finish. Complete them before Forbid/IRQ
                      * takeover can suspend the filesystem's background work. */
-                    if(!v6_campaign_dos_flush("DF1:")) {
+                    int save_flushed=v6_campaign_dos_flush("DF1:");
+#ifdef V6_SAVE_DISPLAY_CAPTURE
+                    save_process->pr_WindowPtr=save_window;
+#endif
+                    if(!save_flushed) {
                         ui_diag.values[8]=V6_SAVE_IO;diag.error=12;diag.status=2;break;
                     }
                     if(result){++ui_diag.values[3];ui_status=3;}else{++ui_diag.values[action];ui_status=action;}
@@ -3198,11 +3240,23 @@ static int run(void) {
 #endif
                     /* Refill both banks while the OS owns the display. No DOS
                      * time is added to the private VBlank clock or accumulator. */
-                    { unsigned i;for(i=0;i<2;++i) {
-                        v6_tower_draw_reset(&draw[i]);v6_tower_draw_reset(&background_draw[i]);
-                        prepared_camera[i]=camera;
-                        if(!prepare(rings[i],lists[i],i,camera,0))diag.error=12;
-                    } }
+                    { unsigned i;
+#ifdef V6_SAVE_DISPLAY_CAPTURE
+                        unsigned resume_menu=map_menu.open,resume_transition=map_transition.active;
+                        /* Menu early returns cannot refill invalidated game rings. */
+                        map_menu.open=map_transition.active=0;
+#endif
+                        for(i=0;i<2;++i) {
+                            v6_tower_draw_reset(&draw[i]);v6_tower_draw_reset(&background_draw[i]);
+                            prepared_camera[i]=camera;
+                            if(!prepare(rings[i],lists[i],i,camera,0))diag.error=12;
+                        }
+#ifdef V6_SAVE_DISPLAY_CAPTURE
+                        map_menu.open=resume_menu;map_transition.active=resume_transition;
+                        if(resume_menu || resume_transition)for(i=0;i<2;++i)
+                            if(!prepare(rings[i],lists[i],i,camera,0))diag.error=12;
+#endif
+                    }
                     route_loading=0;back=1;
                     view=GfxBase->ActiView;LoadView(0);WaitTOF();WaitTOF();
                     OwnBlitter();WaitBlit();Forbid();Disable();

@@ -5489,3 +5489,46 @@ module compiles for 68000 with warnings treated as errors and no unresolved
 symbols. Native Save presentation remains the caption placeholder. Next add
 safe bitmap preparation/display integration within the existing Chip/work-line
 budget, then the receipt and retained last-save summary.
+
+### Native Save prompt/failure display candidate (13 October 2026)
+
+`tower-save-display` adds source-positioned full Save prompt and error pages to
+the bounded stationary V Stitch map candidate. Two immutable three-plane
+bitmaps are prepared before display takeover; each occupies 28,800 Chip bytes.
+Their count/byte streams occupy 3,388 and 1,850 bytes in the private asset header.
+The shared menu Copper builder now admits three or five planes, while its
+existing map wrapper retains the five-plane API. Save-page sprite pointers are
+blank, and the gameplay rings remain intact for return. The candidate's Chip
+allocation is 424,790 bytes; the map-only candidate stays at 367,190.
+
+The Save candidate suppresses the current DOS process's requesters only during
+checked save/load and DF1 flush, restoring `pr_WindowPtr` afterward, including
+flush-failure exit. A write-protected DF1 otherwise blocks in an AmigaDOS
+requester instead of returning the error to the game. The DOS I/O result still
+controls the existing failed-save latch and does not permit repeated retries.
+
+`test-save-dma` independently compares 57,600 prepared bitmap bytes against the
+original renderer, verifies malformed packed data cannot partially overwrite
+output, and checks nine three-plane DMA address schedules under UBSan. Native
+capture verifies prompt and actual write-protected failure bitmaps/pointers,
+paused game hashes/ticks, unchanged read-only disk and repeated-action suppression.
+The map/control regression remains required for this larger candidate. Success
+still uses the previous caption; receipts, retained last-save summaries, other
+tabs' full content, Save-page sliding and general room/camera admission remain
+pending.
+
+The DOS resume path now explicitly refills invalidated gameplay rings with menu
+early returns disabled while the OS owns the display, then restores the menu
+state and rebuilds both menu Copper lists before takeover. Without this step,
+the new full-page renderer left invalid caches to be rebuilt after dismissal,
+causing a large redraw spike. The full map/control regression now passes in the
+Save candidate: 215/280 work lines, zero missed frames/errors, source-matching
+physics, map pixels and transitions, and actual V5 DF1 save with frozen game
+hash/ticks. This candidate compiles and links for 68000 without unresolved
+symbols.
+
+Final native prompt and real write-protected failure captures both pass at
+214/280 work lines, zero missed frames/errors. Each reconstructs both complete
+28,800-byte Chip bitmaps and validates both active/inactive three-plane Copper
+lists. The failure attempt returns to the game UI, leaves DF1 unchanged, freezes
+the game hash/ticks, and ignores the subsequent action instead of retrying.

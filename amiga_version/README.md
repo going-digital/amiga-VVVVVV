@@ -4084,3 +4084,36 @@ header is the normal four-tab header; orientation is normal and glow is zero.
 The extended renderer compiles for 68000 without unresolved symbols, and the
 existing map pixel/DMA tests pass. Native bitmap preparation and display wiring
 remain pending; the native Save caption is unchanged.
+
+## Native Save prompt and failure candidate — 13 October 2026
+
+```
+make -C amiga_version tower-save-display-capture
+make -C amiga_version tower-save-display-run
+```
+
+The bounded V Stitch candidate now displays the original full Save prompt and
+error layouts. Both immutable three-plane bitmaps are prepared before takeover;
+there is no gameplay-time redraw. Chip allocation is 424,790 bytes. The map-only
+candidate keeps its original allocation. `test-save-dma` compares all 57,600
+prepared bytes with the original renderer and verifies unpacking and DMA bounds.
+
+The capture uses a genuinely write-protected private DF1 disk to exercise Save
+failure and verifies that repeated action cannot retry it. During this candidate's
+DOS operation and flush, process requesters are suppressed and their previous
+setting is restored, so the error reaches the game UI. Output lives in
+`build/amiga-save-display/save-display-report.json`, `save-prompt.png` and
+`save-failure.png`. Successful-save receipts and last-save summaries remain
+pending; success still displays the prior caption, and these Save pages do not
+yet slide.
+
+The Save candidate refills invalidated game rings during OS-owned resume before
+rebuilding menu lists, preventing a large redraw on dismissal. The full map and
+control regression passes at 215/280 work lines with zero missed frames/errors,
+including actual V5 DF1 save and frozen gameplay state. The 68000 ELF has no
+unresolved symbols.
+
+Final prompt and actual write-protected failure captures both pass at 214/280
+lines with zero missed frames/errors. Both full Chip bitmaps and both Copper
+lists match; DF1 stays unchanged, gameplay remains frozen, and a second action
+cannot retry the failed save.

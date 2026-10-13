@@ -26,3 +26,16 @@ const char *v6_save_page_message(unsigned state)
     default:return 0; /* Prompt includes the platform's action binding. */
     }
 }
+
+int v6_save_page_unpack(uint8_t *out,const uint8_t *runs,unsigned bytes)
+{
+    unsigned i,total=0,n;
+    if(!out || !runs || (bytes&1))return 0;
+    for(i=0;i<bytes;i+=2) {
+        if(!runs[i] || total>V6_SAVE_BITMAP_BYTES-runs[i])return 0;
+        total+=runs[i];
+    }
+    if(total!=V6_SAVE_BITMAP_BYTES)return 0;
+    for(i=0;i<bytes;i+=2)for(n=0;n<runs[i];++n)*(volatile uint8_t *)out++=runs[i+1];
+    return 1;
+}

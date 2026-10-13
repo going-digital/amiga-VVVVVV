@@ -11,6 +11,7 @@ from test_map_draw import libraries,arrays
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--build',type=Path,required=True)
+    p.add_argument('--save-pages',action='store_true')
     p.add_argument('--dirty',action='store_true',help='Check the controlled adjacent-room exploration refresh')
     a=p.parse_args();build=a.build.resolve();ref=expected();source=libraries()
     disk=build/'map-display-save.adf';disk.unlink(missing_ok=True);create_save_disk(build/'tower.adf',disk)
@@ -23,7 +24,7 @@ def main():
     result=capture(build,disk,'map-display',inputs)
     d=result['display'];v=result['values'];ui=result['ui']
     assert d['status']==1 and d['error']==d['missed']==0 and d['max_work_lines']<=280,d
-    assert d['chip_bytes']==367190,d
+    assert d['chip_bytes']==(424790 if a.save_pages else 367190),d
     assert result['records']==ref and v[2:7]==(2,1,2,1,0) and v[8]==v[11]==0,(v,ui)
     assert ui['actions']==ui['saves']==1 and ui['loads']==ui['errors']==ui['busy']==0,ui
     assert ui['before_hash']==ui['after_hash'] and ui['ticks_before']==ui['ticks_after'],ui
@@ -150,7 +151,7 @@ def main():
         visual_slides.append(dict(cursor_banks=cursor_visible,cursor_cyan_pixels=cyan,direction=name,offset=matches[0],copper_offsets=boundaries,compared_pixels=46*len(range(80,650,4))))
     assert disk.read_bytes()==before and (build/'tower.adf').read_bytes()==boot
     report=dict(slide_frames=slides,visual_slides=visual_slides,transition_frames=transitions,controls=result,map_values=display_values,cursor_frames=frames,bitmap_address=offset,copper_lists=lists,visible_cursor_banks=shown,cursor_white_pixels=white_pixels,compared_bytes=len(bitmap),source_explored_rooms=sum(b.bit_count() for b in record[40:90]),
-        scope='Original normal-world minimap/fog/frame/tabs and room title, RGB12 quantization with no colour reduction at source glow=0. Resident V Stitch current-room sprite cursor. Original ten-tick native transition input lock, world pause and stationary V Stitch map slide. Gameplay sprites clip at the boundary; map cursor translates with the menu. Other tabs retain control captions; palette glow, tower cursor, legends and general room admission remain pending.')
+        scope='Original normal-world minimap/fog/frame/tabs and room title, RGB12 quantization with no colour reduction at source glow=0. Resident V Stitch current-room sprite cursor. Original ten-tick native transition input lock, world pause and stationary V Stitch map slide. Gameplay sprites clip at the boundary; map cursor translates with the menu. Other tabs retain control captions; palette glow, tower cursor, legends and general room admission remain pending.'+(' Save prompt/failure use prepared three-plane full pages; successful receipt remains a caption.' if a.save_pages else ''))
     (build/'map-display-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS native explored map:',json.dumps(dict(display=d,bitmap_address=offset,compared_bytes=len(bitmap),cursor_frames=len(frames),explored_rooms=report['source_explored_rooms'],scope=report['scope'])))
 if __name__=='__main__':main()
