@@ -2,6 +2,7 @@
 #define V6_MAP_DRAW_H
 #include <stdint.h>
 #include "teleporter_admission.h"
+#include "save_page.h"
 #define V6_MAP_PLANE_BYTES 9600
 #define V6_MAP_BITMAP_BYTES (5*V6_MAP_PLANE_BYTES)
 /* Normal 20x20 world: original 240x180 image at (40,21), 12x9 fog,
@@ -38,4 +39,11 @@ int v6_map_cursor_rows(uint32_t rows[32],unsigned mode,int room_x,int room_y,int
  * 140 words are sufficient. Invalid arguments leave output untouched. */
 #define V6_MAP_COPPER_WORDS 140
 unsigned v6_map_copper(uint16_t *,uint32_t bitmap,const uint16_t palette[32],uint32_t blank,uint32_t cursor);
+/* Source Save page prompt or failure message, Latin 8px font,
+ * normal orientation and glow zero. Receipt, restricted modes, last summary, script-only and ship tabs are not admitted.
+ * colours extend the map semantics with white and muted (RGB12 99b).
+ * Action is a caller-owned printable ASCII label; output unchanged on error. */
+int v6_save_draw_row(uint8_t out[200],unsigned row,const V6SavePage *,
+    const uint8_t font[128][8],const uint8_t border[8][8],
+    const uint8_t colours[8],const char *roomname,const char *action);
 #endif

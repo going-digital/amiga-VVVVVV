@@ -4071,3 +4071,16 @@ combinations and messages against extracted Render.cpp statements. The portable
 selection, and autosave-note/last-summary visibility. It compiles for 68000
 without undefined symbols. Native full-page rendering and save-summary content
 remain pending; the current native Save caption is unchanged.
+
+## Source Save prompt/failure rendering — 13 October 2026
+
+`make -C amiga_version test-save-draw` verifies full-page prompt/failure drawing
+against original renderer statements and Font.cpp wrapping: nine binding/page
+combinations, 691,200 source pixels. `v6_save_draw_row` uses the supplied font,
+border, action label and eight palette semantics. It rejects receipts, last-save
+summaries and other unsupported states before touching output. The admitted
+header is the normal four-tab header; orientation is normal and glow is zero.
+
+The extended renderer compiles for 68000 without unresolved symbols, and the
+existing map pixel/DMA tests pass. Native bitmap preparation and display wiring
+remain pending; the native Save caption is unchanged.

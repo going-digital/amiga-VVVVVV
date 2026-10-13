@@ -173,3 +173,45 @@ unsigned v6_map_copper(uint16_t *out,uint32_t bitmap,const uint16_t palette[32],
     for(i=0;i<32;++i)p=reg(p,0x180+i*2,palette[i]);
     p=reg(p,0xffff,0xfffe);return (unsigned)(p-out);
 }
+
+int v6_save_draw_row(uint8_t out[200],unsigned row,const V6SavePage *page,
+    const uint8_t font[128][8],const uint8_t border[8][8],
+    const uint8_t colours[8],const char *name,const char *action)
+{
+    uint8_t pixels[320];char prompt[39];unsigned i,n=0,a=0,x,p;
+    const char *message=0;
+    if(!out || row>=240 || !page || !font || !border || !colours || !name || !action ||
+       (page->state!=V6_SAVE_PAGE_PROMPT && page->state!=V6_SAVE_PAGE_FAILED) || page->last_summary ||
+       page->autosave_note>1 || (page->state!=V6_SAVE_PAGE_PROMPT && page->autosave_note))return 0;
+    while(name[n]) {if(n>=36 || (unsigned char)name[n]>=128)return 0;++n;}
+    while(action[a]) {if(a>=8 || (unsigned char)action[a]<32 || (unsigned char)action[a]>=127)return 0;++a;}
+    if(!a)return 0;
+    for(i=0;i<8;++i)if(colours[i]>31)return 0;
+    if(page->state==V6_SAVE_PAGE_FAILED)message="ERROR: Could not save game!";
+    for(x=0;x<320;++x)pixels[x]=colours[row>=12?1:0];
+    text(pixels,row,160,2,name,font,colours[4]);
+    box(pixels,row,-10,212,344,24,border,colours[2],colours[3]);
+    text(pixels,row,40,220,"MAP",font,colours[5]);
+    text(pixels,row,120,220,"CREW",font,colours[5]);
+    text(pixels,row,200,220,"STATS",font,colours[5]);
+    text(pixels,row,280,220,"[SAVE]",font,colours[4]);
+    if(message)text(pixels,row,160,115,message,font,colours[7]);
+    else {
+        const char *head="[Press ",*tail=" to save your game]";
+        n=0;for(i=0;head[i];++i)prompt[n++]=head[i];
+        for(i=0;i<a;++i)prompt[n++]=action[i];
+        for(i=0;tail[i];++i)prompt[n++]=tail[i];
+        prompt[n]=0;
+        text(pixels,row,160,80,prompt,font,colours[6]);
+        if(page->autosave_note) {
+            text(pixels,row,160,174,"(Note: The game is autosaved at every",font,colours[7]);
+            text(pixels,row,160,186,"teleporter.)",font,colours[7]);
+        }
+    }
+    for(p=0;p<5;++p)for(x=0;x<40;++x) {
+        unsigned byte=0;
+        for(i=0;i<8;++i)byte|=((pixels[x*8+i]>>p)&1)<<(7-i);
+        out[p*40+x]=(uint8_t)byte;
+    }
+    return 1;
+}

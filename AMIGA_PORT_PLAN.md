@@ -5470,3 +5470,22 @@ portable render policy milestone; it is not yet connected to the native Save
 tab, which still uses its existing caption. Next supply the source-positioned
 full-page renderer and successful-save summary (area/time/trinkets/crew) without
 inventing summary fields that the current checkpoint record does not contain.
+
+### Source Save prompt/failure renderer (13 October 2026)
+
+`v6_save_draw_row` now produces full 320x240 five-plane Save prompt and failure
+pages, including the source room title, background, footer tabs, selected SAVE
+label, source-positioned action prompt/error and two-line teleporter autosave
+note. The caller supplies the action label and palette indices. The admitted
+scope is Latin 8px font, normal orientation, glow zero, normal four-tab header,
+and no previous-save summary. Successful receipts, restricted-mode headers,
+script-only/ship tabs and last-save summaries reject without changing output.
+
+`test-save-draw` compares nine admitted page/binding combinations (691,200
+pixels) against original Render.cpp statements and the actual Font.cpp
+`next_wrap` routine. It checks unsupported/invalid inputs preserve output.
+The existing 32,102,400 map-pixel comparisons also pass; the extended drawing
+module compiles for 68000 with warnings treated as errors and no unresolved
+symbols. Native Save presentation remains the caption placeholder. Next add
+safe bitmap preparation/display integration within the existing Chip/work-line
+budget, then the receipt and retained last-save summary.

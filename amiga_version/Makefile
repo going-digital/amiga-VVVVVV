@@ -1190,7 +1190,7 @@ tower-map-input-capture: tower-map-input
 tower-map-input-run: tower-map-input
 	python3 $(ROOT)/tools/amiga/run_map_input.py --build $(ROOT)/build/amiga-map-input --run
 
-$(BUILD)/map_draw.o: map_draw.c map_draw.h sprites.h | $(BUILD)
+$(BUILD)/map_draw.o: map_draw.c map_draw.h save_page.h sprites.h | $(BUILD)
 	$(CC) $(CFLAGS) -O2 -c $< -o $@
 .PHONY: test-map-draw tower-map-display tower-map-display-capture tower-map-display-run tower-map-display-dirty-capture
 test-map-draw: $(BUILD)/map_draw.o
@@ -1221,3 +1221,8 @@ $(BUILD)/save_page.o: save_page.c save_page.h | $(BUILD)
 test-save-page: $(BUILD)/save_page.o
 	python3 $(ROOT)/tools/amiga/test_save_page.py
 test: test-save-page
+
+.PHONY: test-save-draw
+test-save-draw: $(BUILD)/map_draw.o test-save-page
+	python3 $(ROOT)/tools/amiga/test_save_draw.py
+test: test-save-draw
