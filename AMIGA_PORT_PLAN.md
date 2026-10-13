@@ -5555,3 +5555,23 @@ clock or full crew summary fields. No crew status is inferred from the incomplet
 hallway/station story structures. Next connect actual native clock/crew data,
 then source receipt drawing and retained-summary persistence. Native successful
 Save continues to use the prior caption until those pieces are verified.
+
+### Retained campaign menu save format (13 October 2026)
+
+The V6 record extends the verified V5 campaign prefix to 144 bytes with the
+current clock, cumulative deaths, actual six-bit crew bank and last successful
+Save-action summary. Legacy V1–V5 records migrate with a zero clock and no last
+summary; rescued crew bits come from their existing story state. V6 validates
+canonical clocks, reserved bytes, source collection bounds and consistency
+between current state and the retained summary before publishing any output.
+
+`test_campaign_menu.py` passes the exact independent wire vector, 1,152
+corruptions, all legacy migrations, 24 interrupted transaction snapshots,
+48 injected I/O failures and backup promotion. The codec and file transaction
+modules compile for 68000. Native hookup and full Crew/Stats/Save drawing are
+being verified separately; the full menu candidate still needs its frame-budget
+and reload checks before it replaces the existing native Save candidate.
+
+The requested expansion goes beyond resident rooms. The next connected original
+rooms are Stop and Reflect, The Yes Men, and Gantry and Dolly north of V Stitch,
+including their original checkpoints, enemies and platforms.
