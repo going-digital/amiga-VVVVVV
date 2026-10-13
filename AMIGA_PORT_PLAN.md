@@ -14,7 +14,7 @@ save and fresh-boot recovery. The normal four-tab map input core now matches
 desktop controls, and physical keyboard handling connects ENTER, paused tab
 navigation and Space quicksave to native DF1 persistence. The bounded V Stitch
 map now displays the original minimap, exploration fog and flashing current-room
-outline. Next: menu transitions and remaining tab content, then general room
+outline. Next: native menu transition presentation and remaining tab content, then general room
 admission. See "Native explored map display" below.
 
 Earlier milestone (7 October 2026): Building Apport's resident route is
@@ -5371,3 +5371,25 @@ with zero missed frames/errors and no undefined ELF symbols.
 transitions, palette glow (this capture uses source glow=0), crew/stats content,
 ship warp, tower-column cursor, legends and general campaign admission remain
 pending. Music stays paused pending original tracker files.
+
+### Normal map transition timing (13 October 2026)
+
+The portable `map_transition` model now captures the normal gameplay menu's
+25-pixel fixed-update movement, 240-pixel endpoint, ten-update opening and
+closing, and input lock while moving. Closing retains a separate active state
+until gameplay resumes; this avoids treating an ENTER dismissal as an immediate
+return to gameplay. Render offsets use integer rational interpolation over the
+34ms gameplay timestep, with nonnegative endpoint weighting in both directions.
+
+`make -C amiga_version test-map-transition test-map-menu` passes: 482 comparisons
+against the original `RenderFixed.cpp` statements, 16,870 interpolation checks,
+100 complete opening/closing cycles, and the existing 6,144 menu comparisons.
+The module compiles for 68000 with warnings treated as errors and has no undefined
+symbols. It is not yet wired into the native menu or display, so native opening
+and closing remain instantaneous. Script/teleporter return transitions are outside
+this model's admitted scope.
+
+Next implement the native Copper band boundary: retain the frozen three-plane
+gameplay above the offset and display the five-plane map below it, advancing the
+map's source row from zero. Verify timing, sprite clipping, held-key behavior,
+world pause, and the PAL work-line budget before admitting native animation.

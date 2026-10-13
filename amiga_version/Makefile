@@ -567,6 +567,14 @@ test-map-menu: $(BUILD)/map_menu.o
 	python3 $(ROOT)/tools/amiga/test_map_menu.py
 test: test-map-menu
 
+$(BUILD)/map_transition.o: map_transition.c map_transition.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+
+.PHONY: test-map-transition
+test-map-transition: $(BUILD)/map_transition.o
+	python3 $(ROOT)/tools/amiga/test_map_transition.py
+test: test-map-transition
+
 .PHONY: test-save-controls tower-interactive-save tower-interactive-save-run tower-interactive-save-capture
 test-save-controls: $(BUILD)/save_controls.o
 	python3 $(ROOT)/tools/amiga/test_save_controls.py
