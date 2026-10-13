@@ -5453,3 +5453,20 @@ explored bits in V5, peaks at 272/280 lines, and has zero missed frames/errors.
 Its closing screenshot contains 76 cyan cursor pixels; both inactive cursor
 banks have the translated source position. Host checks and both linked 68000
 ELFs pass with no undefined symbols. Chip allocation remains unchanged.
+
+### Source Save-page display policy (13 October 2026)
+
+`save_page` now models the original Render.cpp page-3 branch precedence:
+replay/translator exploration, no-death, time-trial, secret lab, save failure,
+then prompt or successful-save receipt. Restricted/failure states omit the
+teleporter autosave note and last-save summary; normal/custom mode and summary
+existence retain the source's separate visibility rules. The message strings
+come from those source branches; the prompt remains binding-dependent.
+
+`test-save-page` compares all 512 flag combinations and message strings against
+compiled original renderer statements under UBSan. The module compiles for
+68000 with warnings treated as errors and no undefined symbols. This is a
+portable render policy milestone; it is not yet connected to the native Save
+tab, which still uses its existing caption. Next supply the source-positioned
+full-page renderer and successful-save summary (area/time/trinkets/crew) without
+inventing summary fields that the current checkpoint record does not contain.

@@ -4062,3 +4062,12 @@ pending.
 The final exploration-refresh fixture peaks at 272/280 lines with zero missed
 frames/errors and preserves both explored cells in V5. Its closing capture
 verifies both translated cursor DMA banks and 76 rendered cyan pixels.
+
+## Save-page render policy — 13 October 2026
+
+`make -C amiga_version test-save-page` checks all 512 original Save-page flag
+combinations and messages against extracted Render.cpp statements. The portable
+`save_page` module preserves restricted-mode/failure precedence, prompt/receipt
+selection, and autosave-note/last-summary visibility. It compiles for 68000
+without undefined symbols. Native full-page rendering and save-summary content
+remain pending; the current native Save caption is unchanged.

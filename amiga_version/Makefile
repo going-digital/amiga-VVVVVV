@@ -1214,3 +1214,10 @@ $(BUILD)/map_slide.o: map_slide.c map_slide.h map_draw.h | $(BUILD)
 test-map-slide: $(BUILD)/map_slide.o
 	python3 $(ROOT)/tools/amiga/test_map_slide.py
 test: test-map-slide
+
+$(BUILD)/save_page.o: save_page.c save_page.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+.PHONY: test-save-page
+test-save-page: $(BUILD)/save_page.o
+	python3 $(ROOT)/tools/amiga/test_save_page.py
+test: test-save-page
