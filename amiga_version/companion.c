@@ -31,7 +31,26 @@ static void animate(const V6Player *p,void *context)
     c->frame=v6_collision_frame(&c->animation,p,p->ground,p->roof,-1);
     if(c->mood)c->frame+=144;
 }
-static void step(V6Companion *c,const V6Player *p,const V6Room *room,int death,int restrained,int station)
+void v6_companion_rest_reset(V6CompanionRest *r){r->valid=0;}
+static int rest_same(const V6CompanionRest *r,const V6Companion *c,const V6Room *room)
+{
+    const V6Player *p=&c->body;
+    return r->tiles==room->tiles && r->terrain==room->terrain && r->tileset==room->tileset &&
+        r->extra_row==room->extra_row && !room->block_count &&
+        r->body[0]==p->x && r->body[1]==p->y && r->body[2]==p->old_x && r->body[3]==p->old_y &&
+        r->body[4]==p->vx && r->body[5]==p->vy && r->body[6]==p->ay &&
+        r->body[7]==p->ground && r->body[8]==p->roof && r->body[9]==p->gravity &&
+        r->ax==c->motion.ax && r->pending_y==c->motion.pending_y;
+}
+static void rest_store(V6CompanionRest *r,const V6Companion *c,const V6Room *room)
+{
+    const V6Player *p=&c->body;
+    r->body[0]=p->x;r->body[1]=p->y;r->body[2]=p->old_x;r->body[3]=p->old_y;
+    r->body[4]=p->vx;r->body[5]=p->vy;r->body[6]=p->ay;r->body[7]=p->ground;r->body[8]=p->roof;r->body[9]=p->gravity;
+    r->ax=c->motion.ax;r->pending_y=c->motion.pending_y;r->tiles=room->tiles;r->terrain=room->terrain;
+    r->tileset=room->tileset;r->extra_row=room->extra_row;
+}
+static void step(V6Companion *c,const V6Player *p,const V6Room *room,int death,int restrained,int station,V6CompanionRest *rest)
 {
     if(!c->visible) return;
     c->motion.ax=0;
@@ -44,7 +63,12 @@ static void step(V6Companion *c,const V6Player *p,const V6Room *room,int death,i
     }
     if(restrained && c->body.x<155 && c->motion.ax<0)c->motion.ax=0;
     /* Collision animation observes pre-integration velocity, as in Logic.cpp. */
-    v6_player_physics(&c->body,room,&c->motion,animate,c);
+    if(rest && rest->valid && rest_same(rest,c,room))animate(&c->body,c);
+    else {
+        if(rest)rest_store(rest,c,room);
+        v6_player_physics(&c->body,room,&c->motion,animate,c);
+        if(rest)rest->valid=room->tileset!=V6_TILE_SOURCE_TOWER && room->terrain && rest_same(rest,c,room);
+    }
     if(death>-1)c->frame=(c->body.dir?12:13)+(station?2:0);
     ++c->steps;
 }
@@ -66,7 +90,11 @@ void v6_station_companion_enter(V6Companion *c,int companion,int x,int y,const V
 }
 
 void v6_companion_step(V6Companion *c,const V6Player *p,const V6Room *room,int death)
-{ step(c,p,room,death,0,0); }
+{ step(c,p,room,death,0,0,0); }
 void v6_station_companion_step(V6Companion *c,const V6Player *p,const V6Room *room,
     int death,int room_x,int room_y)
-{ step(c,p,room,death,room_x==110 && room_y==105,1); }
+{ step(c,p,room,death,room_x==110 && room_y==105,1,0); }
+
+void v6_station_companion_step_rest(V6Companion *c,const V6Player *p,const V6Room *room,
+    int death,int room_x,int room_y,V6CompanionRest *rest)
+{step(c,p,room,death,room_x==110 && room_y==105,1,rest);}
