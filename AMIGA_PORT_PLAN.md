@@ -5638,3 +5638,36 @@ palettes. `test-north-graphics` compares 79,360 ring pixels per original room
 does not change the original collision tile IDs. Stop and Reflect uses 22
 source IDs/38 pairs, The Yes Men 19/34, and Gantry and Dolly 18/24. Private game
 assets remain generated locally rather than committed.
+
+### Stock A500 north-route integration (14 October 2026)
+
+The guarded north build now admits Stop and Reflect, The Yes Men and Gantry
+and Dolly, including their original checkpoint banks. V6 source admission
+passes all ten checkpoint/direction pairs and retains legacy V5 rejection
+behavior. A real Yes Men DF1 save reloads its exact receipt and campaign
+metadata on a fresh executable at 270/280 work lines, without changing disk
+contents. The post-return Yes Men and Gantry live menu/save candidates passed
+at 275 and 278 work lines respectively. The native Stop and Reflect ->
+The Yes Men edge and closing Save slide passed at 267/280, with zero missed
+frames/errors. Further edges and final regressions still remain.
+
+Collision work is committed: rectangle rejection precedes block rules; exact
+fixed-lane lookups match the original enemy/platform updates; terrain caches
+can be built in ordered row batches. Classification/border checks cover
+9,192,768 queries and tile-edit checks cover 64,800 edits. The immutable-room
+companion cache matches 28,800 original AI/physics updates, plus a stationary
+sequence with direction changes and cache invalidation.
+
+The uncommitted native renderer reserves all eight hardware sprite channels
+for room actors and draws the following crewmate with a blitter-shifted third
+foreground plane. Its transparent outer rows are removed only after exact
+original PNG checks (32,384 actor pixel/parity/collision comparisons). Native
+mask and uncached sprite-DMA comparisons pass. The follower timing gate is
+still open: the latest nonexperimental build reached 322 work lines and three
+missed frames. A retained-channel planning experiment was slower and has been
+removed from the native path. No complete north campaign release is claimed.
+
+The hardware target remains stock PAL A500, 512 KiB Chip + 512 KiB Slow, no
+Fast RAM. A clarification is pending on whether graphics must redraw at 50 fps
+or may render at 25 fps while preserving the existing 30 Hz gameplay timing.
+Music conversion remains paused pending the requested original tracker files.
