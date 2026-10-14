@@ -9,6 +9,8 @@ typedef struct {
 } V6Terrain;
 struct V6Room;
 void v6_terrain_build(V6Terrain *, const struct V6Room *);
+/* Ordered row batches: 0 <= first <= last <= 32. Publish only after row 32. */
+void v6_terrain_build_rows(V6Terrain *,const struct V6Room *,unsigned first,unsigned last);
 /* Edit a caller-owned 40x30 tile buffer and update its collision cache.
  * Returns 1 if changed (caller must redraw), 0 if unchanged, -1 for invalid
  * coordinates/format. The buffer must be the one used by the caller's room.

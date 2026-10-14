@@ -1,27 +1,24 @@
 #include "player.h"
-void v6_terrain_build(V6Terrain *out, const V6Room *room)
+void v6_terrain_build_rows(V6Terrain *out,const V6Room *room,unsigned first,unsigned last)
 {
-    int x,y,height=29+room->extra_row;
-    out->directional=0;
-    for(y=0;y<height;++y) for(x=0;x<40;++x) {
-        unsigned tile=room->tiles[y*40+x];
-        if(tile>=14 && tile<=17) out->directional=1;
-    }
-    for(y=0;y<32;++y) for(x=0;x<64;++x) {
-        int sx=x-1,sy=y-1,solid=0;
-        if(sx==-1) sx=0;
-        if(sx==40) sx=39;
-        if(sy==-1) sy=0;
-        if(sy==height) sy=height-1;
-        if(sx>=0 && sx<40 && sy>=0 && sy<height) {
-            unsigned tile=room->tiles[sy*40+sx];
-            solid=room->tileset==2 ? tile>=12 && tile<=27 :
+    unsigned y,x;int height=29+room->extra_row;
+    if(!first)out->directional=0;
+    for(y=first;y<last;++y){int sy=(int)y-1;uint8_t *dst=out->solid[y];
+        for(x=0;x<64;++x)dst[x]=0;
+        if(sy==-1)sy=0;
+        if(sy==height)sy=height-1;
+        if(sy<0 || sy>=height)continue;
+        for(x=0;x<40;++x){unsigned tile=room->tiles[sy*40+x];
+            if(tile>=14 && tile<=17)out->directional=1;
+            dst[x+1]=(uint8_t)(room->tileset==2 ? tile>=12 && tile<=27 :
                 tile==1 || (tile>=80 && tile<680) ||
-                (tile==59 && room->tileset==0) || (tile==740 && room->tileset==1);
+                (tile==59 && room->tileset==0) || (tile==740 && room->tileset==1));
         }
-        out->solid[y][x]=(uint8_t)solid;
+        dst[0]=dst[1];dst[41]=dst[40];
     }
 }
+void v6_terrain_build(V6Terrain *out,const V6Room *room)
+{v6_terrain_build_rows(out,room,0,32);}
 
 int v6_terrain_set_tile(V6Terrain *out,uint16_t *tiles,int tileset,int extra_row,
                         int x,int y,uint16_t tile)

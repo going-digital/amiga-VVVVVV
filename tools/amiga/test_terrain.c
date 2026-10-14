@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 #include "player.h"
 static uint16_t tiles[1200];
 static V6Terrain cache;
@@ -15,6 +16,10 @@ int main(void)
                 id==1 || (id>=80 && id<680) || (id==59 && set==0) || (id==740 && set==1);
             for(x=0;x<1200;++x) tiles[x]=id;
             v6_terrain_build(&cache,&room);
+            {V6Terrain batched;unsigned row;
+             memset(&batched,0xa5,sizeof(batched));
+             for(row=0;row<32;row+=2)v6_terrain_build_rows(&batched,&room,row,row+2);
+             assert(!memcmp(&batched,&cache,sizeof(cache)));}
             assert(cache.directional==(id>=14 && id<=17));
             for(y=-2;y<=31;++y) for(x=-2;x<=41;++x) {
                 int inside=x>=-1 && x<=40 && y>=-1 && y<=29+extra;
