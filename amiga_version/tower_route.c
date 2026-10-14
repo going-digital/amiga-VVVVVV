@@ -12,14 +12,20 @@ int v6_tower_route_load(V6TowerRoute *r,int x,int y,int respawn)
     const V6TowerRouteRoom *next;
     V6TowerSession *s=r->session;V6TowerGameplay *w=r->world;
     unsigned activations=w->activations,left=w->wrap_left,right=w->wrap_right;
+#if !defined(V6_ROUTE_PREDECODED) || !V6_ROUTE_PREDECODED
     uint16_t candidate[1200];
+#endif
     if(index<0) return 0;
     next=&r->rooms[index];
-    if(next->tileset>2 || next->count>32 || (next->count && !next->checkpoints) ||
-       (next->packed && !next->decoded && !v6_unpack_room(next->packed,next->bytes,candidate,1200))) return 0;
+    if(next->tileset>2 || next->count>32 || (next->count && !next->checkpoints))return 0;
     if(next->packed && !next->decoded) {
+#if defined(V6_ROUTE_PREDECODED) && V6_ROUTE_PREDECODED
+        return 0;
+#else
         unsigned i;
-        for(i=0;i<1200;++i) r->tiles[i]=candidate[i];
+        if(!v6_unpack_room(next->packed,next->bytes,candidate,1200))return 0;
+        for(i=0;i<1200;++i)r->tiles[i]=candidate[i];
+#endif
     }
     if(!v6_tower_gameplay_init(w,next->checkpoints,next->count,&w->save)) return 0;
     w->activations=activations;w->wrap_left=left;w->wrap_right=right;

@@ -13,7 +13,7 @@ READ=C.CFUNCTYPE(C.c_int,C.c_void_p,C.c_int,C.c_int)
 class Tiles(C.Structure):
     _fields_=[('read',READ),('context',C.c_void_p),('invincible',C.c_int),('walls',C.c_void_p)]
 
-def libraries():
+def libraries(extra_flags=(),core_name="core.so"):
     OUT.mkdir(parents=True,exist_ok=True);BUILD.mkdir(parents=True,exist_ok=True)
     original_reference()
     shim=(ROOT/'tools/amiga/reference_shim.h').read_text()
@@ -46,8 +46,8 @@ map.towermode=false;map.invincibility=false;reference_init(p,tiles,2,0);
     (OUT/'reference.cpp').write_text(code)
     flags=['-O2','-shared','-fPIC','-fsanitize=undefined','-fno-sanitize-recover=all']
     subprocess.run(['c++','-std=c++11',*flags,'-I/opt/homebrew/include','-I'+str(ROOT/'desktop_version/src'),'-I'+str(ROOT/'amiga_version'),str(OUT/'reference.cpp'),'-L/opt/homebrew/lib','-lSDL3','-o',str(OUT/'reference.so')],check=True)
-    subprocess.run(['cc','-std=c99',*flags,'-Wall','-Wextra','-Werror',*[str(ROOT/'amiga_version'/f) for f in ('player.c','blocks.c','tower_stream.c','room_codec.c','tower_session.c','tower_camera.c','checkpoints.c','tower_gameplay.c','tower_route.c','teleporter_arrival.c','teleporter_departure.c','teleporter.c','hallway_crew.c','hallway_trigger.c','rescue_script.c','companion.c','animation.c','terrain.c')],'-o',str(OUT/'core.so')],check=True)
-    core=C.CDLL(str(OUT/'core.so'));ref=C.CDLL(str(OUT/'reference.so'))
+    subprocess.run(['cc','-std=c99',*flags,*extra_flags,'-Wall','-Wextra','-Werror',*[str(ROOT/'amiga_version'/f) for f in ('player.c','blocks.c','tower_stream.c','room_codec.c','tower_session.c','tower_camera.c','checkpoints.c','tower_gameplay.c','tower_route.c','teleporter_arrival.c','teleporter_departure.c','teleporter.c','hallway_crew.c','hallway_trigger.c','rescue_script.c','companion.c','animation.c','terrain.c')],'-o',str(OUT/core_name)],check=True)
+    core=C.CDLL(str(OUT/core_name));ref=C.CDLL(str(OUT/'reference.so'))
     core.v6_tower_open.argtypes=[C.POINTER(Stream),C.c_char_p,C.c_size_t]
     core.v6_player_tower_room.argtypes=[C.POINTER(Room),C.POINTER(Tiles)]
     core.v6_player_init.argtypes=[C.POINTER(Player),C.c_int,C.c_int,C.c_int]

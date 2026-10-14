@@ -24,7 +24,13 @@ typedef struct {
     unsigned count,index,transitions,returns,error;
     const V6TowerTiles *tower;
     V6Room room;
+#if defined(V6_ROUTE_PREDECODED) && V6_ROUTE_PREDECODED
+    /* This native configuration rejects ordinary banks without a prepared
+     * tile view. Keep no unused 2400-byte decompression reservation. */
+    uint16_t tiles[1];
+#else
     uint16_t tiles[1200];
+#endif
     V6TeleporterRegion tele_region;
     unsigned tele_events; /* Saved/message requests from the latest step. */
 } V6TowerRoute;
