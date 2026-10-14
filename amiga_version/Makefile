@@ -1334,6 +1334,9 @@ tower-north-scenes-capture: tower-north
 	python3 $(ROOT)/tools/amiga/run_menu_scenes.py --cppflags "$(NORTH_FLAGS)" --north
 tower-north-bob-capture: tower-north
 	python3 $(ROOT)/tools/amiga/run_north_capture.py --cppflags "$(NORTH_FLAGS)" --case bob
+.PHONY: tower-north-boot-capture
+tower-north-boot-capture: tower-north
+	python3 $(ROOT)/tools/amiga/test_north_boot.py --rom "$(ROM)"
 test-sprite-overlay:
 	python3 $(ROOT)/tools/amiga/test_sprite_overlay.py
 

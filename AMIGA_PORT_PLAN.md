@@ -5719,3 +5719,20 @@ is `build/amiga-north/tower.adf`. Reproduce the production matrix with
 and the separate reference fixture with `tower-north-bob-capture`.
 Private original-game assets remain generated locally and uncommitted.
 Music conversion remains paused pending original tracker files.
+
+### Direct boot and AROS compatibility (14 October 2026)
+
+The stock A500 claim uses Kickstart 1.3. Direct DF0-only boot reproduces the
+playable scene without a save disk. Bundled AROS on the same 512 KiB Chip +
+512 KiB Slow configuration leaves only about 147 KiB contiguous Chip memory
+after loading the executable; its 434,470-byte graphics allocation fails.
+This previously returned silently to the DOS prompt. The executable now
+prints an insufficient-memory message and records startup failure reasons.
+
+For Copperline's bundled AROS, adding 1 MiB Fast RAM boots the same disk;
+the CPU remains 68000 and the chipset OCS/PAL. This is an AROS compatibility
+configuration, separate from the stock A500 performance target. Select
+Kickstart 1.3 to run with the original 512 KiB Chip + 512 KiB Slow, no Fast
+configuration. `make -C amiga_version tower-north-boot-capture` checks direct
+boot under Kickstart, the expected AROS memory failure, and AROS with 1 MiB
+Fast. The diagnostic reader rejects unexecuted header copies in DOS buffers.

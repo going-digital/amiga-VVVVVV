@@ -3738,22 +3738,45 @@ static int run(void) {
     (void)direction;
 #endif
     __asm volatile("move.l 4.w,%0":"=r"(SysBase));
-    if(SysBase->AttnFlags&AFF_68010) return 20;
+    if(SysBase->AttnFlags&AFF_68010) {
+#ifdef V6_MENU_COMPLETE
+        menu_startup_diag.values[0]=11;
+#endif
+        return 20;
+    }
 #ifdef V6_MAP_INPUT_CAPTURE
     keyboard_resource=(struct Library *)OpenResource((CONST_STRPTR)"ciaa.resource");
-    if(!keyboard_resource)return 20;
+    if(!keyboard_resource) {
+#ifdef V6_MENU_COMPLETE
+        menu_startup_diag.values[0]=12;
+#endif
+        return 20;
+    }
     v6_keyboard_init(&keyboard);v6_map_menu_init(&map_menu);
 #ifdef V6_MAP_DISPLAY_CAPTURE
     v6_map_transition_init(&map_transition);
 #endif
 #endif
     GfxBase=(struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library",0);
-    if(!GfxBase) return 20;
-    if(!(GfxBase->DisplayFlags&PAL)) { CloseLibrary((struct Library *)GfxBase);return 20; }
+    if(!GfxBase) {
+#ifdef V6_MENU_COMPLETE
+        menu_startup_diag.values[0]=13;
+#endif
+        return 20;
+    }
+    if(!(GfxBase->DisplayFlags&PAL)) {
+#ifdef V6_MENU_COMPLETE
+        menu_startup_diag.values[0]=14;menu_startup_diag.values[5]=GfxBase->DisplayFlags;
+#endif
+        CloseLibrary((struct Library *)GfxBase);return 20;
+    }
 #if defined(V6_TOWER_AUDIO) || defined(V6_TOWER_TRAVEL_AUDIO)
     /* This takeover fixture cannot resume another client's write-only audio
      * pointers. Start only with all audio DMA and our audio IRQs idle. */
     if((hw->dmaconr&15) || (hw->intenar&AUDIO_IRQ_MASK)) {
+#ifdef V6_MENU_COMPLETE
+        menu_startup_diag.values[0]=15;menu_startup_diag.values[5]=hw->dmaconr;menu_startup_diag.values[6]=hw->intenar;
+#endif
         CloseLibrary((struct Library *)GfxBase);return 20;
     }
 #endif
@@ -3765,7 +3788,15 @@ static int run(void) {
 #ifdef V6_MENU_COMPLETE
     menu_startup_diag.values[0]=chip?2:10;menu_startup_diag.values[4]=(ULONG)chip;
 #endif
-    if(!chip) { CloseLibrary((struct Library *)GfxBase);return 20; }
+    if(!chip) {
+#ifdef V6_TOWER_UI_SAVE
+        static const char message[]="Not enough contiguous Chip RAM for graphics.\n"
+            "Use Kickstart 1.3 with 512K Chip + 512K Slow.\n"
+            "AROS needs additional memory for this build.\n";
+        Write(Output(),(APTR)message,sizeof(message)-1);
+#endif
+        CloseLibrary((struct Library *)GfxBase);return 20;
+    }
     rings[0]=chip+SHAKE_DMA_BYTES;rings[1]=rings[0]+LAYER_BYTES;
 #ifdef V6_TOWER_SHAKE
     { unsigned i;shake_mask=chip;for(i=0;i<V6_SHAKE_MASK_BYTES/2;++i)((UWORD *)shake_mask)[i]=0xffff; }
@@ -4107,6 +4138,9 @@ static int run(void) {
     /* Recheck while scheduling and interrupts are stopped: allocation and
      * display preparation ran with the OS enabled after the early check. */
     if((hw->dmaconr&15) || (hw->intenar&AUDIO_IRQ_MASK)) {
+#ifdef V6_MENU_COMPLETE
+        menu_startup_diag.values[0]=15;menu_startup_diag.values[5]=hw->dmaconr;menu_startup_diag.values[6]=hw->intenar;
+#endif
         Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();
         free_chip(chip);CloseLibrary((struct Library *)GfxBase);return 20;
     }
@@ -4336,6 +4370,9 @@ static int run(void) {
                     view=GfxBase->ActiView;LoadView(0);WaitTOF();WaitTOF();
                     OwnBlitter();WaitBlit();Forbid();Disable();
                     if((hw->dmaconr&15) || (hw->intenar&AUDIO_IRQ_MASK)) {
+#ifdef V6_MENU_COMPLETE
+        menu_startup_diag.values[0]=15;menu_startup_diag.values[5]=hw->dmaconr;menu_startup_diag.values[6]=hw->intenar;
+#endif
                         Enable();Permit();DisownBlitter();LoadView(view);WaitTOF();WaitTOF();
                         diag.error=12;diag.status=2;break;
                     }
