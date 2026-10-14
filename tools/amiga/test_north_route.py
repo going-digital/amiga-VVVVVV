@@ -2,6 +2,7 @@
 """Original north-room declarations and source actor scheduling."""
 import ctypes as C
 import subprocess
+import re
 from test_player import ROOT,BUILD,Player,Room,Terrain,DynamicBlock
 from test_enemy import Enemy
 from test_carry import Push
@@ -48,6 +49,7 @@ extern "C" void north_enemy(const uint16_t *tiles,V6Enemy *a,unsigned n) {
     core.v6_north_init.argtypes=[bp,rp,C.c_int,C.c_int,C.c_int]
     core.v6_north_entities.argtypes=[bp,rp,C.c_int]
     core.v6_north_platforms.argtypes=[bp,rp,pp,C.c_int,C.c_int]
+    core.v6_enemy_step_vertical_cached.argtypes=[ep,C.POINTER(C.c_uint8)]
     ref.north_enemy.argtypes=[C.POINTER(C.c_uint16),ep,C.c_uint]
     ref.loop_init.argtypes=[pp,C.POINTER(C.c_uint16),C.c_int,C.c_int,dp,C.c_uint,ep,C.c_uint]
     ref.loop_step.argtypes=[C.c_uint,C.c_uint,C.c_int,ep,C.c_uint,dp,C.c_uint,C.POINTER(Push)]
@@ -58,10 +60,19 @@ extern "C" void north_enemy(const uint16_t *tiles,V6Enemy *a,unsigned n) {
         assert len(data['checkpoints'])==(2 if name!='reflect' else 1)
         if name=='yesmen':
             wanted=(Enemy*5).from_buffer_copy(bank.enemies)
+            cached=(Enemy*5).from_buffer_copy(bank.enemies)
+            header=(ROOT/'build/amiga-feasibility/north_actor_assets.h').read_text()
+            match=re.search(r'north_yesmen_walls\[3\]\[272\]=\{(.*?)\};',header,re.S)
+            assert match,'generated exact lane collision tables'
+            values=list(map(int,re.findall(r'\d+',match[1])))
+            lanes=[(C.c_uint8*272)(*values[i*272:(i+1)*272]) for i in range(3)]
             for tick in range(2048):
                 ref.north_enemy(tiles,wanted,5)
                 core.v6_north_entities(C.byref(bank),C.byref(room),0)
                 assert bytes(bank.enemies)==bytes(wanted),(name,tick)
+                for i in reversed(range(5)):
+                    core.v6_enemy_step_vertical_cached(C.pointer(cached[i]),lanes[1 if i==1 else 0 if i<3 else 2])
+                assert bytes(cached)==bytes(wanted),('cached lanes',tick)
                 if tick%17==0:
                     old=bytes(bank.enemies);core.v6_north_entities(C.byref(bank),C.byref(room),1)
                     assert bytes(bank.enemies)==old

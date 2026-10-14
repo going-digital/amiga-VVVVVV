@@ -94,6 +94,15 @@ def main():
             for x in range(16)) for c in range(6)] for y in range(96)])
     (out/'teleporter_assets.h').write_text('static const uint16_t teleporter_masks[10][96][6]={'+
         ','.join('{'+','.join('{'+','.join(map(str,row))+'}' for row in frame)+'}' for frame in tele_masks)+'};\n')
+    prepared=[]
+    for frame in range(1,10):
+        words=[]
+        for channel in range(6):
+            words.extend((100<<8|((128+112+channel*16)>>1),196<<8))
+            for y in range(96):words.extend((tele_masks[0][y][channel]&~tele_masks[frame][y][channel],tele_masks[frame][y][channel]))
+            words.extend((0,0))
+        assert len(words)==1176;prepared.append(words)
+    (out/'teleporter_prepared_assets.h').write_text('/* Private source-equivalent portal DMA at (112,48). */\nstatic const uint16_t north_portal_frames[9][1176]={'+','.join('{'+','.join(map(str,f))+'}' for f in prepared)+'};\n')
     font_path=out/'dialogue_font.png';font_path.write_bytes(font_png)
     header,font=subprocess.check_output([str(decoder),str(font_path)]).split(b'\n',1)
     fw,fh=map(int,header.split());glyphs=[]
@@ -146,6 +155,62 @@ def main():
         assets+=('static const uint32_t '+name+'['+str(len(masks))+'][32]={\n'+
             ',\n'.join('{'+','.join(hex(v)+'UL' for v in mask)+'}' for mask in masks)+'};\n')
     (out/'prize_return_sprite_assets.h').write_text(assets)
+    north='/* Private original north-route actor masks. */\n'
+    tiles=north_route_room('yesmen')['tiles']
+    def lane_wall(x,y):
+        # Entity.cpp checkwall: corners, six-pixel side probes, middle column.
+        div=lambda v:int(v/8)
+        l,t,r,b=div(x),div(y),div(x+19),div(y+19)
+        probes=[(l,t),(r,t),(l,b),(r,b)]
+        for offset in (6,12):
+            row=div(y+offset)
+            if row not in (t,b):probes.extend(((l,row),(r,row)))
+        column=div(x+6)
+        if column not in (l,r):probes.extend(((column,t),(column,b)))
+        def solid(x,y):
+            if x==-1:x=0
+            if x==40:x=39
+            if y==-1:y=0
+            if y==29:y=28
+            if not (0<=x<40 and 0<=y<29):return False
+            tile=tiles[y*40+x]
+            return tile==1 or 80<=tile<680 or tile==59
+        return int(any(solid(x,y) for x,y in probes))
+    north+='static const uint8_t north_yesmen_walls[3][272]={'+','.join(
+        '{'+','.join(str(lane_wall(x,y)) for y in range(-16,256))+'}' for x in (122,266,194))+'};\n'
+
+    for name,collision in (('north_enemy_visible',False),('north_enemy_collision',True)):
+        masks=sprite_masks(range(40,44),collision)
+        north+='static const uint32_t '+name+'[4][32]={'+','.join('{'+','.join(hex(v)+'UL' for v in m)+'}' for m in masks)+'};\n'
+    dims,rgba=subprocess.check_output([str(decoder),str(out/'reflect-tiles.png')]).split(b'\n',1)
+    tile_width,tile_height=map(int,dims.split());gates=[];gate_colours=[]
+    for tile in (*range(10,14),616):
+        ox=tile%(tile_width//8)*8;oy=tile//(tile_width//8)*8;rows=[];colours=set()
+        for y in range(8):
+            row=0
+            for x in range(8):
+                r,g,b,a=rgba[((oy+y)*tile_width+ox+x)*4:((oy+y)*tile_width+ox+x)*4+4]
+                if a:
+                    assert a==255 and (r or g or b)
+                    colours.add(((r+8)//17<<8)|((g+8)//17<<4)|((b+8)//17));row|=1<<(7-x)
+            rows.append(row*0x01010101)
+        assert len(colours)==1;gate_colours.append(colours.pop());gates.append(rows+[0]*24)
+    north+='static const uint32_t north_platform_rows[5][32]={'+','.join('{'+','.join(hex(v)+'UL' for v in m)+'}' for m in gates)+'};\n'
+    north+='static const uint16_t north_platform_colours[5]={'+','.join(hex(c) for c in gate_colours)+'};\n'
+    def dma_body(mask,crop,width,height,parity):
+        bits=[(v>>(16-crop))&((0xffff<<(16-width))&0xffff) for v in mask[:height]]
+        return [word for v in bits for word in (v,v if parity else 0)]
+    for name,masks,crops,widths,height in (
+        ('north_enemy_dma',sprite_masks(range(40,44)),(0,16),(16,4),20),
+        ('north_platform_dma',gates,(0,16),(16,16),8)):
+        frames=[[[dma_body(m,c,w,height,parity) for parity in (0,1)] for c,w in zip(crops,widths)] for m in masks]
+        encode=lambda v:'{'+','.join(encode(a) if isinstance(a,list) else str(a) for a in v)+'}'
+        north+='static const uint16_t '+name+'['+str(len(masks))+'][2][2]['+str(height*2)+']='+encode(frames)+';\n'
+    for name,masks,crop,height in (('north_player_dma',sprite_masks(range(16)),6,32),
+                                  ('north_checkpoint_dma',sprite_masks((20,21)),0,16)):
+        values=[[dma_body(m,crop,16,height,parity) for parity in (0,1)] for m in masks]
+        north+='static const uint16_t '+name+'['+str(len(masks))+'][2]['+str(height*2)+']='+encode(values)+';\n'
+    (out/'north_actor_assets.h').write_text(north)
     # AI 17 remains still, tile 144 (sad), facing left: visual frame 147.
     # Export just this required frame rather than a full crew sprite sheet.
     tile=147;ox=(tile%(sw//32))*32;oy=(tile//(sw//32))*32

@@ -108,3 +108,19 @@ void v6_enemy_move(V6Enemy *e,const V6Room *r,const V6EnemyBlock *blocks,unsigne
     }
     if (e->vy) e->y = next;
 }
+
+void v6_enemy_step_vertical_cached(V6Enemy *e,const uint8_t walls[272])
+{
+    int next;
+    behavior(e);e->old_x=e->x;e->old_y=e->y;
+    /* Preserve the source zero-velocity horizontal collision stage. */
+    if(walls[e->y+16]){e->vx=0;e->state=e->onwall;}
+    next=e->y+e->vy;
+    while(walls[next+16]) {
+        if(e->vy>1)--e->vy;
+        else if(e->vy< -1)++e->vy;
+        else {e->vy=0;e->state=e->onwall;break;}
+        next=e->y+e->vy;
+    }
+    if(e->vy)e->y=next;
+}

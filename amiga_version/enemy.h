@@ -16,4 +16,8 @@ int v6_enemy_init(V6Enemy *, int x, int y, int behavior, int speed,
 void v6_enemy_step(V6Enemy *, const V6Room *, const V6EnemyBlock *, unsigned count);
 /* Movement/collision stage after a caller-supplied behaviour update. */
 void v6_enemy_move(V6Enemy *,const V6Room *,const V6EnemyBlock *,unsigned count);
+/* Fixed vertical lane with vx=0 and no dynamic blocks. The caller supplies
+ * exact wall occupancy at the configured x/size, indexed by y+16, and
+ * guarantees current/candidate y stays in -16..255. */
+void v6_enemy_step_vertical_cached(V6Enemy *,const uint8_t walls[272]);
 #endif
