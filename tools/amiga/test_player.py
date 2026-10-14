@@ -194,6 +194,15 @@ def main():
         compare(scene,100,90,0,[0]*25+[4]*35+[0]*20+[4]*35+[2]*40, f'one-way-{tile}')
     for x in (-20,-14,-8,-1,0,302,308,320):
         compare([0]*1200,x,-10,0,[1,2,0,4]*5, f'negative-and-edge-{x}')
+    # Complete movement envelopes just inside/outside every cached border.
+    # Filled, empty and directional banks exercise incoming as well as
+    # outgoing motion without bypassing the original C++ reference.
+    for tileset,tile in ((0,0),(0,80),(0,14),(2,12)):
+        for x,y in ((-40,100),(-39,100),(-38,100),(327,100),(328,100),(329,100),
+                    (100,-49),(100,-48),(100,-47),(100,255),(100,256),(100,257)):
+            for gravity in (0,1):
+                compare([tile]*1200,x,y,gravity,[0,1,2,4]*40,
+                        f'cached-envelope-{tileset}-{tile}-{x}-{y}-{gravity}',tileset=tileset,extra=1)
     # Real source room geometry, reinitialized between bounded sequences.
     for index,(meta,raw,_) in enumerate(extract()):
         if index%5: continue

@@ -4,7 +4,7 @@ import ctypes as C
 import subprocess
 from test_companion import Companion,bind
 from test_tower_player import libraries,OUT
-from test_player import ROOT,Player,Room,Terrain,block
+from test_player import ROOT,Player,Room,Terrain,DynamicBlock,block
 from tower_gameplay_data import energize_room,frown_room,building_room,north_route_room
 
 class Rest(C.Structure):
@@ -30,6 +30,12 @@ def main():
     code+='\n'+block(source,source.index('void entityclass::animatehumanoidcollision('))+'''
 extern "C" void crew_init(const V6Player *p,const uint16_t *tiles,int tileset) {
 reference_init(p,tiles,tileset,0);obj.entities[0].rule=7;obj.entities[0].type=EntityType_CREWMATE;
+}
+extern "C" void crew_blocks(const V6Block *blocks,unsigned count) {
+obj.blocks.clear();
+for(unsigned j=0;j<count;++j){
+const auto &b=blocks[j];blockclass value={b.type==V6_BLOCK?BLOCK:b.type==V6_SAFE?SAFE:DIRECTIONAL,b.trigger,{b.x,b.y,b.w,b.h},0,0,0,0};obj.blocks.push_back(value);
+}
 }
 extern "C" void crew_tick(int hero,int roomx,int roomy,int follow,int death,V6Player *out,int *frame) {
 obj.entities.push_back(obj.entities[0]);obj.entities[0].xp=hero;
@@ -101,6 +107,39 @@ obj.animatehumanoidcollision(i);obj.updateentitylogic(i);obj.entitymapcollision(
         assert bytes(primed)==bytes(crew),('static primed transition',tick)
         assert bytes(resting)==bytes(crew),('static fixed point',tick)
     assert stable>200,stable
+    ref.crew_blocks.argtypes=[C.POINTER(DynamicBlock),C.c_uint]
+    desc=north_route_room('gantry');tiles=(C.c_uint16*1200)(*desc['tiles']);gate_ticks=0
+    for start_x in (42,60,97,104,130,136,160,168,190,215,280,319):
+        for vx in (-6,0,6):
+            blocks=(DynamicBlock*4)();room=Room(tiles,0,0,None,blocks,4);terrain=Terrain()
+            core.v6_terrain_build(C.byref(terrain),C.byref(room));room.terrain=C.pointer(terrain)
+            crew=Companion();hero=Player();hero.x=start_x
+            core.v6_companion_init(C.byref(crew));core.v6_station_companion_enter(C.byref(crew),7,112,104,C.byref(hero))
+            crew.body.vx=vx*16777216;cached_crew=Companion.from_buffer_copy(crew);memos=(Rest*3)()
+            ref.crew_init(C.byref(crew.body),tiles,0);expected=Player();frame=C.c_int()
+            for tick in range(480):
+                gate_mask=(tick//31)%8
+                for i in range(3):
+                    gate=(i+tick//47)%3
+                    blocks[i]=DynamicBlock(104+gate*32,64,32 if gate_mask&(1<<gate) else 0,8,0,0)
+                # Also bring a moving platform into the NPC envelope: those
+                # frames must take the unmodified collision path.
+                near=tick%73<8
+                blocks[3]=DynamicBlock(crew.body.x-8 if near else 56+(tick*3)%160,
+                    crew.body.y+12 if near else 152,32,8,0,0)
+                hero.x=crew.body.x+(-100,-46,-5,0,5,46,100)[(tick//17)%7]
+                death=30 if tick%79<5 else -1
+                before=bytes(terrain);room_before=bytes(room);block_before=bytes(blocks)
+                core.v6_station_companion_step(C.byref(crew),C.byref(hero),C.byref(room),death,112,104)
+                core.v6_station_companion_step_memo(C.byref(cached_crew),C.byref(hero),C.byref(room),death,112,104,memos,3)
+                assert bytes(cached_crew)==bytes(crew),('crew block semantics',start_x,vx,tick)
+                assert bytes(terrain)==before and bytes(room)==room_before and bytes(blocks)==block_before,'crew block semantics leaks into world geometry'
+                ref.crew_blocks(blocks,4);ref.crew_tick(hero.x,112,104,1,death,C.byref(expected),C.byref(frame))
+                for field in ('x','y','old_x','old_y','vx','vy','ay','ground','roof','dir'):
+                    assert getattr(crew.body,field)==getattr(expected,field),('original gate physics',start_x,vx,tick,field)
+                if death>=0:assert crew.frame==frame.value
+                gate_ticks+=1
+    print('PASS Gantry crew:',gate_ticks,'original C++ gate/platform updates; terrain/room/block bytes unchanged')
     # Compile the original case 7 rather than reimplementing its entry branches.
     maps=(ROOT/'desktop_version/src/Map.cpp').read_text();start=maps.index('    case 7:',maps.index('void mapclass::spawncompanion('));spawn=maps[start:maps.index('    case 8:',start)]
     wrapper='''#include <vector>

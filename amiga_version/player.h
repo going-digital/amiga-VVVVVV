@@ -56,6 +56,9 @@ int v6_player_contacts(const V6Player *, const V6Room *);
  * Initialize pending_y from player.y on spawn; preserve it between ticks. */
 typedef struct { int32_t ax; int pending_y; } V6PlayerMotion;
 unsigned v6_player_input(V6Player *, unsigned input, V6PlayerMotion *);
+/* Rule-6/7 crew: contact probes include blocks; movement skips blocks and
+ * directional-block tiles, matching the original testwallsx/testwallsy. */
+void v6_player_physics_crew(V6Player *,const V6Room *,V6PlayerMotion *,V6ContactHook,void *);
 void v6_player_physics(V6Player *, const V6Room *, V6PlayerMotion *, V6ContactHook, void *);
 unsigned v6_player_step_hook(V6Player *, const V6Room *, unsigned, V6ContactHook, void *);
 unsigned v6_player_step(V6Player *p, const V6Room *room, unsigned input);

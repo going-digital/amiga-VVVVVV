@@ -78,7 +78,7 @@ void v6_companion_rest_prime_motion(V6CompanionRest *out,unsigned count,
     for(i=0;i<count;++i){V6CompanionRest *r=&out[i];r->valid=0;
         if(room->tileset==V6_TILE_SOURCE_TOWER || !room->terrain || room->block_count)continue;
         copy.motion.ax=ax;rest_store(r,&copy,room);
-        v6_player_physics(&copy.body,room,&copy.motion,0,0);
+        v6_player_physics_crew(&copy.body,room,&copy.motion,0,0);
         rest_result(r,&copy);r->valid=1;
     }
 }
@@ -103,7 +103,7 @@ static void step(V6Companion *c,const V6Player *p,const V6Room *room,int death,i
         if(rest && i<count)rest_apply(&rest[i],c);
         else {
             if(rest)rest_store(rest,c,room);
-            v6_player_physics(&c->body,room,&c->motion,animate,c);
+            v6_player_physics_crew(&c->body,room,&c->motion,animate,c);
             if(rest){rest_result(rest,c);rest->valid=room->tileset!=V6_TILE_SOURCE_TOWER && room->terrain && !room->block_count;}
         }
     }
