@@ -5663,11 +5663,15 @@ for room actors and draws the following crewmate with a blitter-shifted third
 foreground plane. Its transparent outer rows are removed only after exact
 original PNG checks (32,384 actor pixel/parity/collision comparisons). Native
 mask and uncached sprite-DMA comparisons pass. The follower timing gate is
-still open: the latest nonexperimental build reached 322 work lines and three
-missed frames. A retained-channel planning experiment was slower and has been
+still open: the latest production-path build reached 315 work lines and two
+missed frames (down from 322 and three). Direct overlay event merging passes
+5,904 compositor comparisons. The uncached DMA comparison now runs only in
+the explicit BOB validation fixture, removing the menu-opening overrun.
+The remaining peak is gameplay tick 3: 138 logic plus 177 rendering lines.
+A retained-channel planning experiment was slower and has been
 removed from the native path. No complete north campaign release is claimed.
 
 The hardware target remains stock PAL A500, 512 KiB Chip + 512 KiB Slow, no
-Fast RAM. A clarification is pending on whether graphics must redraw at 50 fps
-or may render at 25 fps while preserving the existing 30 Hz gameplay timing.
+Fast RAM. The user confirmed 50 fps graphics; continue optimization while
+preserving the existing 30 Hz gameplay timing and the 280-line timing gate.
 Music conversion remains paused pending the requested original tracker files.
