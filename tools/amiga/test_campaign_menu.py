@@ -61,6 +61,35 @@ def main():
  before=tuple(bytes(o) for o in outputs)
  assert not lib.v6_campaign_hint_decode(*[C.byref(o) for o in outputs],(C.c_uint8*144).from_buffer_copy(blob),144)
  assert tuple(bytes(o) for o in outputs)==before
+ # V6 admits only the original north-route checkpoint bank. Legacy V5
+ # admission stays unchanged, even when a caller recomputes a valid CRC.
+ from tower_gameplay_data import north_route_room
+ north_cases=0
+ lib.v6_campaign_hint_encode.argtypes=[C.c_void_p,C.c_size_t]+ptrs
+ for name in ('reflect','yesmen','gantry'):
+  room=north_route_room(name)
+  for x,y,tile,identifier in room['checkpoints']:
+   for direction in (0,1):
+    candidate=Record.from_buffer_copy(bytes(r))
+    candidate.checkpoint=Checkpoint(x-4,y-(2 if tile==20 else 7),int(tile==20),direction,room['x'],room['y'],identifier)
+    bit=(room['y']-100)*20+room['x']-100;candidate.explored.rooms[bit//8]|=1<<(bit%8)
+    encoded=encode(candidate);assert encode(decode(encoded,True))==encoded
+    assert struct.unpack_from('>7i',encoded,8)==values(candidate.checkpoint)
+    legacy=bytearray(encoded[:108]);legacy[5]=5;legacy[7]=112;legacy+=struct.pack('>I',zlib.crc32(legacy))
+    decode(legacy,False)
+    unchanged=(C.c_uint8*112)(*([0xa5]*112))
+    assert not lib.v6_campaign_hint_encode(unchanged,112,*[C.byref(getattr(candidate,n)) for n in ('checkpoint','red','yellow','explored','collected','hints')])
+    assert bytes(unchanged)==bytes([0xa5]*112)
+    for field in ('x','y','gravity','id','dir'):
+     bad=Record.from_buffer_copy(bytes(candidate));setattr(bad.checkpoint,field,getattr(bad.checkpoint,field)+(2 if field=='dir' else 1))
+     outbuf=(C.c_uint8*144)(*([0xa5]*144));assert not lib.v6_campaign_menu_encode(outbuf,144,C.byref(bad))
+     assert bytes(outbuf)==bytes([0xa5]*144)
+    missing=Record.from_buffer_copy(bytes(candidate));missing.explored.rooms[bit//8]&=~(1<<(bit%8))
+    assert not lib.v6_campaign_menu_encode((C.c_uint8*144)(),144,C.byref(missing))
+    for offset in (8,12,16,20,32):
+     bad=bytearray(encoded);struct.pack_into('>I',bad,offset,struct.unpack_from('>I',bad,offset)[0]+2)
+     bad[140:]=struct.pack('>I',zlib.crc32(bad[:140]));decode(bad,False)
+    north_cases+=1
  oldrecord=encode(migrated)
  def replace(fs,io=None):return lib.v6_campaign_menu_replace(C.byref(io or fs.io),b'save',b'temp',b'backup',C.byref(r))
  def recover(fs,io=None):
@@ -82,4 +111,5 @@ def main():
  for files in [{b'backup':bytes(old)},{b'backup':bytes(old),b'temp':blob}]:
   f=Files();f.files=files;assert replace(f)==0 and f.files=={b'save':blob}
  print(f'PASS V6 menu save: exact vector, 1152 corruptions, V5 migration, {len(snapshots)} interrupted snapshots, {steps*2} transaction failures and backup promotion')
+ print('PASS V6 north checkpoint admission:',north_cases,'source checkpoint/direction pairs; malformed banks and missing exploration rejected; V5 admission unchanged')
 if __name__=='__main__':main()

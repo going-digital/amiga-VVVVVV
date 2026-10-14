@@ -40,7 +40,7 @@ int v6_campaign_menu_encode(uint8_t *out,size_t n,const V6MenuRecord *r)
 {
     uint8_t p[V6_CAMPAIGN_MENU_BYTES],old[V6_CAMPAIGN_HINT_BYTES];unsigned i;
     if(!out || !r || n!=sizeof(p) || !valid(r) ||
-       !v6_campaign_hint_encode(old,sizeof(old),&r->checkpoint,&r->red,&r->yellow,&r->explored,&r->collected,&r->hints))return 0;
+       !v6_campaign_menu_prefix_encode(old,sizeof(old),&r->checkpoint,&r->red,&r->yellow,&r->explored,&r->collected,&r->hints))return 0;
     for(i=0;i<108;++i)p[i]=old[i];
     p[5]=6;p[7]=sizeof(p);
     clock_put(p+108,&r->menu.clock);put32(p+116,r->menu.deaths);
@@ -58,14 +58,15 @@ int v6_campaign_menu_decode(V6MenuRecord *out,const uint8_t *p,size_t n)
     if(n==V6_CAMPAIGN_MENU_BYTES) {
         if(p[4] || p[5]!=6 || p[6] || p[7]!=n || p[138] || p[139] || get32(p+140)!=crc(p,140))return 0;
         for(i=0;i<108;++i)old[i]=p[i];
-        old[5]=5;old[7]=sizeof(old);put32(old+108,crc(old,108));
+        old[7]=sizeof(old);put32(old+108,crc(old,108));
         clock_get(&r.menu.clock,p+108);r.menu.deaths=get32(p+116);
         r.menu.crew_mask=p[120];r.menu.last.exists=p[121];clock_get(&r.menu.last.clock,p+122);
         r.menu.last.room_x=(int16_t)get16(p+130);r.menu.last.room_y=(int16_t)get16(p+132);
         r.menu.last.trinkets=(uint16_t)get16(p+134);r.menu.last.crew_mask=(uint16_t)get16(p+136);
         p=old;n=sizeof(old);
     }
-    if(!v6_campaign_hint_decode(&r.checkpoint,&r.red,&r.yellow,&r.explored,&r.collected,&r.hints,p,n))return 0;
+    if(p==old){if(!v6_campaign_menu_prefix_decode(&r.checkpoint,&r.red,&r.yellow,&r.explored,&r.collected,&r.hints,p,n))return 0;}
+    else if(!v6_campaign_hint_decode(&r.checkpoint,&r.red,&r.yellow,&r.explored,&r.collected,&r.hints,p,n))return 0;
     if(p!=old)r.menu.crew_mask=(uint16_t)(1|(r.yellow.yellow_rescued<<2)|(r.red.red_rescued<<3));
     if(!valid(&r))return 0;
     copy(out,&r,sizeof(r));return 1;

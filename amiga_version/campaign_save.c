@@ -110,10 +110,18 @@ static int progress_valid(const V6CheckpointSave *c,const V6HallwayStory *red,
 {
     V6CheckpointSave bounded=*c;
     /* Keep legacy admission unchanged; V5 also admits V Stitch. */
-    if(c->room_x==111 && c->room_y==107 && (version==4 || version==5)) {
+    if(c->room_x==112 && c->room_y>=104 && c->room_y<=106 && version==6) {
+        static const int cp[5][5]={{106,284,153,0,442500},{105,60,73,0,441501},
+            {105,60,134,1,441502},{104,52,97,0,440500},{104,276,185,0,440501}};
+        unsigned i;int found=0;
+        for(i=0;i<5;++i)if(c->room_y==cp[i][0] && c->x==cp[i][1] && c->y==cp[i][2] &&
+            c->gravity==cp[i][3] && c->id==cp[i][4])found=1;
+        if(!found)return 0;
+        bounded.room_x=111;bounded.room_y=104;
+    } else if(c->room_x==111 && c->room_y==107 && version>=4) {
         if(c->x!=236 || c->y!=134 || c->gravity!=1 || c->id!=443490)return 0;
         bounded.room_y=104;
-    } else if(c->room_x==112 && c->room_y==107 && version==5) {
+    } else if(c->room_x==112 && c->room_y==107 && version>=5) {
         if(c->gravity!=0 || !((c->x==276 && c->y==185 && c->id==443500) ||
                             (c->x==60 && c->y==73 && c->id==443501)))return 0;
         bounded.room_x=111;bounded.room_y=104;
@@ -220,35 +228,35 @@ int v6_campaign_collection_decode(V6CheckpointSave *out,V6HallwayStory *red,
     return 1;
 }
 
-int v6_campaign_hint_encode(uint8_t *out,size_t n,const V6CheckpointSave *c,
+static int hint_encode(uint8_t *out,size_t n,const V6CheckpointSave *c,
     const V6HallwayStory *red,const V6StationStory *yellow,const V6Exploration *e,
-    const V6Collect *collected,const V6CampaignHints *hints)
+    const V6Collect *collected,const V6CampaignHints *hints,unsigned version)
 {
     uint8_t p[V6_CAMPAIGN_HINT_BYTES];unsigned i;
     if(!out || !collected || !hints || n!=sizeof(p) || (collected->bits[12]&0xf0) ||
        (hints->map_hint_seen!=0 && hints->map_hint_seen!=1))return 0;
-    if(!progress_encode(p,V6_CAMPAIGN_STATE_BYTES,c,red,yellow,e,5))return 0;
+    if(!progress_encode(p,V6_CAMPAIGN_STATE_BYTES,c,red,yellow,e,version))return 0;
     p[7]=sizeof(p);put(p+36,get(p+36)|((uint32_t)hints->map_hint_seen<<6));
     for(i=0;i<V6_COLLECT_BYTES;++i)p[90+i]=collected->bits[i];
     for(i=103;i<108;++i)p[i]=0;
     put(p+108,crc(p,108));for(i=0;i<sizeof(p);++i)out[i]=p[i];
     return 1;
 }
-int v6_campaign_hint_decode(V6CheckpointSave *out,V6HallwayStory *red,
+static int hint_decode(V6CheckpointSave *out,V6HallwayStory *red,
     V6StationStory *yellow,V6Exploration *explored,V6Collect *collected,V6CampaignHints *hints,
-    const uint8_t *p,size_t n)
+    const uint8_t *p,size_t n,unsigned version)
 {
     V6CheckpointSave c;V6HallwayStory r;V6StationStory y;V6Exploration e;V6Collect bank;
     V6CampaignHints h={0};uint8_t previous[V6_CAMPAIGN_STATE_BYTES];unsigned i;uint32_t flags;
     if(!out || !red || !yellow || !explored || !collected || !hints || !p)return 0;
-    if(n==V6_CAMPAIGN_HINT_BYTES && p[5]==5) {
+    if(n==V6_CAMPAIGN_HINT_BYTES && p[5]==version) {
         if(p[4] || p[6] || p[7]!=n || (p[102]&0xf0) || get(p+108)!=crc(p,108))return 0;
         for(i=103;i<108;++i)if(p[i])return 0;
         flags=get(p+36);if(flags&~127U)return 0;h.map_hint_seen=(flags>>6)&1;
         for(i=0;i<90;++i)previous[i]=p[i];
         previous[7]=sizeof(previous);put(previous+36,flags&63U);
         previous[90]=previous[91]=0;put(previous+92,crc(previous,92));
-        if(!progress_decode(&c,&r,&y,&e,previous,sizeof(previous),5))return 0;
+        if(!progress_decode(&c,&r,&y,&e,previous,sizeof(previous),version))return 0;
         for(i=0;i<V6_COLLECT_BYTES;++i)bank.bits[i]=p[90+i];
     } else if(!v6_campaign_collection_decode(&c,&r,&y,&e,&bank,p,n))return 0;
     *out=c;*red=r;*yellow=y;*hints=h;
@@ -256,3 +264,18 @@ int v6_campaign_hint_decode(V6CheckpointSave *out,V6HallwayStory *red,
     for(i=0;i<V6_COLLECT_BYTES;++i)((volatile uint8_t *)collected->bits)[i]=bank.bits[i];
     return 1;
 }
+
+int v6_campaign_hint_encode(uint8_t *out,size_t n,const V6CheckpointSave *c,
+    const V6HallwayStory *r,const V6StationStory *y,const V6Exploration *e,
+    const V6Collect *b,const V6CampaignHints *h)
+{return hint_encode(out,n,c,r,y,e,b,h,5);}
+int v6_campaign_hint_decode(V6CheckpointSave *c,V6HallwayStory *r,V6StationStory *y,
+    V6Exploration *e,V6Collect *b,V6CampaignHints *h,const uint8_t *p,size_t n)
+{return hint_decode(c,r,y,e,b,h,p,n,5);}
+int v6_campaign_menu_prefix_encode(uint8_t *out,size_t n,const V6CheckpointSave *c,
+    const V6HallwayStory *r,const V6StationStory *y,const V6Exploration *e,
+    const V6Collect *b,const V6CampaignHints *h)
+{return hint_encode(out,n,c,r,y,e,b,h,6);}
+int v6_campaign_menu_prefix_decode(V6CheckpointSave *c,V6HallwayStory *r,V6StationStory *y,
+    V6Exploration *e,V6Collect *b,V6CampaignHints *h,const uint8_t *p,size_t n)
+{return p && n==V6_CAMPAIGN_HINT_BYTES && p[5]==6 && hint_decode(c,r,y,e,b,h,p,n,6);}
