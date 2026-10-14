@@ -28,6 +28,8 @@ def export(out):
     export_prize(out)
     export_vstitch(out)
     export_north_route(out)
+    from terminal_scripts import export as export_terminal_scripts
+    export_terminal_scripts(out)
     export_prize_return_rooms(out)
     from hallway_scripts import export as export_scripts
     export_scripts(out)

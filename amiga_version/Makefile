@@ -1351,3 +1351,9 @@ $(BUILD)/terminal.o: terminal.c terminal.h player.h | $(BUILD)
 .PHONY: test-activity
 test-activity: $(BUILD)/activity.o $(BUILD)/terminal.o
 	python3 $(ROOT)/tools/amiga/test_activity.py
+
+$(BUILD)/terminal_read.o: terminal_read.c terminal_read.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+.PHONY: test-terminal-read
+test-terminal-read: $(BUILD)/terminal_read.o
+	python3 $(ROOT)/tools/amiga/test_terminal_read.py

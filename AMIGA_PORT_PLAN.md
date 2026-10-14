@@ -5804,3 +5804,41 @@ guards, including stale-index behavior and terminal creation/update branches.
 These are engine foundations: Linear Collider is not yet admitted in the
 native route, and no new native frame-budget claim is made. Next is its
 terminal read script/presentation, followed by room and traversal integration.
+
+### Station terminal read presentation (14 October 2026)
+
+The original `terminal_station_1` script now has a bounded presentation runner
+and generated immutable page descriptors. The exporter reads TerminalScripts.cpp,
+preserves every leading/trailing space, and rejects changes outside its reviewed
+command sequence. The campaign asset export generates the program privately.
+
+The runner waits for opening cutscene bars, requests the terminal read cue,
+shows the background PERSONAL LOG heading and the blocking six-line body in
+the same script update, waits for a released/pressed advance, restores control,
+removes both boxes and waits for closing bars. Removal fades continue after
+script completion. Both current and previous opacity samples preserve the
+original binary32 updates for subsequent renderer interpolation. Removal starts
+at opacity 1 even when the appearance fade was incomplete. Serial changes
+cover creation, removal requests and the final disappearance for DMA caches.
+
+The row compositor uses original border tiles 40–47 and the original ASCII
+font. Textbox.cpp's one-pixel line gap makes the body 69 pixels high. Layout
+preserves centering, adjustment order, flipme heading placement, reversed line
+order in flip mode, later-box occlusion and partially aligned border tiles.
+Byte spans and two-byte glyph stamps avoid filling rectangles pixel by pixel.
+It emits a transparent mask plus ink; the native owner must compose these with
+the game layers and use the reported gray fade for its palette.
+
+`make -C amiga_version test-terminal-read` compiles the runner for 68000 and
+passes 324 source script ticks, 56 binary32 fade schedules and 1,843,200
+original textbox/font/border pixels. The pixel cases include all eight bit
+alignments, overlap, individual/combined boxes and flip mode. Ten invalid
+descriptors, invalid row/geometry and an active restart reject without mutation.
+The generated C program is compiled and compared with the exported source
+descriptors. Original Script.cpp handlers, Textbox.cpp geometry/fades and
+Graphics.cpp border/GUI statements supply the independent reference.
+
+This completes the portable terminal read presentation. Native Copper/layer
+composition, sound consumption and Linear Collider admission/traversal remain
+the next milestone. The playable prototype remains at fourteen resident banks;
+no new native frame-budget or complete-room claim is made by these host checks.
