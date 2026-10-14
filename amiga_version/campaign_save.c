@@ -110,11 +110,11 @@ static int progress_valid(const V6CheckpointSave *c,const V6HallwayStory *red,
 {
     V6CheckpointSave bounded=*c;
     /* Keep legacy admission unchanged; V5 also admits V Stitch. */
-    if(c->room_x==112 && c->room_y>=104 && c->room_y<=106 && version==6) {
-        static const int cp[5][5]={{106,284,153,0,442500},{105,60,73,0,441501},
-            {105,60,134,1,441502},{104,52,97,0,440500},{104,276,185,0,440501}};
+    if(c->room_x==112 && c->room_y>=103 && c->room_y<=106 && version==6) {
+        static const int cp[6][5]={{106,284,153,0,442500},{105,60,73,0,441501},
+            {105,60,134,1,441502},{104,52,97,0,440500},{104,276,185,0,440501},{103,164,97,0,439500}};
         unsigned i;int found=0;
-        for(i=0;i<5;++i)if(c->room_y==cp[i][0] && c->x==cp[i][1] && c->y==cp[i][2] &&
+        for(i=0;i<6;++i)if(c->room_y==cp[i][0] && c->x==cp[i][1] && c->y==cp[i][2] &&
             c->gravity==cp[i][3] && c->id==cp[i][4])found=1;
         if(!found)return 0;
         bounded.room_x=111;bounded.room_y=104;

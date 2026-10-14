@@ -37,23 +37,25 @@ int v6_tower_draw_mono_prepare(V6TowerDraw *,uint8_t *,V6TowerStream *,int,
     const uint8_t *,unsigned,unsigned *);
 /* Offline paired columns: offsets[a*32+b] indexes an atlas of host-endian
  * uint16 words. Each pair has eight words per plane, left tile in high byte.
+ * Only count*32 offset entries are required: tile IDs are checked against
+ * count before indexing. A full 1024-entry table remains valid.
  * Ring must be word-aligned; planes 1/2 and count 1..32. Unknown pairs use
  * offset 0xffff and fail without writing their row. Atlas/data are immutable. */
 int v6_tower_draw_pair_prepare(V6TowerDraw *,uint8_t *,V6TowerStream *,int,
-    const uint16_t offsets[1024],const uint16_t *,unsigned atlas_words,
+    const uint16_t *offsets,const uint16_t *,unsigned atlas_words,
     unsigned count,unsigned planes,unsigned *drawn);
 /* Validate every source row before hardware takeover. The verified path may
  * omit repeated ID/offset checks only for these same immutable map/table/
  * atlas bounds. Revalidate after any change, including reopening the stream. */
-int v6_tower_pairs_validate(V6TowerStream *,const uint16_t offsets[1024],
+int v6_tower_pairs_validate(V6TowerStream *,const uint16_t *offsets,
     unsigned atlas_words,unsigned count,unsigned planes);
 int v6_tower_draw_pair_prepare_verified(V6TowerDraw *,uint8_t *,V6TowerStream *,int,
-    const uint16_t offsets[1024],const uint16_t *,unsigned atlas_words,
+    const uint16_t *offsets,const uint16_t *,unsigned atlas_words,
     unsigned count,unsigned planes,unsigned *drawn);
 /* Checked, resumable cold fills. At most budget missing rows are written;
  * returns 2 while incomplete, 1 when publishable, 0 on failure. Keep top/map/
  * atlas fixed while resuming. Incomplete buffers must never be published. */
 int v6_tower_draw_pair_prepare_budget(V6TowerDraw *,uint8_t *,V6TowerStream *,int,
-    const uint16_t offsets[1024],const uint16_t *,unsigned atlas_words,
+    const uint16_t *offsets,const uint16_t *,unsigned atlas_words,
     unsigned count,unsigned planes,unsigned *drawn,unsigned budget);
 #endif

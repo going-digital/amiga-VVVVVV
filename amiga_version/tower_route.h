@@ -8,6 +8,8 @@
  * the streamed main tower; other rooms decode exactly 40x30 tiles. */
 typedef struct {
     int x,y;
+    /* Non-NULL marks an ordinary room. With a decoded view this may be a
+     * shared one-byte marker with bytes=0; no packet is read or decoded. */
     const uint8_t *packed;
     size_t bytes;
     V6Checkpoint *checkpoints;

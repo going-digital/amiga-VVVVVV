@@ -1,10 +1,10 @@
-/* Original entities: Spacestation2.cpp rn(50,40..42), Ent.cpp rn(12,5).
+/* Original entities: Spacestation2.cpp rn(50,39..42), Ent.cpp rn(12,3/5).
  * Copyright Terry Cavanagh; see ../LICENSE.md. */
 #include "north_route.h"
 int v6_north_init(V6NorthRoute *s,V6Room *r,int x,int y,int player_y)
 {
     unsigned i;
-    if(!s || !r || x!=112 || y<104 || y>106)return 0;
+    if(!s || !r || x!=112 || y<103 || y>106)return 0;
     s->room_y=(unsigned)y;s->enemy_count=s->gate_count=s->platform_count=s->block_count=s->flags=0;
     s->push.pending_y=player_y;s->push.visual_ground=s->push.visual_roof=0;
     if(y==106){s->platform_count=s->block_count=3;s->flags=V6_PLATFORMS_VERTICAL;
@@ -15,6 +15,8 @@ int v6_north_init(V6NorthRoute *s,V6Room *r,int x,int y,int player_y)
         s->enemy_count=5;
         for(i=0;i<5;++i)v6_enemy_init(&s->enemies[i],xy[i][0],xy[i][1],xy[i][2],3,
             0,0,320,240,0,0,20,20);
+    } else if(y==103){s->enemy_count=1;
+        v6_enemy_init(&s->enemies[0],200,32,0,8,0,0,320,240,0,0,16,16);
     } else {s->gate_count=3;s->platform_count=1;s->block_count=4;s->flags=V6_PLATFORMS_HORIZONTAL;
         for(i=0;i<3;++i){v6_disappearing_init(&s->gates[i]);s->blocks[i]=(V6Block){104+(int)i*32,64,32,8,V6_BLOCK,0};}
         v6_platform_init(&s->platforms[0],56,152,3,3,0,0,320,240);

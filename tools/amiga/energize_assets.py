@@ -27,7 +27,7 @@ def export(archive,out,decoder,room=None,name="energize"):
     indices=[[min(range(4),key=lambda i:sum((palette[i][j]-c[j])**2 for j in range(3))) for c in tile] for tile in pixels]
     atlas=bytes(sum(((tile[y*8+x]>>p)&1)<<(7-x) for x in range(8)) for tile in indices for p in range(2) for y in range(8))
     mapping={tile:i for i,tile in enumerate(ids)};tiles=[mapping[t] for t in room['tiles']]
-    offsets=[65535]*1024;words=[]
+    offsets=[65535]*(len(ids)*32);words=[]
     for a,b in sorted(set(zip(tiles[::2],tiles[1::2]))):
         offsets[a*32+b]=len(words)
         words.extend(atlas[a*16+p*8+y]*256+atlas[b*16+p*8+y] for p in range(2) for y in range(8))

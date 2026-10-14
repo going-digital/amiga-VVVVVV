@@ -4,7 +4,7 @@ from test_energize_graphics import main as compare
 from tower_gameplay_data import north_route_room
 
 def main():
-    for name in ('reflect','yesmen','gantry'):
+    for name in ('reflect','yesmen','gantry','security'):
         compare(name,lambda name=name:north_route_room(name))
 
 if __name__=='__main__':main()

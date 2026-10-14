@@ -39,7 +39,8 @@ def main(name="energize",room_fn=energize_room,extra_ids=()):
     core.v6_tower_draw_pair_prepare.argtypes=[C.POINTER(Draw),bp,C.POINTER(Stream),C.c_int,wp,wp,C.c_uint,C.c_uint,C.c_uint,C.POINTER(C.c_uint)]
     blob=(out/(name+'.v6tr')).read_bytes();stream=Stream()
     assert core.v6_tower_open(C.byref(stream),blob,len(blob))
-    offsets=(C.c_uint16*1024)(*vals(name+'_pair_offsets'));raw=vals(name+'_pairs')
+    offset_values=vals(name+'_pair_offsets');assert len(offset_values)==len(ids)*32
+    offsets=(C.c_uint16*len(offset_values))(*offset_values);raw=vals(name+'_pairs')
     pairs=(C.c_uint16*len(raw))(*raw)
     assert core.v6_tower_pairs_validate(C.byref(stream),offsets,len(raw),len(ids),2)
     ring=(C.c_uint8*20480)();draw=Draw();rows=C.c_uint()

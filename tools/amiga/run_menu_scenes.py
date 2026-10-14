@@ -10,7 +10,7 @@ ROOMS=[(109,109,'The Tower'),(109,104,'The Tower'),(108,109,"I'm Sorry..."),
        (110,104,'Seeing Red'),(111,104,'Building Apport'),(110,105,'Energize'),
        (111,105,'Frown Upside Down'),(111,106,'Shenanigan'),
        (111,107,'Prize for the Reckless'),(112,107,'V Stitch'),
-       (112,106,'Stop and Reflect'),(112,105,'The Yes Men'),(112,104,'Gantry and Dolly')]
+       (112,106,'Stop and Reflect'),(112,105,'The Yes Men'),(112,104,'Gantry and Dolly'),(112,103,'Security Sweep')]
 
 def main():
  p=argparse.ArgumentParser();g=p.add_mutually_exclusive_group(required=True)
@@ -30,7 +30,7 @@ def main():
   command=shlex.split(line)
  tested=0
  if a.north:command=[v+' -DV6_NORTH_ROUTE' if v.startswith('CPPFLAGS=') else v for v in command]
- for scene,camera in SCENES+([(i,0) for i in range(10,13)] if a.north else []):
+ for scene,camera in SCENES+([(i,0) for i in range(10,14)] if a.north else []):
   if scene<a.start_scene:continue
   if a.scene is not None and scene!=a.scene:continue
   build=ROOT/f'build/amiga-menu-scene-{scene}-{camera}'

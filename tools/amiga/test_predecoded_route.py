@@ -17,6 +17,10 @@ def main():
         for i,desc in enumerate(hallway_rooms()):
             view=(C.c_uint16*1200)(*desc['tiles']);views.append(view)
             keep[2][i+2].decoded=view
+    marker=(C.c_uint8*1)(0)
+    for bank in k1[2]:
+        if bank.packed:
+            bank.packed=marker;bank.bytes=0
     prepared.v6_tower_route_init.argtypes=[C.POINTER(PreparedRoute),C.POINTER(Session),C.POINTER(World),
         C.POINTER(RouteRoom),C.c_uint,C.c_int,C.c_int,C.POINTER(Tiles)]
     prepared.v6_tower_route_step.argtypes=[C.POINTER(PreparedRoute),C.c_uint]
@@ -41,6 +45,6 @@ def main():
     assert not prepared.v6_tower_route_load(C.byref(r1),108,109,0)
     assert (bytes(r1),bytes(s1),bytes(w1))==before
     assert C.sizeof(PreparedRoute)<C.sizeof(Route)-2300
-    print('PASS prepared route: 480 identical gameplay updates, both room banks, rejection without mutation; reduced scratch storage')
+    print('PASS prepared route: 480 identical gameplay updates, both room banks with shared packet marker, rejection without mutation; reduced scratch storage')
 
 if __name__=='__main__':main()

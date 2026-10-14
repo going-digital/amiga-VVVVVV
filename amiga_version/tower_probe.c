@@ -835,6 +835,7 @@ static unsigned west_copper_ready[2],west_colour_words[2][8];
 #include "reflect_assets.h"
 #include "yesmen_assets.h"
 #include "gantry_assets.h"
+#include "security_assets.h"
 static V6NorthRoute north_actors;
 static V6CompanionRest north_companion_rest[3];
 static unsigned north_memo_pending;
@@ -854,20 +855,20 @@ static unsigned north_copper_ready[2],north_copper_tick[2],north_copper_room[2];
 static UWORD north_base_copper[2][192];
 static unsigned north_base_words[2],north_base_room[2];
 static V6ReturnEnemyAnimation north_animation[5];
-#define NORTH_FG(a,b,c,d) (route.index==10?(a):route.index==11?(b):route.index==12?(c):(d))
+#define NORTH_FG(a,b,c,e,d) (route.index==10?(a):route.index==11?(b):route.index==12?(c):route.index==13?(e):(d))
 #else
-#define NORTH_FG(a,b,c,d) (d)
+#define NORTH_FG(a,b,c,e,d) (d)
 #endif
 #ifdef V6_NORTH_ROUTE
 #define frown_terrain north_shared_terrain
 #else
 static V6Terrain frown_terrain;
 #endif
-#define FG_OFFSETS NORTH_FG(reflect_pair_offsets,yesmen_pair_offsets,gantry_pair_offsets,WEST_FG(deception_pair_offsets,downunder_pair_offsets,VSTITCH_FG(vstitch_pair_offsets,PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)))))
-#define FG_PAIRS NORTH_FG(reflect_pairs,yesmen_pairs,gantry_pairs,WEST_FG(deception_pairs,downunder_pairs,VSTITCH_FG(vstitch_pairs,PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)))))
-#define FG_WORDS NORTH_FG(REFLECT_PAIR_WORDS,YESMEN_PAIR_WORDS,GANTRY_PAIR_WORDS,WEST_FG(DECEPTION_PAIR_WORDS,DOWNUNDER_PAIR_WORDS,VSTITCH_FG(VSTITCH_PAIR_WORDS,PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)))))
-#define FG_COUNT NORTH_FG(REFLECT_TILE_COUNT,YESMEN_TILE_COUNT,GANTRY_TILE_COUNT,WEST_FG(DECEPTION_TILE_COUNT,DOWNUNDER_TILE_COUNT,VSTITCH_FG(VSTITCH_TILE_COUNT,PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)))))
-#define FG_PALETTE NORTH_FG(reflect_palette,yesmen_palette,gantry_palette,WEST_FG(deception_palette,downunder_palette,VSTITCH_FG(vstitch_palette,PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)))))
+#define FG_OFFSETS NORTH_FG(reflect_pair_offsets,yesmen_pair_offsets,gantry_pair_offsets,security_pair_offsets,WEST_FG(deception_pair_offsets,downunder_pair_offsets,VSTITCH_FG(vstitch_pair_offsets,PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)))))
+#define FG_PAIRS NORTH_FG(reflect_pairs,yesmen_pairs,gantry_pairs,security_pairs,WEST_FG(deception_pairs,downunder_pairs,VSTITCH_FG(vstitch_pairs,PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)))))
+#define FG_WORDS NORTH_FG(REFLECT_PAIR_WORDS,YESMEN_PAIR_WORDS,GANTRY_PAIR_WORDS,SECURITY_PAIR_WORDS,WEST_FG(DECEPTION_PAIR_WORDS,DOWNUNDER_PAIR_WORDS,VSTITCH_FG(VSTITCH_PAIR_WORDS,PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)))))
+#define FG_COUNT NORTH_FG(REFLECT_TILE_COUNT,YESMEN_TILE_COUNT,GANTRY_TILE_COUNT,SECURITY_TILE_COUNT,WEST_FG(DECEPTION_TILE_COUNT,DOWNUNDER_TILE_COUNT,VSTITCH_FG(VSTITCH_TILE_COUNT,PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)))))
+#define FG_PALETTE NORTH_FG(reflect_palette,yesmen_palette,gantry_palette,security_palette,WEST_FG(deception_palette,downunder_palette,VSTITCH_FG(vstitch_palette,PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)))))
 #else
 #define FG_OFFSETS (route.index==5?energize_pair_offsets:tower_pair_offsets)
 #define FG_PAIRS (route.index==5?energize_pairs:tower_pairs)
@@ -983,7 +984,7 @@ static int prize_contacts(V6TowerRoute *r,void *context)
     if(r->index>=10){unsigned hits=v6_north_contacts(&north_actors,&r->session->player),i;
         for(i=0;i<north_actors.enemy_count;++i)if((hits&(1U<<i)) &&
             v6_pixel_hit(return_player_collision[player_frame],r->session->player.x,r->session->player.y,
-                north_enemy_collision[north_animation[i].frame],north_actors.enemies[i].x,north_actors.enemies[i].y))v6_tower_session_die(r->session);
+                (r->index==13?north_drone_collision:north_enemy_collision)[north_animation[i].frame],north_actors.enemies[i].x,north_actors.enemies[i].y))v6_tower_session_die(r->session);
         return 1;}
 #endif
     if(r->index==8)v6_prize_collide(&station_prize,&r->session->player);
@@ -1478,9 +1479,9 @@ static int route_source(void)
     }
 #endif
 #ifdef V6_NORTH_ROUTE
-    if(route.index>=10 && route.index<=12){unsigned n;
-        data=route.index==10?reflect_display:route.index==11?yesmen_display:gantry_display;
-        bytes=route.index==10?sizeof(reflect_display):route.index==11?sizeof(yesmen_display):sizeof(gantry_display);
+    if(route.index>=10 && route.index<=13){unsigned n;
+        data=route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:security_display;
+        bytes=route.index==10?sizeof(reflect_display):route.index==11?sizeof(yesmen_display):route.index==12?sizeof(gantry_display):sizeof(security_display);
         if(!v6_north_init(&north_actors,&route.room,112,route.rooms[route.index].y,route.session->player.y))return 0;
         for(n=0;n<5;++n){v6_return_enemy_animation_init(&north_animation[n]);v6_return_enemy_animation_tick(&north_animation[n],0);}
     }
@@ -1885,10 +1886,10 @@ static const char *menu_area(int x,int y)
 }
 static const char *menu_roomname(void)
 {
-    static const char *names[15]={"The Tower","The Tower","I'm Sorry...","Seeing Red",
-        "Building Apport","Energize","Frown Upside Down","Shenanigan","Prize for the Reckless","V Stitch","A Deception","Down Under","Stop and Reflect","The Yes Men","Gantry and Dolly"};
+    static const char *names[16]={"The Tower","The Tower","I'm Sorry...","Seeing Red",
+        "Building Apport","Energize","Frown Upside Down","Shenanigan","Prize for the Reckless","V Stitch","A Deception","Down Under","Stop and Reflect","The Yes Men","Gantry and Dolly","Security Sweep"};
 #ifdef V6_NORTH_ROUTE
-    if(route.index>=10 && route.index<=12)return names[route.index+2];
+    if(route.index>=10 && route.index<=13)return names[route.index+2];
 #endif
     return route.index<12?names[route.index]:"Untitled room";
 }
@@ -2177,6 +2178,8 @@ static int north_prepare_sprites(unsigned index)
             north_mux_dma[n]=(NorthDMA){north_checkpoint_dma[c->tile==21][0],32,0xffff};
             north_mux_actors[n++]=(V6MuxActor){tower_player_rows[c->tile],c->x+dx,c->y+dy,0,16,16,DISPLAY_COLOUR(c->active?0x6f6:0x888)};}
         for(k=0;k<north_actors.enemy_count;++k){unsigned part;V6Enemy *e=&north_actors.enemies[k];
+            if(route.index==13){north_mux_dma[n]=(NorthDMA){north_drone_dma[north_animation[k].frame][0],64,0xffff};
+                north_mux_actors[n++]=(V6MuxActor){north_drone_visible[north_animation[k].frame],e->x+dx,e->y+dy,0,16,32,DISPLAY_COLOUR(0xf6b)};continue;}
             for(part=0;part<2;++part){north_mux_dma[n]=(NorthDMA){north_enemy_dma[north_animation[k].frame][part][0],40,part?0xf000:0xffff};north_mux_actors[n++]=(V6MuxActor){north_enemy_visible[north_animation[k].frame],e->x+dx,e->y+dy,part*16,part?4:16,20,DISPLAY_COLOUR(0xff4)};}}
         for(k=0;k<north_actors.platform_count;++k){unsigned part,frame=route.index==10?4:0;V6Platform *e=&north_actors.platforms[k];
             for(part=0;part<2;++part){north_mux_dma[n]=(NorthDMA){north_platform_dma[frame][part][0],16,0xffff};north_mux_actors[n++]=(V6MuxActor){north_platform_rows[frame],e->x+dx,e->y+dy,part*16,16,8,DISPLAY_COLOUR(north_platform_colours[frame])};}}
@@ -3919,6 +3922,7 @@ static int run(void) {
 #ifdef V6_NORTH_ROUTE
        !v6_tower_open(&stream,reflect_display,sizeof(reflect_display)) || !v6_tower_pairs_validate(&stream,reflect_pair_offsets,REFLECT_PAIR_WORDS,REFLECT_TILE_COUNT,2) ||
        !v6_tower_open(&stream,yesmen_display,sizeof(yesmen_display)) || !v6_tower_pairs_validate(&stream,yesmen_pair_offsets,YESMEN_PAIR_WORDS,YESMEN_TILE_COUNT,2) ||
+       !v6_tower_open(&stream,security_display,sizeof(security_display)) || !v6_tower_pairs_validate(&stream,security_pair_offsets,SECURITY_PAIR_WORDS,SECURITY_TILE_COUNT,2) ||
        !v6_tower_open(&stream,gantry_display,sizeof(gantry_display)) || !v6_tower_pairs_validate(&stream,gantry_pair_offsets,GANTRY_PAIR_WORDS,GANTRY_TILE_COUNT,2) ||
 #endif
 #ifdef V6_TOWER_PRIZE
@@ -4014,8 +4018,8 @@ static int run(void) {
 #endif
 #endif
 #ifdef V6_NORTH_ROUTE
-       (route.index>=10 && !v6_tower_open(&stream,route.index==10?reflect_display:route.index==11?yesmen_display:gantry_display,
-           route.index==10?sizeof(reflect_display):route.index==11?sizeof(yesmen_display):sizeof(gantry_display))) ||
+       (route.index>=10 && !v6_tower_open(&stream,route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:security_display,
+           route.index==10?sizeof(reflect_display):route.index==11?sizeof(yesmen_display):route.index==12?sizeof(gantry_display):sizeof(security_display))) ||
 #endif
 #ifdef V6_TOWER_STATION
        !v6_tower_pairs_validate(&stream,FG_OFFSETS,FG_WORDS,FG_COUNT,2) ||

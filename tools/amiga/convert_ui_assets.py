@@ -99,7 +99,7 @@ def build(out):
       xx=left+i*8+x;alpha[y*40+xx//8]|=128>>(xx%8)
   crew_masks.extend(alpha)
  text+='static const uint8_t ui_crew_text_masks[3520]={'+','.join(map(str,crew_masks))+'};\n'
- static_texts=['[Trinkets found]','[Number of Deaths]','[Time Taken]','The Tower',"I'm Sorry...",'Seeing Red','Building Apport','Energize','Frown Upside Down','Shenanigan','Prize for the Reckless','V Stitch','A Deception','Down Under','Stop and Reflect','The Yes Men','Gantry and Dolly']
+ static_texts=['[Trinkets found]','[Number of Deaths]','[Time Taken]','The Tower',"I'm Sorry...",'Seeing Red','Building Apport','Energize','Frown Upside Down','Shenanigan','Prize for the Reckless','V Stitch','A Deception','Down Under','Stop and Reflect','The Yes Men','Gantry and Dolly','Security Sweep']
  text+='static const char *const ui_static_texts['+str(len(static_texts))+']={'+','.join('"'+s+'"' for s in static_texts)+'};\n'
  static_masks=[]
  for label in static_texts:

@@ -9,8 +9,8 @@ from run_map_input import capture
 from save_disk import create_save_disk
 from test_player import ROOT
 
-CASES=['room10','room11','room12','follower','movement',
-       'edge10up','edge11up','edge10down','edge11down','edge12down','reload']
+CASES=['room10','room11','room12','room13','follower','security-follower','movement',
+       'edge10up','edge11up','edge10down','edge11down','edge12down','edge12up','edge13down','reload','security-reload']
 
 def timing(result):
     d=result['display']
@@ -50,8 +50,9 @@ def main():
         if case.startswith('room'):
             index=int(case[4:]);folder=build(f'amiga-north-live-{index}',f'-DV6_NORTH_START={index}')
             slide(folder)
-        elif case=='follower':
-            folder=build('amiga-north-follower','-DV6_NORTH_START=11 -DV6_NORTH_FOLLOWER')
+        elif case in ('follower','security-follower'):
+            index=13 if case=='security-follower' else 11
+            folder=build('amiga-north-'+case,f'-DV6_NORTH_START={index} -DV6_NORTH_FOLLOWER')
             slide(folder)
         elif case=='movement':
             folder=build('amiga-north-follower','-DV6_NORTH_START=11 -DV6_NORTH_FOLLOWER')
@@ -73,11 +74,12 @@ def main():
             assert route[2]==target and route[3]>=3 and route[6]==0,(case,route)
             print('PASS actual shaft crossing:',index,'->',target,flush=True)
         else:
-            saved=build('amiga-north-live-11','-DV6_NORTH_START=11');slide(saved)
+            index=13 if case=='security-reload' else 11
+            saved=build(f'amiga-north-live-{index}',f'-DV6_NORTH_START={index}');slide(saved)
             folder=build('amiga-north-load-native','-DV6_VSTITCH_HINT_LOAD')
             subprocess.run(['python3',str(ROOT/'tools/amiga/run_ui_menu_reload.py'),
                 '--build',str(saved),'--load-build',str(folder),'--save-disk',str(saved/'ui-slide-save.adf')],check=True)
-        report=folder/('menu-reload-report.json' if case=='reload' else 'ui-slide-controls-report.json')
+        report=folder/('menu-reload-report.json' if case.endswith('reload') else 'ui-slide-controls-report.json')
         reports[case]=json.loads(report.read_text())['display']
     (ROOT/'build/north-capture-report.json').write_text(json.dumps(reports,indent=2)+'\n')
 

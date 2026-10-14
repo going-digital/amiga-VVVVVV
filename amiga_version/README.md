@@ -1,5 +1,33 @@
 # A500 feasibility prototype
 
+## Current campaign prototype
+
+Build with `make -C amiga_version tower-north` and boot
+`build/amiga-north/tower.adf` in DF0. The resident route now contains fourteen
+rooms, including Security Sweep above Gantry and Dolly. This is a partial
+campaign prototype; it starts in V Stitch rather than at the original game's
+opening. Music conversion is paused while awaiting original tracker files.
+
+Use PAL, a 68000, 512 KiB Chip and 512 KiB Slow RAM with Kickstart 1.3.
+Copperline's bundled AROS needs an additional 1 MiB Fast RAM for this disk.
+Insufficient graphics memory now produces a message in the DOS window.
+
+Arrows move, Space/Z/V or joystick fire flips gravity, and Enter/Return opens
+or closes the four-tab menu. Left/right selects tabs; Space or fire on Save
+quicksaves to a writable DF1 disk. Left mouse exits. To launch with a retained
+save disk and the tested Kickstart configuration, run:
+
+```sh
+python3 tools/amiga/run_map_input.py --build build/amiga-north --run
+```
+
+`tower-north-capture` checks live rooms, movement, crossings and fresh reload;
+`tower-north-scenes-capture` checks resident menu scenes;
+`tower-north-boot-capture` checks direct boot with Kickstart and bundled AROS.
+Original game assets are generated privately from the local installation.
+
+## Initial standalone slice
+
 This native slice runs original rooms **(100,110)** and **(119,110)** on a PAL A500 with 512 KiB
 Chip RAM and 512 KiB slow RAM. It has player movement, gravity flipping, static
 tile collision, spikes, checkpoint activation, death and respawn. It starts at

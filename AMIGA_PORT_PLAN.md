@@ -2,20 +2,17 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
-Current direction (13 October 2026): music reconstruction remains paused while
-waiting for original tracker files from Magnus Palsson. Continue engine and
-campaign-route work. The native checkpoint-preserving west loop now connects the
-V Stitch lower checkpoint approach to the Prize trinket pickup through A Deception,
-Down Under and Shenanigan. Its 660 ticks match the host, with source actor drawing,
-pickup pause/caption/jingle/dismissal, 278 PAL work lines and zero missed frames.
-The west rooms remain capture-only. V Stitch's upper map-hint lifecycle and timed grey ENTER caption now pass source
-comparisons and native captures. V5 now preserves flag 13 through actual DF1
-save and fresh-boot recovery. The normal four-tab map input core now matches
-desktop controls, and physical keyboard handling connects ENTER, paused tab
-navigation and Space quicksave to native DF1 persistence. The bounded V Stitch
-map now displays the original minimap, exploration fog and flashing current-room
-outline and a bounded stationary-room map slide. Next: remaining tab content and
-its presentation, then general room admission. See "Native explored map display" below.
+Current direction (14 October 2026): continue original-game room admission and
+campaign scripts, with source comparisons and stock PAL A500 timing gates.
+The clock/crew summary, full Save receipt, fresh reload, four-tab menu and
+room/camera expansion milestone is complete. The resident north route now
+extends through V Stitch, Stop and Reflect, The Yes Men, Gantry and Dolly,
+and Security Sweep. The prototype contains fourteen resident room banks;
+it is not yet a complete campaign. Graphics remain 50 fps, with the existing
+nominal 30 Hz gameplay timing, 512 KiB Chip + 512 KiB Slow and no Fast RAM
+under Kickstart 1.3. Bundled AROS requires additional memory for this build.
+Music reconstruction remains paused while awaiting original tracker files
+from Magnus Palsson. See the latest integration and direct-boot sections below.
 
 Earlier milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
@@ -5736,3 +5733,44 @@ Kickstart 1.3 to run with the original 512 KiB Chip + 512 KiB Slow, no Fast
 configuration. `make -C amiga_version tower-north-boot-capture` checks direct
 boot under Kickstart, the expected AROS memory failure, and AROS with 1 MiB
 Fast. The diagnostic reader rejects unexecuted header copies in DOS buffers.
+
+### Security Sweep campaign admission (14 October 2026)
+
+Security Sweep (112,103) is now connected above Gantry and Dolly, bringing
+the resident route to fourteen room banks. Its original speed-8 vertical
+drone, pink animation frames 36–39, red-channel collision masks, terrain and
+checkpoint 439500 are admitted. The four north actor banks match 16,384
+source updates, including 2,048 Security Sweep updates and death-time freezing.
+Native actor assets pass 44,672 PNG pixel/parity/collision comparisons;
+the room terrain matches 79,360 rendered source pixels. V6 admits all twelve
+north checkpoint/direction pairs while retaining legacy V5 rejection.
+
+The first integrated build exhausted contiguous Chip memory because an
+executable hunk spilled out of Slow RAM. Prepared native room banks now share
+a one-byte ordinary-room marker instead of retaining unused compressed
+collision packets. Generic builds retain their packets. Paired graphics
+tables retain count*32 entries rather than unused rows up to 1024; checked
+tile IDs bound every lookup, with the same immutable-data contract for the
+verified path. These changes save about 16 KiB of read-only data without
+adding gameplay work or Chip allocation. Prepared/generic routes match
+480 updates and both room loads; missing prepared views still reject without
+mutation. Existing paired drawing passes 2,298 frames and 71,238 rows.
+
+Stock PAL A500 captures pass: Security Sweep Save at 264 scanlines, Save
+with the following crew at 268, real Gantry -> Security Sweep traversal at
+264, and the reverse at 263. The crossing fixtures hold only after the actual
+edge for inspection. Fresh Security Sweep reload passes at 247, retaining
+the exact clock, crew, death count and last-save receipt with unchanged disk
+contents. Its Map capture compares 48,000 source bitmap bytes, both cursor
+DMA banks and 6,578 translated header pixels at 251 scanlines. The existing
+five-enemy live movement/flip/death/room-loading regression passes at 278.
+All production captures have zero missed frames and errors, retain 50 fps
+graphics and nominal 30 Hz gameplay, and allocate 434,470 Chip bytes.
+The rebuilt public `tower-north` disk passes direct DF0 boot under Kickstart
+1.3 and bundled AROS with 1 MiB Fast; stock-memory AROS shows the expected
+insufficient-memory message. Run instructions are now at the top of the
+native README.
+
+Next: admit further connected original-game rooms and campaign scripts under
+the same source-equivalence, memory and frame-budget gates. Music remains
+paused pending original tracker files.

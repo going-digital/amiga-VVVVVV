@@ -55,11 +55,21 @@ extern "C" void north_enemy(const uint16_t *tiles,V6Enemy *a,unsigned n) {
     ref.loop_init.argtypes=[pp,C.POINTER(C.c_uint16),C.c_int,C.c_int,dp,C.c_uint,ep,C.c_uint]
     ref.loop_step.argtypes=[C.c_uint,C.c_uint,C.c_int,ep,C.c_uint,dp,C.c_uint,C.POINTER(Push)]
     ticks=0
-    for name in ('reflect','yesmen','gantry'):
+    for name in ('reflect','yesmen','gantry','security'):
         data=north_route_room(name);tiles=(C.c_uint16*1200)(*data['tiles']);room=Room(tiles,0,0);bank=Bank();p=Player()
         assert core.v6_north_init(C.byref(bank),C.byref(room),data['x'],data['y'],0)
-        assert len(data['checkpoints'])==(2 if name!='reflect' else 1)
-        if name=='yesmen':
+        assert len(data['checkpoints'])==(1 if name in ('reflect','security') else 2)
+        if name=='security':
+            wanted=(Enemy*1).from_buffer_copy(bytes(bank.enemies[0]))
+            for tick in range(2048):
+                ref.north_enemy(tiles,wanted,1)
+                core.v6_north_entities(C.byref(bank),C.byref(room),0)
+                assert bytes(bank.enemies[0])==bytes(wanted[0]),(name,tick)
+                before=bytes(bank.enemies)
+                core.v6_north_entities(C.byref(bank),C.byref(room),1)
+                assert bytes(bank.enemies)==before
+                ticks+=1
+        elif name=='yesmen':
             wanted=(Enemy*5).from_buffer_copy(bank.enemies)
             cached=(Enemy*5).from_buffer_copy(bank.enemies)
             header=(ROOT/'build/amiga-feasibility/north_actor_assets.h').read_text()
