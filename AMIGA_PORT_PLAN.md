@@ -5774,3 +5774,33 @@ native README.
 Next: admit further connected original-game rooms and campaign scripts under
 the same source-equivalence, memory and frame-budget gates. Music remains
 paused pending original tracker files.
+
+### Linear Collider terminal/activity foundation (14 October 2026)
+
+The next connected room is Linear Collider (113,103), whose enemy-art setup
+is labelled Wavelengths in Ent.cpp. Its source declaration includes two
+enemies, two checkpoints and a terminal linked to activity 6,
+`terminal_station_1`. Room admission must preserve that interaction.
+
+New portable activity and terminal modules now match the original selection,
+input and entity-update rules. Activity lookup uses player hitbox (6,2,12,21),
+source block order and strict rectangle intersections. Interaction uses the
+previous logic update's activity index; teleporter eligibility takes priority.
+A moving player consumes the interaction edge without activating. Activation
+requires the original truncated velocity limits, disables the selected block
+and returns its script key. Existing solid/directional block values remain
+unchanged; activity blocks do not participate in physical collision.
+
+Terminal contact requests state 1 after physics. The following entity update
+highlights it, disables further automatic contact and emits one touch cue.
+This is separate from reading the terminal. Type-21 non-highlighting terminals
+and explicit state-1 requests retain their original behavior.
+
+`make -C amiga_version test-activity` builds both modules for 68000 and passes
+13,804 source rectangle/order cases, 30,976 source input/velocity/precedence
+cases, 3,000 terminal update/contact steps and 24,000 solid-block queries.
+The comparison harness extracts the original C++ methods and interaction
+guards, including stale-index behavior and terminal creation/update branches.
+These are engine foundations: Linear Collider is not yet admitted in the
+native route, and no new native frame-budget claim is made. Next is its
+terminal read script/presentation, followed by room and traversal integration.

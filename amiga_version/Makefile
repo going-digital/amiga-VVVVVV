@@ -1343,3 +1343,11 @@ test-sprite-overlay:
 .PHONY: test-predecoded-route
 test-predecoded-route:
 	python3 $(ROOT)/tools/amiga/test_predecoded_route.py
+
+$(BUILD)/activity.o: activity.c activity.h player.h blocks.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+$(BUILD)/terminal.o: terminal.c terminal.h player.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+.PHONY: test-activity
+test-activity: $(BUILD)/activity.o $(BUILD)/terminal.o
+	python3 $(ROOT)/tools/amiga/test_activity.py

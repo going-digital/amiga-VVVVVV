@@ -1,7 +1,7 @@
 #ifndef V6_BLOCKS_H
 #define V6_BLOCKS_H
 #include <stdint.h>
-enum { V6_BLOCK, V6_SAFE, V6_DIRECTIONAL };
+enum { V6_BLOCK, V6_SAFE, V6_DIRECTIONAL, V6_ACTIVITY };
 typedef struct { int x, y, w, h, type, trigger; } V6Block;
 /* Disable every matching origin; moving restores only the first matching
  * block, preserving source order even when origins overlap. */
