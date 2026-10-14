@@ -10,7 +10,8 @@ def main():
  checks=0
  for name,tiles,crops,widths,rows in [('north_enemy_dma',range(40,44),(0,16),(16,4),20),
                                   ('north_player_dma',range(16),(6,),(16,),32),
-                                  ('north_checkpoint_dma',(20,21),(0,),(16,),16)]:
+                                  ('north_checkpoint_dma',(20,21),(0,),(16,),16),
+                                  ('north_crew_dma',(150,),(6,),(16,),32)]:
   data=arrays(path,name);at=0
   for tile in tiles:
    ox=tile%(width//32)*32;oy=tile//(width//32)*32
@@ -20,6 +21,13 @@ def main():
       bits=sum((rgba[((oy+y)*width+ox+crop+x)*4+3]>127 and max(rgba[((oy+y)*width+ox+crop+x)*4:((oy+y)*width+ox+crop+x)*4+3])>0)<<(15-x) for x in range(w))
       assert data[at:at+2]==[bits,bits if parity else 0],(name,tile,crop,y);at+=2;checks+=w
   assert at==len(data)
+ # A crewmate's transparent outer rows need no sprite/bitplane bandwidth.
+ for name,frames in [('north_player_dma',16),('north_crew_dma',1)]:
+  v=arrays(path,name)
+  for frame in range(frames):
+   for parity in range(2):
+    body=v[(frame*2+parity)*64:(frame*2+parity+1)*64]
+    assert not any(body[:4]) and not any(body[46:]),('crew visible bounds',name,frame,parity)
  for name,red in [('north_enemy_visible',False),('north_enemy_collision',True)]:
   masks=arrays(path,name)
   for frame,tile in enumerate(range(40,44)):

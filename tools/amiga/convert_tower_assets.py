@@ -214,7 +214,8 @@ def main():
         encode=lambda v:'{'+','.join(encode(a) if isinstance(a,list) else str(a) for a in v)+'}'
         north+='static const uint16_t '+name+'['+str(len(masks))+'][2][2]['+str(height*2)+']='+encode(frames)+';\n'
     for name,masks,crop,height in (('north_player_dma',sprite_masks(range(16)),6,32),
-                                  ('north_checkpoint_dma',sprite_masks((20,21)),0,16)):
+                                  ('north_checkpoint_dma',sprite_masks((20,21)),0,16),
+                                  ('north_crew_dma',sprite_masks((150,)),6,32)):
         values=[[dma_body(m,crop,16,height,parity) for parity in (0,1)] for m in masks]
         north+='static const uint16_t '+name+'['+str(len(masks))+'][2]['+str(height*2)+']='+encode(values)+';\n'
     (out/'north_actor_assets.h').write_text(north)

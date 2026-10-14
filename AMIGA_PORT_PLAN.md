@@ -5675,3 +5675,47 @@ The hardware target remains stock PAL A500, 512 KiB Chip + 512 KiB Slow, no
 Fast RAM. The user confirmed 50 fps graphics; continue optimization while
 preserving the existing 30 Hz gameplay timing and the 280-line timing gate.
 Music conversion remains paused pending the requested original tracker files.
+
+### Completed five-step integration (14 October 2026)
+
+The five requested steps are complete for the expanded native prototype:
+campaign clock and crew summary, full Save receipt, persistence and fresh
+reload, Crew/Stats and menu transitions, and room/camera expansion beyond the
+previous resident set. Stop and Reflect, The Yes Men, and Gantry and Dolly
+bring the resident room count to thirteen. This milestone supersedes the
+open timing gate recorded above; it does not claim the entire original game.
+
+The production north matrix passes on stock PAL A500 settings: 512 KiB Chip,
+512 KiB Slow, no Fast RAM, 50 fps graphics and the existing nominal 30 Hz
+gameplay timing. Its maximum measured work is 279 of 280 scanlines, with zero
+missed frames or errors. All three new live rooms pass at 264; the following
+crew Save slide passes at 273. The movement fixture exercises real movement,
+flips, deaths and seven room transitions without freezing actor physics.
+Five real shaft crossings pass at 261, including the return to VStitch;
+these fixtures hold the destination only after crossing for inspection.
+The allocated Chip buffers total 434,470 bytes.
+
+Seventeen resident room/camera menu captures verify the source map, both
+cursor DMA banks and 6,578 translated header pixels per capture. Following
+crew Crew/Stats slides pass at 272 and Save at 273. Fresh reload passes at
+251 scanlines, or 254 with the following crew, preserving the exact receipt,
+campaign time, crew and death count without modifying the saved disk.
+The runnable build's Map and Save smoke captures pass at 252 and 263.
+Separate uncached sprite-DMA and BOB reference comparisons pass with zero
+errors; those expensive diagnostics are excluded from production timing.
+
+The renderer uses all eight hardware sprite channels for room actors and a
+blitter-shifted mask for the following crewmate. Exact source checks cover
+32,384 actor pixels/parities/collision cases, 69,632 sprite plans and 5,904
+overlay comparisons. Correct original crew block rules and exact one-step
+physics memoization preserve source behavior, including 17,280 moving-platform
+and gate updates. Predecoded native room views remove redundant tile scratch
+storage; a route-mode build stamp prevents stale structure layouts. Atomic
+beam reads avoid inconsistent PAL line 255/256 timing samples.
+
+Build the playable disk with `make -C amiga_version tower-north`; the artifact
+is `build/amiga-north/tower.adf`. Reproduce the production matrix with
+`tower-north-capture`, the seventeen scenes with `tower-north-scenes-capture`,
+and the separate reference fixture with `tower-north-bob-capture`.
+Private original-game assets remain generated locally and uncommitted.
+Music conversion remains paused pending original tracker files.

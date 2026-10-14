@@ -99,8 +99,8 @@ def build(out):
       xx=left+i*8+x;alpha[y*40+xx//8]|=128>>(xx%8)
   crew_masks.extend(alpha)
  text+='static const uint8_t ui_crew_text_masks[3520]={'+','.join(map(str,crew_masks))+'};\n'
- static_texts=['[Trinkets found]','[Number of Deaths]','[Time Taken]','The Tower',"I'm Sorry...",'Seeing Red','Building Apport','Energize','Frown Upside Down','Shenanigan','Prize for the Reckless','V Stitch','A Deception','Down Under']
- text+='static const char *const ui_static_texts[14]={'+','.join('"'+s+'"' for s in static_texts)+'};\n'
+ static_texts=['[Trinkets found]','[Number of Deaths]','[Time Taken]','The Tower',"I'm Sorry...",'Seeing Red','Building Apport','Energize','Frown Upside Down','Shenanigan','Prize for the Reckless','V Stitch','A Deception','Down Under','Stop and Reflect','The Yes Men','Gantry and Dolly']
+ text+='static const char *const ui_static_texts['+str(len(static_texts))+']={'+','.join('"'+s+'"' for s in static_texts)+'};\n'
  static_masks=[]
  for label in static_texts:
   alpha=[0]*320;left=160-len(label)*4
@@ -110,7 +110,7 @@ def build(out):
      if font[ord(c)*8+y]&(128>>x):
       xx=left+i*8+x;alpha[y*40+xx//8]|=128>>(xx%8)
   static_masks.extend(alpha)
- text+='static const uint8_t ui_static_text_masks[4480]={'+','.join(map(str,static_masks))+'};\n'
+ text+='static const uint8_t ui_static_text_masks['+str(len(static_masks))+']={'+','.join(map(str,static_masks))+'};\n'
  (out/'ui_assets.h').write_text(text);print('UI assets: original five sprite masks and all 400 room areas')
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);build(p.parse_args().out)

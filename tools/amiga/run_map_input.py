@@ -37,6 +37,7 @@ def visual(build,disk):
 
 def capture(build,disk,name,inputs,end=100):
     cfg=config(build,disk);dump=build/(name+'.bin');dump.unlink(missing_ok=True)
+    (build/(name+'-report.json')).unlink(missing_ok=True)
     env=dict(os.environ,COPPERLINE_DBG_AFTER=str(end),COPPERLINE_DBG_RAMDUMP=f'C00000:80000:{dump}')
     with (build/(name+'.log')).open('w') as log:
         subprocess.run([EMU,'--config',str(cfg),'--floppy-drives','2','--noaudio',*inputs,
@@ -45,7 +46,10 @@ def capture(build,disk,name,inputs,end=100):
     at=data.index(b'V6MI\0\0\0\1');values=struct.unpack_from('>12I',data,at+8);n=struct.unpack_from('>I',data,at+56)[0]
     events=[struct.unpack_from('>8I',data,at+60+32*i) for i in range(n)]
     at=data.index(b'V6UI\0\0\0\1');ui=dict(zip(KEYS,struct.unpack_from('>18I',data,at+8)))
-    at=data.index(b'V6VH\0\0\0\1');n=struct.unpack_from('>I',data,at+8)[0]
+    # Scene-only menu DMA fixtures omit the hint replay. Live V Stitch
+    # callers still compare the returned rows with their exact source trace.
+    at=data.find(b'V6VH\0\0\0\1')
+    n=struct.unpack_from('>I',data,at+8)[0] if at>=0 else 0
     rows=[struct.unpack_from('>16i',data,at+12+64*i) for i in range(n)]
     report=dict(display=display,values=values,events=events,ui=ui,records=rows)
     (build/(name+'-report.json')).write_text(json.dumps(report,indent=2)+'\n')
