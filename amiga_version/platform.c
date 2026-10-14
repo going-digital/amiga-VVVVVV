@@ -110,3 +110,12 @@ void v6_platform_transport(V6Player *p,const V6Room *room,V6Platform *platforms,
         v6_platform_carry_horizontal(p,room,platforms,count,life_timer,push->pending_y);
     }
 }
+
+void v6_platform_step_lane(V6Platform *p,V6Block *blocks,unsigned count,const uint8_t *walls,int vertical)
+{
+    int x=p->x,y=p->y;
+    v6_blocks_disable_at(blocks,count,x,y);
+    if(vertical)v6_enemy_step_vertical_cached(p,walls);
+    else v6_enemy_step_horizontal_cached(p,walls);
+    v6_blocks_move(blocks,count,x,y,p->x,p->y,p->w,p->h);
+}

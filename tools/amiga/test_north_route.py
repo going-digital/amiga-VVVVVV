@@ -50,6 +50,7 @@ extern "C" void north_enemy(const uint16_t *tiles,V6Enemy *a,unsigned n) {
     core.v6_north_entities.argtypes=[bp,rp,C.c_int]
     core.v6_north_platforms.argtypes=[bp,rp,pp,C.c_int,C.c_int]
     core.v6_enemy_step_vertical_cached.argtypes=[ep,C.POINTER(C.c_uint8)]
+    core.v6_platform_step_lane.argtypes=[ep,dp,C.c_uint,C.POINTER(C.c_uint8),C.c_int]
     ref.north_enemy.argtypes=[C.POINTER(C.c_uint16),ep,C.c_uint]
     ref.loop_init.argtypes=[pp,C.POINTER(C.c_uint16),C.c_int,C.c_int,dp,C.c_uint,ep,C.c_uint]
     ref.loop_step.argtypes=[C.c_uint,C.c_uint,C.c_int,ep,C.c_uint,dp,C.c_uint,C.POINTER(Push)]
@@ -84,11 +85,22 @@ extern "C" void north_enemy(const uint16_t *tiles,V6Enemy *a,unsigned n) {
             n=bank.platform_count;wanted=(Enemy*n).from_buffer_copy(bank.platforms)
             blocks=(DynamicBlock*bank.block_count).from_buffer_copy(bank.blocks)
             ref.loop_init(C.byref(p),tiles,0,0,blocks,bank.block_count,wanted,n)
+            cached=(Enemy*n).from_buffer_copy(bank.platforms)
+            cached_blocks=(DynamicBlock*bank.block_count).from_buffer_copy(bank.blocks)
+            header=(ROOT/'build/amiga-feasibility/north_actor_assets.h').read_text()
+            pattern=r'north_reflect_walls\[3\]\[272\]=\{(.*?)\};' if name=='reflect' else r'north_gantry_walls\[336\]=\{(.*?)\};'
+            values=list(map(int,re.findall(r'\d+',re.search(pattern,header,re.S)[1])))
+            stride=272 if name=='reflect' else 336
+            lanes=[(C.c_uint8*stride)(*values[i*stride:(i+1)*stride]) for i in range(n)]
             push=Push(0,0,0)
             for tick in range(1024):
                 life=9 if tick%31==0 else 0
                 ref.loop_step(0,bank.flags,life,wanted,n,blocks,bank.block_count,C.byref(push))
                 core.v6_north_platforms(C.byref(bank),C.byref(room),C.byref(p),life,0)
+                for i in reversed(range(n)):
+                    core.v6_platform_step_lane(C.pointer(cached[i]),cached_blocks,bank.block_count,lanes[i],int(name=='reflect'))
+                assert bytes(cached)==bytes(wanted),('cached platform lane',name,tick)
+                assert bytes(cached_blocks)==bytes(blocks),('cached platform blocks',name,tick)
                 assert bytes(bank.platforms)[:n*C.sizeof(Enemy)]==bytes(wanted),(name,tick,'platform')
                 assert bytes(bank.blocks)[:bank.block_count*C.sizeof(DynamicBlock)]==bytes(blocks),(name,tick,'blocks')
                 ticks+=n

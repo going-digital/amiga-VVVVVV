@@ -45,4 +45,6 @@ enum { V6_PLATFORMS_VERTICAL=1, V6_PLATFORMS_HORIZONTAL=2 };
 void v6_platform_transport(V6Player *, const V6Room *, V6Platform *, unsigned,
                             V6Block *, unsigned, unsigned flags, int life_timer,
                             V6PlatformPush *);
+/* Source moving-platform stages with an exact fixed-lane wall table. */
+void v6_platform_step_lane(V6Platform *,V6Block *,unsigned,const uint8_t *,int vertical);
 #endif

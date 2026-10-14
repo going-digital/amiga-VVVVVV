@@ -157,16 +157,17 @@ def main():
     (out/'prize_return_sprite_assets.h').write_text(assets)
     north='/* Private original north-route actor masks. */\n'
     tiles=north_route_room('yesmen')['tiles']
-    def lane_wall(x,y):
+    def lane_wall(x,y,w=20,h=20):
         # Entity.cpp checkwall: corners, six-pixel side probes, middle column.
         div=lambda v:int(v/8)
-        l,t,r,b=div(x),div(y),div(x+19),div(y+19)
+        l,t,r,b=div(x),div(y),div(x+w-1),div(y+h-1)
         probes=[(l,t),(r,t),(l,b),(r,b)]
-        for offset in (6,12):
+        for offset in range(6,19,6):
+            if h<offset+6:continue
             row=div(y+offset)
             if row not in (t,b):probes.extend(((l,row),(r,row)))
         column=div(x+6)
-        if column not in (l,r):probes.extend(((column,t),(column,b)))
+        if w>=12 and column not in (l,r):probes.extend(((column,t),(column,b)))
         def solid(x,y):
             if x==-1:x=0
             if x==40:x=39
@@ -178,6 +179,12 @@ def main():
         return int(any(solid(x,y) for x,y in probes))
     north+='static const uint8_t north_yesmen_walls[3][272]={'+','.join(
         '{'+','.join(str(lane_wall(x,y)) for y in range(-16,256))+'}' for x in (122,266,194))+'};\n'
+
+    tiles=north_route_room('reflect')['tiles']
+    north+='static const uint8_t north_reflect_walls[3][272]={'+','.join(
+        '{'+','.join(str(lane_wall(x,y,32,8)) for y in range(-16,256))+'}' for x in (135,185,235))+'};\n'
+    tiles=north_route_room('gantry')['tiles']
+    north+='static const uint8_t north_gantry_walls[336]={'+','.join(str(lane_wall(x,152,32,8)) for x in range(-16,320))+'};\n'
 
     for name,collision in (('north_enemy_visible',False),('north_enemy_collision',True)):
         masks=sprite_masks(range(40,44),collision)

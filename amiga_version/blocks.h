@@ -18,11 +18,11 @@ int v6_blocks_create_solid(V6Block *,unsigned *count,unsigned capacity,
 static inline int v6_block_hit(const V6Block *b, int x, int y, int w, int h,
                                int32_t dx, int32_t dy, int enemy)
 {
-    int blocking=b->type==V6_BLOCK || (b->type==V6_SAFE && enemy) ||
+    if(b->w<=0 || b->h<=0 || w<=0 || h<=0 ||
+       y>=b->y+b->h || y+h<=b->y || x>=b->x+b->w || x+w<=b->x)return 0;
+    return b->type==V6_BLOCK || (b->type==V6_SAFE && enemy) ||
         (b->type==V6_DIRECTIONAL &&
          ((b->trigger==0 && dy>0) || (b->trigger==1 && dy<=0) ||
           (b->trigger==2 && dx>0) || (b->trigger==3 && dx<=0)));
-    return blocking && b->w>0 && b->h>0 && w>0 && h>0 &&
-        x<b->x+b->w && x+w>b->x && y<b->y+b->h && y+h>b->y;
 }
 #endif

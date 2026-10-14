@@ -124,3 +124,18 @@ void v6_enemy_step_vertical_cached(V6Enemy *e,const uint8_t walls[272])
     }
     if(e->vy)e->y=next;
 }
+
+void v6_enemy_step_horizontal_cached(V6Enemy *e,const uint8_t walls[336])
+{
+    int next;
+    behavior(e);e->old_x=e->x;e->old_y=e->y;
+    next=e->x+e->vx;
+    while(walls[next+16]) {
+        if(e->vx>1)--e->vx;
+        else if(e->vx< -1)++e->vx;
+        else {e->vx=0;e->state=e->onwall;break;}
+        next=e->x+e->vx;
+    }
+    if(e->vx)e->x=next;
+    if(walls[e->x+16]){e->vy=0;e->state=e->onwall;}
+}

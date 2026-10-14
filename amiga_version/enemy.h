@@ -20,4 +20,6 @@ void v6_enemy_move(V6Enemy *,const V6Room *,const V6EnemyBlock *,unsigned count)
  * exact wall occupancy at the configured x/size, indexed by y+16, and
  * guarantees current/candidate y stays in -16..255. */
 void v6_enemy_step_vertical_cached(V6Enemy *,const uint8_t walls[272]);
+/* Equivalent horizontal lane: vy=0, no dynamic blocks, x in -16..319. */
+void v6_enemy_step_horizontal_cached(V6Enemy *,const uint8_t walls[336]);
 #endif
