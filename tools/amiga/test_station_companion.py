@@ -9,12 +9,15 @@ from tower_gameplay_data import energize_room,frown_room,building_room,north_rou
 
 class Rest(C.Structure):
     _fields_=[('body',C.c_int32*10),('ax',C.c_int32),('pending_y',C.c_int32),
-              ('tiles',C.c_void_p),('terrain',C.c_void_p),('tileset',C.c_int),('extra_row',C.c_int),('valid',C.c_uint)]
+              ('tiles',C.c_void_p),('terrain',C.c_void_p),('tileset',C.c_int),('extra_row',C.c_int),('valid',C.c_uint),('after',C.c_int32*10),('pending_after',C.c_int32)]
 
 def main():
     core,_=libraries();bind(core)
     core.v6_station_companion_step.argtypes=[C.POINTER(Companion),C.POINTER(Player),C.POINTER(Room),C.c_int,C.c_int,C.c_int]
     core.v6_station_companion_step_rest.argtypes=core.v6_station_companion_step.argtypes+[C.POINTER(Rest)]
+    core.v6_station_companion_step_memo.argtypes=core.v6_station_companion_step_rest.argtypes+[C.c_uint]
+    core.v6_companion_rest_prime.argtypes=[C.POINTER(Rest),C.c_uint,C.POINTER(Companion),C.POINTER(Room)]
+    core.v6_companion_rest_prime_motion.argtypes=core.v6_companion_rest_prime.argtypes+[C.c_int32]
     core.v6_station_companion_enter.argtypes=[C.POINTER(Companion),C.c_int,C.c_int,C.c_int,C.POINTER(Player)]
     core.v6_station_companion_idle.argtypes=[C.POINTER(Companion),C.c_int]
     core.v6_terrain_build.argtypes=[C.POINTER(Terrain),C.POINTER(Room)]
@@ -55,6 +58,12 @@ obj.animatehumanoidcollision(i);obj.updateentitylogic(i);obj.entitymapcollision(
                     crew=Companion();core.v6_companion_init(C.byref(crew));core.v6_station_companion_idle(C.byref(crew),1)
                     crew.body.x=crew.body.old_x=x;crew.body.vx=vx*16777216;crew.following=following;crew.mood=0
                     resting=Companion.from_buffer_copy(crew);rest=Rest()
+                    primed=Companion.from_buffer_copy(crew);memos=(Rest*9)();before=bytes(primed)
+                    room.terrain=C.pointer(terrain)
+                    for phase in range(3):
+                        core.v6_companion_rest_prime_motion(C.cast(C.byref(memos,phase*3*C.sizeof(Rest)),C.POINTER(Rest)),3,C.byref(primed),C.byref(room),(phase-1)*3*16777216)
+                    room.terrain=None
+                    assert bytes(primed)==before,'priming advances live state'
                     cached=Companion.from_buffer_copy(crew);ref.crew_init(C.byref(crew.body),tiles,desc.get("tileset",0))
                     hero=Player();expected=Player();frame=C.c_int()
                     for tick in range(240):
@@ -65,7 +74,9 @@ obj.animatehumanoidcollision(i);obj.updateentitylogic(i);obj.entitymapcollision(
                         room.terrain=C.pointer(terrain);core.v6_station_companion_step(C.byref(cached),C.byref(hero),C.byref(room),death,desc['x'],desc['y']);room.terrain=None
                         room.terrain=C.pointer(terrain)
                         core.v6_station_companion_step_rest(C.byref(resting),C.byref(hero),C.byref(room),death,desc['x'],desc['y'],C.byref(rest))
+                        core.v6_station_companion_step_memo(C.byref(primed),C.byref(hero),C.byref(room),death,desc['x'],desc['y'],memos,9)
                         room.terrain=None
+                        assert bytes(primed)==bytes(crew),(desc['x'],desc['y'],x,vx,tick,'primed transition cache')
                         assert bytes(resting)==bytes(crew),(desc['x'],desc['y'],x,vx,tick,'rest cache')
                         assert bytes(cached)==bytes(crew),(desc['name'],x,vx,tick,'terrain cache')
                         for field in ('x','y','old_x','old_y','vx','vy','ay','ground','roof','dir'):
@@ -76,12 +87,18 @@ obj.animatehumanoidcollision(i);obj.updateentitylogic(i);obj.entitymapcollision(
     terrain=Terrain();core.v6_terrain_build(C.byref(terrain),C.byref(room));room.terrain=C.pointer(terrain)
     crew=Companion();hero=Player();hero.x=60;core.v6_companion_init(C.byref(crew))
     core.v6_station_companion_enter(C.byref(crew),7,112,105,C.byref(hero));resting=Companion.from_buffer_copy(crew);rest=Rest();stable=0
+    primed=Companion.from_buffer_copy(crew);memos=(Rest*9)();before=bytes(primed)
+    for phase in range(3):
+        core.v6_companion_rest_prime_motion(C.cast(C.byref(memos,phase*3*C.sizeof(Rest)),C.POINTER(Rest)),3,C.byref(primed),C.byref(room),(phase-1)*3*16777216)
+    assert bytes(primed)==before
     for tick in range(240):
         hero.x=60 if tick<200 else 54
         if rest.valid:stable+=1
         if tick==100:rest.valid=0
         core.v6_station_companion_step(C.byref(crew),C.byref(hero),C.byref(room),-1,112,105)
         core.v6_station_companion_step_rest(C.byref(resting),C.byref(hero),C.byref(room),-1,112,105,C.byref(rest))
+        core.v6_station_companion_step_memo(C.byref(primed),C.byref(hero),C.byref(room),-1,112,105,memos,9)
+        assert bytes(primed)==bytes(crew),('static primed transition',tick)
         assert bytes(resting)==bytes(crew),('static fixed point',tick)
     assert stable>200,stable
     # Compile the original case 7 rather than reimplementing its entry branches.
