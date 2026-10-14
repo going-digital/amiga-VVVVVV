@@ -80,6 +80,9 @@ def main():
         export_energize_assets(archive,out,decoder,vstitch_room(),"vstitch")
         export_energize_assets(archive,out,decoder,deception_room(),"deception")
         export_energize_assets(archive,out,decoder,downunder_room(),"downunder")
+        from tower_gameplay_data import north_route_room
+        for name in ('reflect','yesmen','gantry'):
+            export_energize_assets(archive,out,decoder,north_route_room(name),name)
     tele_path=out/'teleporter.png';tele_path.write_bytes(teleporter_png)
     dimensions,tele_rgba=subprocess.check_output([str(decoder),str(tele_path)]).split(b'\n',1)
     tw,th=map(int,dimensions.split());assert (tw,th)==(960,96)

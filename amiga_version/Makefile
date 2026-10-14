@@ -1294,6 +1294,9 @@ $(BUILD)/north_route.o: north_route.c north_route.h | $(BUILD)
 	$(CC) $(CFLAGS) -O2 -c $< -o $@
 .PHONY: test-north-route test-menu-portal-cache tower-menu-slide-capture
 .PHONY: test-map-tower-cursor
+.PHONY: test-north-graphics
+test-north-graphics: tower-assets
+	python3 $(ROOT)/tools/amiga/test_north_graphics.py
 test-map-tower-cursor: $(BUILD)/map_draw.o
 	python3 $(ROOT)/tools/amiga/test_map_tower_cursor.py
 test-north-route: $(BUILD)/north_route.o

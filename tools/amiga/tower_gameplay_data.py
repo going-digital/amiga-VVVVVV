@@ -27,6 +27,7 @@ def export(out):
     export_shenanigan(out)
     export_prize(out)
     export_vstitch(out)
+    export_north_route(out)
     export_prize_return_rooms(out)
     from hallway_scripts import export as export_scripts
     export_scripts(out)

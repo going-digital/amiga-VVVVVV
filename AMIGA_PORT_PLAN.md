@@ -5630,3 +5630,11 @@ including platform transport and death-time enemy freezing, and compiles for
 These are preparation for step 5: native original-room admission, actor drawing,
 checkpoint/save admission and general room/camera menu captures are still
 required. No new room is yet claimed playable by this verification milestone.
+
+The private tower asset conversion now exports north-route collision headers,
+checkpoints, display streams, paired tile atlases and frozen four-colour
+palettes. `test-north-graphics` compares 79,360 ring pixels per original room
+(238,080 total) against the source PNG and verifies that display remapping
+does not change the original collision tile IDs. Stop and Reflect uses 22
+source IDs/38 pairs, The Yes Men 19/34, and Gantry and Dolly 18/24. Private game
+assets remain generated locally rather than committed.
