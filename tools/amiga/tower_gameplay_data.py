@@ -257,3 +257,46 @@ def export_prize_return_rooms(out):
             ','.join('{'+','.join(map(str,(*r,0,0)))+'}' for r in checkpoints)+'};\n')
         (out/(name+'-room.json')).write_text(json.dumps(
             {k:v for k,v in room.items() if k!='tiles'},indent=2)+'\n')
+
+
+def north_route_room(name):
+    """Reviewed connected original neighbours north of V Stitch."""
+    import ast
+    cases={
+        'reflect':(50,42,'Stop and Reflect',[(288,160,10,1,442500),
+            (135,75,2,0,3,100,70,320,160),(185,110,2,0,3,100,70,320,160),
+            (235,145,2,0,3,100,70,320,160)]),
+        'yesmen':(50,41,'The Yes Men',[(122,8,1,0,3),(266,8,1,0,3),
+            (122,204,1,1,3),(194,172,1,1,3),(194,40,1,0,3),
+            (64,80,10,1,441501),(64,136,10,0,441502)]),
+        'gantry':(50,40,'Gantry and Dolly',[(104,64,3,10),(136,64,3,10),
+            (168,64,3,10),(56,104,10,1,440500),(56,152,2,3,3),
+            (280,192,10,1,440501)])}
+    rx,ry,title,expected=cases[name]
+    source=(ROOT/'desktop_version/src/Spacestation2.cpp').read_text()
+    start=source.index(f'case rn({rx},{ry}):');body=source[start:source.index('case rn(',start+5)]
+    raw=re.search(r'static const short contents\[\]\s*=\s*\{(.*?)\};',body,re.S)[1]
+    tiles=[int(v) for v in raw.split(',') if v.strip()]
+    def integer(node):
+        if isinstance(node,ast.Constant) and type(node.value) is int:return node.value
+        if isinstance(node,ast.BinOp) and isinstance(node.op,(ast.Add,ast.Sub)):
+            left,right=integer(node.left),integer(node.right)
+            return left+right if isinstance(node.op,ast.Add) else left-right
+        raise ValueError('Unexpected source entity expression')
+    calls=[tuple(integer(ast.parse(v.strip(),mode='eval').body) for v in call.split(','))
+           for call in re.findall(r'obj.createentity\(([^;]+)\);',body)]
+    assert len(tiles)==1200 and calls==expected
+    assert not re.findall(r'obj.createblock\(',body) and f'roomname = "{title}";' in body
+    return dict(x=rx+62,y=ry+64,tileset=0,tiles=tiles,name=title,entities=calls,
+        checkpoints=[(call[0],call[1],20+call[3],call[4]) for call in calls if call[2]==10])
+
+
+def export_north_route(out):
+    for name in ('reflect','yesmen','gantry'):
+        room=north_route_room(name);tiles=room['tiles'];checkpoints=room['checkpoints']
+        (out/(name+'_collision.h')).write_text('/* Reviewed original connected north route. */\n'+
+            'static const uint16_t '+name+'_tiles[1200]={'+','.join(map(str,tiles))+'};\n'+
+            'static const uint8_t '+name+'_packed[]={'+','.join(map(str,encode(tiles)))+'};\n'+
+            'static V6Checkpoint '+name+'_checkpoint['+str(len(checkpoints))+']={'+
+            ','.join('{'+','.join(map(str,(*r,0,0)))+'}' for r in checkpoints)+'};\n')
+        (out/(name+'-room.json')).write_text(json.dumps({k:v for k,v in room.items() if k!='tiles'},indent=2)+'\n')

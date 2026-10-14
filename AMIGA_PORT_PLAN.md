@@ -5575,3 +5575,58 @@ and reload checks before it replaces the existing native Save candidate.
 The requested expansion goes beyond resident rooms. The next connected original
 rooms are Stop and Reflect, The Yes Men, and Gantry and Dolly north of V Stitch,
 including their original checkpoints, enemies and platforms.
+
+### Native complete menu and V6 reload candidate (13 October 2026)
+
+The `tower-menu` candidate hooks the focused 30-update clock and actual native
+crew flags into a successful Save-action receipt. The receipt shows original
+area/time/trinket/crew content, and the ordinary Save prompt retains the last
+successful summary. `tower-menu-load` accepts the V6 record on a fresh executable.
+A native reload capture preserves exact summary fields, current crew/death
+metadata and advancing clock without modifying DF1: 248/280 work lines, zero
+missed frames or errors.
+
+Full Crew, Stats and Save content uses four bitplanes, original font/portrait
+masks and Crew text palette bands. Portable comparisons pass 168 states and
+12,902,400 original-source RGB12 pixels, including all crew banks and both
+portrait frames. Native page bitmaps match the source-certified renderer.
+Full page updates are built in an inactive bitmap over bounded row batches;
+long static text, borders and receipt icons use Chip blitter masks. Current
+allocation is 429,162 Chip bytes. The complete-menu map/control/save regression
+passes at 267/280 work lines, zero missed frames/errors, with source physics,
+full/partial map pixels, frozen gameplay and actual V6 DF1 output.
+
+Steps 1–3 have native candidates and reload evidence. Step 4's page content is
+implemented; generalized slides for all pages and their regression checks still
+remain. Step 5 still requires general room/camera admission and the native
+Stop and Reflect / The Yes Men / Gantry and Dolly route. Their source tiles,
+entity declarations and checkpoint banks are reviewed and extracted but are
+not yet admitted to the running campaign. Glow remains fixed to the already
+validated normal-page state.
+
+### Menu verification and north-route preparation (14 October 2026)
+
+Native Crew, Stats and Save bitmaps each match 38,400 source-certified bytes;
+the final page timing checks pass at 263, 270 and 268 of 280 PAL work lines.
+Fresh V6 reload preserves the exact receipt and campaign metadata at 250/280.
+Variable-length last-save text uses four-row batches; other page content uses
+twelve-row batches. Portrait data uses bounded 68000 MOVEM copies, and shifted
+portrait caches are invalidated before a stationary page can reuse them.
+
+The guarded `tower-menu-slide` build freezes the actual gameplay Copper list
+and sprite data, rather than assuming a stationary foreground camera. Its
+portable compositor passes 33,460 camera/plane/offset schedules and 239 sprite
+rearm boundaries, including PAL epoch crossings. Map, Crew, Stats and Save all
+use this compositor. Native closing captures pass 6,578 translated header pixels
+per tab at 239/263/273/268 work lines for Map/Crew/Stats/Save, respectively,
+with zero missed frames or errors. The Save capture also verifies frozen
+gameplay across the successful disk transaction.
+The shared Building/Energize portal pixel cache preserves 1,458 DMA cases and
+saves 23,520 BSS bytes, preventing the BSS hunk from spilling into Chip memory.
+
+The original north-route actor composition passes 14,336 source actor updates,
+including platform transport and death-time enemy freezing, and compiles for
+68000. The source tower map cursor passes 720 states and 55,296,000 pixels.
+These are preparation for step 5: native original-room admission, actor drawing,
+checkpoint/save admission and general room/camera menu captures are still
+required. No new room is yet claimed playable by this verification milestone.

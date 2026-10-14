@@ -15,6 +15,17 @@ def build(out):
  assert all(not(v&~0x03fffc00) for frame in masks[:3] for v in frame)
  source=(ROOT/'desktop_version/src/Map.cpp').read_text();body=re.search(r'const int mapclass::areamap\[\] = \{(.*?)\};',source,re.S)[1];areas=list(map(int,re.findall(r'\d+',body)));assert len(areas)==400
  text='/* Private original menu sprite masks and source world-area map. */\nstatic const uint32_t ui_portrait[3][32]={'+','.join('{'+','.join(hex(v)+'UL' for v in frame)+'}' for frame in masks[:3])+'};\n'
+ text+='static const uint16_t ui_portrait_bits[3][32]={'+','.join('{'+','.join(hex((v>>10)&65535) for v in frame)+'}' for frame in masks[:3])+'};\n'
+ portrait_data=[]
+ for frame in masks[:3]:
+  parity=[]
+  for odd in (False,True):
+   words=[]
+   for row in frame:
+    bits=(row>>10)&65535;words.extend((bits,bits if odd else 0))
+   parity.append('{'+','.join(hex(v) for v in words)+'}')
+  portrait_data.append('{'+','.join(parity)+'}')
+ text+='static const uint16_t ui_portrait_data[3][2][64]={'+','.join(portrait_data)+'};\n'
  text+='static const uint32_t ui_icons[2][32]={'+','.join('{'+','.join(hex(v)+'UL' for v in frame)+'}' for frame in masks[3:])+'};\n'
  text+='static const uint8_t ui_world_areas[400]={'+','.join(map(str,areas))+'};\n'
  subprocess.run(['cc','-std=c99','-O2','-shared','-fPIC','-I'+str(ROOT/'amiga_version'),str(ROOT/'amiga_version/ui_menu.c'),str(ROOT/'amiga_version/save_summary.c'),'-o',str(out/'.ui_packer.so')],check=True)
@@ -40,6 +51,66 @@ def build(out):
    for x in range(0,320,8):
     values.append(sum((sum(((bitmap[p*9600+y*40+(x+i)//8]>>(7-(x+i)%8))&1)<<p for p in range(4))==3)<<(7-i) for i in range(8)))
   text+='static const uint8_t ui_'+name+'_mask['+str(len(values))+']={'+','.join(map(str,values))+'};\n'
+ note="(Note: The game is autosaved at every";alpha=[0]*320;left=160-len(note)*4
+ for i,c in enumerate(note):
+  for y in range(8):
+   for x in range(8):
+    if font[ord(c)*8+y]&(128>>x):
+     xx=left+i*8+x;alpha[y*40+xx//8]|=128>>(xx%8)
+ text+='static const uint8_t ui_note_mask[320]={'+','.join(map(str,alpha))+'};\n'
+ tab_masks=[]
+ for column,label in enumerate(('MAP','CREW','STATS','SAVE')):
+  for selected in (False,True):
+   label_text='['+label+']' if selected else label;alpha=[0]*320;left=40+column*80-len(label_text)*4
+   for i,c in enumerate(label_text):
+    for y in range(8):
+     for x in range(8):
+      if font[ord(c)*8+y]&(128>>x):
+       xx=left+i*8+x;alpha[y*40+xx//8]|=128>>(xx%8)
+   tab_masks.extend(alpha)
+ text+='static const uint8_t ui_tab_masks[2560]={'+','.join(map(str,tab_masks))+'};\n'
+ prompt="[Press Space to save your game]";alpha=[0]*320;left=160-len(prompt)*4
+ for i,c in enumerate(prompt):
+  for y in range(8):
+   for x in range(8):
+    if font[ord(c)*8+y]&(128>>x):
+     xx=left+i*8+x;alpha[y*40+xx//8]|=128>>(xx%8)
+ text+='static const uint8_t ui_prompt_mask[320]={'+','.join(map(str,alpha))+'};\n'
+ icon_masks=[]
+ for shape,left in zip(masks[3:],(34,270)):
+  alpha=[0]*1280
+  for y,row in enumerate(shape):
+   for x in range(32):
+    if row&(1<<(31-x)):
+     xx=left+x;alpha[y*40+xx//8]|=128>>(xx%8)
+  first=(left//16)*2;height=17 if left==34 else 16
+  icon_masks.extend(alpha[y*40+first+byte] for y in range(height) for byte in range(4))
+ text+='static const uint8_t ui_icon_masks[132]={'+','.join(map(str,icon_masks))+'};\n'
+ crew_texts=[('Viridian',44),('Violet',44),('Vitellary',44),('Vermilion',204),('Verdigris',204),('Victoria',204),("(that's you!)",44),('Rescued!',44),('Rescued!',204),('Missing...',44),('Missing...',204)]
+ text+='static const char *const ui_crew_texts[11]={'+','.join('"'+s+'"' for s,x in crew_texts)+'};\n'
+ text+='static const uint16_t ui_crew_text_x[11]={'+','.join(str(x) for s,x in crew_texts)+'};\n'
+ crew_masks=[]
+ for label,left in crew_texts:
+  alpha=[0]*320
+  for i,c in enumerate(label):
+   for y in range(8):
+    for x in range(8):
+     if font[ord(c)*8+y]&(128>>x):
+      xx=left+i*8+x;alpha[y*40+xx//8]|=128>>(xx%8)
+  crew_masks.extend(alpha)
+ text+='static const uint8_t ui_crew_text_masks[3520]={'+','.join(map(str,crew_masks))+'};\n'
+ static_texts=['[Trinkets found]','[Number of Deaths]','[Time Taken]','The Tower',"I'm Sorry...",'Seeing Red','Building Apport','Energize','Frown Upside Down','Shenanigan','Prize for the Reckless','V Stitch','A Deception','Down Under']
+ text+='static const char *const ui_static_texts[14]={'+','.join('"'+s+'"' for s in static_texts)+'};\n'
+ static_masks=[]
+ for label in static_texts:
+  alpha=[0]*320;left=160-len(label)*4
+  for i,c in enumerate(label):
+   for y in range(8):
+    for x in range(8):
+     if font[ord(c)*8+y]&(128>>x):
+      xx=left+i*8+x;alpha[y*40+xx//8]|=128>>(xx%8)
+  static_masks.extend(alpha)
+ text+='static const uint8_t ui_static_text_masks[4480]={'+','.join(map(str,static_masks))+'};\n'
  (out/'ui_assets.h').write_text(text);print('UI assets: original five sprite masks and all 400 room areas')
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('--out',type=Path,required=True);build(p.parse_args().out)

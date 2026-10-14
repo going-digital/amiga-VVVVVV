@@ -150,6 +150,20 @@ int v6_map_cursor_rows(uint32_t rows[32],unsigned mode,int room_x,int room_y,int
     }
     *x=40+(room_x-100)*12;*y=21+(room_y-100)*9;return 1;
 }
+int v6_map_tower_cursor_rows(uint32_t rows[180],unsigned mode,int *x,int *y)
+{
+    unsigned i,j;
+    if(!rows || !x || !y || mode>2)return 0;
+    for(i=0;i<180;++i){uint32_t row=0;
+        for(j=0;j<12;++j){
+            int outer=mode==1 && (i==0 || i==179 || j==0 || j==11);
+            int inner=mode && i>=2 && i<178 && j>=2 && j<10 && (i==2 || i==177 || j==2 || j==9);
+            if(outer || inner)row|=1UL<<(31-j);
+        }
+        rows[i]=row;
+    }
+    *x=148;*y=21;return 1;
+}
 static uint16_t *reg(uint16_t *p,unsigned r,unsigned v)
 {*p++=(uint16_t)r;*p++=(uint16_t)v;return p;}
 static uint16_t *pointer(uint16_t *p,unsigned r,uint32_t a)
@@ -157,7 +171,7 @@ static uint16_t *pointer(uint16_t *p,unsigned r,uint32_t a)
 unsigned v6_menu_copper(uint16_t *out,uint32_t bitmap,const uint16_t palette[32],uint32_t blank,uint32_t cursor,unsigned planes)
 {
     uint16_t *p=out;unsigned i;
-    if(!out || !palette || (planes!=3 && planes!=5) || ((bitmap|blank|cursor)&1) || bitmap>0x1000000UL-planes*V6_MAP_PLANE_BYTES || blank>0xfffffc || cursor>0x1000000UL-V6_SPRITE_WORDS*2)return 0;
+    if(!out || !palette || (planes!=3 && planes!=4 && planes!=5) || ((bitmap|blank|cursor)&1) || bitmap>0x1000000UL-planes*V6_MAP_PLANE_BYTES || blank>0xfffffc || cursor>0x1000000UL-V6_SPRITE_WORDS*2)return 0;
     /* Force word reads: the m68k GCC 14 byte-loop transformation otherwise
      * compares low colour bytes against 15 as well as the high nibbles. */
     for(i=0;i<32;++i)if(((const volatile uint16_t *)palette)[i]>0xfff)return 0;

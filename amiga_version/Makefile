@@ -293,7 +293,7 @@ tower-probe: tower-assets
 $(BUILD)/tower_probe.o: tower_probe.c $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -O2 -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/save_page.o $(BUILD)/map_slide.o $(BUILD)/map_transition.o $(BUILD)/map_draw.o $(BUILD)/keyboard.o $(BUILD)/map_menu.o $(BUILD)/vstitch_hint_draw.o $(BUILD)/vstitch_hint_copper.o $(BUILD)/vstitch_trigger.o $(BUILD)/prize_return.o $(BUILD)/prize_return_sprite.o $(BUILD)/prize_return_draw.o $(BUILD)/pixel_collision.o $(BUILD)/pickup_fade.o $(BUILD)/pickup_draw.o $(BUILD)/pickup_copper.o $(BUILD)/trinket_screen.o $(BUILD)/prize.o $(BUILD)/platform_gate.o $(BUILD)/disappearing.o $(BUILD)/trinkets.o $(BUILD)/platform.o $(BUILD)/enemy.o $(BUILD)/station_trigger.o $(BUILD)/teleporter_admission.o $(BUILD)/screen_shake.o $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/menu_slide.o $(BUILD)/ui_menu.o $(BUILD)/campaign_menu.o $(BUILD)/campaign_menu_file.o $(BUILD)/save_summary.o $(BUILD)/save_page.o $(BUILD)/map_slide.o $(BUILD)/map_transition.o $(BUILD)/map_draw.o $(BUILD)/keyboard.o $(BUILD)/map_menu.o $(BUILD)/vstitch_hint_draw.o $(BUILD)/vstitch_hint_copper.o $(BUILD)/vstitch_trigger.o $(BUILD)/prize_return.o $(BUILD)/prize_return_sprite.o $(BUILD)/prize_return_draw.o $(BUILD)/pixel_collision.o $(BUILD)/pickup_fade.o $(BUILD)/pickup_draw.o $(BUILD)/pickup_copper.o $(BUILD)/trinket_screen.o $(BUILD)/prize.o $(BUILD)/platform_gate.o $(BUILD)/disappearing.o $(BUILD)/trinkets.o $(BUILD)/platform.o $(BUILD)/enemy.o $(BUILD)/station_trigger.o $(BUILD)/teleporter_admission.o $(BUILD)/screen_shake.o $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -1248,3 +1248,60 @@ $(BUILD)/save_summary.o: save_summary.c save_summary.h trinkets.h | $(BUILD)
 test-save-summary: $(BUILD)/save_summary.o
 	python3 $(ROOT)/tools/amiga/test_save_summary.py
 test: test-save-summary
+
+$(BUILD)/campaign_menu.o: campaign_menu.c campaign_menu.h save_summary.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+$(BUILD)/campaign_menu_file.o: campaign_menu_file.c campaign_menu.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+
+.PHONY: test-campaign-menu
+test-campaign-menu: $(BUILD)/campaign_menu.o $(BUILD)/campaign_menu_file.o
+	python3 $(ROOT)/tools/amiga/test_campaign_menu.py
+test: test-campaign-menu
+
+$(BUILD)/ui_menu.o: ui_menu.c ui_menu.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+
+.PHONY: test-ui-menu tower-menu
+test-ui-menu: $(BUILD)/ui_menu.o test-save-summary
+	python3 $(ROOT)/tools/amiga/test_ui_menu.py
+test: test-ui-menu
+tower-menu: tower-save-display test-campaign-menu
+	python3 $(ROOT)/tools/amiga/convert_ui_assets.py --out $(ROOT)/build/amiga-feasibility
+	$(MAKE) BUILD=$(ROOT)/build/amiga-menu CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_VSTITCH_INPUT_CAPTURE -DV6_VSTITCH_HINT_CAPTURE -DV6_MAP_INPUT_CAPTURE -DV6_MAP_DISPLAY_CAPTURE -DV6_SAVE_DISPLAY_CAPTURE -DV6_MENU_COMPLETE" $(ROOT)/build/amiga-menu/tower.adf
+
+.PHONY: tower-menu-load tower-menu-capture
+tower-menu-load: tower-menu
+	$(MAKE) BUILD=$(ROOT)/build/amiga-menu-load CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_VSTITCH_INPUT_CAPTURE -DV6_VSTITCH_HINT_CAPTURE -DV6_VSTITCH_HINT_LOAD -DV6_MAP_INPUT_CAPTURE -DV6_MAP_DISPLAY_CAPTURE -DV6_SAVE_DISPLAY_CAPTURE -DV6_MENU_COMPLETE" $(ROOT)/build/amiga-menu-load/tower.adf
+tower-menu-capture: tower-menu
+	python3 $(ROOT)/tools/amiga/run_map_display.py --build $(ROOT)/build/amiga-menu --complete-menu
+	python3 $(ROOT)/tools/amiga/run_ui_menu.py --build $(ROOT)/build/amiga-menu
+
+.PHONY: tower-menu-reload-capture
+tower-menu-reload-capture: tower-menu-load
+	python3 $(ROOT)/tools/amiga/run_map_display.py --build $(ROOT)/build/amiga-menu --complete-menu
+	python3 $(ROOT)/tools/amiga/run_ui_menu_reload.py --build $(ROOT)/build/amiga-menu --load-build $(ROOT)/build/amiga-menu-load
+
+$(BUILD)/menu_slide.o: menu_slide.c menu_slide.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+.PHONY: test-menu-slide tower-menu-slide
+test-menu-slide: $(BUILD)/menu_slide.o
+	python3 $(ROOT)/tools/amiga/test_menu_slide.py
+tower-menu-slide: tower-menu test-menu-slide
+	$(MAKE) BUILD=$(ROOT)/build/amiga-menu-slide-native CPPFLAGS="$(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_VSTITCH_INPUT_CAPTURE -DV6_VSTITCH_HINT_CAPTURE -DV6_MAP_INPUT_CAPTURE -DV6_MAP_DISPLAY_CAPTURE -DV6_SAVE_DISPLAY_CAPTURE -DV6_MENU_COMPLETE -DV6_MENU_SLIDE" $(ROOT)/build/amiga-menu-slide-native/tower.adf
+
+$(BUILD)/north_route.o: north_route.c north_route.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+.PHONY: test-north-route test-menu-portal-cache tower-menu-slide-capture
+.PHONY: test-map-tower-cursor
+test-map-tower-cursor: $(BUILD)/map_draw.o
+	python3 $(ROOT)/tools/amiga/test_map_tower_cursor.py
+test-north-route: $(BUILD)/north_route.o
+	python3 $(ROOT)/tools/amiga/test_north_route.py
+test-menu-portal-cache:
+	python3 $(ROOT)/tools/amiga/test_menu_portal_cache.py
+tower-menu-slide-capture: tower-menu-slide
+	python3 $(ROOT)/tools/amiga/run_ui_slide.py --build $(ROOT)/build/amiga-menu-slide-native --page 0
+	python3 $(ROOT)/tools/amiga/run_ui_slide.py --build $(ROOT)/build/amiga-menu-slide-native --page 1
+	python3 $(ROOT)/tools/amiga/run_ui_slide.py --build $(ROOT)/build/amiga-menu-slide-native --page 2
+	python3 $(ROOT)/tools/amiga/run_ui_slide.py --build $(ROOT)/build/amiga-menu-slide-native --page 3

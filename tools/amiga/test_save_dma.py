@@ -32,7 +32,7 @@ def main():
    for p in range(3):assert r[0xe0+4*p]*65536+r[0xe2+4*p]==address+p*9600
    for i in range(32):assert r[0x180+i*2]==palette[i]
    count+=1
- for planes in (0,1,2,4,6,7):
+ for planes in (0,1,2,6,7):
   before=bytes(out);assert not lib.v6_menu_copper(out,0,palette,0,0,planes) and bytes(out)==before
  print(f'PASS Save DMA: 57600 source bitmap bytes, packed-data rejection, {count} three-plane DMA schedules, invalid-output preservation')
 if __name__=='__main__':main()

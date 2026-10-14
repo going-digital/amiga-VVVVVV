@@ -33,6 +33,8 @@ int v6_map_draw_template_row(uint8_t out[200],unsigned row,const V6Exploration *
 void v6_map_cursor_tick(unsigned *state,unsigned *delay);
 unsigned v6_map_cursor_mode(unsigned state,unsigned delay,int noflashing);
 int v6_map_cursor_rows(uint32_t rows[32],unsigned mode,int room_x,int room_y,int *x,int *y);
+/* Original tower marker spans the full 180-row minimap column. */
+int v6_map_tower_cursor_rows(uint32_t rows[180],unsigned mode,int *x,int *y);
 /* Full-screen five-plane Copper list. Bitmap addresses are even/24-bit;
  * caller supplies Chip memory and an inactive list. Palette[17] is cursor.
  * Blank sprite pointers supplied by caller; optional sprite 0 overrides it.
