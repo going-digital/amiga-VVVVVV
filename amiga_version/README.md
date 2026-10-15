@@ -3,8 +3,8 @@
 ## Current campaign prototype
 
 Build with `make -C amiga_version tower-north` and boot
-`build/amiga-north/tower.adf` in DF0. The resident route now contains fourteen
-rooms, including Security Sweep above Gantry and Dolly. This is a partial
+`build/amiga-north/tower.adf` in DF0. The route now admits fifteen rooms,
+including Linear Collider and its terminal log. This is a partial
 campaign prototype; it starts in V Stitch rather than at the original game's
 opening. Music conversion is paused while awaiting original tracker files.
 
@@ -25,6 +25,20 @@ python3 tools/amiga/run_map_input.py --build build/amiga-north --run
 `tower-north-scenes-capture` checks resident menu scenes;
 `tower-north-boot-capture` checks direct boot with Kickstart and bundled AROS.
 Original game assets are generated privately from the local installation.
+
+The five northern rooms load from `north0.v6rg`, `north1.v6rg` and `north2.v6rg`
+on DF0, included automatically in the generated ADF. They share two fixed
+12 KiB region slots containing collision tiles, packed display rows, paired
+graphics and palettes. Nearby cached regions need no disk reads. A cache miss
+pauses gameplay, restores AmigaDOS for disk access, validates the candidate,
+and resumes without adding loading time to the game clock. The active region
+stays pinned until the candidate passes validation. Missing or corrupt data
+produces a DOS message and a clean exit before committing the destination.
+Keep the region files with the executable when using the boot disk.
+
+`make -C amiga_version test-regions` checks the pack parser and bounded cache.
+`tower-regions-capture` checks live crossing, eviction, remote death/respawn,
+DF1 save/fresh reload, and missing/corrupt file rejection on the stock profile.
 
 ## Initial standalone slice
 

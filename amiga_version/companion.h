@@ -26,7 +26,7 @@ void v6_station_companion_enter(V6Companion *,int companion,int room_x,int room_
 void v6_station_companion_step(V6Companion *,const V6Player *,const V6Room *,
     int death,int room_x,int room_y);
 /* Exact one-step physics memo for immutable static rooms. Reset after room or
- * tile changes. Animation and AI still execute. Dynamic blocks bypass it. */
+ * tile changes. Animation and AI still execute. Collision blocks bypass it; non-solid activities may change safely. */
 typedef struct {int32_t body[10],ax,pending_y;const uint16_t *tiles;const V6Terrain *terrain;
     int tileset,extra_row;unsigned valid;int32_t after[10],pending_after;} V6CompanionRest;
 void v6_companion_rest_reset(V6CompanionRest *);

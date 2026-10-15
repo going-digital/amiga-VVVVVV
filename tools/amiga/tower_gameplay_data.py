@@ -91,6 +91,12 @@ static const uint8_t v6_prepared_room_marker=0;
         prepared+'static const V6TowerRouteRoom tower_route_rooms[]={')
     header=re.sub(r'(\w+_packed),sizeof\(\1\)',r'V6_ROOM_PACKET(\1)',header)
     header+='\n#undef V6_ROOM_PACKET\n'
+    header=header.replace('static const V6TowerRouteRoom tower_route_rooms[]={', 'static V6TowerRouteRoom tower_route_rooms[]={')
+    for name in ('reflect','yesmen','gantry','security','linear'):
+        header=header.replace(name+'_tiles,0,0}', 'V6_NORTH_VIEW('+name+'_tiles),0,0}')
+    header=header.replace('static V6TowerRouteRoom tower_route_rooms[]={',
+        '#ifdef V6_REGIONAL_CONTENT\n#define V6_NORTH_VIEW(name) 0\n#else\n#define V6_NORTH_VIEW(name) name\n#endif\nstatic V6TowerRouteRoom tower_route_rooms[]={')
+    header+='\n#undef V6_NORTH_VIEW\n'
     (out/'tower_route_data.h').write_text(header)
 
 
@@ -268,7 +274,7 @@ def export_prize_return_rooms(out):
         checkpoints=room['checkpoints']
         (out/(name+'_collision.h')).write_text(
             '/* West-route candidate only; actors, campaign/save admission pending. */\n'+
-            'static const uint16_t '+name+'_tiles[1200]={'+','.join(map(str,tiles))+'};\n'+
+            '#ifndef V6_REGIONAL_CONTENT\nstatic const uint16_t '+name+'_tiles[1200]={'+','.join(map(str,tiles))+'};\n'+
             'static const uint8_t '+name+'_packed[]={'+','.join(map(str,encode(tiles)))+'};\n'+
             'static V6Checkpoint '+name+'_checkpoint[2]={'+
             ','.join('{'+','.join(map(str,(*r,0,0)))+'}' for r in checkpoints)+'};\n')
@@ -318,8 +324,8 @@ def export_north_route(out):
     for name in ('reflect','yesmen','gantry','security','linear'):
         room=north_route_room(name);tiles=room['tiles'];checkpoints=room['checkpoints']
         (out/(name+'_collision.h')).write_text('/* Reviewed original connected north route. */\n'+
-            'static const uint16_t '+name+'_tiles[1200]={'+','.join(map(str,tiles))+'};\n'+
+            '#ifndef V6_REGIONAL_CONTENT\nstatic const uint16_t '+name+'_tiles[1200]={'+','.join(map(str,tiles))+'};\n'+
             'static const uint8_t '+name+'_packed[]={'+','.join(map(str,encode(tiles)))+'};\n'+
-            'static V6Checkpoint '+name+'_checkpoint['+str(len(checkpoints))+']={'+
+            '#endif\nstatic V6Checkpoint '+name+'_checkpoint['+str(len(checkpoints))+']={'+
             ','.join('{'+','.join(map(str,(*r,0,0)))+'}' for r in checkpoints)+'};\n')
         (out/(name+'-room.json')).write_text(json.dumps({k:v for k,v in room.items() if k!='tiles'},indent=2)+'\n')

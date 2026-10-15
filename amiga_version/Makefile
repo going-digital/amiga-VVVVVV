@@ -299,7 +299,7 @@ $(BUILD)/route-mode.txt: FORCE | $(BUILD)
 $(BUILD)/tower_probe.o: tower_probe.c $(BUILD)/route-mode.txt $(ROOT)/build/amiga-feasibility/tower_assets.h $(ROOT)/build/amiga-feasibility/tower_map.h FORCE | $(BUILD)
 	$(CC) $(CPPFLAGS) -DV6_ROUTE_PREDECODED=$(ROUTE_MODE) $(CFLAGS) -O2 -Wno-volatile-register-var -I$(ROOT)/build/amiga-feasibility -fno-delete-null-pointer-checks -c $< -o $@
 
-$(BUILD)/tower.elf: $(BUILD)/terminal_layer.o $(BUILD)/activity.o $(BUILD)/terminal_read.o $(BUILD)/sample_unpack.o $(BUILD)/terminal.o $(BUILD)/north_route.o $(BUILD)/sprite_mux.o $(BUILD)/menu_slide.o $(BUILD)/ui_menu.o $(BUILD)/campaign_menu.o $(BUILD)/campaign_menu_file.o $(BUILD)/save_summary.o $(BUILD)/save_page.o $(BUILD)/map_slide.o $(BUILD)/map_transition.o $(BUILD)/map_draw.o $(BUILD)/keyboard.o $(BUILD)/map_menu.o $(BUILD)/vstitch_hint_draw.o $(BUILD)/vstitch_hint_copper.o $(BUILD)/vstitch_trigger.o $(BUILD)/prize_return.o $(BUILD)/prize_return_sprite.o $(BUILD)/prize_return_draw.o $(BUILD)/pixel_collision.o $(BUILD)/pickup_fade.o $(BUILD)/pickup_draw.o $(BUILD)/pickup_copper.o $(BUILD)/trinket_screen.o $(BUILD)/prize.o $(BUILD)/platform_gate.o $(BUILD)/disappearing.o $(BUILD)/trinkets.o $(BUILD)/platform.o $(BUILD)/enemy.o $(BUILD)/station_trigger.o $(BUILD)/teleporter_admission.o $(BUILD)/screen_shake.o $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
+$(BUILD)/tower.elf: $(BUILD)/region_cache.o $(BUILD)/terminal_layer.o $(BUILD)/activity.o $(BUILD)/terminal_read.o $(BUILD)/sample_unpack.o $(BUILD)/terminal.o $(BUILD)/north_route.o $(BUILD)/sprite_mux.o $(BUILD)/menu_slide.o $(BUILD)/ui_menu.o $(BUILD)/campaign_menu.o $(BUILD)/campaign_menu_file.o $(BUILD)/save_summary.o $(BUILD)/save_page.o $(BUILD)/map_slide.o $(BUILD)/map_transition.o $(BUILD)/map_draw.o $(BUILD)/keyboard.o $(BUILD)/map_menu.o $(BUILD)/vstitch_hint_draw.o $(BUILD)/vstitch_hint_copper.o $(BUILD)/vstitch_trigger.o $(BUILD)/prize_return.o $(BUILD)/prize_return_sprite.o $(BUILD)/prize_return_draw.o $(BUILD)/pixel_collision.o $(BUILD)/pickup_fade.o $(BUILD)/pickup_draw.o $(BUILD)/pickup_copper.o $(BUILD)/trinket_screen.o $(BUILD)/prize.o $(BUILD)/platform_gate.o $(BUILD)/disappearing.o $(BUILD)/trinkets.o $(BUILD)/platform.o $(BUILD)/enemy.o $(BUILD)/station_trigger.o $(BUILD)/teleporter_admission.o $(BUILD)/screen_shake.o $(BUILD)/screen_shake_dma.o $(BUILD)/screen_shake_display.o $(BUILD)/music_gain.o $(BUILD)/music_registers.o $(BUILD)/music_area.o $(BUILD)/music_control.o $(BUILD)/audio_policy.o $(BUILD)/paula_voice.o $(BUILD)/teleporter_colour.o $(BUILD)/teleporter_departure.o $(BUILD)/teleporter_arrival.o $(BUILD)/teleporter_menu.o $(BUILD)/campaign_route.o $(BUILD)/teleporter.o $(BUILD)/teleporter_animation.o $(BUILD)/teleporter_draw.o $(BUILD)/save_controls.o $(BUILD)/campaign_save.o $(BUILD)/campaign_file.o $(BUILD)/campaign_dos.o $(BUILD)/audio.o $(BUILD)/terrain.o $(BUILD)/companion.o $(BUILD)/dialogue.o $(BUILD)/rescue_script.o $(BUILD)/hallway_trigger.o $(BUILD)/hallway_crew.o $(BUILD)/tower_route.o $(BUILD)/checkpoints.o $(BUILD)/tower_gameplay.o $(BUILD)/blocks.o $(BUILD)/sprites.o $(BUILD)/animation.o $(BUILD)/tower_session.o $(BUILD)/player.o $(BUILD)/tower_camera.o $(BUILD)/tower_probe.o $(BUILD)/tower_draw.o $(BUILD)/tower_stream.o $(BUILD)/tower_copper.o $(BUILD)/room_codec.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BUILD)/tower.exe: $(BUILD)/tower.elf
@@ -307,6 +307,9 @@ $(BUILD)/tower.exe: $(BUILD)/tower.elf
 
 $(BUILD)/tower.adf: $(BUILD)/tower.exe
 	"$(CTL)" exe2adf $< --boot --out $@
+ifneq ($(findstring -DV6_REGIONAL_CONTENT,$(CPPFLAGS)),)
+	python3 $(ROOT)/tools/amiga/adf_files.py $@ $(addprefix $(ROOT)/build/amiga-feasibility/,north0.v6rg north1.v6rg north2.v6rg)
+endif
 
 -include $(BUILD)/tower_probe.d
 
@@ -1323,7 +1326,7 @@ tower-menu-slide-capture: tower-menu-slide
 	python3 $(ROOT)/tools/amiga/run_ui_slide.py --build $(ROOT)/build/amiga-menu-slide-native --page 2
 	python3 $(ROOT)/tools/amiga/run_ui_slide.py --build $(ROOT)/build/amiga-menu-slide-native --page 3
 
-NORTH_FLAGS = $(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_VSTITCH_INPUT_CAPTURE -DV6_VSTITCH_HINT_CAPTURE -DV6_MAP_INPUT_CAPTURE -DV6_MAP_DISPLAY_CAPTURE -DV6_SAVE_DISPLAY_CAPTURE -DV6_MENU_COMPLETE -DV6_MENU_SLIDE -DV6_NORTH_ROUTE
+NORTH_FLAGS = -DV6_REGIONAL_CONTENT $(PRIZE_ROUTE_FLAGS) -DV6_PRIZE_INPUT_CAPTURE -DV6_VSTITCH_INPUT_CAPTURE -DV6_VSTITCH_HINT_CAPTURE -DV6_MAP_INPUT_CAPTURE -DV6_MAP_DISPLAY_CAPTURE -DV6_SAVE_DISPLAY_CAPTURE -DV6_MENU_COMPLETE -DV6_MENU_SLIDE -DV6_NORTH_ROUTE
 .PHONY: tower-north tower-north-capture tower-north-scenes-capture tower-north-bob-capture test-sprite-overlay
 # Private original-game assets are generated into ignored build output.
 tower-north: tower-menu-slide
@@ -1394,3 +1397,13 @@ tower-terminal-campaign: tower-assets
 	$(MAKE) BUILD=$(ROOT)/build/amiga-terminal-campaign CPPFLAGS="$(NORTH_FLAGS) -DV6_NORTH_START=14 -DV6_NORTH_TERMINAL_CONTACT -DV6_NORTH_FOLLOWER" $(ROOT)/build/amiga-terminal-campaign/tower.adf
 tower-terminal-campaign-capture: tower-terminal-campaign
 	python3 $(ROOT)/tools/amiga/run_terminal_campaign.py
+
+$(BUILD)/region_cache.o: region_cache.c region_cache.h | $(BUILD)
+	$(CC) $(CFLAGS) -O2 -c $< -o $@
+.PHONY: test-regions
+test-regions: tower-assets $(BUILD)/region_cache.o
+	python3 $(ROOT)/tools/amiga/test_regions.py
+
+.PHONY: tower-regions-capture
+tower-regions-capture: tower-assets test-regions
+	python3 $(ROOT)/tools/amiga/run_regions.py --cppflags "$(NORTH_FLAGS)"

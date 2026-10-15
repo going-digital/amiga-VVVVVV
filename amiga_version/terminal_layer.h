@@ -15,7 +15,8 @@ unsigned v6_terminal_layer_copper(uint16_t *,const uint16_t *,unsigned,
     uint32_t bars,uint32_t caption,uint32_t world,uint32_t blank,
     const V6MuxOverlay *npc,int visible,unsigned gray);
 /* Camera-zero station fast path: merge caption, sprite and follower events
- * directly into the owned static prefix, without two whole-list passes. */
+ * directly into the owned static prefix, without two whole-list passes.
+ * Visible captions require one of the six source fade levels. */
 typedef struct {uint16_t words,c0,c1,blocks[7][24],sizes[7];} V6TerminalPrefix;
 void v6_terminal_scene_windows(V6TerminalPrefix *,uint32_t,uint32_t,uint32_t,uint32_t);
 int v6_terminal_scene_prefix(V6TerminalPrefix *,const uint16_t *,unsigned);

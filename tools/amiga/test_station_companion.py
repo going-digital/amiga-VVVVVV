@@ -56,8 +56,11 @@ obj.animatehumanoidcollision(i);obj.updateentitylogic(i);obj.entitymapcollision(
     ref=C.CDLL(str(OUT/'station_crew_reference.so'));ref.crew_init.argtypes=[C.POINTER(Player),C.POINTER(C.c_uint16),C.c_int]
     ref.crew_tick.argtypes=[C.c_int]*5+[C.POINTER(Player),C.POINTER(C.c_int)]
     ticks=0
-    for desc in (energize_room(),frown_room(),dict(x=111,y=104,tiles=building_room(),tileset=2),north_route_room('yesmen')):
+    for desc in (energize_room(),frown_room(),dict(x=111,y=104,tiles=building_room(),tileset=2),north_route_room('yesmen'),north_route_room('linear')):
         tiles=(C.c_uint16*1200)(*desc['tiles']);room=Room(tiles,desc.get("tileset",0),0);terrain=Terrain();core.v6_terrain_build(C.byref(terrain),C.byref(room))
+        activity=(DynamicBlock*1)(DynamicBlock(248,200,20,16,3,6))
+        # Source activity rectangles never participate in crew collision.
+        if desc.get('name')=='Linear Collider':room.blocks=activity;room.block_count=1
         for x in (42,154,155,156,320):
             for vx in (-3,0,3):
                 for following in (0,1):
@@ -73,6 +76,8 @@ obj.animatehumanoidcollision(i);obj.updateentitylogic(i);obj.entitymapcollision(
                     cached=Companion.from_buffer_copy(crew);ref.crew_init(C.byref(crew.body),tiles,desc.get("tileset",0))
                     hero=Player();expected=Player();frame=C.c_int()
                     for tick in range(240):
+                        if desc.get('name')=='Linear Collider':
+                            activity[0].w=20 if tick%17 else 0;activity[0].h=16 if tick%17 else 0
                         hero.x=crew.body.x+(-100,-46,-45,-6,-5,0,5,6,45,46,100)[(tick//8)%11]
                         death=30 if tick>=220 else -1
                         ref.crew_tick(hero.x,desc['x'],desc['y'],following,death,C.byref(expected),C.byref(frame))

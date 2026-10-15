@@ -39,6 +39,12 @@ void v6_terminal_layer_bars(uint8_t *bitmap,const uint8_t *world,unsigned positi
     unsigned x,y,b;
     for(b=0;b<2;++b)for(x=0;x<10;++x){uint32_t mask=pixel_long(bar_mask(position,x,b));
         if(mask==pixel_long(bar_mask(previous,x,b)))continue;
+        if(!mask){
+            for(y=0;y<16;++y){unsigned at=((b?224:0)+y)*10+x;
+                ((Long *)bitmap)[at]=((const Long *)world)[at];
+                ((Long *)bitmap)[2400+at]=((const Long *)world)[2560+at];((Long *)bitmap)[4800+at]=0;}
+            continue;
+        }
         if(mask==0xffffffffUL){
             for(y=0;y<16;++y){unsigned at=((b?224:0)+y)*10+x;
                 ((Long *)bitmap)[at]=0;((Long *)bitmap)[2400+at]=((Long *)bitmap)[4800+at]=0xffffffffUL;}
@@ -155,7 +161,8 @@ unsigned v6_terminal_scene_copper(uint16_t *out,const V6TerminalPrefix *prefix,
         case 121:fill=0x111;gray=0x777;break;
         case 139:fill=0x111;gray=0x888;break;
         case 156:fill=0x222;gray=0x999;break;
-        default:fill=0x222;gray=shade(gray);break;
+        case 174:fill=0x222;gray=0xaaa;break;
+        default:return 0;
     }}
     (void)bitmap;(void)caption_bitmap;
     out[1]=0x5600;p=block(p,prefix->blocks[6],prefix->sizes[6]);

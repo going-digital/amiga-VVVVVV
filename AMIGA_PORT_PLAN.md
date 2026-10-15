@@ -2,17 +2,17 @@
 
 Reviewed revision: `52ad6ae3`, 27 September 2026. Target confirmed by the user: A500, 68000, OCS/ECS, 1 MB RAM.
 
-Current direction (14 October 2026): continue original-game room admission and
+Current direction (15 October 2026): continue original-game room admission and
 campaign scripts, with source comparisons and stock PAL A500 timing gates.
-The clock/crew summary, full Save receipt, fresh reload, four-tab menu and
-room/camera expansion milestone is complete. The resident north route now
-extends through V Stitch, Stop and Reflect, The Yes Men, Gantry and Dolly,
-and Security Sweep. The prototype contains fourteen resident room banks;
-it is not yet a complete campaign. Graphics remain 50 fps, with the existing
-nominal 30 Hz gameplay timing, 512 KiB Chip + 512 KiB Slow and no Fast RAM
-under Kickstart 1.3. Bundled AROS requires additional memory for this build.
+The prototype admits fifteen room banks, including Linear Collider and its
+live terminal log. The northern five rooms now use three external disk regions
+and two fixed 12 KiB cache slots; the earlier route and tower remain resident.
+Cross-region misses restore AmigaDOS for loading and exclude that pause from
+gameplay time. This is still a partial campaign. Graphics remain 50 fps, with
+the existing nominal 30 Hz gameplay timing, 512 KiB Chip + 512 KiB Slow and no
+Fast RAM under Kickstart 1.3. Bundled AROS requires additional memory.
 Music reconstruction remains paused while awaiting original tracker files
-from Magnus Palsson. See the latest integration and direct-boot sections below.
+from Magnus Palsson. See the latest regional integration and boot sections below.
 
 Earlier milestone (7 October 2026): Building Apport's resident route is
 committed as `32c57c07`. Teleporter checkpoint records now pass source-bank
@@ -5974,3 +5974,68 @@ A500/Kickstart 1.3. The existing five-enemy/follower slide case still passes at
 270 scanlines. Bundled AROS boots with 1 MiB Fast RAM; its stock configuration
 still exits with the explicit insufficient-memory message (183,392 contiguous
 Chip bytes available against the 436,466-byte request).
+
+### Bounded regional content loading (15 October 2026)
+
+The northern five rooms now load their collision tiles, packed display rows,
+paired graphics and palettes from three versioned `V6RG` files on DF0:
+
+| Region | Original rooms | Pack bytes |
+|---|---|---:|
+| 0 | Stop and Reflect; The Yes Men | 11,908 |
+| 1 | Gantry and Dolly; Security Sweep | 10,488 |
+| 2 | Linear Collider | 6,152 |
+
+Two fixed 12 KiB payload slots retain the active region and a neighbouring or
+previous region, with bounded room-view metadata. The executable retains room
+coordinates, mutable checkpoint banks, actor/setup code and shared assets.
+The earlier rooms and tower remain resident; subsequent admissions can use
+additional region files without increasing these payload reservations.
+The generated boot ADF includes all three files automatically. Executable-only
+copies need their region files on DF0 as well.
+
+`V6TowerRoute.materialize` admits content before changing collision/checkpoint
+banks, player state or camera. It runs for ordinary entry, remote respawn and
+cold save restoration, even if a descriptor retains a pointer from an evicted
+slot. Hits perform no DOS/Exec operations. A miss pins the current slot, fills
+the other slot, checks the version, region identity, exact length, CRC32,
+room descriptors, all display packets, pair-table bounds and OCS palette words,
+then binds the new room. Failed candidates leave the current region intact.
+Missing and corrupt files print an explicit message and return cleanly to DOS.
+
+For live misses, the platform adapter drains outstanding one-shot audio,
+restores system interrupts, display and scheduling, performs read/validation
+with AmigaDOS enabled, then restores game ownership. Loading and audio-drain
+fields are excluded from the gameplay accumulator and campaign clock. Native
+state-hash/tick checks cover this pause. This is synchronous regional loading;
+its explicit pause is outside the gameplay frame-budget measurement.
+
+Linear Collider's follower now uses the existing exact physics memo even when
+its non-solid terminal activity is present. Collision-changing blocks still
+bypass the memo; room entry invalidates it when a cache slot is rebound.
+Independent source comparisons cover 36,000 station-crew updates and 17,280
+Gantry gate/platform updates. Wholly caption-hidden DMA spans copy the shared
+zero bank directly, and fully uncovered bar columns use direct restoration.
+The regional terminal case passes at 259 scanlines while reading and 262
+through dismissal/menu/save; captured DMA has 122 masked sprite rows and all
+original PCM buffers remain exact. Chip allocation is unchanged at 436,466.
+
+`test-regions` checks all five banks against source collision/graphics data,
+25 rejected candidate variants while preserving the pinned room, 100 eviction
+requests, OFS pack extraction and rejected route admission without mutation.
+`tower-regions-capture` visits all three regions, evicts the starting region,
+returns to it through actual death/respawn, and saves/reloads through DF1.
+With the follower and an outstanding source SFX cue, that replay peaks at 269
+scanlines, drains 22 audio fields without advancing gameplay, and reports no
+state violations. The source corridor crossing plus save passes at 243 lines;
+fresh V6 reload passes at 252 without the follower and 262 with it.
+Missing/corrupt DF0 packs both reject the
+crossing before room commit and return cleanly to DOS. These captures have
+zero missed fields and zero unexpected engine errors. The existing five-enemy
+follower/menu stress case still passes at 270 lines.
+
+Direct DF0 boot passes on stock A500/Kickstart 1.3 and on bundled AROS with
+1 MiB Fast RAM. Stock AROS still reports insufficient memory explicitly
+(154,304 contiguous Chip bytes available for the 436,466-byte request).
+Music remains deferred. Next is further connected original-room admission
+using the regional pipeline, while preserving the stock 50 fps timing gate.

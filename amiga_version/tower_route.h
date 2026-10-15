@@ -19,7 +19,7 @@ typedef struct {
     V6Teleporter *teleporter; /* Optional source type-14 entity, caller-owned. */
     unsigned tileset; /* Ordinary-room source tileset (0..2); tower ignores it. */
 } V6TowerRouteRoom;
-typedef struct {
+typedef struct V6TowerRoute {
     V6TowerSession *session;
     V6TowerGameplay *world;
     const V6TowerRouteRoom *rooms;
@@ -35,6 +35,11 @@ typedef struct {
 #endif
     V6TeleporterRegion tele_region;
     unsigned tele_events; /* Saved/message requests from the latest step. */
+    /* Optional synchronous content admission, before any route mutation.
+     * Failure preserves current room/session/checkpoints. No gameplay ticks
+     * may run during materialization; caller owns disk/display suspension. */
+    int (*materialize)(struct V6TowerRoute *,unsigned,void *);
+    void *content_context;
 } V6TowerRoute;
 /* Existing session/save are retained. Init requires a tower entrance and a
  * player already in world coordinates; use load to start in a hallway. */

@@ -18,7 +18,9 @@ def startup(data):
         if at < 0:
             break
         values = struct.unpack_from('>10I', data, at)
-        if values[2]:
+        # Completed startup outcomes for this matrix. Executable/debug data
+        # in filesystem buffers can also resemble a nonzero diagnostic header.
+        if values[2] in (3,10):
             entries.append(values)
         at += 8
     assert len(entries) == 1, entries

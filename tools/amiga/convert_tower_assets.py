@@ -354,6 +354,8 @@ def main():
         scope='Actual tiles3 colour bank, alpha baked onto black and four-colour quantization; C planar ring vs converted pixels. Host only, no Copper/DMA, parallax, colour cycling or gameplay.')
     (out/'tower-assets.json').write_text(json.dumps(report,indent=2)+'\n')
     print('PASS:',json.dumps(report))
+    from pack_regions import build as build_regions
+    build_regions(out)
 
 
 if __name__=='__main__':main()

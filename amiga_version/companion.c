@@ -32,11 +32,18 @@ static void animate(const V6Player *p,void *context)
     if(c->mood)c->frame+=144;
 }
 void v6_companion_rest_reset(V6CompanionRest *r){r->valid=0;}
+static int rest_room(const V6Room *room)
+{
+    unsigned i;
+    if(room->tileset==V6_TILE_SOURCE_TOWER || !room->terrain || (room->block_count && !room->blocks))return 0;
+    for(i=0;i<room->block_count;++i)if(room->blocks[i].type!=V6_ACTIVITY)return 0;
+    return 1;
+}
 static int rest_same(const V6CompanionRest *r,const V6Companion *c,const V6Room *room)
 {
     const V6Player *p=&c->body;
     return r->ax==c->motion.ax && r->tiles==room->tiles && r->terrain==room->terrain && r->tileset==room->tileset &&
-        r->extra_row==room->extra_row && !room->block_count &&
+        r->extra_row==room->extra_row && rest_room(room) &&
         r->body[0]==p->x && r->body[1]==p->y && r->body[2]==p->old_x && r->body[3]==p->old_y &&
         r->body[4]==p->vx && r->body[5]==p->vy && r->body[6]==p->ay &&
         r->body[7]==p->ground && r->body[8]==p->roof && r->body[9]==p->gravity &&
@@ -76,7 +83,7 @@ void v6_companion_rest_prime_motion(V6CompanionRest *out,unsigned count,
     const uint8_t *bytes=(const uint8_t *)source;
     for(i=0;i<sizeof(copy);++i)dest[i]=bytes[i];
     for(i=0;i<count;++i){V6CompanionRest *r=&out[i];r->valid=0;
-        if(room->tileset==V6_TILE_SOURCE_TOWER || !room->terrain || room->block_count)continue;
+        if(!rest_room(room))continue;
         copy.motion.ax=ax;rest_store(r,&copy,room);
         v6_player_physics_crew(&copy.body,room,&copy.motion,0,0);
         rest_result(r,&copy);r->valid=1;
@@ -104,7 +111,7 @@ static void step(V6Companion *c,const V6Player *p,const V6Room *room,int death,i
         else {
             if(rest)rest_store(rest,c,room);
             v6_player_physics_crew(&c->body,room,&c->motion,animate,c);
-            if(rest){rest_result(rest,c);rest->valid=room->tileset!=V6_TILE_SOURCE_TOWER && room->terrain && !room->block_count;}
+            if(rest){rest_result(rest,c);rest->valid=rest_room(room);}
         }
     }
     if(death>-1)c->frame=(c->body.dir?12:13)+(station?2:0);

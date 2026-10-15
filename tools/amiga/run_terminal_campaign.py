@@ -21,6 +21,24 @@ def read(data):
     at=data.index(b'V6NR\0\0\0\1')
     return dict(zip(FIELDS,struct.unpack_from('>20I',data,at+8)))
 
+def sprite_windows(chip,registers):
+    masked=0
+    for channel in range(8):
+        reg=0x120+channel*4;at=(registers[reg]<<16)|registers[reg+2];end=at+392
+        while at+4<=end:
+            pos,control=struct.unpack_from('>HH',chip,at)
+            if not(pos|control):break
+            first=(pos>>8)|((control&4)<<6);last=(control>>8)|((control&2)<<7)
+            assert first<last<=268 and last-first<=32
+            assert at+4+(last-first)*4<=end
+            for y in range(first,last):
+                if 112<=y<136 or 138<=y<207:
+                    assert chip[at+4+(y-first)*4:at+8+(y-first)*4]==bytes(4)
+                    masked+=1
+            at+=4+(last-first)*4
+    assert masked>0
+    return masked
+
 def visual(build,terminal):
     """Paired deterministic Chip capture: actual caption DMA, resumed world and PCM."""
     chipfile=build/'terminal-chip.bin';wav=build/'terminal.wav'
@@ -67,13 +85,14 @@ def visual(build,terminal):
         r=state(51+y);assert r[0x100] in (0x3600,0x5600)
         assert pointer(r,0xe0)==terminal['world']+y*40,('resumed foreground',y)
         assert pointer(r,0xe4)==terminal['world']+20480+((200+y)&255)*40
+    masked=sprite_windows(chip,regs)
     samples={}
     for name in ('crew1','crew4','teleporter-flash','teleporter-teleport','prize-vanish','prize-trinket','terminal-touch','terminal-read'):
         pcm=(assets/(name+'.pcm')).read_bytes();assert chip.count(pcm)==1,('native PCM',name)
         samples[name]=len(pcm)
     peak=audio_peak(wav,62.5,64.5);assert peak>0.01,peak
     print('PASS native caption DMA: 4800 ink bytes, one-plane windows, exact world/background resume, eight original PCM buffers and audible read cue',flush=True)
-    return dict(caption_bytes=4800,samples=samples,audio_peak=peak,screenshot=str(build/'terminal-chip.png'))
+    return dict(caption_bytes=4800,masked_sprite_rows=masked,samples=samples,audio_peak=peak,screenshot=str(build/'terminal-chip.png'))
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)

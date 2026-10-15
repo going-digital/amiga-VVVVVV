@@ -18,6 +18,7 @@ int v6_tower_route_load(V6TowerRoute *r,int x,int y,int respawn)
     if(index<0) return 0;
     next=&r->rooms[index];
     if(next->tileset>2 || next->count>32 || (next->count && !next->checkpoints))return 0;
+    if(r->materialize && !r->materialize(r,(unsigned)index,r->content_context))return 0;
     if(next->packed && !next->decoded) {
 #if defined(V6_ROUTE_PREDECODED) && V6_ROUTE_PREDECODED
         return 0;
@@ -95,7 +96,7 @@ int v6_tower_route_init(V6TowerRoute *r,V6TowerSession *s,V6TowerGameplay *w,
     for(i=0;i<count;++i) if(rooms[i].x==x && rooms[i].y==y) break;
     if(i==count || rooms[i].packed) return 0;
     r->session=s;r->world=w;r->rooms=rooms;r->count=count;r->index=i;r->tower=tower;
-    r->transitions=r->returns=r->error=0;
+    r->transitions=r->returns=r->error=0;r->materialize=0;r->content_context=0;
     r->tele_region.active=r->tele_region.x=r->tele_region.y=r->tele_region.w=r->tele_region.h=0;
     r->tele_events=0;v6_player_tower_room(&r->room,tower);
     return 1;
