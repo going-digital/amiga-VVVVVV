@@ -1,13 +1,14 @@
-/* Original entities: Spacestation2.cpp rn(50,39..42), rn(51,39); Ent.cpp rn(12,3/5), rn(13,3).
+/* Original entities: Spacestation2.cpp rn(50,39..42), rn(51..52,39); Ent.cpp rn(12,3/5), rn(13,3).
  * Copyright Terry Cavanagh; see ../LICENSE.md. */
 #include "north_route.h"
 int v6_north_init(V6NorthRoute *s,V6Room *r,int x,int y,int player_y)
 {
     unsigned i;
-    if(!s || !r || !((x==112 && y>=103 && y<=106) || (x==113 && y==103)))return 0;
+    if(!s || !r || !((x==112 && y>=103 && y<=106) || ((x==113 || x==114) && y==103)))return 0;
     s->room_y=(unsigned)y;s->enemy_count=s->gate_count=s->platform_count=s->block_count=s->flags=0;
     s->push.pending_y=player_y;s->push.visual_ground=s->push.visual_roof=0;
-    if(x==113){s->enemy_count=2;s->block_count=1;
+    if(x==114){/* Atmospheric Filtering Unit has terrain and checkpoints only. */
+    } else if(x==113){s->enemy_count=2;s->block_count=1;
         v6_enemy_init(&s->enemies[0],80,88,3,3,0,0,320,240,0,0,32,16);
         v6_enemy_init(&s->enemies[1],208,128,2,3,0,0,320,240,0,0,32,16);
         s->blocks[0]=(V6Block){248,200,20,16,V6_ACTIVITY,6};

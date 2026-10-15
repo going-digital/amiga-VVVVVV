@@ -66,7 +66,7 @@ def main():
  from tower_gameplay_data import north_route_room
  north_cases=0
  lib.v6_campaign_hint_encode.argtypes=[C.c_void_p,C.c_size_t]+ptrs
- for name in ('reflect','yesmen','gantry','security','linear'):
+ for name in ('reflect','yesmen','gantry','security','linear','filter'):
   room=north_route_room(name)
   for x,y,tile,identifier in room['checkpoints']:
    for direction in (0,1):

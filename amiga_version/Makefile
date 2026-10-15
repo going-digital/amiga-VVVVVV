@@ -1383,6 +1383,10 @@ $(BUILD)/sample_unpack.o: sample_unpack.c sample_unpack.h | $(BUILD)
 test-sample-unpack: $(BUILD)/sample_unpack.o
 	python3 $(ROOT)/tools/amiga/test_sample_unpack.py
 
+.PHONY: tower-filter-capture
+tower-filter-capture: tower-north
+	python3 $(ROOT)/tools/amiga/run_north_capture.py --cppflags "$(NORTH_FLAGS)" --case filter
+
 .PHONY: tower-linear-capture
 tower-linear-capture: tower-north
 	python3 $(ROOT)/tools/amiga/run_north_capture.py --cppflags "$(NORTH_FLAGS)" --case linear

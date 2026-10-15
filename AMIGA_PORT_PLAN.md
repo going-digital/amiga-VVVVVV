@@ -6039,3 +6039,38 @@ Direct DF0 boot passes on stock A500/Kickstart 1.3 and on bundled AROS with
 (154,304 contiguous Chip bytes available for the 436,466-byte request).
 Music remains deferred. Next is further connected original-room admission
 using the regional pipeline, while preserving the stock 50 fps timing gate.
+
+
+### Atmospheric Filtering Unit connection (15 October 2026)
+
+The campaign now admits a sixteenth room bank, Atmospheric Filtering Unit
+(114,103), directly east of Linear Collider. Its 1,200 terrain tiles, palette,
+paired graphics and two checkpoints come from the original Spacestation2
+rn(52,39) declaration. This room has no moving actors or activity blocks.
+The existing V6 save format admits exactly its two original checkpoint spawns
+and both facing directions; older save admission is unchanged.
+
+Region 2 now holds Linear Collider and Atmospheric Filtering Unit in 12,262
+bytes, within the existing 12,288-byte slot limit. The same three DF0 files and
+two fixed cache slots suffice, with no additional Chip allocation. Host checks
+compare all six regional banks with source terrain/graphics, exercise failed
+loads and repeated evictions, and check both new checkpoint orientations and
+malformed saves. Full-width menu titles are prepared in the snapshot field;
+hidden pages use four-row batches for Linear Collider and two-row batches
+for Atmospheric Filtering Unit to keep its long room name within the stock
+A500 field budget.
+
+`make -C amiga_version tower-filter-capture` exercises the new room, follower,
+both real corridor crossings and a fresh executable restoring its DF1 save.
+
+The final stock A500 captures pass at 264 scanlines for the room/menu/save,
+265 with the follower, 259 eastbound, 246 westbound and 269 on cold reload.
+Both crossings report the expected destination; cold reload returns to bank
+15 with its original checkpoint. All report zero missed fields and engine
+errors, and Chip allocation remains 436,466 bytes. Menu-slide image checks
+compare 6,578 header pixels. The playable disk remains
+`build/amiga-north/tower.adf`. Direct DF0 boot on stock A500/Kickstart 1.3
+also passes at 160 scanlines with zero missed fields or errors.
+
+Next connected admission is Traffic Jam to the east, which needs its original
+three-enemy setup and sprite art rather than the actor-free filtering room.

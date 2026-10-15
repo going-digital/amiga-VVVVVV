@@ -110,7 +110,11 @@ static int progress_valid(const V6CheckpointSave *c,const V6HallwayStory *red,
 {
     V6CheckpointSave bounded=*c;
     /* Keep legacy admission unchanged; V5 also admits V Stitch. */
-    if(c->room_x==113 && c->room_y==103 && version==6){
+    if(c->room_x==114 && c->room_y==103 && version==6){
+        if(!((c->x==188 && c->y==46 && c->gravity==1 && c->id==439520) ||
+             (c->x==108 && c->y==153 && c->gravity==0 && c->id==439521)))return 0;
+        bounded.room_x=111;bounded.room_y=104;
+    } else if(c->room_x==113 && c->room_y==103 && version==6){
         if(!((c->x==20 && c->y==161 && c->gravity==0 && c->id==439510) ||
              (c->x==276 && c->y==46 && c->gravity==1 && c->id==439511)))return 0;
         bounded.room_x=111;bounded.room_y=104;

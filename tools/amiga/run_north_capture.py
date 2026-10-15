@@ -10,7 +10,8 @@ from save_disk import create_save_disk
 from test_player import ROOT
 
 LINEAR_CASES=['room14','linear-contact','linear-follower','edge13right','edge14left','linear-reload']
-CASES=['room10','room11','room12','room13',*LINEAR_CASES,'follower','security-follower','movement',
+FILTER_CASES=['room15','filter-follower','edge14right','edge15left','filter-reload']
+CASES=[*FILTER_CASES,'room10','room11','room12','room13',*LINEAR_CASES,'follower','security-follower','movement',
        'edge10up','edge11up','edge10down','edge11down','edge12down','edge12up','edge13down','reload','security-reload']
 
 def timing(result):
@@ -21,7 +22,7 @@ def timing(result):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cppflags',required=True)
-    parser.add_argument('--case',choices=['all','linear','bob',*CASES],default='all')
+    parser.add_argument('--case',choices=['all','linear','filter','bob',*CASES],default='all')
     args=parser.parse_args()
     def build(name,extra):
         folder=ROOT/'build'/name;folder.mkdir(parents=True,exist_ok=True)
@@ -58,7 +59,7 @@ def main():
         print('PASS native sprite-DMA/BOB reference comparisons:',values,flush=True)
         return
     reports={}
-    selected=CASES if args.case=='all' else LINEAR_CASES if args.case=='linear' else [args.case]
+    selected=CASES if args.case=='all' else FILTER_CASES if args.case=='filter' else LINEAR_CASES if args.case=='linear' else [args.case]
     for case in selected:
         if case.startswith('room'):
             index=int(case[4:]);folder=build(f'amiga-north-live-{index}',f'-DV6_NORTH_START={index}')
@@ -68,8 +69,8 @@ def main():
             subprocess.run(['python3',str(ROOT/'tools/amiga/run_terminal_campaign.py'),'--build',str(folder)],check=True)
             reports[case]=json.loads((folder/'terminal-campaign-report.json').read_text())
             continue
-        elif case in ('follower','security-follower','linear-follower'):
-            index=14 if case=='linear-follower' else 13 if case=='security-follower' else 11
+        elif case in ('follower','security-follower','linear-follower','filter-follower'):
+            index=15 if case=='filter-follower' else 14 if case=='linear-follower' else 13 if case=='security-follower' else 11
             folder=build('amiga-north-'+case,f'-DV6_NORTH_START={index} -DV6_NORTH_FOLLOWER')
             slide(folder)
         elif case=='movement':
@@ -84,9 +85,9 @@ def main():
             reports[case]=dict(display=d,route=route)
             print('PASS live north movement/flip/death/room loading:',d,flush=True)
             continue
-        elif case in ('edge13right','edge14left'):
-            index=13 if case=='edge13right' else 14;target=27-index
-            folder=build('amiga-north-'+case,f'-DV6_NORTH_START={index} -DV6_NORTH_CORRIDOR');menu_controls(folder)
+        elif case in ('edge13right','edge14left','edge14right','edge15left'):
+            index=int(case[4:6]);target=index+(1 if case.endswith('right') else -1)
+            folder=build('amiga-north-'+case,f'-DV6_NORTH_START={index} -DV6_NORTH_CORRIDOR={2 if case=="edge14right" else 1}');menu_controls(folder)
             ram=(folder/'ui-slide-controls.bin').read_bytes();route=struct.unpack_from('>7I',ram,ram.index(b'V6RT'))
             assert route[2]==target and route[3]>=3 and route[6]==0,(case,route)
             print('PASS actual corridor crossing:',index,'->',target,flush=True)
@@ -98,13 +99,15 @@ def main():
             assert route[2]==target and route[3]>=3 and route[6]==0,(case,route)
             print('PASS actual shaft crossing:',index,'->',target,flush=True)
         else:
-            index=14 if case=='linear-reload' else 13 if case=='security-reload' else 11
+            index=15 if case=='filter-reload' else 14 if case=='linear-reload' else 13 if case=='security-reload' else 11
             saved=build(f'amiga-north-live-{index}',f'-DV6_NORTH_START={index}')
-            if case=='linear-reload':menu_controls(saved)
+            if case in ('linear-reload','filter-reload'):menu_controls(saved)
             else:slide(saved)
             folder=build('amiga-north-load-native','-DV6_VSTITCH_HINT_LOAD')
             subprocess.run(['python3',str(ROOT/'tools/amiga/run_ui_menu_reload.py'),
                 '--build',str(saved),'--load-build',str(folder),'--save-disk',str(saved/'ui-slide-save.adf')],check=True)
+            ram=(folder/'menu-reload.bin').read_bytes();route=struct.unpack_from('>7I',ram,ram.index(b'V6RT'))
+            assert route[2]==index and route[6]==0,(case,route)
         report=folder/('menu-reload-report.json' if case.endswith('reload') else 'ui-slide-controls-report.json')
         reports[case]=json.loads(report.read_text())['display']
     (ROOT/'build/north-capture-report.json').write_text(json.dumps(reports,indent=2)+'\n')
