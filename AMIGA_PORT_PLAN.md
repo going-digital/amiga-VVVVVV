@@ -5874,3 +5874,52 @@ The playable `build/amiga-north/tower.adf` remains at fourteen resident banks.
 Next: integrate terminal presentation/audio into its live foreground,
 parallax and companion composition; then admit Linear Collider and verify
 traversal, memory and the stock A500 280-line gate. Music remains deferred.
+
+### Linear Collider campaign connection (15 October 2026)
+
+The north campaign now has a fifteenth resident bank: Linear Collider
+(113,103), east of Security Sweep. Original room tiles, both checkpoint
+identities, two green enemies, the terminal sprite/contact highlight and its
+original Paula touch cue are included. Rectangle rejection precedes red-mask
+player/enemy collision. The horizontal enemy lanes use precomputed tile-wall
+queries, compared against original Entity.cpp updates over 2,048 ticks per
+enemy; the retained activity rectangle remains non-solid. Enter still opens
+the campaign menu: terminal reading is not integrated into this build yet.
+
+Both Linear Collider checkpoints are admitted by the existing V6 save format
+with exact position, gravity and ID guards. V5 admission is unchanged.
+The source suite now covers 20,480 north-route actor updates and sixteen
+checkpoint/direction combinations, including malformed saves and exploration
+requirements. `make -C amiga_version tower-linear-capture` checks the room,
+contact, following crew, both horizontal crossings and fresh-boot save reload.
+
+Adding the room exposed a stock-memory boot failure: the larger executable
+forced a BSS hunk into Chip RAM, fragmenting the graphics allocation. North
+builds now store the existing vanish/trinket PCM losslessly compressed and
+expand it directly into their existing Chip sample buffers before takeover.
+This saves 32,537 resident bytes without changing playback samples or adding
+per-frame work. The decoder has bounded source/output/back-reference checks;
+startup aborts on failure. Eighty-five host vectors cover original PCM,
+overlapping copies, incompressible data, truncation and output bounds; native
+contact captures also compare the expanded sample bytes in actual Chip RAM.
+
+Linear Collider's hidden menu page is constructed four rows per field to
+bound the combined page and eight-span sprite-snapshot work. Its Save menu,
+closing slide and gameplay capture pass the 280-line gate at 270 scanlines,
+with no missed fields or engine errors. With the following crewmate, the
+first translated map field is bounded by preparing its hidden title during
+the existing snapshot field; that case passes at 242 scanlines. Both real
+horizontal corridor crossings pass at 243 and 266 scanlines. Fresh-boot V6
+reload passes at 252 scanlines, preserving clock, deaths, crew and last-save
+summary without changing the save disk. The existing five-enemy/follower
+stress case passes at 270 scanlines. All these captures have zero missed
+fields and zero engine errors. Direct boot results are recorded with the
+rebuilt campaign disk. Direct DF0 boot passes under Kickstart 1.3 on the
+stock memory profile and bundled AROS with 1 MiB Fast. Bundled AROS on stock
+memory still reports the explicit allocation failure; it has only 173,896
+contiguous Chip bytes available against the 436,466-byte graphics request.
+
+Next: consume the retained activity on Return and integrate the verified
+terminal log with live parallax, foreground layers and the companion overlay.
+The isolated terminal fixture remains the verified reference for its text,
+cutscene bars, clipping, fades and read cue. Music remains deferred.

@@ -64,8 +64,9 @@ def main():
         export_audio(archive,out,station=True)
         from convert_teleporter_audio import export as export_teleporter_audio
         export_teleporter_audio(archive,out)
-        from convert_teleporter_audio import export_prize
+        from convert_teleporter_audio import export_prize,export_terminal
         export_prize(archive,out)
+        export_terminal(archive,out)
         original=archive.read('graphics/tiles3.png')
         sprite_png=archive.read('graphics/sprites.png')
         font_png=archive.read('graphics/font.png')
@@ -81,7 +82,7 @@ def main():
         export_energize_assets(archive,out,decoder,deception_room(),"deception")
         export_energize_assets(archive,out,decoder,downunder_room(),"downunder")
         from tower_gameplay_data import north_route_room
-        for name in ('reflect','yesmen','gantry','security'):
+        for name in ('reflect','yesmen','gantry','security','linear'):
             export_energize_assets(archive,out,decoder,north_route_room(name),name)
     tele_path=out/'teleporter.png';tele_path.write_bytes(teleporter_png)
     dimensions,tele_rgba=subprocess.check_output([str(decoder),str(tele_path)]).split(b'\n',1)
@@ -186,12 +187,20 @@ def main():
     tiles=north_route_room('gantry')['tiles']
     north+='static const uint8_t north_gantry_walls[336]={'+','.join(str(lane_wall(x,152,32,8)) for x in range(-16,320))+'};\n'
 
+    tiles=north_route_room('linear')['tiles']
+    north+='static const uint8_t north_linear_walls[2][336]={'+','.join(
+        '{'+','.join(str(lane_wall(x,y,32,16)) for x in range(-16,320))+'}' for y in (88,128))+'};\n'
+
     for name,collision in (('north_enemy_visible',False),('north_enemy_collision',True)):
         masks=sprite_masks(range(40,44),collision)
         north+='static const uint32_t '+name+'[4][32]={'+','.join('{'+','.join(hex(v)+'UL' for v in m)+'}' for m in masks)+'};\n'
     for name,collision in (('north_drone_visible',False),('north_drone_collision',True)):
         masks=sprite_masks(range(36,40),collision)
         north+='static const uint32_t '+name+'[4][32]={'+','.join('{'+','.join(hex(v)+'UL' for v in m)+'}' for m in masks)+'};\n'
+    for name,collision in (('north_linear_visible',False),('north_linear_collision',True)):
+        masks=sprite_masks(range(32,36),collision)
+        north+='static const uint32_t '+name+'[4][32]={'+','.join('{'+','.join(hex(v)+'UL' for v in m)+'}' for m in masks)+'};\n'
+    north+='static const uint32_t north_terminal_visible[2][32]={'+','.join('{'+','.join(hex(v)+'UL' for v in m)+'}' for m in sprite_masks((16,17)))+'};\n'
     dims,rgba=subprocess.check_output([str(decoder),str(out/'reflect-tiles.png')]).split(b'\n',1)
     tile_width,tile_height=map(int,dims.split());gates=[];gate_colours=[]
     for tile in (*range(10,14),616):
@@ -212,6 +221,7 @@ def main():
         return [word for v in bits for word in (v,v if parity else 0)]
     for name,masks,crops,widths,height in (
         ('north_enemy_dma',sprite_masks(range(40,44)),(0,16),(16,4),20),
+        ('north_linear_dma',sprite_masks(range(32,36)),(0,16),(16,16),32),
         ('north_platform_dma',gates,(0,16),(16,16),8)):
         frames=[[[dma_body(m,c,w,height,parity) for parity in (0,1)] for c,w in zip(crops,widths)] for m in masks]
         encode=lambda v:'{'+','.join(encode(a) if isinstance(a,list) else str(a) for a in v)+'}'
@@ -219,6 +229,7 @@ def main():
     for name,masks,crop,height in (('north_drone_dma',sprite_masks(range(36,40)),0,32),
                                   ('north_player_dma',sprite_masks(range(16)),6,32),
                                   ('north_checkpoint_dma',sprite_masks((20,21)),0,16),
+                                  ('north_terminal_dma',sprite_masks((16,17)),0,16),
                                   ('north_crew_dma',sprite_masks((150,)),6,32)):
         values=[[dma_body(m,crop,16,height,parity) for parity in (0,1)] for m in masks]
         north+='static const uint16_t '+name+'['+str(len(masks))+'][2]['+str(height*2)+']='+encode(values)+';\n'

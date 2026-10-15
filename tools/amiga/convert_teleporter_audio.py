@@ -32,9 +32,20 @@ def export_prize(archive,out):
         pcm,meta=convert(archive.read('sounds/'+name+'.wav'))
         meta.update(cue=cue,file=name+'.wav');manifest.append(meta)
         (out/('prize-'+cue+'.pcm')).write_bytes(pcm)
-        header+='static const unsigned char prize_'+cue+'[]={'+','.join(map(str,pcm))+'};\n'
+        from sample_pack import pack
+        packed=pack(pcm);meta['packed_bytes']=len(packed)
+        header+='#ifdef V6_NORTH_ROUTE\nstatic const unsigned char prize_'+cue+'_packed[]={'+','.join(map(str,packed))+'};\n#else\n'
+        header+='static const unsigned char prize_'+cue+'[]={'+','.join(map(str,pcm))+'};\n#endif\n'
         header+='#define PRIZE_'+cue.upper()+'_BYTES '+str(len(pcm))+'\n'
     header+='#define PRIZE_PERIOD '+str(PERIOD)+'\n'
     (out/'prize_samples.h').write_text(header)
     (out/'prize-samples.json').write_text(json.dumps(dict(version=1,pal_clock=PAL_CLOCK,
         period=PERIOD,samples=manifest,scope='Source enum/load-order mapping; shared 9 kHz low-pass signed 8-bit conversion, no normalization'),indent=2)+'\n')
+
+def export_terminal(archive,out):
+    name,=source_files(('TERMINALTOUCH',))
+    pcm,meta=convert(archive.read('sounds/'+name+'.wav'))
+    (out/'terminal_samples.h').write_text('/* Private original terminal contact cue. */\n'+
+        'static const unsigned char terminal_touch[]={'+','.join(map(str,pcm))+'};\n'+
+        '#define TERMINAL_TOUCH_BYTES '+str(len(pcm))+'\n#define TERMINAL_PERIOD '+str(PERIOD)+'\n')
+    (out/'terminal-touch.json').write_text(json.dumps(dict(file=name+'.wav',**meta),indent=2)+'\n')

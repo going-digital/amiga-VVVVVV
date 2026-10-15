@@ -836,6 +836,12 @@ static unsigned west_copper_ready[2],west_colour_words[2][8];
 #include "yesmen_assets.h"
 #include "gantry_assets.h"
 #include "security_assets.h"
+#include "linear_assets.h"
+#include "terminal.h"
+#include "sample_unpack.h"
+static V6Terminal north_terminal;
+static unsigned north_terminal_cue;
+static volatile struct {ULONG magic,version,values[6];} north_terminal_diag={0x56364e54,1,{0}};
 static V6NorthRoute north_actors;
 static V6CompanionRest north_companion_rest[3];
 static unsigned north_memo_pending;
@@ -855,20 +861,20 @@ static unsigned north_copper_ready[2],north_copper_tick[2],north_copper_room[2];
 static UWORD north_base_copper[2][192];
 static unsigned north_base_words[2],north_base_room[2];
 static V6ReturnEnemyAnimation north_animation[5];
-#define NORTH_FG(a,b,c,e,d) (route.index==10?(a):route.index==11?(b):route.index==12?(c):route.index==13?(e):(d))
+#define NORTH_FG(a,b,c,e,f,d) (route.index==10?(a):route.index==11?(b):route.index==12?(c):route.index==13?(e):route.index==14?(f):(d))
 #else
-#define NORTH_FG(a,b,c,e,d) (d)
+#define NORTH_FG(a,b,c,e,f,d) (d)
 #endif
 #ifdef V6_NORTH_ROUTE
 #define frown_terrain north_shared_terrain
 #else
 static V6Terrain frown_terrain;
 #endif
-#define FG_OFFSETS NORTH_FG(reflect_pair_offsets,yesmen_pair_offsets,gantry_pair_offsets,security_pair_offsets,WEST_FG(deception_pair_offsets,downunder_pair_offsets,VSTITCH_FG(vstitch_pair_offsets,PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)))))
-#define FG_PAIRS NORTH_FG(reflect_pairs,yesmen_pairs,gantry_pairs,security_pairs,WEST_FG(deception_pairs,downunder_pairs,VSTITCH_FG(vstitch_pairs,PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)))))
-#define FG_WORDS NORTH_FG(REFLECT_PAIR_WORDS,YESMEN_PAIR_WORDS,GANTRY_PAIR_WORDS,SECURITY_PAIR_WORDS,WEST_FG(DECEPTION_PAIR_WORDS,DOWNUNDER_PAIR_WORDS,VSTITCH_FG(VSTITCH_PAIR_WORDS,PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)))))
-#define FG_COUNT NORTH_FG(REFLECT_TILE_COUNT,YESMEN_TILE_COUNT,GANTRY_TILE_COUNT,SECURITY_TILE_COUNT,WEST_FG(DECEPTION_TILE_COUNT,DOWNUNDER_TILE_COUNT,VSTITCH_FG(VSTITCH_TILE_COUNT,PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)))))
-#define FG_PALETTE NORTH_FG(reflect_palette,yesmen_palette,gantry_palette,security_palette,WEST_FG(deception_palette,downunder_palette,VSTITCH_FG(vstitch_palette,PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)))))
+#define FG_OFFSETS NORTH_FG(reflect_pair_offsets,yesmen_pair_offsets,gantry_pair_offsets,security_pair_offsets,linear_pair_offsets,WEST_FG(deception_pair_offsets,downunder_pair_offsets,VSTITCH_FG(vstitch_pair_offsets,PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)))))
+#define FG_PAIRS NORTH_FG(reflect_pairs,yesmen_pairs,gantry_pairs,security_pairs,linear_pairs,WEST_FG(deception_pairs,downunder_pairs,VSTITCH_FG(vstitch_pairs,PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)))))
+#define FG_WORDS NORTH_FG(REFLECT_PAIR_WORDS,YESMEN_PAIR_WORDS,GANTRY_PAIR_WORDS,SECURITY_PAIR_WORDS,LINEAR_PAIR_WORDS,WEST_FG(DECEPTION_PAIR_WORDS,DOWNUNDER_PAIR_WORDS,VSTITCH_FG(VSTITCH_PAIR_WORDS,PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)))))
+#define FG_COUNT NORTH_FG(REFLECT_TILE_COUNT,YESMEN_TILE_COUNT,GANTRY_TILE_COUNT,SECURITY_TILE_COUNT,LINEAR_TILE_COUNT,WEST_FG(DECEPTION_TILE_COUNT,DOWNUNDER_TILE_COUNT,VSTITCH_FG(VSTITCH_TILE_COUNT,PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)))))
+#define FG_PALETTE NORTH_FG(reflect_palette,yesmen_palette,gantry_palette,security_palette,linear_palette,WEST_FG(deception_palette,downunder_palette,VSTITCH_FG(vstitch_palette,PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)))))
 #else
 #define FG_OFFSETS (route.index==5?energize_pair_offsets:tower_pair_offsets)
 #define FG_PAIRS (route.index==5?energize_pairs:tower_pairs)
@@ -969,8 +975,11 @@ static int prize_entities(V6TowerRoute *r,void *context)
 #endif
 #ifdef V6_NORTH_ROUTE
     if(r->index>=10){unsigned events;
+        if(r->index==14 && v6_terminal_tick(&north_terminal)){north_terminal_cue=1;++north_terminal_diag.values[0];}
         if(r->index==11){unsigned i;for(i=5;i>0;--i){unsigned lane=i-1==1?1:i-1<3?0:2;
             v6_enemy_step_vertical_cached(&north_actors.enemies[i-1],north_yesmen_walls[lane]);}events=0;
+        }else if(r->index==14){unsigned i;for(i=2;i>0;--i){
+            v6_enemy_step_horizontal_cached(&north_actors.enemies[i-1],north_linear_walls[i-1]);}events=0;
         }else events=v6_north_entities(&north_actors,&r->room,0);
         if(events&V6_DISAPPEAR_SOUND)prize_audio_pending|=1U<<V6_PRIZE_GATE_SOUND_SHIFT;
         return !(events&V6_DISAPPEAR_FULL);}
@@ -982,9 +991,13 @@ static int prize_contacts(V6TowerRoute *r,void *context)
     (void)context;
 #ifdef V6_NORTH_ROUTE
     if(r->index>=10){unsigned hits=v6_north_contacts(&north_actors,&r->session->player),i;
+        if(r->index==14){v6_terminal_contact(&north_terminal,&r->session->player);
+            north_terminal_diag.values[1]=north_terminal.active;north_terminal_diag.values[2]=r->session->player.x;
+            north_terminal_diag.values[3]=r->session->player.y;north_terminal_diag.values[4]=north_actors.blocks[0].w;
+            north_terminal_diag.values[5]=north_actors.blocks[0].h;}
         for(i=0;i<north_actors.enemy_count;++i)if((hits&(1U<<i)) &&
             v6_pixel_hit(return_player_collision[player_frame],r->session->player.x,r->session->player.y,
-                (r->index==13?north_drone_collision:north_enemy_collision)[north_animation[i].frame],north_actors.enemies[i].x,north_actors.enemies[i].y))v6_tower_session_die(r->session);
+                (r->index==13?north_drone_collision:r->index==14?north_linear_collision:north_enemy_collision)[north_animation[i].frame],north_actors.enemies[i].x,north_actors.enemies[i].y))v6_tower_session_die(r->session);
         return 1;}
 #endif
     if(r->index==8)v6_prize_collide(&station_prize,&r->session->player);
@@ -1015,6 +1028,9 @@ static int prize_death(V6TowerRoute *r,void *context)
 static int station_route_step(V6TowerRoute *r,unsigned input,V6TowerRoutePhase phase,void *context)
 {
     V6TowerRouteHooks hooks={phase,prize_entities,prize_contacts,prize_death};
+#ifdef V6_NORTH_CORRIDOR
+    input=r->index==V6_NORTH_START?(V6_NORTH_START==13?V6_RIGHT:V6_LEFT):0;
+#endif
     int ok=v6_tower_route_step_hooks(r,input,&hooks,context);
 #ifdef V6_VSTITCH_HINT_CAPTURE
     if(ok && r->index==9)v6_vstitch_trigger_contact(&vstitch_hint,&r->session->player);
@@ -1342,7 +1358,13 @@ static volatile struct Custom * const hw=(void *)0xdff000;
 #else
 #define COEXIST_BYTES 0
 #endif
-#define TRAVEL_AUDIO_BYTES (TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+PRIZE_AUDIO_BYTES+2)
+#ifdef V6_NORTH_ROUTE
+#include "terminal_samples.h"
+#define TERMINAL_AUDIO_BYTES TERMINAL_TOUCH_BYTES
+#else
+#define TERMINAL_AUDIO_BYTES 0
+#endif
+#define TRAVEL_AUDIO_BYTES (TERMINAL_AUDIO_BYTES+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+PRIZE_AUDIO_BYTES+2)
 #else
 #define TRAVEL_AUDIO_BYTES 0
 #endif
@@ -1479,10 +1501,11 @@ static int route_source(void)
     }
 #endif
 #ifdef V6_NORTH_ROUTE
-    if(route.index>=10 && route.index<=13){unsigned n;
-        data=route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:security_display;
-        bytes=route.index==10?sizeof(reflect_display):route.index==11?sizeof(yesmen_display):route.index==12?sizeof(gantry_display):sizeof(security_display);
-        if(!v6_north_init(&north_actors,&route.room,112,route.rooms[route.index].y,route.session->player.y))return 0;
+    if(route.index>=10 && route.index<=14){unsigned n;
+        data=route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:route.index==13?security_display:linear_display;
+        bytes=route.index==10?sizeof(reflect_display):route.index==11?sizeof(yesmen_display):route.index==12?sizeof(gantry_display):route.index==13?sizeof(security_display):sizeof(linear_display);
+        if(!v6_north_init(&north_actors,&route.room,route.rooms[route.index].x,route.rooms[route.index].y,route.session->player.y))return 0;
+        v6_terminal_init(&north_terminal,252,200,1,0,1);north_terminal_cue=0;
         for(n=0;n<5;++n){v6_return_enemy_animation_init(&north_animation[n]);v6_return_enemy_animation_tick(&north_animation[n],0);}
     }
 #endif
@@ -1886,10 +1909,10 @@ static const char *menu_area(int x,int y)
 }
 static const char *menu_roomname(void)
 {
-    static const char *names[16]={"The Tower","The Tower","I'm Sorry...","Seeing Red",
-        "Building Apport","Energize","Frown Upside Down","Shenanigan","Prize for the Reckless","V Stitch","A Deception","Down Under","Stop and Reflect","The Yes Men","Gantry and Dolly","Security Sweep"};
+    static const char *names[17]={"The Tower","The Tower","I'm Sorry...","Seeing Red",
+        "Building Apport","Energize","Frown Upside Down","Shenanigan","Prize for the Reckless","V Stitch","A Deception","Down Under","Stop and Reflect","The Yes Men","Gantry and Dolly","Security Sweep","Linear Collider"};
 #ifdef V6_NORTH_ROUTE
-    if(route.index>=10 && route.index<=13)return names[route.index+2];
+    if(route.index>=10 && route.index<=14)return names[route.index+2];
 #endif
     return route.index<12?names[route.index]:"Untitled room";
 }
@@ -2059,7 +2082,13 @@ static int menu_prepare_bitmap(void)
        s.failed!=ui_pending_state.failed))ui_pending=0;
     if(!ui_pending){ui_copy(&ui_pending_state,&s,sizeof(s));ui_pending=1;ui_row=0;}
     fill.bitmap=ui_bitmaps+(ui_render_bank^1)*V6_UI_BYTES;fill.planes=4;
-    fill.top=ui_row;fill.bottom=ui_row+12;if(fill.bottom>240)fill.bottom=240;
+    fill.top=ui_row;fill.bottom=ui_row+12;
+#ifdef V6_NORTH_ROUTE
+    /* Eight sprite spans accompany this room's menu handoff. Keep
+     * hidden-page construction bounded while their DMA snapshot is copied. */
+    if(route.index==14)fill.bottom=ui_row+4;
+#endif
+    if(fill.bottom>240)fill.bottom=240;
     /* Last-save area/time is variable-length text. Split its font work over
        fields even when the rest of the page fits a larger blitter batch. */
     if(s.page==3 && ui_row>=96 && ui_row<128)fill.bottom=ui_row+4;
@@ -2177,9 +2206,15 @@ static int north_prepare_sprites(unsigned index)
         for(k=0;k<world.count;++k){V6Checkpoint *c=&world.checkpoints[k];
             north_mux_dma[n]=(NorthDMA){north_checkpoint_dma[c->tile==21][0],32,0xffff};
             north_mux_actors[n++]=(V6MuxActor){tower_player_rows[c->tile],c->x+dx,c->y+dy,0,16,16,DISPLAY_COLOUR(c->active?0x6f6:0x888)};}
+        if(route.index==14){unsigned state=north_terminal.active!=0;
+            north_mux_dma[n]=(NorthDMA){north_terminal_dma[1][0],32,0xffff};
+            north_mux_actors[n++]=(V6MuxActor){north_terminal_visible[1],252+dx,200+dy,0,16,16,DISPLAY_COLOUR(state?0xfff:0x888)};}
         for(k=0;k<north_actors.enemy_count;++k){unsigned part;V6Enemy *e=&north_actors.enemies[k];
             if(route.index==13){north_mux_dma[n]=(NorthDMA){north_drone_dma[north_animation[k].frame][0],64,0xffff};
                 north_mux_actors[n++]=(V6MuxActor){north_drone_visible[north_animation[k].frame],e->x+dx,e->y+dy,0,16,32,DISPLAY_COLOUR(0xf6b)};continue;}
+            if(route.index==14){for(part=0;part<2;++part){
+                north_mux_dma[n]=(NorthDMA){north_linear_dma[north_animation[k].frame][part][0],64,0xffff};
+                north_mux_actors[n++]=(V6MuxActor){north_linear_visible[north_animation[k].frame],e->x+dx,e->y+dy,part*16,16,32,DISPLAY_COLOUR(0x9f9)};}continue;}
             for(part=0;part<2;++part){north_mux_dma[n]=(NorthDMA){north_enemy_dma[north_animation[k].frame][part][0],40,part?0xf000:0xffff};north_mux_actors[n++]=(V6MuxActor){north_enemy_visible[north_animation[k].frame],e->x+dx,e->y+dy,part*16,part?4:16,20,DISPLAY_COLOUR(0xff4)};}}
         for(k=0;k<north_actors.platform_count;++k){unsigned part,frame=route.index==10?4:0;V6Platform *e=&north_actors.platforms[k];
             for(part=0;part<2;++part){north_mux_dma[n]=(NorthDMA){north_platform_dma[frame][part][0],16,0xffff};north_mux_actors[n++]=(V6MuxActor){north_platform_rows[frame],e->x+dx,e->y+dy,part*16,16,8,DISPLAY_COLOUR(north_platform_colours[frame])};}}
@@ -2461,7 +2496,16 @@ static int prepare_world(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,
 #ifdef V6_MENU_SLIDE
     /* Copy a tall frozen sprite bank and compose its first translated field
        as separate bounded jobs. Retain the prepared game list once. */
-    if(map_transition.active && menu_capture_pending){menu_capture_pending=0;if(drawn)*drawn=0;return 1;}
+    if(map_transition.active && menu_capture_pending){menu_capture_pending=0;
+#ifdef V6_NORTH_ROUTE
+        /* Prepare the hidden title during the existing snapshot field,
+         * before translating eight live sprite spans plus the companion. */
+        if(route.index==14 && map_menu.page==0 && map_bitmap_rows==240 && menu_map_title!=route.index){
+            MenuFill fill={map_bitmap,5,0,12};
+            if(!menu_fill(&fill,0,0,320,12,0))return 0;
+            menu_text(&fill,160,2,menu_roomname(),map_ui_colours[4],1);menu_map_title=route.index;}
+#endif
+        if(drawn){*drawn=0;}return 1;}
 #endif
     copied=0;
 #ifdef V6_MAP_DISPLAY_CAPTURE
@@ -3630,6 +3674,12 @@ static int run(void) {
 #endif
         v6_tower_session_init(&session,world.save.x,world.save.y,world.save.gravity,1);
         if(!v6_tower_route_load(&route,r->x,r->y,1))return 20;
+#ifdef V6_NORTH_TERMINAL_CONTACT
+        v6_player_init(&session.player,248,193,0);session.motion.pending_y=193;
+#endif
+#ifdef V6_NORTH_CORRIDOR
+        v6_player_init(&session.player,V6_NORTH_START==13?290:8,161,0);session.motion.pending_y=161;
+#endif
 #ifdef V6_NORTH_SHAFT
         /* One actual open-shaft crossing, then hold the destination for
          * menu/checkpoint inspection. This is a capture fixture only. */
@@ -3922,6 +3972,7 @@ static int run(void) {
 #ifdef V6_NORTH_ROUTE
        !v6_tower_open(&stream,reflect_display,sizeof(reflect_display)) || !v6_tower_pairs_validate(&stream,reflect_pair_offsets,REFLECT_PAIR_WORDS,REFLECT_TILE_COUNT,2) ||
        !v6_tower_open(&stream,yesmen_display,sizeof(yesmen_display)) || !v6_tower_pairs_validate(&stream,yesmen_pair_offsets,YESMEN_PAIR_WORDS,YESMEN_TILE_COUNT,2) ||
+       !v6_tower_open(&stream,linear_display,sizeof(linear_display)) || !v6_tower_pairs_validate(&stream,linear_pair_offsets,LINEAR_PAIR_WORDS,LINEAR_TILE_COUNT,2) ||
        !v6_tower_open(&stream,security_display,sizeof(security_display)) || !v6_tower_pairs_validate(&stream,security_pair_offsets,SECURITY_PAIR_WORDS,SECURITY_TILE_COUNT,2) ||
        !v6_tower_open(&stream,gantry_display,sizeof(gantry_display)) || !v6_tower_pairs_validate(&stream,gantry_pair_offsets,GANTRY_PAIR_WORDS,GANTRY_TILE_COUNT,2) ||
 #endif
@@ -4018,8 +4069,8 @@ static int run(void) {
 #endif
 #endif
 #ifdef V6_NORTH_ROUTE
-       (route.index>=10 && !v6_tower_open(&stream,route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:security_display,
-           route.index==10?sizeof(reflect_display):route.index==11?sizeof(yesmen_display):route.index==12?sizeof(gantry_display):sizeof(security_display))) ||
+       (route.index>=10 && !v6_tower_open(&stream,route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:route.index==13?security_display:linear_display,
+           route.index==10?sizeof(reflect_display):route.index==11?sizeof(yesmen_display):route.index==12?sizeof(gantry_display):route.index==13?sizeof(security_display):sizeof(linear_display))) ||
 #endif
 #ifdef V6_TOWER_STATION
        !v6_tower_pairs_validate(&stream,FG_OFFSETS,FG_WORDS,FG_COUNT,2) ||
@@ -4125,8 +4176,18 @@ static int run(void) {
         for(i=0;i<64;++i)coexist_sample[i]=(UBYTE)(i<32?(int)i*6-96:288-(int)i*6);
 #endif
 #ifdef V6_TOWER_PRIZE
+#ifdef V6_NORTH_ROUTE
+        {UBYTE *dest=travel_audio_chip+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES;
+            if(!v6_sample_unpack(dest,PRIZE_VANISH_BYTES,prize_vanish_packed,sizeof(prize_vanish_packed)) ||
+               !v6_sample_unpack(dest+PRIZE_VANISH_BYTES,PRIZE_TRINKET_BYTES,prize_trinket_packed,sizeof(prize_trinket_packed))){
+                free_chip(chip);CloseLibrary((struct Library *)GfxBase);return 20;}}
+#else
         for(i=0;i<PRIZE_VANISH_BYTES;++i)travel_audio_chip[TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+i]=prize_vanish[i];
         for(i=0;i<PRIZE_TRINKET_BYTES;++i)travel_audio_chip[TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+PRIZE_VANISH_BYTES+i]=prize_trinket[i];
+#endif
+#endif
+#ifdef V6_NORTH_ROUTE
+        for(i=0;i<TERMINAL_TOUCH_BYTES;++i)travel_audio_chip[TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+PRIZE_AUDIO_BYTES+i]=terminal_touch[i];
 #endif
         for(i=0;i<4;++i)if(!v6_paula_init(&travel_voices[i],i,(ULONG)(travel_audio_chip+TRAVEL_AUDIO_BYTES-2))) {
             free_chip(chip);CloseLibrary((struct Library *)GfxBase);return 20;
@@ -4593,6 +4654,9 @@ static int run(void) {
 #ifdef V6_MENU_SCENE_CAPTURE
                 continue;
 #endif
+#ifdef V6_NORTH_CORRIDOR
+                if(route.index!=(unsigned)V6_NORTH_START)continue;
+#endif
 #ifdef V6_NORTH_SHAFT
 #ifdef V6_NORTH_SHAFT_REVERSE
                 if(route.index==V6_NORTH_START-1)continue;
@@ -4940,10 +5004,17 @@ static int run(void) {
                        && !pending
 #endif
                     )limit=0;
+#ifdef V6_NORTH_ROUTE
+                    unsigned terminal_pending=north_terminal_cue;north_terminal_cue=0;
+                    if(terminal_pending)limit=7;
+#endif
                     for(slot=0;slot<limit;++slot) {
                         cue=slot;
 #ifdef V6_TOWER_PRIZE
                         if(slot>=2)cue=v6_prize_audio_cue(pending,slot-2);
+#endif
+#ifdef V6_NORTH_ROUTE
+                        if(slot==6)cue=5;
 #endif
                         if(slot<2 ? !(events&(1U<<slot)) : cue==4)continue;
                         unsigned i,busy=0,age[4];int chosen;V6AudioSample sample;V6AudioPlan plan;
@@ -4954,7 +5025,7 @@ static int run(void) {
                         chosen=v6_audio_choose(V6_TRAVEL_SFX_MASK,busy,travel_priority,age,cue+1);
                         if(chosen<0){++travel_audio_dropped;if(chosen==-2)diag.error=15;
 #ifdef V6_TOWER_PRIZE
-                            if(cue>=2)++prize_audio_diag.values[2];
+                            if(cue>=2 && cue<=3)++prize_audio_diag.values[2];
 #endif
                         }
                         else {
@@ -4969,10 +5040,14 @@ static int run(void) {
                                 sample.period=PRIZE_PERIOD;
                             }
 #endif
+#ifdef V6_NORTH_ROUTE
+                            if(cue==5){sample.address=(ULONG)(travel_audio_chip+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+PRIZE_AUDIO_BYTES);
+                                sample.bytes=TERMINAL_TOUCH_BYTES;sample.period=TERMINAL_PERIOD;}
+#endif
                             if(!v6_paula_request(&travel_voices[i],&sample,&plan)) {
                                 diag.error=15;
 #ifdef V6_TOWER_PRIZE
-                                if(cue>=2)++prize_audio_diag.values[4];
+                                if(cue>=2 && cue<=3)++prize_audio_diag.values[4];
 #endif
                             }
                             else {
@@ -4983,7 +5058,7 @@ static int run(void) {
                                     a[0]=diag.logic_ticks+1;a[1]=cue;a[2]=i;a[3]=frames;
                                 }
 #ifdef V6_TOWER_PRIZE
-                                if(cue>=2) {
+                                if(cue>=2 && cue<=3) {
                                     unsigned n=prize_audio_diag.values[0]+prize_audio_diag.values[1];
                                     if(n<32) {
                                         volatile ULONG *a=prize_audio_diag.records[n];

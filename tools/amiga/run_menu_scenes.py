@@ -30,7 +30,7 @@ def main():
   command=shlex.split(line)
  tested=0
  if a.north:command=[v+' -DV6_NORTH_ROUTE' if v.startswith('CPPFLAGS=') else v for v in command]
- for scene,camera in SCENES+([(i,0) for i in range(10,14)] if a.north else []):
+ for scene,camera in SCENES+([(i,0) for i in range(10,15)] if a.north else []):
   if scene<a.start_scene:continue
   if a.scene is not None and scene!=a.scene:continue
   build=ROOT/f'build/amiga-menu-scene-{scene}-{camera}'

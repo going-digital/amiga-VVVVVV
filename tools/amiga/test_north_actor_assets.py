@@ -10,6 +10,8 @@ def main():
  checks=0
  for name,tiles,crops,widths,rows in [('north_enemy_dma',range(40,44),(0,16),(16,4),20),
                                   ('north_drone_dma',range(36,40),(0,),(16,),32),
+                                  ('north_linear_dma',range(32,36),(0,16),(16,16),32),
+                                  ('north_terminal_dma',(16,17),(0,),(16,),16),
                                   ('north_player_dma',range(16),(6,),(16,),32),
                                   ('north_checkpoint_dma',(20,21),(0,),(16,),16),
                                   ('north_crew_dma',(150,),(6,),(16,),32)]:
@@ -30,7 +32,9 @@ def main():
     body=v[(frame*2+parity)*64:(frame*2+parity+1)*64]
     assert not any(body[:4]) and not any(body[46:]),('crew visible bounds',name,frame,parity)
  for name,red,tiles in [('north_enemy_visible',False,range(40,44)),('north_enemy_collision',True,range(40,44)),
-                        ('north_drone_visible',False,range(36,40)),('north_drone_collision',True,range(36,40))]:
+                        ('north_drone_visible',False,range(36,40)),('north_drone_collision',True,range(36,40)),
+                        ('north_linear_visible',False,range(32,36)),('north_linear_collision',True,range(32,36)),
+                        ('north_terminal_visible',False,(16,17))]:
   masks=arrays(path,name)
   for frame,tile in enumerate(tiles):
    ox=tile%(width//32)*32;oy=tile//(width//32)*32

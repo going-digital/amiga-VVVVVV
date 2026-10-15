@@ -49,26 +49,39 @@ extern "C" void north_enemy(const uint16_t *tiles,V6Enemy *a,unsigned n) {
     core.v6_north_init.argtypes=[bp,rp,C.c_int,C.c_int,C.c_int]
     core.v6_north_entities.argtypes=[bp,rp,C.c_int]
     core.v6_north_platforms.argtypes=[bp,rp,pp,C.c_int,C.c_int]
+    core.v6_enemy_step_horizontal_cached.argtypes=[ep,C.POINTER(C.c_uint8)]
     core.v6_enemy_step_vertical_cached.argtypes=[ep,C.POINTER(C.c_uint8)]
     core.v6_platform_step_lane.argtypes=[ep,dp,C.c_uint,C.POINTER(C.c_uint8),C.c_int]
     ref.north_enemy.argtypes=[C.POINTER(C.c_uint16),ep,C.c_uint]
     ref.loop_init.argtypes=[pp,C.POINTER(C.c_uint16),C.c_int,C.c_int,dp,C.c_uint,ep,C.c_uint]
     ref.loop_step.argtypes=[C.c_uint,C.c_uint,C.c_int,ep,C.c_uint,dp,C.c_uint,C.POINTER(Push)]
     ticks=0
-    for name in ('reflect','yesmen','gantry','security'):
+    for name in ('reflect','yesmen','gantry','security','linear'):
         data=north_route_room(name);tiles=(C.c_uint16*1200)(*data['tiles']);room=Room(tiles,0,0);bank=Bank();p=Player()
         assert core.v6_north_init(C.byref(bank),C.byref(room),data['x'],data['y'],0)
         assert len(data['checkpoints'])==(1 if name in ('reflect','security') else 2)
-        if name=='security':
-            wanted=(Enemy*1).from_buffer_copy(bytes(bank.enemies[0]))
+        if name in ('security','linear'):
+            count=1 if name=='security' else 2
+            if name=='linear':
+                assert bank.block_count==1 and bank.blocks[0].type==3
+            wanted=(Enemy*count).from_buffer_copy(bytes(bank.enemies)[:count*C.sizeof(Enemy)])
+            cached=(Enemy*count).from_buffer_copy(bytes(wanted))
+            if name=='linear':
+                header=(ROOT/'build/amiga-feasibility/north_actor_assets.h').read_text()
+                values=list(map(int,re.findall(r'\d+',re.search(r'north_linear_walls\[2\]\[336\]=\{(.*?)\};',header,re.S)[1])))
+                lanes=[(C.c_uint8*336)(*values[i*336:(i+1)*336]) for i in range(2)]
             for tick in range(2048):
-                ref.north_enemy(tiles,wanted,1)
+                ref.north_enemy(tiles,wanted,count)
+                if name=='linear':
+                    for i in reversed(range(2)):
+                        core.v6_enemy_step_horizontal_cached(C.pointer(cached[i]),lanes[i])
+                    assert bytes(cached)==bytes(wanted),('cached horizontal lanes',tick)
                 core.v6_north_entities(C.byref(bank),C.byref(room),0)
-                assert bytes(bank.enemies[0])==bytes(wanted[0]),(name,tick)
+                assert bytes(bank.enemies)[:count*C.sizeof(Enemy)]==bytes(wanted),(name,tick)
                 before=bytes(bank.enemies)
                 core.v6_north_entities(C.byref(bank),C.byref(room),1)
                 assert bytes(bank.enemies)==before
-                ticks+=1
+                ticks+=count
         elif name=='yesmen':
             wanted=(Enemy*5).from_buffer_copy(bank.enemies)
             cached=(Enemy*5).from_buffer_copy(bank.enemies)
