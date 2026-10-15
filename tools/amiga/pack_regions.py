@@ -8,7 +8,7 @@ from test_map_draw import arrays
 from tower_gameplay_data import north_route_room
 from test_player import ROOT
 
-REGIONS=(('reflect','yesmen'),('gantry','security'),('linear','filter'))
+REGIONS=(('reflect','yesmen'),('gantry','security'),('linear','filter'),('traffic',))
 
 def build(out):
     manifest=[]
@@ -20,7 +20,7 @@ def build(out):
             values=[room['tiles'],arrays(path,name+'_palette'),arrays(path,name+'_pair_offsets'),arrays(path,name+'_pairs')]
             data=b''.join(struct.pack('>'+str(len(v))+'H',*v) for v in values)+display
             data+=bytes(len(data)&1)
-            ident=10+('reflect','yesmen','gantry','security','linear','filter').index(name)
+            ident=10+('reflect','yesmen','gantry','security','linear','filter','traffic').index(name)
             directory.extend(struct.pack('>8H4I',ident,room['x'],room['y'],room['tileset'],len(values[2])//32,len(values[3]),len(display),len(values[2]),offset,len(data),0,0))
             payload.extend(data);offset+=len(data)
         size=offset+4

@@ -308,7 +308,7 @@ $(BUILD)/tower.exe: $(BUILD)/tower.elf
 $(BUILD)/tower.adf: $(BUILD)/tower.exe
 	"$(CTL)" exe2adf $< --boot --out $@
 ifneq ($(findstring -DV6_REGIONAL_CONTENT,$(CPPFLAGS)),)
-	python3 $(ROOT)/tools/amiga/adf_files.py $@ $(addprefix $(ROOT)/build/amiga-feasibility/,north0.v6rg north1.v6rg north2.v6rg)
+	python3 $(ROOT)/tools/amiga/adf_files.py $@ $(addprefix $(ROOT)/build/amiga-feasibility/,north0.v6rg north1.v6rg north2.v6rg north3.v6rg)
 endif
 
 -include $(BUILD)/tower_probe.d
@@ -1382,6 +1382,10 @@ $(BUILD)/sample_unpack.o: sample_unpack.c sample_unpack.h | $(BUILD)
 .PHONY: test-sample-unpack
 test-sample-unpack: $(BUILD)/sample_unpack.o
 	python3 $(ROOT)/tools/amiga/test_sample_unpack.py
+
+.PHONY: tower-traffic-capture
+tower-traffic-capture: tower-north
+	python3 $(ROOT)/tools/amiga/run_north_capture.py --cppflags "$(NORTH_FLAGS)" --case traffic
 
 .PHONY: tower-filter-capture
 tower-filter-capture: tower-north

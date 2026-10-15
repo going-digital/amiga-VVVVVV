@@ -82,7 +82,7 @@ def main():
         export_energize_assets(archive,out,decoder,deception_room(),"deception")
         export_energize_assets(archive,out,decoder,downunder_room(),"downunder")
         from tower_gameplay_data import north_route_room
-        for name in ('reflect','yesmen','gantry','security','linear','filter'):
+        for name in ('reflect','yesmen','gantry','security','linear','filter','traffic'):
             export_energize_assets(archive,out,decoder,north_route_room(name),name)
     tele_path=out/'teleporter.png';tele_path.write_bytes(teleporter_png)
     dimensions,tele_rgba=subprocess.check_output([str(decoder),str(tele_path)]).split(b'\n',1)
@@ -181,6 +181,10 @@ def main():
     north+='static const uint8_t north_yesmen_walls[3][272]={'+','.join(
         '{'+','.join(str(lane_wall(x,y)) for y in range(-16,256))+'}' for x in (122,266,194))+'};\n'
 
+    tiles=north_route_room('traffic')['tiles']
+    north+='static const uint8_t north_traffic_walls[3][272]={'+','.join(
+        '{'+','.join(str(lane_wall(x,y,22,32)) for y in range(-16,256))+'}' for x in (45,205,125))+'};\n'
+
     tiles=north_route_room('reflect')['tiles']
     north+='static const uint8_t north_reflect_walls[3][272]={'+','.join(
         '{'+','.join(str(lane_wall(x,y,32,8)) for y in range(-16,256))+'}' for x in (135,185,235))+'};\n'
@@ -196,6 +200,9 @@ def main():
         north+='static const uint32_t '+name+'[4][32]={'+','.join('{'+','.join(hex(v)+'UL' for v in m)+'}' for m in masks)+'};\n'
     for name,collision in (('north_drone_visible',False),('north_drone_collision',True)):
         masks=sprite_masks(range(36,40),collision)
+        north+='static const uint32_t '+name+'[4][32]={'+','.join('{'+','.join(hex(v)+'UL' for v in m)+'}' for m in masks)+'};\n'
+    for name,collision in (('north_traffic_visible',False),('north_traffic_collision',True)):
+        masks=sprite_masks(range(28,32),collision)
         north+='static const uint32_t '+name+'[4][32]={'+','.join('{'+','.join(hex(v)+'UL' for v in m)+'}' for m in masks)+'};\n'
     for name,collision in (('north_linear_visible',False),('north_linear_collision',True)):
         masks=sprite_masks(range(32,36),collision)
@@ -222,6 +229,7 @@ def main():
     for name,masks,crops,widths,height in (
         ('north_enemy_dma',sprite_masks(range(40,44)),(0,16),(16,4),20),
         ('north_linear_dma',sprite_masks(range(32,36)),(0,16),(16,16),32),
+        ('north_traffic_dma',sprite_masks(range(28,32)),(0,16),(16,6),32),
         ('north_platform_dma',gates,(0,16),(16,16),8)):
         frames=[[[dma_body(m,c,w,height,parity) for parity in (0,1)] for c,w in zip(crops,widths)] for m in masks]
         encode=lambda v:'{'+','.join(encode(a) if isinstance(a,list) else str(a) for a in v)+'}'

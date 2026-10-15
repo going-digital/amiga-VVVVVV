@@ -79,6 +79,11 @@ def main():
     game=(C.c_uint16*14)(0x2c01,0xfffe,0x0100,0x3600,0x6bdf,0xfffe,0x00e4,0,0xffdf,0xfffe,0x0bdf,0xfffe,0xffff,0xfffe)
     copper=(C.c_uint16*512)();words=mux.v6_sprite_mux_copper(copper,game,14,C.byref(plan),actors);assert words
     rendered=(C.c_uint16*512)();assert mux.v6_sprite_mux_rendered_copper(rendered,game,14,C.byref(plan),actors)==words and bytes(rendered)==bytes(copper)
+    # Native static lists retain their early register prefix and merge only
+    # the late ring-wrap tail. It must match a complete chronological merge.
+    split=(C.c_uint16*512)();split[:4]=game[:4]
+    tail_words=mux.v6_sprite_mux_rendered_copper(C.cast(C.byref(split,8),wp),C.cast(C.byref(game,8),wp),10,C.byref(plan),actors)
+    assert tail_words+4==words and bytes(split)==bytes(copper),('retained prefix / ring-wrap merge',tick)
     static=(C.c_uint16*6)(0x2c01,0xfffe,0x100,0x3600,0xffff,0xfffe)
     expected=(C.c_uint16*512)();nw=mux.v6_sprite_mux_copper(expected,static,6,C.byref(plan),actors)
     direct=(C.c_uint16*512)();direct[:6]=static[:]

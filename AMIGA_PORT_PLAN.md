@@ -6074,3 +6074,52 @@ also passes at 160 scanlines with zero missed fields or errors.
 
 Next connected admission is Traffic Jam to the east, which needs its original
 three-enemy setup and sprite art rather than the actor-free filtering room.
+
+
+### Traffic Jam campaign connection (15 October 2026)
+
+The campaign now admits a seventeenth room bank, Traffic Jam (115,103),
+directly east of Atmospheric Filtering Unit. The original Spacestation2
+rn(53,39) terrain, ceiling checkpoint and three speed-4 vertical enemies are
+retained. Ent.cpp rn(15,3) supplies the four traffic sprite frames and 22x32
+collision rectangles; visible and red-channel collision masks are generated
+independently. Two hardware sprite spans draw each enemy.
+
+A fourth DF0 pack (`north3.v6rg`, 5,420 bytes) holds this room. The two existing
+12 KiB cache slots and Chip allocation are unchanged. The boot ADF includes
+all four packs. V6 saves admit the original ceiling spawn (228,182), gravity 1,
+checkpoint ID 1 and either facing; earlier save versions remain unchanged.
+
+The follower exposed excessive gameplay work with generic enemy wall probes.
+Three generated fixed-x collision lanes now use the existing vertical enemy
+cache, compared against 6,144 original C++ enemy updates including reversals.
+The existing companion rest memo is enabled for this static room and reset on
+entry. Host comparisons now cover 43,200 source companion updates, including
+Traffic Jam, plus the separate 17,280 Gantry dynamic-block updates. Actor asset
+checks cover 77,952 original PNG/parity/collision pixel comparisons. Regional
+checks cover all seven room banks, four OFS files, failed-load isolation and
+bounded repeated eviction. Checkpoint/save tests cover both new directions.
+
+`make -C amiga_version tower-traffic-capture` checks the live room/menu,
+follower, both actual corridor directions and cold DF1 restoration.
+
+Visual verification exposed a shared Copper ordering bug: a background ring
+wrap at line 107 could delay an early sprite's palette write, making the upper
+traffic enemy cyan. Native rendering now retains the stable register prefix
+through line 44 and merges only the late wrap tail with palette/overlay events.
+Multiplexing checks cover 69,632 states and compare retained-prefix output
+byte for byte with a full chronological merge. This preserves the earlier five-enemy follower
+stress case at 274 scanlines, zero missed fields, while showing all traffic
+enemies in red. Full-list merging was too expensive for that stock A500 case.
+
+Final stock A500 captures pass at 245 scanlines for the room/menu/save, 259
+with the follower, 242 crossing east, 259 crossing west and 248 after cold
+reload. Both directions perform one live regional pause with no state
+violations; cold reload returns to bank 16. All cases report zero missed fields
+and engine errors, and Chip allocation remains 436,466 bytes. Menu-slide
+checks compare 6,578 header pixels. The default `build/amiga-north/tower.adf`
+contains all four exact regional packs. Next is the connected Leap of Faith
+room below Traffic Jam, preserving the same stock A500 timing gate.
+
+Direct DF0 boot of the final default disk also passes on stock A500/Kickstart
+1.3 at 160 scanlines, with zero missed fields or engine errors.

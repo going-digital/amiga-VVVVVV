@@ -11,6 +11,7 @@ def main():
  for name,tiles,crops,widths,rows in [('north_enemy_dma',range(40,44),(0,16),(16,4),20),
                                   ('north_drone_dma',range(36,40),(0,),(16,),32),
                                   ('north_linear_dma',range(32,36),(0,16),(16,16),32),
+                                  ('north_traffic_dma',range(28,32),(0,16),(16,6),32),
                                   ('north_terminal_dma',(16,17),(0,),(16,),16),
                                   ('north_player_dma',range(16),(6,),(16,),32),
                                   ('north_checkpoint_dma',(20,21),(0,),(16,),16),
@@ -34,8 +35,10 @@ def main():
  for name,red,tiles in [('north_enemy_visible',False,range(40,44)),('north_enemy_collision',True,range(40,44)),
                         ('north_drone_visible',False,range(36,40)),('north_drone_collision',True,range(36,40)),
                         ('north_linear_visible',False,range(32,36)),('north_linear_collision',True,range(32,36)),
+                        ('north_traffic_visible',False,range(28,32)),('north_traffic_collision',True,range(28,32)),
                         ('north_terminal_visible',False,(16,17))]:
   masks=arrays(path,name)
+  if name=='north_traffic_visible':assert not any(mask&1023 for mask in masks),'traffic art exceeds its two DMA crops'
   for frame,tile in enumerate(tiles):
    ox=tile%(width//32)*32;oy=tile//(width//32)*32
    for y in range(32):
