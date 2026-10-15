@@ -1,13 +1,14 @@
-/* Original entities: Spacestation2.cpp rn(50,39..42), rn(51..53,39); Ent.cpp rn(12,3/5), rn(13,3).
+/* Original entities: Spacestation2.cpp rn(50,39..42), rn(51..53,39), rn(53,40); Ent.cpp rn(12,3/5), rn(13,3).
  * Copyright Terry Cavanagh; see ../LICENSE.md. */
 #include "north_route.h"
 int v6_north_init(V6NorthRoute *s,V6Room *r,int x,int y,int player_y)
 {
     unsigned i;
-    if(!s || !r || !((x==112 && y>=103 && y<=106) || ((x>=113 && x<=115) && y==103)))return 0;
+    if(!s || !r || !((x==112 && y>=103 && y<=106) || ((x>=113 && x<=115) && y==103) || (x==115 && y==104)))return 0;
     s->room_y=(unsigned)y;s->enemy_count=s->gate_count=s->platform_count=s->block_count=s->flags=0;
     s->push.pending_y=player_y;s->push.visual_ground=s->push.visual_roof=0;
-    if(x==115){static const int xy[3][3]={{45,118,1},{205,118,1},{125,18,0}};
+    if(x==115 && y==104){/* Original Leap of Faith has no actors or blocks. */
+    } else if(x==115){static const int xy[3][3]={{45,118,1},{205,118,1},{125,18,0}};
         s->enemy_count=3;
         for(i=0;i<3;++i)v6_enemy_init(&s->enemies[i],xy[i][0],xy[i][1],xy[i][2],4,
             0,0,320,240,0,0,22,32);

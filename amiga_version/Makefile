@@ -1383,6 +1383,10 @@ $(BUILD)/sample_unpack.o: sample_unpack.c sample_unpack.h | $(BUILD)
 test-sample-unpack: $(BUILD)/sample_unpack.o
 	python3 $(ROOT)/tools/amiga/test_sample_unpack.py
 
+.PHONY: tower-leap-capture
+tower-leap-capture: tower-north
+	python3 $(ROOT)/tools/amiga/run_north_capture.py --cppflags "$(NORTH_FLAGS)" --case leap
+
 .PHONY: tower-traffic-capture
 tower-traffic-capture: tower-north
 	python3 $(ROOT)/tools/amiga/run_north_capture.py --cppflags "$(NORTH_FLAGS)" --case traffic

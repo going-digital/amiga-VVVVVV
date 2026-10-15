@@ -61,6 +61,12 @@ def main():
  before=tuple(bytes(o) for o in outputs)
  assert not lib.v6_campaign_hint_decode(*[C.byref(o) for o in outputs],(C.c_uint8*144).from_buffer_copy(blob),144)
  assert tuple(bytes(o) for o in outputs)==before
+ # Leap of Faith has no checkpoint. A forged room-local spawn must not
+ # become admissible merely because its neighbouring bank is supported.
+ fake=Record.from_buffer_copy(bytes(r));fake.checkpoint=Checkpoint(228,182,1,1,115,104,1)
+ bit=(104-100)*20+115-100;fake.explored.rooms[bit//8]|=1<<(bit%8)
+ untouched=(C.c_uint8*144)(*([0xa5]*144))
+ assert not lib.v6_campaign_menu_encode(untouched,144,C.byref(fake)) and bytes(untouched)==bytes([0xa5]*144)
  # V6 admits only the original north-route checkpoint bank. Legacy V5
  # admission stays unchanged, even when a caller recomputes a valid CRC.
  from tower_gameplay_data import north_route_room

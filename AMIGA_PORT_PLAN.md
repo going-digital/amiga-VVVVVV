@@ -6123,3 +6123,44 @@ room below Traffic Jam, preserving the same stock A500 timing gate.
 
 Direct DF0 boot of the final default disk also passes on stock A500/Kickstart
 1.3 at 160 scanlines, with zero missed fields or engine errors.
+
+
+### Leap of Faith campaign connection (15 October 2026)
+
+The campaign now admits an eighteenth room bank, Leap of Faith (115,104),
+below Traffic Jam. Its original Spacestation2 rn(53,40) terrain and palette
+load from region 3 alongside Traffic Jam. The pair occupies 10,362 bytes;
+four DF0 files, two fixed 12 KiB cache slots and the Chip allocation are
+unchanged. The original room has no moving actors, activity blocks or
+checkpoint. Its descriptor uses a null checkpoint bank with count zero;
+the exporter emits no dummy or zero-length checkpoint array.
+
+Room entry preserves Traffic Jam's real saved ceiling checkpoint. The native
+fixtures exercise both actual vertical crossings, a live death followed by
+remote checkpoint return, and saving in Leap of Faith followed by cold reload
+to Traffic Jam. These fixtures explicitly retain the predecessor's checkpoint;
+no new save-format admission is needed. A host negative vector rejects a
+forged Leap-local checkpoint without modifying the output buffer.
+
+`make -C amiga_version tower-leap-capture` runs the held room/menu scene,
+follower composition, both live crossings, death return and save/reload.
+The scene fixture holds the player for menu/pixel inspection; traversal and
+death fixtures advance gameplay. Source/graphics/cache checks cover all eight
+regional room banks. Companion comparisons now cover 50,400 source updates
+and the separate 17,280 Gantry dynamic-block updates. Hidden save-page drawing
+uses the existing four-row batches for this room's title.
+
+Final stock A500 checks pass at 238 scanlines for the room/menu/save, 241 with
+the follower, 238 in either vertical direction and 238 through death/remote
+return. Cold reload passes at 251. Every case reports zero missed fields and
+engine errors, with Chip allocation still 436,466 bytes. All six saves retain
+Traffic Jam's exact checkpoint and Leap of Faith's explored-map bit; cold
+reload returns to bank 16. Menu-slide checks compare 6,578 header pixels.
+The default playable disk remains `build/amiga-north/tower.adf`.
+
+Next is Solitude (115,105), including its original scripted encounter. It is
+not admitted yet; Leap's lower exit remains the current campaign boundary.
+
+Direct DF0 boot of the final default disk passes on stock A500/Kickstart 1.3
+at 160 scanlines with zero missed fields or errors. All four ADF region files
+match the generated packs byte for byte.

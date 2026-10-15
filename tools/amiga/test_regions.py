@@ -37,7 +37,7 @@ unsigned counter(unsigned n){switch(n){case 0:return cache.active;case 1:return 
         C.memmove(data,value,len(value));return 1
     def request(region,room):return lib.request(region,room,reader)
     lib.reset()
-    for ident,name in enumerate(('reflect','yesmen','gantry','security','linear','filter','traffic'),10):
+    for ident,name in enumerate(('reflect','yesmen','gantry','security','linear','filter','traffic','leap'),10):
         room=request((ident-10)//2,ident).contents;source=north_route_room(name)
         assert (room.id,room.x,room.y,room.tileset)==(ident,source['x'],source['y'],source['tileset'])
         assert list(room.tiles[:1200])==source['tiles']
@@ -45,7 +45,7 @@ unsigned counter(unsigned n){switch(n){case 0:return cache.active;case 1:return 
         for field,size,symbol in (('palette',4,'palette'),('offsets',room.tile_count*32,'pair_offsets'),('pairs',room.pair_words,'pairs')):
             assert list(getattr(room,field)[:size])==arrays(path,name+'_'+symbol)
         assert bytes(room.display[:room.display_bytes])==bytes(arrays(path,name+'_display'))
-    assert calls==[0,1,2,3] and lib.counter(1)==3,calls
+    assert calls==[0,1,2,3] and lib.counter(1)==4,calls
     assert request(0,10) and request(1,12) and calls==[0,1,2,3,0,1],calls
     variants=[]
     def mutation(offset,fmt,value):
@@ -80,7 +80,7 @@ unsigned counter(unsigned n){switch(n){case 0:return cache.active;case 1:return 
     # Repeated eviction must remain bounded and preserve every room's source tiles.
     lib.reset();files=dict(good)
     for i in range(100):
-        ident=10+(i*5)%7;name=('reflect','yesmen','gantry','security','linear','filter','traffic')[ident-10]
+        ident=10+(i*5)%8;name=('reflect','yesmen','gantry','security','linear','filter','traffic','leap')[ident-10]
         assert list(request((ident-10)//2,ident).contents.tiles[:1200])==north_route_room(name)['tiles']
     # Build an independent minimal OFS fixture: no previous native capture is required.
     disk=bytearray(901120);disk[:4]=b'DOS\0';root=880;bitmap=881
@@ -110,6 +110,6 @@ unsigned counter(unsigned n){switch(n){case 0:return cache.active;case 1:return 
     assert entries==[2] and snapshots==(bytes(route),bytes(session),bytes(world))
     route.materialize=None
     assert core.v6_tower_route_load(C.byref(route),108,109,0)
-    print('PASS regional cache: all seven source collision/graphics banks; two bounded slots;',len(variants),'failed candidates preserve pinned room; 100 evictions; OFS files; atomic route admission')
+    print('PASS regional cache: all eight source collision/graphics banks; two bounded slots;',len(variants),'failed candidates preserve pinned room; 100 evictions; OFS files; atomic route admission')
 
 if __name__=='__main__':main()

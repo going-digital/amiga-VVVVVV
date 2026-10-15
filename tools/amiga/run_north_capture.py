@@ -6,13 +6,14 @@ import struct
 import subprocess
 from pathlib import Path
 from run_map_input import capture
-from save_disk import create_save_disk
+from save_disk import create_save_disk,read_record
 from test_player import ROOT
 
 LINEAR_CASES=['room14','linear-contact','linear-follower','edge13right','edge14left','linear-reload']
+LEAP_CASES=['leap-room','leap-follower','leap-down','leap-up','leap-death','leap-reload']
 TRAFFIC_CASES=['room16','traffic-follower','edge15right','edge16left','traffic-reload']
 FILTER_CASES=['room15','filter-follower','edge14right','edge15left','filter-reload']
-CASES=[*TRAFFIC_CASES,*FILTER_CASES,'room10','room11','room12','room13',*LINEAR_CASES,'follower','security-follower','movement',
+CASES=[*LEAP_CASES,*TRAFFIC_CASES,*FILTER_CASES,'room10','room11','room12','room13',*LINEAR_CASES,'follower','security-follower','movement',
        'edge10up','edge11up','edge10down','edge11down','edge12down','edge12up','edge13down','reload','security-reload']
 
 def timing(result):
@@ -23,7 +24,7 @@ def timing(result):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cppflags',required=True)
-    parser.add_argument('--case',choices=['all','linear','filter','traffic','bob',*CASES],default='all')
+    parser.add_argument('--case',choices=['all','linear','filter','traffic','leap','bob',*CASES],default='all')
     args=parser.parse_args()
     def build(name,extra):
         folder=ROOT/'build'/name;folder.mkdir(parents=True,exist_ok=True)
@@ -60,9 +61,30 @@ def main():
         print('PASS native sprite-DMA/BOB reference comparisons:',values,flush=True)
         return
     reports={}
-    selected=CASES if args.case=='all' else TRAFFIC_CASES if args.case=='traffic' else FILTER_CASES if args.case=='filter' else LINEAR_CASES if args.case=='linear' else [args.case]
+    selected=CASES if args.case=='all' else LEAP_CASES if args.case=='leap' else TRAFFIC_CASES if args.case=='traffic' else FILTER_CASES if args.case=='filter' else LINEAR_CASES if args.case=='linear' else [args.case]
     for case in selected:
-        if case.startswith('room'):
+        if case in LEAP_CASES:
+            index=16 if case=='leap-down' else 17
+            extra='-DV6_LEAP_SHAFT' if case in ('leap-down','leap-up') else '-DV6_LEAP_DEATH' if case=='leap-death' else '-DV6_LEAP_HOLD'
+            if case=='leap-follower':extra+=' -DV6_NORTH_FOLLOWER'
+            folder=build('amiga-north-'+case,f'-DV6_NORTH_START={index} {extra}')
+            if case in ('leap-room','leap-follower'):slide(folder)
+            else:menu_controls(folder)
+            ram=(folder/'ui-slide-controls.bin').read_bytes();route=struct.unpack_from('>7I',ram,ram.index(b'V6RT'))
+            target=16 if case in ('leap-up','leap-death') else 17
+            assert route[2]==target and route[6]==0,(case,route)
+            record=read_record(folder/'ui-slide-save.adf')
+            assert struct.unpack_from('>7i',record,8)==(228,182,1,1,115,103,1)
+            bit=(104-100)*20+115-100
+            assert record[40+bit//8]&(1<<(bit%8)),'Leap visit must survive the remote checkpoint save'
+            if case=='leap-death':assert route[4]>=3,(case,route)
+            if case=='leap-reload':
+                saved=folder;folder=build('amiga-north-load-native','-DV6_VSTITCH_HINT_LOAD')
+                subprocess.run(['python3',str(ROOT/'tools/amiga/run_ui_menu_reload.py'),'--build',str(saved),'--load-build',str(folder),'--save-disk',str(saved/'ui-slide-save.adf')],check=True)
+                ram=(folder/'menu-reload.bin').read_bytes();route=struct.unpack_from('>7I',ram,ram.index(b'V6RT'))
+                assert route[2]==16 and route[6]==0,(case,route)
+            print('PASS checkpoint-free room:',case,'route',route,flush=True)
+        elif case.startswith('room'):
             index=int(case[4:]);folder=build(f'amiga-north-live-{index}',f'-DV6_NORTH_START={index}')
             slide(folder)
         elif case=='linear-contact':
