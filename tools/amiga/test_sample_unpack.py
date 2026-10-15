@@ -4,7 +4,7 @@ import ctypes as C
 from pathlib import Path
 import random
 import subprocess
-from sample_pack import pack
+from sample_pack import pack,pack_pcm
 from test_player import ROOT
 
 
@@ -17,6 +17,7 @@ def main():
                     str(ROOT/'amiga_version/sample_unpack.c'), '-o', str(library)], check=True)
     lib = C.CDLL(str(library))
     lib.v6_sample_unpack.argtypes = [C.c_void_p, C.c_uint, C.c_void_p, C.c_uint]
+    lib.v6_sample_unpack_delta.argtypes = lib.v6_sample_unpack.argtypes
     rng = random.Random(8341)
     cases = [b'A'*20000, bytes(range(256))*40, b'ABCD'*1300,
              bytes(rng.randrange(256) for _ in range(20000))]
@@ -46,8 +47,13 @@ def main():
         assert not lib.v6_sample_unpack(out, capacity, stream, len(stream))
     for path in private:
         source = path.read_bytes()
-        saved += len(source)-len(pack(source))
-    print('PASS boot PCM:', len(cases), 'exact expansions, overlap and malformed/bounds checks;', saved, 'resident bytes saved')
+        saved += len(source)-len(pack_pcm(source))
+    pcm_files=list((ROOT/'build/amiga-feasibility').glob('*.pcm'))
+    for path in pcm_files:
+        source=path.read_bytes();encoded=pack_pcm(source);out=C.create_string_buffer(len(source))
+        assert lib.v6_sample_unpack_delta(out,len(source),encoded,len(encoded))
+        assert out.raw==source,path.name
+    print('PASS boot PCM:', len(cases), 'exact expansions, overlap and malformed/bounds checks;', saved, 'resident bytes saved;',len(pcm_files),'exact delta-PCM expansions')
 
 
 if __name__ == '__main__':

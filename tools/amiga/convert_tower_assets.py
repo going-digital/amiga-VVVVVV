@@ -234,6 +234,8 @@ def main():
         values=[[dma_body(m,crop,16,height,parity) for parity in (0,1)] for m in masks]
         north+='static const uint16_t '+name+'['+str(len(masks))+'][2]['+str(height*2)+']='+encode(values)+';\n'
     (out/'north_actor_assets.h').write_text(north)
+    from convert_terminal_layer import build as export_terminal_layer
+    export_terminal_layer(out)
     # AI 17 remains still, tile 144 (sad), facing left: visual frame 147.
     # Export just this required frame rather than a full crew sprite sheet.
     tile=147;ox=(tile%(sw//32))*32;oy=(tile//(sw//32))*32

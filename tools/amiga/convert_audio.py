@@ -47,10 +47,14 @@ def export(archive,out,station=False):
     for speaker,name in enumerate(files):
         pcm,meta=convert(archive.read('sounds/'+name+'.wav'));meta.update(speaker=speaker,file=name+'.wav')
         (out/(name+'.pcm')).write_bytes(pcm)
-        header+='static const unsigned char cue_'+name+'[]={'+','.join(map(str,pcm))+'};\n'
+        from sample_pack import pack_pcm
+        packed=pack_pcm(pcm)
+        header+='#ifdef V6_NORTH_ROUTE\nstatic const unsigned char cue_'+name+'_packed[]={'+','.join(map(str,packed))+'};\n#else\n'
+        header+='static const unsigned char cue_'+name+'[]={'+','.join(map(str,pcm))+'};\n#endif\n'
         header+='#define CUE_'+name.upper()+'_BYTES '+str(len(pcm))+'\n'
         total+=len(pcm);manifest.append(meta)
     header+='#define CUE_CREW_BYTES CUE_'+files[0].upper()+'_BYTES\n#define CUE_CREW cue_'+files[0]+'\n'
+    header+='#define CUE_CREW_PACKED cue_'+files[0]+'_packed\n'
     header+='#define CUE_PERIOD '+str(PERIOD)+'\n#define CUE_DMA_BYTES '+str(total)+'\n'
     (out/('station_cue_samples.h' if station else 'cue_samples.h')).write_text(header)
     (out/(prefix+'cue-samples.json')).write_text(json.dumps(dict(version=1,pal_clock=PAL_CLOCK,samples=manifest,

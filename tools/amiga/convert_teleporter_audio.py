@@ -18,7 +18,10 @@ def export(archive,out):
         pcm,meta=convert(archive.read('sounds/'+name+'.wav'))
         meta.update(cue=cue,file=name+'.wav');manifest.append(meta)
         (out/('teleporter-'+cue+'.pcm')).write_bytes(pcm)
-        header+='static const unsigned char teleporter_'+cue+'[]={'+','.join(map(str,pcm))+'};\n'
+        from sample_pack import pack_pcm
+        packed=pack_pcm(pcm)
+        header+='#ifdef V6_NORTH_ROUTE\nstatic const unsigned char teleporter_'+cue+'_packed[]={'+','.join(map(str,packed))+'};\n#else\n'
+        header+='static const unsigned char teleporter_'+cue+'[]={'+','.join(map(str,pcm))+'};\n#endif\n'
         header+='#define TELEPORTER_'+cue.upper()+'_BYTES '+str(len(pcm))+'\n'
     header+='#define TELEPORTER_PERIOD '+str(PERIOD)+'\n'
     (out/'teleporter_samples.h').write_text(header)
@@ -32,8 +35,8 @@ def export_prize(archive,out):
         pcm,meta=convert(archive.read('sounds/'+name+'.wav'))
         meta.update(cue=cue,file=name+'.wav');manifest.append(meta)
         (out/('prize-'+cue+'.pcm')).write_bytes(pcm)
-        from sample_pack import pack
-        packed=pack(pcm);meta['packed_bytes']=len(packed)
+        from sample_pack import pack_pcm
+        packed=pack_pcm(pcm);meta['packed_bytes']=len(packed)
         header+='#ifdef V6_NORTH_ROUTE\nstatic const unsigned char prize_'+cue+'_packed[]={'+','.join(map(str,packed))+'};\n#else\n'
         header+='static const unsigned char prize_'+cue+'[]={'+','.join(map(str,pcm))+'};\n#endif\n'
         header+='#define PRIZE_'+cue.upper()+'_BYTES '+str(len(pcm))+'\n'
@@ -43,9 +46,16 @@ def export_prize(archive,out):
         period=PERIOD,samples=manifest,scope='Source enum/load-order mapping; shared 9 kHz low-pass signed 8-bit conversion, no normalization'),indent=2)+'\n')
 
 def export_terminal(archive,out):
-    name,=source_files(('TERMINALTOUCH',))
-    pcm,meta=convert(archive.read('sounds/'+name+'.wav'))
-    (out/'terminal_samples.h').write_text('/* Private original terminal contact cue. */\n'+
-        'static const unsigned char terminal_touch[]={'+','.join(map(str,pcm))+'};\n'+
-        '#define TERMINAL_TOUCH_BYTES '+str(len(pcm))+'\n#define TERMINAL_PERIOD '+str(PERIOD)+'\n')
-    (out/'terminal-touch.json').write_text(json.dumps(dict(file=name+'.wav',**meta),indent=2)+'\n')
+    header='/* Private original terminal contact and reading cues. */\n'
+    manifest=[]
+    for cue,name in zip(('touch','read'),source_files(('TERMINALTOUCH','TERMINALTEXT'))):
+        pcm,meta=convert(archive.read('sounds/'+name+'.wav'))
+        meta['file']=name+'.wav';manifest.append(meta)
+        (out/('terminal-'+cue+'.pcm')).write_bytes(pcm)
+        value=pcm
+        symbol='terminal_'+cue+('_pcm' if cue=='read' else '')
+        header+='static const unsigned char '+symbol+'[] __attribute__((aligned(4)))={'+','.join(map(str,value))+'};\n'
+        header+='#define TERMINAL_'+cue.upper()+'_BYTES '+str(len(pcm))+'\n'
+    header+='#define TERMINAL_PERIOD '+str(PERIOD)+'\n'
+    (out/'terminal_samples.h').write_text(header)
+    (out/'terminal-touch.json').write_text(json.dumps(manifest,indent=2)+'\n')

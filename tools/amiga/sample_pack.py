@@ -2,6 +2,10 @@
 from collections import defaultdict, deque
 
 
+def pack_pcm(data):
+    return pack(bytes((v-(data[i-1] if i else 0)) & 255 for i,v in enumerate(data)))
+
+
 def pack(data):
     history = defaultdict(deque)
     out = bytearray()

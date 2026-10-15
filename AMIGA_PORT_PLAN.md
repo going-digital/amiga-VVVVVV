@@ -5923,3 +5923,54 @@ Next: consume the retained activity on Return and integrate the verified
 terminal log with live parallax, foreground layers and the companion overlay.
 The isolated terminal fixture remains the verified reference for its text,
 cutscene bars, clipping, fades and read cue. Music remains deferred.
+
+### Full-width campaign terminal captions (15 October 2026)
+
+Linear Collider now consumes its retained terminal activity on Return and runs
+`terminal_station_1` inside the live campaign. Space/fire advances the log;
+holding advance does not flip the player. After dismissal, Return again opens
+the ordinary map/menu and the DF1 Save tab remains available. The room's two
+moving enemies, checkpoints, parallax and following crewmate remain live.
+The activity is disabled once per room visit, matching the source script.
+
+Following Peter's suggestion, the heading and body use full-width borders at
+source y60..83 and y86..154. Original glyph positions and line spacing remain.
+Copper switches these strips to one bitplane and restores the exact world,
+wrapped background and any overlapping companion-plane pointers afterwards.
+Hardware sprite rows behind each opaque strip are masked; a wholly hidden
+companion does not need a software sprite draw. Fixed window command blocks
+are prepared on spare fields and merged with current sprite/companion events
+in one pass. Pointer changes wait until horizontal 0xdf, after the final
+bitplane fetch group, to avoid consuming the first caption word early.
+
+The caption ink occupies 4,800 prepared bytes in existing UI storage. Opening
+and closing bars reuse two existing UI banks. The original 12,110-byte read
+cue reuses a spare collectible bitmap bank while in this room; a subsequent
+collectible redraw rebuilds that bank. No new Chip allocation is required:
+the complete campaign still requests 436,466 bytes. Boot-only delta/LZSS
+storage for the existing crew and travel/prize PCM restores exactly the same
+samples to their existing Chip buffers, making room for the read cue in the
+stock executable memory budget. Touch and read cues use ordinary SFX channels
+AUD2/AUD3; tracker music remains deferred.
+
+`test-terminal-layer` checks all 120 generated rows against the original
+font/border compositor, full-width sprite occlusion, bar ramps, palette
+restoration, single-epoch Copper waits and world/background/companion pointers.
+`tower-terminal-campaign-capture` exercises physical Return, held advance and
+the subsequent menu/save transaction on Kickstart 1.3, OCS PAL, 68000,
+512 KiB Chip + 512 KiB Slow and no Fast RAM. Its paired native capture checks
+actual caption DMA bytes, resumed bitplane pointers, original PCM buffers and
+audible reading audio. The source activity and terminal-script suites and
+lossless sample-decoder checks remain applicable.
+
+The live sequence passes at 269 scanlines while reading and 280 through
+dismissal and the following map/DF1-save transaction, with zero missed fields
+and zero engine errors. Native captured read audio peaks at 0.125; all eight
+resident source PCM buffers are byte-exact in Chip RAM. Fade updates follow
+the gameplay tick; render-field interpolation is not added in this milestone.
+
+The rebuilt `build/amiga-north/tower.adf` boots directly under stock
+A500/Kickstart 1.3. The existing five-enemy/follower slide case still passes at
+270 scanlines. Bundled AROS boots with 1 MiB Fast RAM; its stock configuration
+still exits with the explicit insufficient-memory message (183,392 contiguous
+Chip bytes available against the 436,466-byte request).

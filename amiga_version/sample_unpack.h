@@ -4,4 +4,6 @@
 /* Boot-only lossless PCM expansion into Chip RAM. Output may be partially
  * written on rejection; callers must discard it and abort startup. */
 int v6_sample_unpack(uint8_t *,unsigned,const uint8_t *,unsigned);
+/* Packed first differences, modulo 256; reconstruct the identical PCM. */
+int v6_sample_unpack_delta(uint8_t *,unsigned,const uint8_t *,unsigned);
 #endif

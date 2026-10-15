@@ -19,3 +19,10 @@ int v6_sample_unpack(uint8_t *out,unsigned capacity,const uint8_t *in,unsigned s
     }
     return at==size;
 }
+int v6_sample_unpack_delta(uint8_t *out,unsigned capacity,const uint8_t *in,unsigned size)
+{
+    unsigned i;uint8_t previous=0;
+    if(!v6_sample_unpack(out,capacity,in,size))return 0;
+    for(i=0;i<capacity;++i){previous=(uint8_t)(previous+out[i]);out[i]=previous;}
+    return 1;
+}

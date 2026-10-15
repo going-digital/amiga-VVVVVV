@@ -838,9 +838,19 @@ static unsigned west_copper_ready[2],west_colour_words[2][8];
 #include "security_assets.h"
 #include "linear_assets.h"
 #include "terminal.h"
+#include "terminal_read.h"
+#include "terminal_layer.h"
+#include "activity.h"
+#include "terminal_station_program.h"
+#include "terminal_layer_assets.h"
 #include "sample_unpack.h"
 static V6Terminal north_terminal;
-static unsigned north_terminal_cue;
+static unsigned north_terminal_cue,north_read_pending,north_read_enter,north_read_fire,north_read_block_action;
+static int north_activity_index=-1;
+static V6TerminalRead north_reader,north_read_prepared;
+static unsigned north_read_bars,north_layer_stage,north_layer_row,north_layer_bars[2],north_read_copied;
+
+static volatile struct {ULONG magic,version,values[20];} north_read_diag={0x56364e52,1,{0}};
 static volatile struct {ULONG magic,version,values[6];} north_terminal_diag={0x56364e54,1,{0}};
 static V6NorthRoute north_actors;
 static V6CompanionRest north_companion_rest[3];
@@ -859,6 +869,7 @@ static volatile struct {ULONG magic,version,values[12];} north_bob_diag={0x56364
 #endif
 static unsigned north_copper_ready[2],north_copper_tick[2],north_copper_room[2];
 static UWORD north_base_copper[2][192];
+static V6TerminalPrefix north_terminal_prefix[2];
 static unsigned north_base_words[2],north_base_room[2];
 static V6ReturnEnemyAnimation north_animation[5];
 #define NORTH_FG(a,b,c,e,f,d) (route.index==10?(a):route.index==11?(b):route.index==12?(c):route.index==13?(e):route.index==14?(f):(d))
@@ -975,7 +986,7 @@ static int prize_entities(V6TowerRoute *r,void *context)
 #endif
 #ifdef V6_NORTH_ROUTE
     if(r->index>=10){unsigned events;
-        if(r->index==14 && v6_terminal_tick(&north_terminal)){north_terminal_cue=1;++north_terminal_diag.values[0];}
+        if(r->index==14 && v6_terminal_tick(&north_terminal)){north_terminal_cue|=1;++north_terminal_diag.values[0];}
         if(r->index==11){unsigned i;for(i=5;i>0;--i){unsigned lane=i-1==1?1:i-1<3?0:2;
             v6_enemy_step_vertical_cached(&north_actors.enemies[i-1],north_yesmen_walls[lane]);}events=0;
         }else if(r->index==14){unsigned i;for(i=2;i>0;--i){
@@ -994,7 +1005,8 @@ static int prize_contacts(V6TowerRoute *r,void *context)
         if(r->index==14){v6_terminal_contact(&north_terminal,&r->session->player);
             north_terminal_diag.values[1]=north_terminal.active;north_terminal_diag.values[2]=r->session->player.x;
             north_terminal_diag.values[3]=r->session->player.y;north_terminal_diag.values[4]=north_actors.blocks[0].w;
-            north_terminal_diag.values[5]=north_actors.blocks[0].h;}
+            north_terminal_diag.values[5]=north_actors.blocks[0].h;
+            north_activity_index=north_actors.blocks[0].w?v6_activity_find(north_actors.blocks,north_actors.block_count,&r->session->player):-1;}
         for(i=0;i<north_actors.enemy_count;++i)if((hits&(1U<<i)) &&
             v6_pixel_hit(return_player_collision[player_frame],r->session->player.x,r->session->player.y,
                 (r->index==13?north_drone_collision:r->index==14?north_linear_collision:north_enemy_collision)[north_animation[i].frame],north_actors.enemies[i].x,north_actors.enemies[i].y))v6_tower_session_die(r->session);
@@ -1506,6 +1518,10 @@ static int route_source(void)
         bytes=route.index==10?sizeof(reflect_display):route.index==11?sizeof(yesmen_display):route.index==12?sizeof(gantry_display):route.index==13?sizeof(security_display):sizeof(linear_display);
         if(!v6_north_init(&north_actors,&route.room,route.rooms[route.index].x,route.rooms[route.index].y,route.session->player.y))return 0;
         v6_terminal_init(&north_terminal,252,200,1,0,1);north_terminal_cue=0;
+        north_activity_index=-1;north_read_pending=north_read_bars=north_layer_stage=north_layer_row=north_read_copied=0;
+        north_reader.active=north_reader.boxes[0].visible=north_reader.boxes[1].visible=0;
+        north_reader.bars=north_reader.waiting=north_reader.cues=0;
+        north_layer_bars[0]=north_layer_bars[1]=0;
         for(n=0;n<5;++n){v6_return_enemy_animation_init(&north_animation[n]);v6_return_enemy_animation_tick(&north_animation[n],0);}
     }
 #endif
@@ -2160,6 +2176,7 @@ static void north_draw_dma(UWORD *const out[8])
         if(s->clip==source->mask)north_copy_words(d+2,body,words);
         else for(k=0;k<words;++k)d[2+k]=body[k]&s->clip;
         d[2+words]=d[3+words]=0;
+        if(north_reader.boxes[0].visible)north_read_diag.values[5]+=v6_terminal_layer_occlude(d);
     }
 }
 static int north_draw_bob(unsigned index,unsigned actor)
@@ -2230,7 +2247,11 @@ static int north_prepare_sprites(unsigned index)
         }
         {uint16_t *ptrs[8];
             if(!v6_sprite_mux_owned_replan(&north_mux_plan,north_mux_actors,crew))return 0;
-            if(n>crew && !north_draw_bob(index,crew))return 0;
+            if(n>crew){const V6MuxActor *a=&north_mux_actors[crew];
+                int hidden=north_reader.boxes[0].visible &&
+                    ((a->y>=60 && a->y+a->height<=84) || (a->y>=86 && a->y+a->height<=155));
+                if(!hidden && !north_draw_bob(index,crew))return 0;
+            }
             for(k=0;k<8;++k)ptrs[k]=k<6?building_dma+(index*6+k)*196:north_extra_dma+(index*2+k-6)*196;
             north_draw_dma(ptrs);
         }
@@ -3107,9 +3128,60 @@ west_sprite_refresh:
 #endif
     return 1;
 }
+#ifdef V6_NORTH_ROUTE
+static void north_layer_warm(const UBYTE *ring,unsigned index)
+{
+    unsigned row,p,strip;
+    if(north_read_copied<TERMINAL_READ_BYTES){unsigned count=TERMINAL_READ_BYTES-north_read_copied;
+        if(count>256)count=256;
+        north_copy_words((UWORD *)(pickup_banks+north_read_copied),(const UWORD *)(terminal_read_pcm+north_read_copied),count/2);
+        north_read_copied+=count;}
+    if(north_layer_stage==0){unsigned hog;
+        if(index!=north_layer_row || beam()>=70 || !north_base_words[north_layer_row])return;
+        hog=hw->dmaconr&0x0400;hw->dmacon=DMAF_SETCLR|0x0400;
+        for(strip=0;strip<2;++strip)for(p=0;p<3;++p){unsigned y=strip?224:0;wait_blit();
+            hw->bltcon0=p<2?0x09f0:0x0100;hw->bltcon1=0;
+            hw->bltafwm=hw->bltalwm=0xffff;hw->bltamod=hw->bltdmod=0;
+            hw->bltapt=(APTR)(ring+p*V6_TOWER_PLANE_BYTES+y*40);
+            hw->bltdpt=ui_bitmaps+north_layer_row*V6_TERMINAL_BITMAP+p*9600+y*40;
+            hw->bltsize=(16<<6)|20;}
+        wait_blit();if(!hog)hw->dmacon=0x0400;
+        v6_terminal_scene_windows(&north_terminal_prefix[north_layer_row],
+            (ULONG)(ui_bitmaps+north_layer_row*V6_TERMINAL_BITMAP),(ULONG)(ui_bitmaps+57600),
+            (ULONG)ring,(ULONG)pickup_zero);
+        if(++north_layer_row==2){north_layer_stage=1;north_layer_row=0;}
+    }else if(north_layer_stage==1){UWORD data[20];
+        unsigned end=north_layer_row+2;if(end>120)end=120;
+        for(row=north_layer_row;row<end;++row){unsigned at=terminal_row_offsets[row],size=terminal_row_offsets[row+1]-at;
+            if(!v6_terminal_layer_decode((UBYTE *)data,terminal_row_packets+at,size)){diag.error=23;return;}
+            north_copy_words((UWORD *)(ui_bitmaps+57600+(48+row)*40),data,20);
+        }
+        north_layer_row=end;if(end==120)north_layer_stage=2;
+    }
+    north_read_diag.values[6]=north_layer_stage;north_read_diag.values[7]=north_layer_row;
+}
+static int north_layer_present(UBYTE *ring,UWORD *list,unsigned index)
+{
+    UBYTE *bitmap=ui_bitmaps+index*V6_TERMINAL_BITMAP,*band=ui_bitmaps+2*V6_TERMINAL_BITMAP;
+    unsigned n,visible=north_reader.boxes[0].visible;
+    if(north_layer_stage!=2)return 0;
+    if(north_layer_bars[index]!=north_read_bars){
+        v6_terminal_layer_bars(bitmap,ring,north_read_bars,north_layer_bars[index]);north_layer_bars[index]=north_read_bars;}
+    n=v6_terminal_scene_copper(list,&north_terminal_prefix[index],&north_mux_plan,north_mux_actors,
+        north_overlay.start?&north_overlay:0,(ULONG)bitmap,(ULONG)band,(ULONG)ring,(ULONG)pickup_zero,
+        visible,v6_terminal_box_gray(&north_reader.boxes[0]));
+    if(!n)return 0;
+    north_read_diag.values[8]=(ULONG)bitmap;north_read_diag.values[9]=(ULONG)band;
+    north_read_diag.values[10]=(ULONG)ring;north_read_diag.values[11]=(ULONG)list;
+    north_read_diag.values[12]=north_read_bars;north_read_diag.values[13]=visible;
+    north_read_diag.values[14]=north_reader.phase;north_read_diag.values[15]=session.player.flips;
+    return 1;
+}
+#endif
 static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsigned *drawn)
 {
 #ifdef V6_NORTH_ROUTE
+    if(diag.status==1 && ui_bitmaps && route.index==14 && !route_loading && !map_transition.active && north_layer_stage<2)north_layer_warm(ring,index);
     if(north_terrain_pending){route.room.terrain=0;
         v6_terrain_build(&north_shared_terrain,&route.room);route.room.terrain=&north_shared_terrain;north_terrain_pending=0;}
     if(north_memo_pending && diag.status!=1){
@@ -3133,13 +3205,13 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
 #endif
     int ok;
 #ifdef V6_NORTH_ROUTE
-#endif
-#ifdef V6_NORTH_ROUTE
     if(route.index>=10 && north_base_words[index] && north_base_room[index]==route.index &&
        !camera && !shake_timer && !ui_fields && !rescue_fade && !rescue_vm.speech && !rescue_bars &&
        !pickup_screen.state && !map_transition.active){
         if(drawn)*drawn=0;
-        if(!north_copper_ready[index])north_copy_words(list,north_base_copper[index],north_base_words[index]);
+        if(!north_copper_ready[index] && !(route.index==14 &&
+           (north_read_bars || north_reader.boxes[0].visible)))
+            north_copy_words(list,north_base_copper[index],north_base_words[index]);
         ok=north_prepare_sprites(index);
     } else
 #endif
@@ -3154,10 +3226,14 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
                 if(words+1>=192)return 0;
                 north_base_words[index]=words+2;north_base_room[index]=route.index;
                 for(i=0;i<words+2;++i)north_base_copper[index][i]=list[i];
+                if(route.index==14 && !v6_terminal_scene_prefix(&north_terminal_prefix[index],north_base_copper[index],words+2))return 0;
             }
             base=north_base_copper[index];words=north_base_words[index];
         } else {base=list;for(words=0;words+1<512;words+=2)if(list[words]==0xffff)break;words+=2;}
-        if(base==north_base_copper[index]) {
+        if(route.index==14 && (north_read_bars || north_reader.boxes[0].visible)){
+            if(!north_layer_present(ring,list,index))return 0;
+            n=1;
+        }else if(base==north_base_copper[index]) {
             /* Camera zero has only the line-44 pointer wait. Its register
              * prefix is already in this inactive bank; replace the palette
              * tail directly instead of copying and merging the whole list. */
@@ -3169,7 +3245,8 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
             if(n)north_copy_words(list,merged,n);
         }
         if(!n)return 0;
-        north_copper_ready[index]=!ui_fields && !rescue_vm.speech && !rescue_bars && !pickup_screen.state;
+        north_copper_ready[index]=!ui_fields && !rescue_vm.speech && !rescue_bars && !pickup_screen.state &&
+            !north_read_bars && !north_reader.boxes[0].visible;
         north_copper_tick[index]=diag.logic_ticks;north_copper_room[index]=route.index;
     }
 #endif
@@ -3790,6 +3867,9 @@ static int run(void) {
     diag.step=0;diag.route_min=0;diag.route_max=5368;
     (void)direction;
 #endif
+#ifdef V6_NORTH_ROUTE
+    if(!v6_terminal_read_start(&north_read_prepared,&v6_station_terminal_program))return 20;
+#endif
     __asm volatile("move.l 4.w,%0":"=r"(SysBase));
     if(SysBase->AttnFlags&AFF_68010) {
 #ifdef V6_MENU_COMPLETE
@@ -4085,8 +4165,15 @@ static int run(void) {
     {
         unsigned i;
         cue_chip=chip+CHIP_BYTES-CUE_DMA_BYTES;
+#ifdef V6_NORTH_ROUTE
+        (void)i;
+        if(!v6_sample_unpack_delta(cue_chip,CUE_CREW_BYTES,CUE_CREW_PACKED,sizeof(CUE_CREW_PACKED)) ||
+           !v6_sample_unpack_delta(cue_chip+CUE_CREW_BYTES,CUE_CREW1_BYTES,cue_crew1_packed,sizeof(cue_crew1_packed))){
+            free_chip(chip);CloseLibrary((struct Library *)GfxBase);return 20;}
+#else
         for(i=0;i<CUE_CREW_BYTES;++i)cue_chip[i]=CUE_CREW[i];
         for(i=0;i<CUE_CREW1_BYTES;++i)cue_chip[CUE_CREW_BYTES+i]=cue_crew1[i];
+#endif
         if(!v6_audio_init(&cue_audio,(ULONG)(cue_chip+CUE_DMA_BYTES-2))) {
             free_chip(chip);CloseLibrary((struct Library *)GfxBase);return 20;
         }
@@ -4169,8 +4256,14 @@ static int run(void) {
 #ifdef V6_TOWER_TRAVEL_AUDIO
     {
         unsigned i;travel_audio_chip=chip+CHIP_BYTES-AUDIO_DMA_BYTES;
+#ifdef V6_NORTH_ROUTE
+        if(!v6_sample_unpack_delta(travel_audio_chip,TELEPORTER_FLASH_BYTES,teleporter_flash_packed,sizeof(teleporter_flash_packed)) ||
+           !v6_sample_unpack_delta(travel_audio_chip+TELEPORTER_FLASH_BYTES,TELEPORTER_TELEPORT_BYTES,teleporter_teleport_packed,sizeof(teleporter_teleport_packed))){
+            free_chip(chip);CloseLibrary((struct Library *)GfxBase);return 20;}
+#else
         for(i=0;i<TELEPORTER_FLASH_BYTES;++i)travel_audio_chip[i]=teleporter_flash[i];
         for(i=0;i<TELEPORTER_TELEPORT_BYTES;++i)travel_audio_chip[TELEPORTER_FLASH_BYTES+i]=teleporter_teleport[i];
+#endif
 #ifdef V6_TOWER_COEXIST_AUDIO
         coexist_sample=travel_audio_chip+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES;
         for(i=0;i<64;++i)coexist_sample[i]=(UBYTE)(i<32?(int)i*6-96:288-(int)i*6);
@@ -4178,8 +4271,8 @@ static int run(void) {
 #ifdef V6_TOWER_PRIZE
 #ifdef V6_NORTH_ROUTE
         {UBYTE *dest=travel_audio_chip+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES;
-            if(!v6_sample_unpack(dest,PRIZE_VANISH_BYTES,prize_vanish_packed,sizeof(prize_vanish_packed)) ||
-               !v6_sample_unpack(dest+PRIZE_VANISH_BYTES,PRIZE_TRINKET_BYTES,prize_trinket_packed,sizeof(prize_trinket_packed))){
+            if(!v6_sample_unpack_delta(dest,PRIZE_VANISH_BYTES,prize_vanish_packed,sizeof(prize_vanish_packed)) ||
+               !v6_sample_unpack_delta(dest+PRIZE_VANISH_BYTES,PRIZE_TRINKET_BYTES,prize_trinket_packed,sizeof(prize_trinket_packed))){
                 free_chip(chip);CloseLibrary((struct Library *)GfxBase);return 20;}}
 #else
         for(i=0;i<PRIZE_VANISH_BYTES;++i)travel_audio_chip[TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+i]=prize_vanish[i];
@@ -4571,10 +4664,42 @@ static int run(void) {
                     if(joy&2)buttons|=V6_MAP_RIGHT;
                     if(fire)buttons|=V6_MAP_ACTION;
                     if(!(buttons&V6_MAP_ACTION))map_action_held=0;
+#ifdef V6_NORTH_ROUTE
+                    {unsigned pressed=(buttons&V6_MAP_ENTER) && !north_read_enter;
+                        unsigned action=(buttons&V6_MAP_ACTION)!=0,old_active=north_reader.active,old_cues=north_reader.cues;
+                        north_read_enter=(buttons&V6_MAP_ENTER)!=0;north_read_block_action=north_reader.waiting;
+                        if(route.index==14 && !map_transition.active && !map_menu.open){
+                            if(pressed){V6ActivitySignals signals={1,1,session.death_timer!=-1,session.life_timer,
+                                north_reader.active || north_read_pending,0};
+                            V6ActivityResult result=v6_activity_input(north_actors.blocks,north_actors.block_count,
+                                north_activity_index,&session.player,&signals);
+                            if(result.consumed)map_menu.mapheld=1;
+                            if(result.action==V6_INTERACT_ACTIVITY){north_read_pending=1;map_menu.mapheld=1;}}
+                            if(north_read_pending && north_layer_stage==2){north_read_pending=0;
+                                north_copy_words((UWORD *)&north_reader,(const UWORD *)&north_read_prepared,sizeof(north_reader)/2);++north_read_diag.values[0];}
+                            v6_terminal_read_tick(&north_reader,&(V6TerminalReadSignals){(int)north_read_bars,(int)(action && !north_read_fire)});
+                            if(north_reader.cues!=old_cues){north_terminal_cue|=2;++north_read_diag.values[2];}
+                            if(old_active && !north_reader.active){++north_read_diag.values[1];north_read_diag.values[12]=north_read_diag.values[13]=0;}
+                            if(north_reader.bars){north_read_bars+=25;if(north_read_bars>361)north_read_bars=361;}
+                            else north_read_bars=north_read_bars<25?0:north_read_bars-25;
+                            v6_terminal_read_animate(&north_reader);
+                            if(north_reader.active || north_read_pending){if(buttons&V6_MAP_ENTER)map_menu.mapheld=1;}
+                        }
+                        north_read_fire=action;
+                        if(route.index==14){north_read_diag.values[3]=north_actors.blocks[0].w;north_read_diag.values[4]=north_actors.blocks[0].h;
+                            north_read_diag.values[16]=north_reader.control;north_read_diag.values[17]=north_actors.enemies[0].x;
+                            north_read_diag.values[18]=north_actors.enemies[1].x;north_read_diag.values[19]=north_read_copied;}
+
+                    }
+#endif
                     event=v6_map_menu_tick(&map_menu,buttons,
                         !route_loading && session.death_timer==-1 && !pickup_screen.state &&
                         !tele_menu.open && !departure.state && !arrival.state && !rescue_vm.active &&
-                        !cue_audio.state && !travel_audio_busy(),
+                        !cue_audio.state && !travel_audio_busy()
+#ifdef V6_NORTH_ROUTE
+                        && !north_reader.active && !north_read_pending
+#endif
+                        ,
 #ifdef V6_MAP_DISPLAY_CAPTURE
                         v6_map_transition_input_locked(&map_transition),
 #else
@@ -4582,6 +4707,10 @@ static int run(void) {
 #endif
                         0,0);
                     if(event==V6_MAP_OPENED) {
+#ifdef V6_NORTH_ROUTE
+                        north_layer_stage=north_layer_row=north_read_copied=0;north_layer_bars[0]=north_layer_bars[1]=0;
+
+#endif
 #ifdef V6_MENU_SLIDE
                         if(!menu_capture_game(lists[back^1])){diag.error=22;break;}
 #endif
@@ -4942,6 +5071,12 @@ static int run(void) {
                 v6_companion_step(&companion,&session.player,&route.room,session.death_timer);
 #endif
                 rescue_animate();
+#ifdef V6_NORTH_ROUTE
+                if(route.index==14 && north_reader.active){
+                    if(!north_reader.control)input|=V6_NO_CONTROL;
+                    if(north_read_block_action){session.player.held=(input&V6_FLIP)!=0;session.player.buffer=0;}
+                }
+#endif
                 rescue_signals.bars_ready=rescue_vm.bars?rescue_bars>=360:rescue_bars==0;
                 rescue_signals.fade_ready=rescue_vm.fade>0?rescue_fade>416:rescue_fade==0;
                 rescue_signals.onroof=session.player.roof>0;
@@ -5006,7 +5141,7 @@ static int run(void) {
                     )limit=0;
 #ifdef V6_NORTH_ROUTE
                     unsigned terminal_pending=north_terminal_cue;north_terminal_cue=0;
-                    if(terminal_pending)limit=7;
+                    if(terminal_pending)limit=8;
 #endif
                     for(slot=0;slot<limit;++slot) {
                         cue=slot;
@@ -5014,7 +5149,8 @@ static int run(void) {
                         if(slot>=2)cue=v6_prize_audio_cue(pending,slot-2);
 #endif
 #ifdef V6_NORTH_ROUTE
-                        if(slot==6)cue=5;
+                        if(slot==6)cue=(terminal_pending&1)?5:4;
+                        if(slot==7)cue=(terminal_pending&2)?6:4;
 #endif
                         if(slot<2 ? !(events&(1U<<slot)) : cue==4)continue;
                         unsigned i,busy=0,age[4];int chosen;V6AudioSample sample;V6AudioPlan plan;
@@ -5041,8 +5177,9 @@ static int run(void) {
                             }
 #endif
 #ifdef V6_NORTH_ROUTE
-                            if(cue==5){sample.address=(ULONG)(travel_audio_chip+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+PRIZE_AUDIO_BYTES);
-                                sample.bytes=TERMINAL_TOUCH_BYTES;sample.period=TERMINAL_PERIOD;}
+                            if(cue>=5){sample.address=(ULONG)(travel_audio_chip+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+PRIZE_AUDIO_BYTES);
+                                if(cue==6)sample.address=(ULONG)pickup_banks;
+                                sample.bytes=cue==6?TERMINAL_READ_BYTES:TERMINAL_TOUCH_BYTES;sample.period=TERMINAL_PERIOD;}
 #endif
                             if(!v6_paula_request(&travel_voices[i],&sample,&plan)) {
                                 diag.error=15;
@@ -5427,6 +5564,9 @@ tele_menu_paused:
             r[0]=diag.logic_ticks;r[1]=frames;r[2]=logic_work;r[3]=render_work;
             r[4]=pickup_pause_ticks;r[5]=pickup_rows[back];r[6]=pickup_draw.bars;r[7]=frames-previous;
         }
+#endif
+#ifdef V6_NORTH_ROUTE
+
 #endif
         if(logic_work>profile.max_logic)profile.max_logic=logic_work;
         if(render_work>profile.max_render) profile.max_render=render_work;

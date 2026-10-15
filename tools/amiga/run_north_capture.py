@@ -64,20 +64,9 @@ def main():
             index=int(case[4:]);folder=build(f'amiga-north-live-{index}',f'-DV6_NORTH_START={index}')
             slide(folder)
         elif case=='linear-contact':
-            folder=build('amiga-north-linear-contact','-DV6_NORTH_START=14 -DV6_NORTH_TERMINAL_CONTACT');slide(folder)
-            ram=(folder/'ui-slide-controls.bin').read_bytes()
-            at=ram.index(b'V6NT');values=struct.unpack_from('>8I',ram,at)
-            assert values[2:4]==(1,1) and 234<values[4]<262 and values[5:]==(193,20,16),values
-            at=ram.index(b'V6TA');audio=struct.unpack_from('>42I',ram,at)
-            assert audio[2:5]==(0,1,1) and audio[6:8]==(1,0),audio
-            assert audio[11]==5 and audio[12] in (2,3),audio
-            chip=(folder/'ui-slide-full.bin').read_bytes()
-            for cue in ('vanish','trinket'):
-                pcm=(ROOT/'build/amiga-feasibility'/('prize-'+cue+'.pcm')).read_bytes()
-                assert chip.count(pcm)==1,('native boot PCM expansion',cue)
-            report=json.loads((folder/'ui-slide-controls-report.json').read_text());d=timing(report)
-            reports[case]=dict(display=d,terminal=values)
-            print('PASS original native terminal contact and retained activity:',values,flush=True)
+            folder=build('amiga-north-linear-contact','-DV6_NORTH_START=14 -DV6_NORTH_TERMINAL_CONTACT -DV6_NORTH_FOLLOWER')
+            subprocess.run(['python3',str(ROOT/'tools/amiga/run_terminal_campaign.py'),'--build',str(folder)],check=True)
+            reports[case]=json.loads((folder/'terminal-campaign-report.json').read_text())
             continue
         elif case in ('follower','security-follower','linear-follower'):
             index=14 if case=='linear-follower' else 13 if case=='security-follower' else 11
