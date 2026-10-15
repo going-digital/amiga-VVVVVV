@@ -5842,3 +5842,35 @@ This completes the portable terminal read presentation. Native Copper/layer
 composition, sound consumption and Linear Collider admission/traversal remain
 the next milestone. The playable prototype remains at fourteen resident banks;
 no new native frame-budget or complete-room claim is made by these host checks.
+
+### Native station-terminal fixture (15 October 2026)
+
+`make -C amiga_version terminal-native-capture` builds and checks the isolated
+`build/amiga-terminal-native/terminal.adf`. It uses Linear Collider's original
+room tiles, two moving enemies, checkpoints, terminal activity, station log,
+font/borders and touch/read sounds. Enter/Return reads the log; Space, Z or V
+advances; Escape or left mouse returns to DOS. The player is fixed beside the
+terminal for this hardware fixture; it is not a traversable campaign room.
+
+The fixture double-buffers three foreground planes and sprite DMA. Caption
+masks remove covered hardware-sprite pixels while both enemies continue to
+update. Original horizontal cutscene bars update only changed longwords;
+reading buffers are warmed before takeover to avoid an opening-frame spike.
+Keyboard edges persist across render-only fields. Original terminal and read
+cues play through mirrored Paula channels and drain before returning idle.
+Fades currently sample the logic-tick opacity; render interpolation and the
+campaign's parallax/companion composition still need integration.
+
+Stock PAL A500 / 68000 / OCS / 512 KiB Chip + 512 KiB Slow / no Fast RAM
+captures pass opening, reading, dismissal and DOS return, with a maximum of
+274 work scanlines, zero missed fields and zero engine errors. The fixture
+allocates 131,996 Chip bytes. Checks also compare 24,960 displayed bitmap bytes,
+validate sprite DMA inside/outside caption masks and capture the read cue's
+PCM output. The portable source comparisons still pass 324 script ticks,
+56 fade schedules, 1,843,200 textbox pixels and the activity/contact suite.
+These measurements apply to this fixture, not the full campaign workload.
+
+The playable `build/amiga-north/tower.adf` remains at fourteen resident banks.
+Next: integrate terminal presentation/audio into its live foreground,
+parallax and companion composition; then admit Linear Collider and verify
+traversal, memory and the stock A500 280-line gate. Music remains deferred.

@@ -289,7 +289,9 @@ def north_route_room(name):
         'gantry':(50,40,'Gantry and Dolly',[(104,64,3,10),(136,64,3,10),
             (168,64,3,10),(56,104,10,1,440500),(56,152,2,3,3),
             (280,192,10,1,440501)]),
-        'security':(50,39,'Security Sweep',[(200,32,1,0,8),(168,104,10,1,439500)])}
+        'security':(50,39,'Security Sweep',[(200,32,1,0,8),(168,104,10,1,439500)]),
+        'linear':(51,39,'Linear Collider',[(24,168,10,1,439510),(280,48,10,0,439511),
+            (80,88,1,3,3),(208,128,1,2,3),(252,200,20,1)])}
     rx,ry,title,expected=cases[name]
     source=(ROOT/'desktop_version/src/Spacestation2.cpp').read_text()
     start=source.index(f'case rn({rx},{ry}):');body=source[start:source.index('case rn(',start+5)]
@@ -304,8 +306,11 @@ def north_route_room(name):
     calls=[tuple(integer(ast.parse(v.strip(),mode='eval').body) for v in call.split(','))
            for call in re.findall(r'obj.createentity\(([^;]+)\);',body)]
     assert len(tiles)==1200 and calls==expected
-    assert not re.findall(r'obj.createblock\(',body) and f'roomname = "{title}";' in body
-    return dict(x=rx+62,y=ry+64,tileset=0,tiles=tiles,name=title,entities=calls,
+    blocks=[tuple(integer(ast.parse(v.strip(),mode='eval').body) for v in call.split(','))
+        for call in re.findall(r'obj.createblock\(([^;]+)\);',body)]
+    assert blocks==([(5,248,200,20,16,6)] if name=='linear' else [])
+    assert f'roomname = "{title}";' in body
+    return dict(x=rx+62,y=ry+64,tileset=0,tiles=tiles,name=title,entities=calls,blocks=blocks,
         checkpoints=[(call[0],call[1],20+call[3],call[4]) for call in calls if call[2]==10])
 
 

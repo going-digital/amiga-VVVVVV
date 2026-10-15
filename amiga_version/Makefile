@@ -1357,3 +1357,19 @@ $(BUILD)/terminal_read.o: terminal_read.c terminal_read.h | $(BUILD)
 .PHONY: test-terminal-read
 test-terminal-read: $(BUILD)/terminal_read.o
 	python3 $(ROOT)/tools/amiga/test_terminal_read.py
+
+.PHONY: terminal-native terminal-native-assets terminal-native-capture
+terminal-native-assets: tower-assets
+	python3 $(ROOT)/tools/amiga/convert_terminal_fixture.py --data "$(DATA)" --out $(ROOT)/build/amiga-terminal-native
+terminal-native: terminal-native-assets
+	$(MAKE) BUILD=$(ROOT)/build/amiga-terminal-native $(ROOT)/build/amiga-terminal-native/terminal.adf
+$(BUILD)/terminal_probe.o: terminal_probe.c terminal_read.h activity.h terminal.h $(BUILD)/terminal_fixture_assets.h $(BUILD)/terminal_station_program.h | $(BUILD)
+	$(CC) $(CFLAGS) -Wno-volatile-register-var -fno-delete-null-pointer-checks -O2 -c $< -o $@
+$(BUILD)/terminal.elf: $(BUILD)/terminal_probe.o $(BUILD)/activity.o $(BUILD)/terminal.o $(BUILD)/terminal_read.o $(BUILD)/keyboard.o $(BUILD)/sprites.o $(BUILD)/enemy.o $(BUILD)/player.o $(BUILD)/terrain.o $(BUILD)/blocks.o $(BUILD)/audio.o
+	$(CC) $(LDFLAGS) $^ -o $@
+$(BUILD)/terminal.exe: $(BUILD)/terminal.elf
+	$(ELF2HUNK) $< $@
+$(BUILD)/terminal.adf: $(BUILD)/terminal.exe
+	"$(CTL)" exe2adf $< --boot --out $@
+terminal-native-capture: terminal-native
+	python3 $(ROOT)/tools/amiga/run_terminal_native.py
