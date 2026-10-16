@@ -855,6 +855,7 @@ static volatile struct {ULONG magic,version,loads,hits,errors,pauses,drain_field
 #include "leap_assets.h"
 #include "solitude_assets.h"
 #include "conundrum_assets.h"
+#include "welcome_assets.h"
 #endif
 #ifdef V6_REGIONAL_CONTENT
 #define NORTH_DISPLAY_BYTES(name) (north_content->display_bytes)
@@ -871,11 +872,12 @@ static volatile struct {ULONG magic,version,loads,hits,errors,pauses,drain_field
 #define LEAP_DISPLAY_BYTES NORTH_DISPLAY_BYTES(leap)
 #define SOLITUDE_DISPLAY_BYTES NORTH_DISPLAY_BYTES(solitude)
 #define CONUNDRUM_DISPLAY_BYTES NORTH_DISPLAY_BYTES(conundrum)
+#define WELCOME_DISPLAY_BYTES NORTH_DISPLAY_BYTES(welcome)
 #include "firststeps_program.h"
 #include "sample_unpack.h"
 static V6FirstStepsTrigger firststeps_trigger;
 static V6ConundrumTrigger conundrum_trigger;
-#ifdef V6_CONUNDRUM_EDGE
+#if defined(V6_CONUNDRUM_EDGE) || defined(V6_WELCOME_EDGE)
 static unsigned conundrum_edge_settled;
 #endif
 static unsigned conundrum_previous_level;
@@ -919,20 +921,20 @@ static UWORD north_base_copper[2][192];
 static V6TerminalPrefix north_terminal_prefix[2];
 static unsigned north_base_words[2],north_base_room[2],north_base_tail[2];
 static V6ReturnEnemyAnimation north_animation[5];
-#define NORTH_FG(a,b,c,e,f,g,h,j,k,l,d) (route.index==10?(a):route.index==11?(b):route.index==12?(c):route.index==13?(e):route.index==14?(f):route.index==15?(g):route.index==16?(h):route.index==17?(j):route.index==18?(k):route.index==19?(l):(d))
+#define NORTH_FG(a,b,c,e,f,g,h,j,k,l,m,d) (route.index==10?(a):route.index==11?(b):route.index==12?(c):route.index==13?(e):route.index==14?(f):route.index==15?(g):route.index==16?(h):route.index==17?(j):route.index==18?(k):route.index==19?(l):route.index==20?(m):(d))
 #else
-#define NORTH_FG(a,b,c,e,f,g,h,j,k,l,d) (d)
+#define NORTH_FG(a,b,c,e,f,g,h,j,k,l,m,d) (d)
 #endif
 #ifdef V6_NORTH_ROUTE
 #define frown_terrain north_shared_terrain
 #else
 static V6Terrain frown_terrain;
 #endif
-#define FG_OFFSETS NORTH_FG(reflect_pair_offsets,yesmen_pair_offsets,gantry_pair_offsets,security_pair_offsets,linear_pair_offsets,filter_pair_offsets,traffic_pair_offsets,leap_pair_offsets,solitude_pair_offsets,conundrum_pair_offsets,WEST_FG(deception_pair_offsets,downunder_pair_offsets,VSTITCH_FG(vstitch_pair_offsets,PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)))))
-#define FG_PAIRS NORTH_FG(reflect_pairs,yesmen_pairs,gantry_pairs,security_pairs,linear_pairs,filter_pairs,traffic_pairs,leap_pairs,solitude_pairs,conundrum_pairs,WEST_FG(deception_pairs,downunder_pairs,VSTITCH_FG(vstitch_pairs,PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)))))
-#define FG_WORDS NORTH_FG(REFLECT_PAIR_WORDS,YESMEN_PAIR_WORDS,GANTRY_PAIR_WORDS,SECURITY_PAIR_WORDS,LINEAR_PAIR_WORDS,FILTER_PAIR_WORDS,TRAFFIC_PAIR_WORDS,LEAP_PAIR_WORDS,SOLITUDE_PAIR_WORDS,CONUNDRUM_PAIR_WORDS,WEST_FG(DECEPTION_PAIR_WORDS,DOWNUNDER_PAIR_WORDS,VSTITCH_FG(VSTITCH_PAIR_WORDS,PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)))))
-#define FG_COUNT NORTH_FG(REFLECT_TILE_COUNT,YESMEN_TILE_COUNT,GANTRY_TILE_COUNT,SECURITY_TILE_COUNT,LINEAR_TILE_COUNT,FILTER_TILE_COUNT,TRAFFIC_TILE_COUNT,LEAP_TILE_COUNT,SOLITUDE_TILE_COUNT,CONUNDRUM_TILE_COUNT,WEST_FG(DECEPTION_TILE_COUNT,DOWNUNDER_TILE_COUNT,VSTITCH_FG(VSTITCH_TILE_COUNT,PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)))))
-#define FG_PALETTE NORTH_FG(reflect_palette,yesmen_palette,gantry_palette,security_palette,linear_palette,filter_palette,traffic_palette,leap_palette,solitude_palette,conundrum_palette,WEST_FG(deception_palette,downunder_palette,VSTITCH_FG(vstitch_palette,PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)))))
+#define FG_OFFSETS NORTH_FG(reflect_pair_offsets,yesmen_pair_offsets,gantry_pair_offsets,security_pair_offsets,linear_pair_offsets,filter_pair_offsets,traffic_pair_offsets,leap_pair_offsets,solitude_pair_offsets,conundrum_pair_offsets,welcome_pair_offsets,WEST_FG(deception_pair_offsets,downunder_pair_offsets,VSTITCH_FG(vstitch_pair_offsets,PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)))))
+#define FG_PAIRS NORTH_FG(reflect_pairs,yesmen_pairs,gantry_pairs,security_pairs,linear_pairs,filter_pairs,traffic_pairs,leap_pairs,solitude_pairs,conundrum_pairs,welcome_pairs,WEST_FG(deception_pairs,downunder_pairs,VSTITCH_FG(vstitch_pairs,PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)))))
+#define FG_WORDS NORTH_FG(REFLECT_PAIR_WORDS,YESMEN_PAIR_WORDS,GANTRY_PAIR_WORDS,SECURITY_PAIR_WORDS,LINEAR_PAIR_WORDS,FILTER_PAIR_WORDS,TRAFFIC_PAIR_WORDS,LEAP_PAIR_WORDS,SOLITUDE_PAIR_WORDS,CONUNDRUM_PAIR_WORDS,WELCOME_PAIR_WORDS,WEST_FG(DECEPTION_PAIR_WORDS,DOWNUNDER_PAIR_WORDS,VSTITCH_FG(VSTITCH_PAIR_WORDS,PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)))))
+#define FG_COUNT NORTH_FG(REFLECT_TILE_COUNT,YESMEN_TILE_COUNT,GANTRY_TILE_COUNT,SECURITY_TILE_COUNT,LINEAR_TILE_COUNT,FILTER_TILE_COUNT,TRAFFIC_TILE_COUNT,LEAP_TILE_COUNT,SOLITUDE_TILE_COUNT,CONUNDRUM_TILE_COUNT,WELCOME_TILE_COUNT,WEST_FG(DECEPTION_TILE_COUNT,DOWNUNDER_TILE_COUNT,VSTITCH_FG(VSTITCH_TILE_COUNT,PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)))))
+#define FG_PALETTE NORTH_FG(reflect_palette,yesmen_palette,gantry_palette,security_palette,linear_palette,filter_palette,traffic_palette,leap_palette,solitude_palette,conundrum_palette,welcome_palette,WEST_FG(deception_palette,downunder_palette,VSTITCH_FG(vstitch_palette,PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)))))
 #else
 #define FG_OFFSETS (route.index==5?energize_pair_offsets:tower_pair_offsets)
 #define FG_PAIRS (route.index==5?energize_pairs:tower_pairs)
@@ -1091,6 +1093,9 @@ static int station_route_step(V6TowerRoute *r,unsigned input,V6TowerRoutePhase p
     V6TowerRouteHooks hooks={phase,prize_entities,prize_contacts,prize_death};
 #ifdef V6_CONUNDRUM_TOUR
     input=r->index==19 && r->session->player.x>40 && !(conundrum_trigger.active&1)?V6_LEFT:0;
+#endif
+#ifdef V6_WELCOME_EDGE
+    input=r->index==V6_NORTH_START?(V6_NORTH_START==19?V6_LEFT:V6_RIGHT):0;
 #endif
 #ifdef V6_CONUNDRUM_EDGE
     input=r->index==V6_NORTH_START?(V6_NORTH_START==18?V6_LEFT:V6_RIGHT):0;
@@ -1575,9 +1580,9 @@ static int route_source(void)
     }
 #endif
 #ifdef V6_NORTH_ROUTE
-    if(route.index>=10 && route.index<=19){unsigned n;
-        data=route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:route.index==13?security_display:route.index==14?linear_display:route.index==15?filter_display:route.index==16?traffic_display:route.index==17?leap_display:route.index==18?solitude_display:conundrum_display;
-        bytes=route.index==10?REFLECT_DISPLAY_BYTES:route.index==11?YESMEN_DISPLAY_BYTES:route.index==12?GANTRY_DISPLAY_BYTES:route.index==13?SECURITY_DISPLAY_BYTES:route.index==14?LINEAR_DISPLAY_BYTES:route.index==15?FILTER_DISPLAY_BYTES:route.index==16?TRAFFIC_DISPLAY_BYTES:route.index==17?LEAP_DISPLAY_BYTES:route.index==18?SOLITUDE_DISPLAY_BYTES:CONUNDRUM_DISPLAY_BYTES;
+    if(route.index>=10 && route.index<=20){unsigned n;
+        data=route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:route.index==13?security_display:route.index==14?linear_display:route.index==15?filter_display:route.index==16?traffic_display:route.index==17?leap_display:route.index==18?solitude_display:route.index==19?conundrum_display:welcome_display;
+        bytes=route.index==10?REFLECT_DISPLAY_BYTES:route.index==11?YESMEN_DISPLAY_BYTES:route.index==12?GANTRY_DISPLAY_BYTES:route.index==13?SECURITY_DISPLAY_BYTES:route.index==14?LINEAR_DISPLAY_BYTES:route.index==15?FILTER_DISPLAY_BYTES:route.index==16?TRAFFIC_DISPLAY_BYTES:route.index==17?LEAP_DISPLAY_BYTES:route.index==18?SOLITUDE_DISPLAY_BYTES:route.index==19?CONUNDRUM_DISPLAY_BYTES:WELCOME_DISPLAY_BYTES;
         if(!v6_north_init(&north_actors,&route.room,route.rooms[route.index].x,route.rooms[route.index].y,route.session->player.y))return 0;
         v6_firststeps_enter(&firststeps_trigger,route.rooms[route.index].x,route.rooms[route.index].y,0);
         {unsigned mode=route.index==18?1:route.index==19?2:0;
@@ -1846,9 +1851,9 @@ static void wait_blit(void)
 #ifdef V6_REGIONAL_CONTENT
 static int region_read(void *context,unsigned region,void *out,unsigned capacity,unsigned *size)
 {
-    static const char *const names[]={"DF0:north0.v6rg","DF0:north1.v6rg","DF0:north2.v6rg","DF0:north3.v6rg","DF0:north4.v6rg"};
+    static const char *const names[]={"DF0:north0.v6rg","DF0:north1.v6rg","DF0:north2.v6rg","DF0:north3.v6rg","DF0:north4.v6rg","DF0:north5.v6rg"};
     intptr_t file;unsigned used=0;int n,ok=1;UBYTE extra;
-    (void)context;if(region>=5)return 0;
+    (void)context;if(region>=6)return 0;
     file=v6_campaign_dos.open(names[region],0);if(!file)return 0;
     while(used<capacity){n=v6_campaign_dos.read(file,(UBYTE *)out+used,capacity-used);
         if(n<0 || (unsigned)n>capacity-used){ok=0;break;}if(!n)break;used+=n;}
@@ -1862,7 +1867,7 @@ static int region_materialize(V6TowerRoute *r,unsigned index,void *context)
     unsigned paused=0;ULONG held=frames,held_ticks=diag.logic_ticks,held_hash=0;int ok;
     (void)context;
     if(index<10)return 1;
-    if(index>19)return 0;
+    if(index>20)return 0;
     region=(index-10)>>1;
     for(i=0;i<V6_REGION_SLOTS;++i)if(north_regions.slots[i].valid && north_regions.slots[i].region==region)hit=1;
     if(!hit && region_runtime.active){
@@ -2067,10 +2072,10 @@ static const char *menu_area(int x,int y)
 }
 static const char *menu_roomname(void)
 {
-    static const char *names[22]={"The Tower","The Tower","I'm Sorry...","Seeing Red",
-        "Building Apport","Energize","Frown Upside Down","Shenanigan","Prize for the Reckless","V Stitch","A Deception","Down Under","Stop and Reflect","The Yes Men","Gantry and Dolly","Security Sweep","Linear Collider","Atmospheric Filtering Unit","Traffic Jam","Leap of Faith","Solitude","Conundrum"};
+    static const char *names[23]={"The Tower","The Tower","I'm Sorry...","Seeing Red",
+        "Building Apport","Energize","Frown Upside Down","Shenanigan","Prize for the Reckless","V Stitch","A Deception","Down Under","Stop and Reflect","The Yes Men","Gantry and Dolly","Security Sweep","Linear Collider","Atmospheric Filtering Unit","Traffic Jam","Leap of Faith","Solitude","Conundrum","Welcome Aboard"};
 #ifdef V6_NORTH_ROUTE
-    if(route.index>=10 && route.index<=19)return names[route.index+2];
+    if(route.index>=10 && route.index<=20)return names[route.index+2];
 #endif
     return route.index<12?names[route.index]:"Untitled room";
 }
@@ -2701,7 +2706,9 @@ static int prepare_world(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,
 #endif
     if(map_bitmap) {
 #ifdef V6_NORTH_ROUTE
-        if(!route_loading && !map_refresh())return 0;
+        /* Keep hidden exploration redraw off the live tutorial's full render
+         * path. An opened map owns the redraw budget; otherwise defer it. */
+        if(!route_loading && (!conundrum_trigger.visible || map_transition.active) && !map_refresh())return 0;
 #else
         if(!map_refresh())return 0;
 #endif
@@ -3348,8 +3355,9 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     }
 #endif
 #ifdef V6_NORTH_ROUTE
-    /* Refresh newly explored nine-row map bands on spare world fields. */
-    if(route.index>=10 && !map_transition.active && north_base_words[index] &&
+    /* Refresh newly explored nine-row map bands on spare cached-world fields.
+     * A live tutorial uses prepare_world, which already spends this row budget. */
+    if(route.index>=10 && !map_transition.active && !conundrum_trigger.visible && north_base_words[index] &&
        north_base_room[index]==route.index && north_copper_tick[index^1]==diag.logic_ticks)
 #ifdef V6_NORTH_ROUTE
         if(!route_loading && !map_refresh())return 0;
@@ -3946,7 +3954,7 @@ static int run(void) {
 #endif
         /* A checkpoint-free room retains its actual predecessor's save. */
         if(V6_NORTH_START==17)saved=&tower_route_rooms[16];
-        if(V6_NORTH_START==19)saved=&tower_route_rooms[18];
+        if(V6_NORTH_START==19 || V6_NORTH_START==20)saved=&tower_route_rooms[18];
         if(!saved->count)return 20;
         c=saved->checkpoints;
         world.save=(V6CheckpointSave){c->x-4,c->y-(c->tile==20?2:7),c->tile==20,1,saved->x,saved->y,c->id};
@@ -3957,7 +3965,8 @@ static int run(void) {
         station_story.companion=0;rescue_vm.following=0;
 #endif
         v6_tower_session_init(&session,world.save.x,world.save.y,world.save.gravity,1);
-        if(!v6_tower_route_load(&route,r->x,r->y,V6_NORTH_START!=17 && V6_NORTH_START!=19))return 20;
+        if(!v6_tower_route_load(&route,r->x,r->y,V6_NORTH_START!=17 && V6_NORTH_START!=19 && V6_NORTH_START!=20))return 20;
+        if(V6_NORTH_START==20){v6_player_init(&session.player,290,110,0);session.motion.pending_y=110;}
         if(V6_NORTH_START==19){v6_player_init(&session.player,290,110,1);session.motion.pending_y=110;}
         if(V6_NORTH_START==17){v6_player_init(&session.player,120,80,0);session.motion.pending_y=80;}
 #ifdef V6_NORTH_TERMINAL_CONTACT
@@ -3967,6 +3976,9 @@ static int run(void) {
         v6_player_init(&session.player,(V6_NORTH_START==13 || V6_NORTH_CORRIDOR==2 || V6_NORTH_CORRIDOR==3)?290:8,
             (V6_NORTH_START>=15 || V6_NORTH_CORRIDOR>=2)?97:161,0);
         session.motion.pending_y=session.player.y;
+#endif
+#ifdef V6_WELCOME_EDGE
+        v6_player_init(&session.player,V6_NORTH_START==19?8:290,110,0);session.motion.pending_y=110;
 #endif
 #ifdef V6_CONUNDRUM_EDGE
         v6_player_init(&session.player,V6_NORTH_START==18?8:290,110,0);session.motion.pending_y=110;
@@ -4066,7 +4078,7 @@ static int run(void) {
     /* Direct Leap fixture represents entry from the saved Traffic checkpoint. */
     if(!tele_note_room(115,103))return 20;
 #endif
-#if defined(V6_NORTH_START) && V6_NORTH_START==19
+#if defined(V6_NORTH_START) && (V6_NORTH_START==19 || V6_NORTH_START==20)
     if(!tele_note_room(115,105))return 20;
 #endif
 #ifdef V6_MENU_EXPLORED_CAPTURE
@@ -4092,6 +4104,10 @@ static int run(void) {
 #ifdef V6_CONUNDRUM_REVISIT
       if(!v6_tower_route_load(&route,114,105,0))return 20;
       v6_player_init(&session.player,290,110,1);session.motion.pending_y=110;
+#endif
+#ifdef V6_WELCOME_REVISIT
+      if(!v6_tower_route_load(&route,113,105,0))return 20;
+      v6_player_init(&session.player,290,110,0);session.motion.pending_y=110;
 #endif
     }
 #endif
@@ -4284,6 +4300,7 @@ static int run(void) {
 #ifndef V6_REGIONAL_CONTENT
        !v6_tower_open(&stream,reflect_display,REFLECT_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,reflect_pair_offsets,REFLECT_PAIR_WORDS,REFLECT_TILE_COUNT,2) ||
        !v6_tower_open(&stream,yesmen_display,YESMEN_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,yesmen_pair_offsets,YESMEN_PAIR_WORDS,YESMEN_TILE_COUNT,2) ||
+       !v6_tower_open(&stream,welcome_display,WELCOME_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,welcome_pair_offsets,WELCOME_PAIR_WORDS,WELCOME_TILE_COUNT,2) ||
        !v6_tower_open(&stream,conundrum_display,CONUNDRUM_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,conundrum_pair_offsets,CONUNDRUM_PAIR_WORDS,CONUNDRUM_TILE_COUNT,2) ||
        !v6_tower_open(&stream,solitude_display,SOLITUDE_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,solitude_pair_offsets,SOLITUDE_PAIR_WORDS,SOLITUDE_TILE_COUNT,2) ||
        !v6_tower_open(&stream,leap_display,LEAP_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,leap_pair_offsets,LEAP_PAIR_WORDS,LEAP_TILE_COUNT,2) ||
@@ -4387,8 +4404,8 @@ static int run(void) {
 #endif
 #endif
 #ifdef V6_NORTH_ROUTE
-       (route.index>=10 && !v6_tower_open(&stream,route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:route.index==13?security_display:route.index==14?linear_display:route.index==15?filter_display:route.index==16?traffic_display:route.index==17?leap_display:route.index==18?solitude_display:conundrum_display,
-           route.index==10?REFLECT_DISPLAY_BYTES:route.index==11?YESMEN_DISPLAY_BYTES:route.index==12?GANTRY_DISPLAY_BYTES:route.index==13?SECURITY_DISPLAY_BYTES:route.index==14?LINEAR_DISPLAY_BYTES:route.index==15?FILTER_DISPLAY_BYTES:route.index==16?TRAFFIC_DISPLAY_BYTES:route.index==17?LEAP_DISPLAY_BYTES:route.index==18?SOLITUDE_DISPLAY_BYTES:CONUNDRUM_DISPLAY_BYTES)) ||
+       (route.index>=10 && !v6_tower_open(&stream,route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:route.index==13?security_display:route.index==14?linear_display:route.index==15?filter_display:route.index==16?traffic_display:route.index==17?leap_display:route.index==18?solitude_display:route.index==19?conundrum_display:welcome_display,
+           route.index==10?REFLECT_DISPLAY_BYTES:route.index==11?YESMEN_DISPLAY_BYTES:route.index==12?GANTRY_DISPLAY_BYTES:route.index==13?SECURITY_DISPLAY_BYTES:route.index==14?LINEAR_DISPLAY_BYTES:route.index==15?FILTER_DISPLAY_BYTES:route.index==16?TRAFFIC_DISPLAY_BYTES:route.index==17?LEAP_DISPLAY_BYTES:route.index==18?SOLITUDE_DISPLAY_BYTES:route.index==19?CONUNDRUM_DISPLAY_BYTES:WELCOME_DISPLAY_BYTES)) ||
 #endif
 #ifdef V6_TOWER_STATION
        !v6_tower_pairs_validate(&stream,FG_OFFSETS,FG_WORDS,FG_COUNT,2) ||
@@ -4910,6 +4927,11 @@ static int run(void) {
 #ifdef V6_MAP_INPUT_CAPTURE
                 {
                     unsigned buttons=v6_keyboard_map_buttons(&keyboard),was_open=map_menu.open,event;
+#ifdef V6_WELCOME_EARLY_MENU
+                    /* Fixture: open at the first live hint, independent of DF0 seek time. */
+                    if(conundrum_trigger.visible && conundrum_trigger.timer==60 &&
+                       !map_menu.open && !map_transition.active)buttons|=V6_MAP_ENTER;
+#endif
 #ifdef V6_MAP_DISPLAY_CAPTURE
                     unsigned was_active=map_transition.active;
 #endif
@@ -5045,8 +5067,15 @@ static int run(void) {
 #ifdef V6_MENU_SCENE_CAPTURE
                 continue;
 #endif
-#ifdef V6_CONUNDRUM_EDGE
+#ifdef V6_WELCOME_EDGE
+                if(route.index==19)conundrum_diag.visible=conundrum_trigger.visible;
+                if(route.index!=(unsigned)V6_NORTH_START && conundrum_edge_settled>=4)continue;
+#elif defined(V6_CONUNDRUM_EDGE)
                 if(route.index!=(unsigned)V6_NORTH_START && conundrum_edge_settled)continue;
+#endif
+#ifdef V6_WELCOME_DEATH
+                if(diag.logic_ticks==8 && route.index==20)v6_tower_session_die(&session);
+                if(route.index==18)continue;
 #endif
 #ifdef V6_CONUNDRUM_DEATH
                 if(diag.logic_ticks==8 && route.index==19)v6_tower_session_die(&session);
@@ -5585,8 +5614,8 @@ static int run(void) {
                 (void)input;
 #endif
                 if(route.index!=index && !route_source()) diag.error=7;
-#ifdef V6_CONUNDRUM_EDGE
-                if(route.index!=(unsigned)V6_NORTH_START && route.index==index)conundrum_edge_settled=1;
+#if defined(V6_CONUNDRUM_EDGE) || defined(V6_WELCOME_EDGE)
+                if(route.index!=(unsigned)V6_NORTH_START && route.index==index)++conundrum_edge_settled;
 #endif
 #ifdef V6_TOWER_BUILDING
                 if(route.rooms[route.index].teleporter) {
@@ -5864,6 +5893,12 @@ tele_menu_paused:
             if(publish && north_memo_pending){
                 if(companion.visible)v6_companion_rest_prime(north_companion_rest,3,&companion,&route.room);
                 north_memo_pending=0;publish=0;
+            }
+            if(publish){unsigned rows=map_display_diag.values[0];
+                /* Finish exploration bands as separate loading jobs, before
+                 * a live tutorial or an immediately opened map needs them. */
+                if(!map_refresh()){diag.error=21;break;}
+                if(map_display_diag.values[0]!=rows)publish=0;
             }
 #endif
             if(publish) {

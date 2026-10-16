@@ -308,7 +308,7 @@ $(BUILD)/tower.exe: $(BUILD)/tower.elf
 $(BUILD)/tower.adf: $(BUILD)/tower.exe
 	"$(CTL)" exe2adf $< --boot --out $@
 ifneq ($(findstring -DV6_REGIONAL_CONTENT,$(CPPFLAGS)),)
-	python3 $(ROOT)/tools/amiga/adf_files.py $@ $(addprefix $(ROOT)/build/amiga-feasibility/,north0.v6rg north1.v6rg north2.v6rg north3.v6rg north4.v6rg)
+	python3 $(ROOT)/tools/amiga/adf_files.py $@ $(addprefix $(ROOT)/build/amiga-feasibility/,north0.v6rg north1.v6rg north2.v6rg north3.v6rg north4.v6rg north5.v6rg)
 endif
 
 -include $(BUILD)/tower_probe.d
@@ -1434,3 +1434,7 @@ test-conundrum:
 	python3 $(ROOT)/tools/amiga/test_conundrum.py
 tower-conundrum-capture: tower-north test-conundrum
 	python3 $(ROOT)/tools/amiga/run_conundrum.py --cppflags "$(NORTH_FLAGS)"
+
+.PHONY: tower-welcome-capture
+tower-welcome-capture: tower-north
+	python3 $(ROOT)/tools/amiga/run_welcome.py --cppflags "$(NORTH_FLAGS)"

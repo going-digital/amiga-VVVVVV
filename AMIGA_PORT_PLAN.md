@@ -6277,3 +6277,61 @@ match the generated packs exactly. The playable disk remains
 
 Next is Welcome Aboard (113,105), west of Conundrum. It remains outside the
 admitted campaign for now.
+
+### Welcome Aboard regional extension (16 October 2026)
+
+Welcome Aboard (113,105), original Spacestation2 rn(51,41), is bank 20,
+connected west of Conundrum. The source room has no entities, checkpoint or
+scripted blocks. Its spiral is decorative terrain, with the original solid
+room boundary retained. Saves and death return preserve the last real
+checkpoint; fixtures representing this route retain Solitude's (148,161,
+normal gravity, ID 441530) checkpoint rather than inventing one in Welcome.
+
+The new `north5.v6rg` contains Welcome's collision tiles, palette, paired
+foreground data and display packet in 6,410 bytes. The ADF now carries six
+region files, still using the existing two 12 KiB cache slots and the same
+Chip allocations. Room admission, route materialization, drawing and menu
+titles admit index 20; unknown room indices continue to reject. The original
+V6/V7/V8 save formats and flag guards are unchanged.
+
+Source graphics checks cover Welcome's 23 tile IDs, 36 pairs and 79,360
+rendered pixels. Cache checks now cover all eleven regional room banks,
+100 evictions, failed-candidate isolation and all six OFS files. Companion
+comparisons cover 72,000 original AI/physics updates plus the separate 17,280
+Gantry dynamic-block updates.
+
+`make -C amiga_version tower-welcome-capture` runs the room/menu/save scene,
+following crewmate, both cold regional crossings, a forced death return to
+Solitude, and a fresh save load followed by a Welcome revisit. The crossing
+fixtures allow four destination physics passes so the player enters
+Conundrum's original left tutorial rectangle naturally before the room is
+held for menu/save inspection. Captures check loader pause/hash invariants,
+retained checkpoint coordinates, exploration bits, receipt and save flags.
+
+The return crossing exposed exploration-map redraw stacked on a live hint's
+full render path. Hidden map refresh is now deferred while that hint is live;
+newly explored row bands instead finish as separate loading jobs before a
+cold room is published. The cached-world prepass also excludes the hint,
+preventing a second refresh in the same field. Finishing the last map row
+still yields a field before sprite/Copper publication. An additional fixture
+opens the map at the first live hint, independent of disk seek timing, and
+checks that its 60-update timer remains paused without missed fields.
+
+Stock A500 captures pass at 239 scanlines for the room/menu/save scene and
+243 with the following crewmate. The final west/east crossings pass at
+240/238, the early live-hint map opening at 201, forced death return at 238,
+and cold load/revisit at 255. All report zero missed fields, engine errors
+and loader violations, retaining the exact Solitude checkpoint and Welcome's
+exploration bit. Both cold crossings and the remote death return perform one
+OS-safe regional pause. Chip allocation remains 436,466 bytes.
+
+Final regressions pass at 272 for Conundrum's follower/hint/menu scene, 276
+for the five-enemy/follower room, and 276 for Solitude's follower encounter;
+its V7 cold reload remains once-only and passes at 251. Direct DF0 boot of
+the final default disk on stock A500/Kickstart 1.3 passes at 162 scanlines,
+with zero missed fields/errors. All six region files match the generated
+packs byte for byte.
+
+The playable disk remains `build/amiga-north/tower.adf`, with twenty-one
+admitted campaign banks. Next is It's a Secret to Nobody (114,104), including
+its original checkpoint and trinket; that room is not admitted yet.

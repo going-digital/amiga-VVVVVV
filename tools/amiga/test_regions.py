@@ -26,7 +26,7 @@ unsigned counter(unsigned n){switch(n){case 0:return cache.active;case 1:return 
         _fields_=[(n,C.c_uint16) for n in ('id','x','y','tileset','tile_count','pair_words','display_bytes')]+[(n,C.POINTER(C.c_uint16)) for n in ('tiles','palette','offsets','pairs')]+[('display',C.POINTER(C.c_uint8))]
     Reader=C.CFUNCTYPE(C.c_int,C.c_void_p,C.c_uint,C.c_void_p,C.c_uint,C.POINTER(C.c_uint))
     lib.request.argtypes=[C.c_uint,C.c_uint,Reader];lib.request.restype=C.POINTER(Room)
-    assets=ROOT/'build/amiga-feasibility';good={i:(assets/f'north{i}.v6rg').read_bytes() for i in range(5)};files=dict(good);calls=[]
+    assets=ROOT/'build/amiga-feasibility';good={i:(assets/f'north{i}.v6rg').read_bytes() for i in range(6)};files=dict(good);calls=[]
     @Reader
     def reader(context,region,data,capacity,size):
         calls.append(region)
@@ -37,7 +37,7 @@ unsigned counter(unsigned n){switch(n){case 0:return cache.active;case 1:return 
         C.memmove(data,value,len(value));return 1
     def request(region,room):return lib.request(region,room,reader)
     lib.reset()
-    for ident,name in enumerate(('reflect','yesmen','gantry','security','linear','filter','traffic','leap','solitude','conundrum'),10):
+    for ident,name in enumerate(('reflect','yesmen','gantry','security','linear','filter','traffic','leap','solitude','conundrum','welcome'),10):
         room=request((ident-10)//2,ident).contents;source=north_route_room(name)
         assert (room.id,room.x,room.y,room.tileset)==(ident,source['x'],source['y'],source['tileset'])
         assert list(room.tiles[:1200])==source['tiles']
@@ -45,8 +45,8 @@ unsigned counter(unsigned n){switch(n){case 0:return cache.active;case 1:return 
         for field,size,symbol in (('palette',4,'palette'),('offsets',room.tile_count*32,'pair_offsets'),('pairs',room.pair_words,'pairs')):
             assert list(getattr(room,field)[:size])==arrays(path,name+'_'+symbol)
         assert bytes(room.display[:room.display_bytes])==bytes(arrays(path,name+'_display'))
-    assert calls==[0,1,2,3,4] and lib.counter(1)==5,calls
-    assert request(0,10) and request(1,12) and calls==[0,1,2,3,4,0,1],calls
+    assert calls==[0,1,2,3,4,5] and lib.counter(1)==5,calls
+    assert request(0,10) and request(1,12) and calls==[0,1,2,3,4,5,0,1],calls
     variants=[]
     def mutation(offset,fmt,value):
         data=bytearray(good[1]);struct.pack_into(fmt,data,offset,value);data[-4:]=struct.pack('>I',zlib.crc32(data[:-4]));variants.append(bytes(data))
@@ -80,7 +80,7 @@ unsigned counter(unsigned n){switch(n){case 0:return cache.active;case 1:return 
     # Repeated eviction must remain bounded and preserve every room's source tiles.
     lib.reset();files=dict(good)
     for i in range(100):
-        ident=10+(i*7)%10;name=('reflect','yesmen','gantry','security','linear','filter','traffic','leap','solitude','conundrum')[ident-10]
+        ident=10+(i*7)%11;name=('reflect','yesmen','gantry','security','linear','filter','traffic','leap','solitude','conundrum','welcome')[ident-10]
         assert list(request((ident-10)//2,ident).contents.tiles[:1200])==north_route_room(name)['tiles']
     # Build an independent minimal OFS fixture: no previous native capture is required.
     disk=bytearray(901120);disk[:4]=b'DOS\0';root=880;bitmap=881
@@ -93,7 +93,7 @@ unsigned counter(unsigned n){switch(n){case 0:return cache.active;case 1:return 
     image=out/'pack-files.adf';image.write_bytes(disk)
     collision=next(f'data{i}.v6rg' for i in range(10000) if name_hash(f'data{i}.v6rg'.encode())==name_hash(b'north0.v6rg'))
     extra=out/collision;extra.write_bytes(bytes(range(256))*5)
-    add(image,[*[assets/f'north{i}.v6rg' for i in range(5)],extra])
+    add(image,[*[assets/f'north{i}.v6rg' for i in range(6)],extra])
     disk=image.read_bytes()
     for region,data in good.items():assert extract(disk,f'north{region}.v6rg'.encode())==data
     assert extract(disk,collision.encode())==extra.read_bytes()
@@ -110,6 +110,6 @@ unsigned counter(unsigned n){switch(n){case 0:return cache.active;case 1:return 
     assert entries==[2] and snapshots==(bytes(route),bytes(session),bytes(world))
     route.materialize=None
     assert core.v6_tower_route_load(C.byref(route),108,109,0)
-    print('PASS regional cache: all ten source collision/graphics banks; two bounded slots;',len(variants),'failed candidates preserve pinned room; 100 evictions; OFS files; atomic route admission')
+    print('PASS regional cache: all eleven source collision/graphics banks; two bounded slots;',len(variants),'failed candidates preserve pinned room; 100 evictions; OFS files; atomic route admission')
 
 if __name__=='__main__':main()

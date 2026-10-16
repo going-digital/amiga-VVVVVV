@@ -84,7 +84,7 @@ def main():
         export_energize_assets(archive,out,decoder,deception_room(),"deception")
         export_energize_assets(archive,out,decoder,downunder_room(),"downunder")
         from tower_gameplay_data import north_route_room
-        for name in ('reflect','yesmen','gantry','security','linear','filter','traffic','leap','solitude','conundrum'):
+        for name in ('reflect','yesmen','gantry','security','linear','filter','traffic','leap','solitude','conundrum','welcome'):
             export_energize_assets(archive,out,decoder,north_route_room(name),name)
     tele_path=out/'teleporter.png';tele_path.write_bytes(teleporter_png)
     dimensions,tele_rgba=subprocess.check_output([str(decoder),str(tele_path)]).split(b'\n',1)
