@@ -1428,3 +1428,9 @@ test-regions: tower-assets $(BUILD)/region_cache.o
 .PHONY: tower-regions-capture
 tower-regions-capture: tower-assets test-regions
 	python3 $(ROOT)/tools/amiga/run_regions.py --cppflags "$(NORTH_FLAGS)"
+
+.PHONY: test-conundrum tower-conundrum-capture
+test-conundrum:
+	python3 $(ROOT)/tools/amiga/test_conundrum.py
+tower-conundrum-capture: tower-north test-conundrum
+	python3 $(ROOT)/tools/amiga/run_conundrum.py --cppflags "$(NORTH_FLAGS)"

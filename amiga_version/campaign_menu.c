@@ -15,7 +15,7 @@ static int valid(const V6MenuRecord *r)
 {
     char text[12];V6SaveSummary scratch;unsigned i,count=0;
     if(!v6_save_clock_text(text,&r->menu.clock) || r->menu.deaths>0x7fffffffU ||
-       (r->menu.story_flags&~1U) || r->menu.crew_mask>63 || !(r->menu.crew_mask&1) ||
+       (r->menu.story_flags&~7U) || r->menu.crew_mask>63 || !(r->menu.crew_mask&1) ||
        ((r->menu.crew_mask>>2)&1)!=(unsigned)r->yellow.yellow_rescued ||
        ((r->menu.crew_mask>>3)&1)!=(unsigned)r->red.red_rescued || r->menu.last.exists>1)return 0;
     if(r->menu.last.exists) {
@@ -42,7 +42,7 @@ int v6_campaign_menu_encode(uint8_t *out,size_t n,const V6MenuRecord *r)
     if(!out || !r || n!=sizeof(p) || !valid(r) ||
        !v6_campaign_menu_prefix_encode(old,sizeof(old),&r->checkpoint,&r->red,&r->yellow,&r->explored,&r->collected,&r->hints))return 0;
     for(i=0;i<108;++i)p[i]=old[i];
-    p[5]=r->menu.story_flags?7:6;p[7]=sizeof(p);
+    p[5]=(r->menu.story_flags&6)?8:r->menu.story_flags?7:6;p[7]=sizeof(p);
     clock_put(p+108,&r->menu.clock);put32(p+116,r->menu.deaths);
     p[120]=(uint8_t)r->menu.crew_mask;p[121]=(uint8_t)r->menu.last.exists;
     clock_put(p+122,&r->menu.last.clock);
@@ -56,7 +56,7 @@ int v6_campaign_menu_decode(V6MenuRecord *out,const uint8_t *p,size_t n)
     if(!out || !p)return 0;
     {volatile uint8_t *q=(void *)&r;for(i=0;i<sizeof(r);++i)q[i]=0;}
     if(n==V6_CAMPAIGN_MENU_BYTES) {
-        if(p[4] || (p[5]!=6 && p[5]!=7) || p[6] || p[7]!=n || (p[5]==6 && (p[138] || p[139])) || (get16(p+138)&~1U) || get32(p+140)!=crc(p,140))return 0;
+        if(p[4] || (p[5]!=6 && p[5]!=7 && p[5]!=8) || p[6] || p[7]!=n || (p[5]==6 && (p[138] || p[139])) || (get16(p+138)&~(p[5]==8?7U:1U)) || get32(p+140)!=crc(p,140))return 0;
         for(i=0;i<108;++i)old[i]=p[i];
         r.menu.story_flags=(uint16_t)get16(p+138);old[5]=6;
         old[7]=sizeof(old);put32(old+108,crc(old,108));

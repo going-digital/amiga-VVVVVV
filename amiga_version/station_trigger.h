@@ -25,4 +25,11 @@ void v6_firststeps_enter(V6FirstStepsTrigger *,int x,int y,int nocutscenes);
 void v6_firststeps_contact(V6FirstStepsTrigger *,const V6Player *);
 int v6_firststeps_dispatch(V6FirstStepsTrigger *,unsigned seen);
 
+/* Original Conundrum triggers 21/22; persistent bits 1/2 map flags 2/3.
+ * Timed hint runs alongside physics, without consuming flip or locking control. */
+typedef struct {unsigned active,pending,contacts,removed,visible,timer,level,mode,hints;} V6ConundrumTrigger;
+void v6_conundrum_enter(V6ConundrumTrigger *,int x,int y,int nocutscenes);
+void v6_conundrum_contact(V6ConundrumTrigger *,const V6Player *);
+unsigned v6_conundrum_dispatch(V6ConundrumTrigger *,uint16_t *flags);
+void v6_conundrum_tick(V6ConundrumTrigger *);
 #endif

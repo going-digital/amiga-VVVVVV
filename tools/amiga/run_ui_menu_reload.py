@@ -6,12 +6,12 @@ from run_map_input import capture
 from save_disk import read_record
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('--build',type=Path,required=True);p.add_argument('--load-build',type=Path,required=True);p.add_argument('--save-disk',type=Path,help='Source V6 save disk; defaults to the map capture disk');a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--build',type=Path,required=True);p.add_argument('--load-build',type=Path,required=True);p.add_argument('--save-disk',type=Path,help='Source V6 save disk; defaults to the map capture disk');p.add_argument('--menu-after',type=float,default=62,help='Allow staged room/PCM loading before menu input');a=p.parse_args()
  build=a.build.resolve();load=a.load_build.resolve();source=a.save_disk.resolve() if a.save_disk else build/'map-display-save.adf';record=read_record(source)
- assert len(record)==144 and record[5] in (6,7)
+ assert len(record)==144 and record[5] in (6,7,8)
  disk=load/'menu-reload-save.adf';disk.write_bytes(source.read_bytes());assert read_record(disk)==record
  before=disk.read_bytes();boot=(load/'tower.adf').read_bytes()
- result=capture(load,disk,'menu-reload',['--key-after','62','0x44','1000','--key-after','65','0x4f','500'],end=74)
+ result=capture(load,disk,'menu-reload',['--key-after',str(a.menu_after),'0x44','1000','--key-after',str(a.menu_after+3),'0x4f','500'],end=a.menu_after+12)
  d=result['display'];assert d['status']==1 and d['error']==d['missed']==0 and d['max_work_lines']<=280,d
  b=(load/'menu-reload.bin').read_bytes();at=b.index(b'V6MU\0\0\0\2');v=struct.unpack_from('>18I',b,at+8)
  assert v[2]==record[120] and v[3]>=struct.unpack_from('>I',record,116)[0],v

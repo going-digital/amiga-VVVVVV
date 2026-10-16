@@ -6222,3 +6222,58 @@ all five region files match their generated packs byte for byte.
 The playable disk is `build/amiga-north/tower.adf`. Next is Conundrum
 (114,105), west of Solitude, including its original direction-sensitive
 triggers 21/22. That room remains outside the admitted campaign for now.
+
+### Conundrum and the flip tutorial (16 October 2026)
+
+Conundrum (114,105), original Spacestation2 rn(52,41), is bank 19 and extends
+the connected campaign west from Solitude. Its original terrain has no
+checkpoint or physics actors. Death/save retain the last actual checkpoint;
+the direct-room fixtures explicitly represent entry from Solitude's canonical
+checkpoint. `north4.v6rg` now contains both rooms in 8,944 bytes, still within
+the same two fixed 12 KiB cache slots and five DF0 files.
+
+Original trigger 21 uses (280,0,320,240), removes itself and sets source flag 2
+once, requesting text fade-out. Trigger 22 uses (10,0,60,240), removes itself
+and sets flag 3 once, replacing text with a 60-update flip hint. Contact is
+retained after physics and dispatched on the following state pass. The hint
+fades from .5 to 1 and back in five fixed updates per direction, without
+consuming flip or pausing player/companion physics. Its Amiga text names
+SPACE / Z / V. The full-width caption strip adapts the original small grey
+box to the established Copper-windowed captions: grey ink on black, using
+an existing caption slot. Both borrowed slots are patched/restored in spare
+loading fields. Solitude's shared cry/jingle PCM ownership stays independent
+of this caption mode; entering Conundrum restores the original trinket PCM.
+There is no added Chip allocation.
+
+V8 keeps the 144-byte menu record and adds story bits 1/2 for original flags
+2/3. V6 and V7 keep their prior reserved-bit guards; writers emit V8 only when
+one of the new flags is set. Exact vectors cover all six added combinations,
+6,912 corruptions, unknown-bit rejection and V7-to-V8 replacement. The original
+firststeps flag remains bit 0. Source collision/graphics/cache tests now cover
+ten regional banks, and companion comparisons cover 64,800 source AI/physics
+updates plus 17,280 Gantry dynamic-block updates. Trigger tests cover 1,344
+flag/rectangle/boundary combinations, repeat contacts and the timed fade.
+
+`make -C amiga_version tower-conundrum-capture` runs the ceiling traversal,
+menu pause/save, follower, both horizontal crossings, death return, caption
+memory comparison and a fresh V8 load followed by another Conundrum traversal.
+The edge fixtures allow the destination's first physics/contact pass before
+holding the room for menu/checkpoint inspection.
+
+Final stock A500 captures pass at 237 scanlines for the visible-hint/menu/save
+case and 279 with the following crewmate. West/east crossings pass at 238/239,
+and death return at 239. V8 cold load/revisit passes at 252 and suppresses
+both tutorial triggers; the disk and saved receipt remain unchanged. Native
+caption memory matches all 7,680 reused bytes, and the screenshot verifies
+visible grey hint ink/border. Every capture reports zero missed fields and
+engine errors, with Chip allocation unchanged at 436,466 bytes. The existing
+five-enemy/follower case passes at 276; Solitude's follower encounter remains
+274 and its V7 cold reload passes at 252.
+
+Direct DF0 boot of the final default disk passes on stock A500/Kickstart 1.3
+at 161 scanlines, with zero missed fields/errors. All five disk region files
+match the generated packs exactly. The playable disk remains
+`build/amiga-north/tower.adf`, now with twenty admitted campaign banks.
+
+Next is Welcome Aboard (113,105), west of Conundrum. It remains outside the
+admitted campaign for now.

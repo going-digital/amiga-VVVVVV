@@ -854,6 +854,7 @@ static volatile struct {ULONG magic,version,loads,hits,errors,pauses,drain_field
 #include "traffic_assets.h"
 #include "leap_assets.h"
 #include "solitude_assets.h"
+#include "conundrum_assets.h"
 #endif
 #ifdef V6_REGIONAL_CONTENT
 #define NORTH_DISPLAY_BYTES(name) (north_content->display_bytes)
@@ -869,10 +870,18 @@ static volatile struct {ULONG magic,version,loads,hits,errors,pauses,drain_field
 #define TRAFFIC_DISPLAY_BYTES NORTH_DISPLAY_BYTES(traffic)
 #define LEAP_DISPLAY_BYTES NORTH_DISPLAY_BYTES(leap)
 #define SOLITUDE_DISPLAY_BYTES NORTH_DISPLAY_BYTES(solitude)
+#define CONUNDRUM_DISPLAY_BYTES NORTH_DISPLAY_BYTES(conundrum)
 #include "firststeps_program.h"
 #include "sample_unpack.h"
 static V6FirstStepsTrigger firststeps_trigger;
-static unsigned north_caption_solitude,north_caption_pending,north_pcm_pending;
+static V6ConundrumTrigger conundrum_trigger;
+#ifdef V6_CONUNDRUM_EDGE
+static unsigned conundrum_edge_settled;
+#endif
+static unsigned conundrum_previous_level;
+static const V6RescueSpeech conundrum_speeches[2]={{0,1,2,{"Press SPACE / Z / V", "to flip",0,0}},{1,1,2,{"","",0,0}}};
+static volatile struct {ULONG magic,version,flags,active,pending,contacts,removed,visible,timer,level,hints,room,x,y,gravity,deaths;} conundrum_diag={0x5636434e,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+static unsigned north_caption_mode,north_caption_pending,north_pcm_pending;
 static V6SampleJob north_pcm_job;
 static volatile struct {ULONG magic,version,seen,active,pc,waiting,cues,requests,error,caption,room;} firststeps_diag={0x56364653,1,0,0,0,0,0,0,0,0,0};
 #include "terminal.h"
@@ -910,20 +919,20 @@ static UWORD north_base_copper[2][192];
 static V6TerminalPrefix north_terminal_prefix[2];
 static unsigned north_base_words[2],north_base_room[2],north_base_tail[2];
 static V6ReturnEnemyAnimation north_animation[5];
-#define NORTH_FG(a,b,c,e,f,g,h,j,k,d) (route.index==10?(a):route.index==11?(b):route.index==12?(c):route.index==13?(e):route.index==14?(f):route.index==15?(g):route.index==16?(h):route.index==17?(j):route.index==18?(k):(d))
+#define NORTH_FG(a,b,c,e,f,g,h,j,k,l,d) (route.index==10?(a):route.index==11?(b):route.index==12?(c):route.index==13?(e):route.index==14?(f):route.index==15?(g):route.index==16?(h):route.index==17?(j):route.index==18?(k):route.index==19?(l):(d))
 #else
-#define NORTH_FG(a,b,c,e,f,g,h,j,k,d) (d)
+#define NORTH_FG(a,b,c,e,f,g,h,j,k,l,d) (d)
 #endif
 #ifdef V6_NORTH_ROUTE
 #define frown_terrain north_shared_terrain
 #else
 static V6Terrain frown_terrain;
 #endif
-#define FG_OFFSETS NORTH_FG(reflect_pair_offsets,yesmen_pair_offsets,gantry_pair_offsets,security_pair_offsets,linear_pair_offsets,filter_pair_offsets,traffic_pair_offsets,leap_pair_offsets,solitude_pair_offsets,WEST_FG(deception_pair_offsets,downunder_pair_offsets,VSTITCH_FG(vstitch_pair_offsets,PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)))))
-#define FG_PAIRS NORTH_FG(reflect_pairs,yesmen_pairs,gantry_pairs,security_pairs,linear_pairs,filter_pairs,traffic_pairs,leap_pairs,solitude_pairs,WEST_FG(deception_pairs,downunder_pairs,VSTITCH_FG(vstitch_pairs,PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)))))
-#define FG_WORDS NORTH_FG(REFLECT_PAIR_WORDS,YESMEN_PAIR_WORDS,GANTRY_PAIR_WORDS,SECURITY_PAIR_WORDS,LINEAR_PAIR_WORDS,FILTER_PAIR_WORDS,TRAFFIC_PAIR_WORDS,LEAP_PAIR_WORDS,SOLITUDE_PAIR_WORDS,WEST_FG(DECEPTION_PAIR_WORDS,DOWNUNDER_PAIR_WORDS,VSTITCH_FG(VSTITCH_PAIR_WORDS,PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)))))
-#define FG_COUNT NORTH_FG(REFLECT_TILE_COUNT,YESMEN_TILE_COUNT,GANTRY_TILE_COUNT,SECURITY_TILE_COUNT,LINEAR_TILE_COUNT,FILTER_TILE_COUNT,TRAFFIC_TILE_COUNT,LEAP_TILE_COUNT,SOLITUDE_TILE_COUNT,WEST_FG(DECEPTION_TILE_COUNT,DOWNUNDER_TILE_COUNT,VSTITCH_FG(VSTITCH_TILE_COUNT,PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)))))
-#define FG_PALETTE NORTH_FG(reflect_palette,yesmen_palette,gantry_palette,security_palette,linear_palette,filter_palette,traffic_palette,leap_palette,solitude_palette,WEST_FG(deception_palette,downunder_palette,VSTITCH_FG(vstitch_palette,PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)))))
+#define FG_OFFSETS NORTH_FG(reflect_pair_offsets,yesmen_pair_offsets,gantry_pair_offsets,security_pair_offsets,linear_pair_offsets,filter_pair_offsets,traffic_pair_offsets,leap_pair_offsets,solitude_pair_offsets,conundrum_pair_offsets,WEST_FG(deception_pair_offsets,downunder_pair_offsets,VSTITCH_FG(vstitch_pair_offsets,PRIZE_FG(prize_pair_offsets, (route.index==7?shenanigan_pair_offsets:route.index==6?frown_pair_offsets:route.index==5?energize_pair_offsets:tower_pair_offsets)))))
+#define FG_PAIRS NORTH_FG(reflect_pairs,yesmen_pairs,gantry_pairs,security_pairs,linear_pairs,filter_pairs,traffic_pairs,leap_pairs,solitude_pairs,conundrum_pairs,WEST_FG(deception_pairs,downunder_pairs,VSTITCH_FG(vstitch_pairs,PRIZE_FG(prize_pairs, (route.index==7?shenanigan_pairs:route.index==6?frown_pairs:route.index==5?energize_pairs:tower_pairs)))))
+#define FG_WORDS NORTH_FG(REFLECT_PAIR_WORDS,YESMEN_PAIR_WORDS,GANTRY_PAIR_WORDS,SECURITY_PAIR_WORDS,LINEAR_PAIR_WORDS,FILTER_PAIR_WORDS,TRAFFIC_PAIR_WORDS,LEAP_PAIR_WORDS,SOLITUDE_PAIR_WORDS,CONUNDRUM_PAIR_WORDS,WEST_FG(DECEPTION_PAIR_WORDS,DOWNUNDER_PAIR_WORDS,VSTITCH_FG(VSTITCH_PAIR_WORDS,PRIZE_FG(PRIZE_PAIR_WORDS, (route.index==7?SHENANIGAN_PAIR_WORDS:route.index==6?FROWN_PAIR_WORDS:route.index==5?ENERGIZE_PAIR_WORDS:TOWER_PAIR_WORDS)))))
+#define FG_COUNT NORTH_FG(REFLECT_TILE_COUNT,YESMEN_TILE_COUNT,GANTRY_TILE_COUNT,SECURITY_TILE_COUNT,LINEAR_TILE_COUNT,FILTER_TILE_COUNT,TRAFFIC_TILE_COUNT,LEAP_TILE_COUNT,SOLITUDE_TILE_COUNT,CONUNDRUM_TILE_COUNT,WEST_FG(DECEPTION_TILE_COUNT,DOWNUNDER_TILE_COUNT,VSTITCH_FG(VSTITCH_TILE_COUNT,PRIZE_FG(PRIZE_TILE_COUNT, (route.index==7?SHENANIGAN_TILE_COUNT:route.index==6?FROWN_TILE_COUNT:route.index==5?ENERGIZE_TILE_COUNT:TOWER_TILE_COUNT)))))
+#define FG_PALETTE NORTH_FG(reflect_palette,yesmen_palette,gantry_palette,security_palette,linear_palette,filter_palette,traffic_palette,leap_palette,solitude_palette,conundrum_palette,WEST_FG(deception_palette,downunder_palette,VSTITCH_FG(vstitch_palette,PRIZE_FG(prize_palette, (route.index==7?shenanigan_palette:route.index==6?frown_palette:route.index==5?energize_palette:tower_palette)))))
 #else
 #define FG_OFFSETS (route.index==5?energize_pair_offsets:tower_pair_offsets)
 #define FG_PAIRS (route.index==5?energize_pairs:tower_pairs)
@@ -1080,11 +1089,18 @@ static int prize_death(V6TowerRoute *r,void *context)
 static int station_route_step(V6TowerRoute *r,unsigned input,V6TowerRoutePhase phase,void *context)
 {
     V6TowerRouteHooks hooks={phase,prize_entities,prize_contacts,prize_death};
+#ifdef V6_CONUNDRUM_TOUR
+    input=r->index==19 && r->session->player.x>40 && !(conundrum_trigger.active&1)?V6_LEFT:0;
+#endif
+#ifdef V6_CONUNDRUM_EDGE
+    input=r->index==V6_NORTH_START?(V6_NORTH_START==18?V6_LEFT:V6_RIGHT):0;
+#endif
 #ifdef V6_NORTH_CORRIDOR
     input=r->index==V6_NORTH_START?((V6_NORTH_START==13 || V6_NORTH_CORRIDOR==2 || V6_NORTH_CORRIDOR==3)?V6_RIGHT:V6_LEFT):0;
 #endif
     int ok=v6_tower_route_step_hooks(r,input,&hooks,context);
 #ifdef V6_NORTH_ROUTE
+    if(ok && r->index==19)v6_conundrum_contact(&conundrum_trigger,&r->session->player);
     if(ok && r->index==18)v6_firststeps_contact(&firststeps_trigger,&r->session->player);
 #endif
 #ifdef V6_VSTITCH_HINT_CAPTURE
@@ -1559,12 +1575,16 @@ static int route_source(void)
     }
 #endif
 #ifdef V6_NORTH_ROUTE
-    if(route.index>=10 && route.index<=18){unsigned n;
-        data=route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:route.index==13?security_display:route.index==14?linear_display:route.index==15?filter_display:route.index==16?traffic_display:route.index==17?leap_display:solitude_display;
-        bytes=route.index==10?REFLECT_DISPLAY_BYTES:route.index==11?YESMEN_DISPLAY_BYTES:route.index==12?GANTRY_DISPLAY_BYTES:route.index==13?SECURITY_DISPLAY_BYTES:route.index==14?LINEAR_DISPLAY_BYTES:route.index==15?FILTER_DISPLAY_BYTES:route.index==16?TRAFFIC_DISPLAY_BYTES:route.index==17?LEAP_DISPLAY_BYTES:SOLITUDE_DISPLAY_BYTES;
+    if(route.index>=10 && route.index<=19){unsigned n;
+        data=route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:route.index==13?security_display:route.index==14?linear_display:route.index==15?filter_display:route.index==16?traffic_display:route.index==17?leap_display:route.index==18?solitude_display:conundrum_display;
+        bytes=route.index==10?REFLECT_DISPLAY_BYTES:route.index==11?YESMEN_DISPLAY_BYTES:route.index==12?GANTRY_DISPLAY_BYTES:route.index==13?SECURITY_DISPLAY_BYTES:route.index==14?LINEAR_DISPLAY_BYTES:route.index==15?FILTER_DISPLAY_BYTES:route.index==16?TRAFFIC_DISPLAY_BYTES:route.index==17?LEAP_DISPLAY_BYTES:route.index==18?SOLITUDE_DISPLAY_BYTES:CONUNDRUM_DISPLAY_BYTES;
         if(!v6_north_init(&north_actors,&route.room,route.rooms[route.index].x,route.rooms[route.index].y,route.session->player.y))return 0;
         v6_firststeps_enter(&firststeps_trigger,route.rooms[route.index].x,route.rooms[route.index].y,0);
-        if((route.index==18)!=north_caption_solitude){north_caption_solitude=route.index==18;north_caption_pending=4;north_pcm_pending=1;}
+        {unsigned mode=route.index==18?1:route.index==19?2:0;
+         if(mode!=north_caption_mode){if((mode==1)!=(north_caption_mode==1))north_pcm_pending=1;
+             north_caption_mode=mode;north_caption_pending=4;}}
+        v6_conundrum_enter(&conundrum_trigger,route.rooms[route.index].x,route.rooms[route.index].y,0);
+        if(route.index!=19)conundrum_trigger.visible=0;
         v6_terminal_init(&north_terminal,252,200,1,0,1);north_terminal_cue=0;
         north_activity_index=-1;north_read_pending=north_read_bars=north_layer_stage=north_layer_row=north_read_copied=0;
         north_reader.active=north_reader.boxes[0].visible=north_reader.boxes[1].visible=0;
@@ -1842,7 +1862,7 @@ static int region_materialize(V6TowerRoute *r,unsigned index,void *context)
     unsigned paused=0;ULONG held=frames,held_ticks=diag.logic_ticks,held_hash=0;int ok;
     (void)context;
     if(index<10)return 1;
-    if(index>18)return 0;
+    if(index>19)return 0;
     region=(index-10)>>1;
     for(i=0;i<V6_REGION_SLOTS;++i)if(north_regions.slots[i].valid && north_regions.slots[i].region==region)hit=1;
     if(!hit && region_runtime.active){
@@ -2047,10 +2067,10 @@ static const char *menu_area(int x,int y)
 }
 static const char *menu_roomname(void)
 {
-    static const char *names[21]={"The Tower","The Tower","I'm Sorry...","Seeing Red",
-        "Building Apport","Energize","Frown Upside Down","Shenanigan","Prize for the Reckless","V Stitch","A Deception","Down Under","Stop and Reflect","The Yes Men","Gantry and Dolly","Security Sweep","Linear Collider","Atmospheric Filtering Unit","Traffic Jam","Leap of Faith","Solitude"};
+    static const char *names[22]={"The Tower","The Tower","I'm Sorry...","Seeing Red",
+        "Building Apport","Energize","Frown Upside Down","Shenanigan","Prize for the Reckless","V Stitch","A Deception","Down Under","Stop and Reflect","The Yes Men","Gantry and Dolly","Security Sweep","Linear Collider","Atmospheric Filtering Unit","Traffic Jam","Leap of Faith","Solitude","Conundrum"};
 #ifdef V6_NORTH_ROUTE
-    if(route.index>=10 && route.index<=18)return names[route.index+2];
+    if(route.index>=10 && route.index<=19)return names[route.index+2];
 #endif
     return route.index<12?names[route.index]:"Untitled room";
 }
@@ -3198,6 +3218,14 @@ west_sprite_refresh:
         return 1;
     }
 #endif
+#ifdef V6_NORTH_ROUTE
+    if(route.index==19 && conundrum_trigger.visible){
+        ULONG colours=v6_vstitch_hint_colours(conundrum_previous_level,conundrum_trigger.level,diag.logic_remainder);
+        return colours && v6_tower_caption_copper(p,(ULONG)ring,(ULONG)(ring+V6_TOWER_RING_BYTES),
+            camera&255,bg_camera&255,(ULONG)rescue_captions,colours&0xffff,
+            DISPLAY_COLOUR(FG_PALETTE[1]),DISPLAY_COLOUR(FG_PALETTE[3]))!=0;
+    }
+#endif
 #ifdef V6_TOWER_RESCUE
     if(rescue_vm.speech || rescue_bars) {
         unsigned speech=rescue_vm.speech?rescue_vm.speech->index:0;
@@ -3331,12 +3359,12 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     if(map_transition.active)north_copper_ready[index]=0;
     if(route.index>=10 && north_copper_ready[index] && north_copper_tick[index]==diag.logic_ticks &&
        north_copper_room[index]==route.index && !camera && !shake_timer && !ui_fields && !rescue_fade &&
-       !rescue_vm.speech && !rescue_bars && !pickup_screen.state && !map_transition.active){if(drawn)*drawn=0;return 1;}
+       !conundrum_trigger.visible && !rescue_vm.speech && !rescue_bars && !pickup_screen.state && !map_transition.active){if(drawn)*drawn=0;return 1;}
 #endif
     int ok;
 #ifdef V6_NORTH_ROUTE
     if(route.index>=10 && north_base_words[index] && north_base_room[index]==route.index &&
-       !camera && !shake_timer && !ui_fields && !rescue_fade && !rescue_vm.speech && !rescue_bars &&
+       !camera && !shake_timer && !ui_fields && !rescue_fade && !conundrum_trigger.visible && !rescue_vm.speech && !rescue_bars &&
        !pickup_screen.state && !map_transition.active){
         if(drawn)*drawn=0;
         if(!north_copper_ready[index] && !(route.index==14 &&
@@ -3350,7 +3378,7 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
     }
 #ifdef V6_NORTH_ROUTE
     if(ok && route.index>=10 && !map_transition.active){UWORD merged[512];unsigned words,n,i;const UWORD *base;
-        if(!camera && !shake_timer && !ui_fields && !rescue_fade && !rescue_vm.speech && !rescue_bars && !pickup_screen.state){
+        if(!camera && !shake_timer && !ui_fields && !rescue_fade && !conundrum_trigger.visible && !rescue_vm.speech && !rescue_bars && !pickup_screen.state){
             if(!north_base_words[index] || north_base_room[index]!=route.index){
                 for(words=0;words+1<192;words+=2)if(list[words]==0xffff)break;
                 if(words+1>=192)return 0;
@@ -3384,7 +3412,7 @@ static int prepare(UBYTE *ring,UWORD *list,unsigned index,unsigned camera,unsign
             if(n)north_copy_words(list,merged,n);
         }
         if(!n)return 0;
-        north_copper_ready[index]=!ui_fields && !rescue_vm.speech && !rescue_bars && !pickup_screen.state &&
+        north_copper_ready[index]=!ui_fields && !conundrum_trigger.visible && !rescue_vm.speech && !rescue_bars && !pickup_screen.state &&
             !north_read_bars && !north_reader.boxes[0].visible;
         north_copper_tick[index]=diag.logic_ticks;north_copper_room[index]=route.index;
     }
@@ -3415,6 +3443,10 @@ static ULONG ui_game_hash(void)
     HASH(vstitch_seen);
 #ifdef V6_MENU_COMPLETE
     HASH(campaign_menu.story_flags);
+#ifdef V6_NORTH_ROUTE
+    HASH(conundrum_trigger.active);HASH(conundrum_trigger.pending);HASH(conundrum_trigger.visible);
+    HASH(conundrum_trigger.timer);HASH(conundrum_trigger.level);HASH(conundrum_trigger.hints);
+#endif
 #endif
 #ifdef V6_MAP_INPUT_CAPTURE
     HASH(vstitch_hint.active);HASH(vstitch_hint.pending);HASH(vstitch_hint.visible);
@@ -3914,6 +3946,7 @@ static int run(void) {
 #endif
         /* A checkpoint-free room retains its actual predecessor's save. */
         if(V6_NORTH_START==17)saved=&tower_route_rooms[16];
+        if(V6_NORTH_START==19)saved=&tower_route_rooms[18];
         if(!saved->count)return 20;
         c=saved->checkpoints;
         world.save=(V6CheckpointSave){c->x-4,c->y-(c->tile==20?2:7),c->tile==20,1,saved->x,saved->y,c->id};
@@ -3924,7 +3957,8 @@ static int run(void) {
         station_story.companion=0;rescue_vm.following=0;
 #endif
         v6_tower_session_init(&session,world.save.x,world.save.y,world.save.gravity,1);
-        if(!v6_tower_route_load(&route,r->x,r->y,V6_NORTH_START!=17))return 20;
+        if(!v6_tower_route_load(&route,r->x,r->y,V6_NORTH_START!=17 && V6_NORTH_START!=19))return 20;
+        if(V6_NORTH_START==19){v6_player_init(&session.player,290,110,1);session.motion.pending_y=110;}
         if(V6_NORTH_START==17){v6_player_init(&session.player,120,80,0);session.motion.pending_y=80;}
 #ifdef V6_NORTH_TERMINAL_CONTACT
         v6_player_init(&session.player,248,193,0);session.motion.pending_y=193;
@@ -3933,6 +3967,9 @@ static int run(void) {
         v6_player_init(&session.player,(V6_NORTH_START==13 || V6_NORTH_CORRIDOR==2 || V6_NORTH_CORRIDOR==3)?290:8,
             (V6_NORTH_START>=15 || V6_NORTH_CORRIDOR>=2)?97:161,0);
         session.motion.pending_y=session.player.y;
+#endif
+#ifdef V6_CONUNDRUM_EDGE
+        v6_player_init(&session.player,V6_NORTH_START==18?8:290,110,0);session.motion.pending_y=110;
 #endif
 #ifdef V6_LEAP_SHAFT
         v6_player_init(&session.player,120,
@@ -4029,6 +4066,9 @@ static int run(void) {
     /* Direct Leap fixture represents entry from the saved Traffic checkpoint. */
     if(!tele_note_room(115,103))return 20;
 #endif
+#if defined(V6_NORTH_START) && V6_NORTH_START==19
+    if(!tele_note_room(115,105))return 20;
+#endif
 #ifdef V6_MENU_EXPLORED_CAPTURE
     /* Capture setup represents a previously visited resident room. The normal
      * executable starts with current-room exploration only. */
@@ -4049,6 +4089,10 @@ static int run(void) {
     { V6CheckpointSave loaded;V6HallwayStory story;
       if(ui_load_checked(&loaded,&story)!=V6_SAVE_OK || !ui_apply_load(&loaded,&story))return 20;
       camera=session.camera.y;controller=session.camera;
+#ifdef V6_CONUNDRUM_REVISIT
+      if(!v6_tower_route_load(&route,114,105,0))return 20;
+      v6_player_init(&session.player,290,110,1);session.motion.pending_y=110;
+#endif
     }
 #endif
     diag.step=0;diag.route_min=0;diag.route_max=5368;
@@ -4240,6 +4284,7 @@ static int run(void) {
 #ifndef V6_REGIONAL_CONTENT
        !v6_tower_open(&stream,reflect_display,REFLECT_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,reflect_pair_offsets,REFLECT_PAIR_WORDS,REFLECT_TILE_COUNT,2) ||
        !v6_tower_open(&stream,yesmen_display,YESMEN_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,yesmen_pair_offsets,YESMEN_PAIR_WORDS,YESMEN_TILE_COUNT,2) ||
+       !v6_tower_open(&stream,conundrum_display,CONUNDRUM_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,conundrum_pair_offsets,CONUNDRUM_PAIR_WORDS,CONUNDRUM_TILE_COUNT,2) ||
        !v6_tower_open(&stream,solitude_display,SOLITUDE_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,solitude_pair_offsets,SOLITUDE_PAIR_WORDS,SOLITUDE_TILE_COUNT,2) ||
        !v6_tower_open(&stream,leap_display,LEAP_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,leap_pair_offsets,LEAP_PAIR_WORDS,LEAP_TILE_COUNT,2) ||
        !v6_tower_open(&stream,traffic_display,TRAFFIC_DISPLAY_BYTES) || !v6_tower_pairs_validate(&stream,traffic_pair_offsets,TRAFFIC_PAIR_WORDS,TRAFFIC_TILE_COUNT,2) ||
@@ -4342,8 +4387,8 @@ static int run(void) {
 #endif
 #endif
 #ifdef V6_NORTH_ROUTE
-       (route.index>=10 && !v6_tower_open(&stream,route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:route.index==13?security_display:route.index==14?linear_display:route.index==15?filter_display:route.index==16?traffic_display:route.index==17?leap_display:solitude_display,
-           route.index==10?REFLECT_DISPLAY_BYTES:route.index==11?YESMEN_DISPLAY_BYTES:route.index==12?GANTRY_DISPLAY_BYTES:route.index==13?SECURITY_DISPLAY_BYTES:route.index==14?LINEAR_DISPLAY_BYTES:route.index==15?FILTER_DISPLAY_BYTES:route.index==16?TRAFFIC_DISPLAY_BYTES:route.index==17?LEAP_DISPLAY_BYTES:SOLITUDE_DISPLAY_BYTES)) ||
+       (route.index>=10 && !v6_tower_open(&stream,route.index==10?reflect_display:route.index==11?yesmen_display:route.index==12?gantry_display:route.index==13?security_display:route.index==14?linear_display:route.index==15?filter_display:route.index==16?traffic_display:route.index==17?leap_display:route.index==18?solitude_display:conundrum_display,
+           route.index==10?REFLECT_DISPLAY_BYTES:route.index==11?YESMEN_DISPLAY_BYTES:route.index==12?GANTRY_DISPLAY_BYTES:route.index==13?SECURITY_DISPLAY_BYTES:route.index==14?LINEAR_DISPLAY_BYTES:route.index==15?FILTER_DISPLAY_BYTES:route.index==16?TRAFFIC_DISPLAY_BYTES:route.index==17?LEAP_DISPLAY_BYTES:route.index==18?SOLITUDE_DISPLAY_BYTES:CONUNDRUM_DISPLAY_BYTES)) ||
 #endif
 #ifdef V6_TOWER_STATION
        !v6_tower_pairs_validate(&stream,FG_OFFSETS,FG_WORDS,FG_COUNT,2) ||
@@ -4990,8 +5035,22 @@ static int run(void) {
                  * player or changing the source physics/hint replay. */
                 if(diag.logic_ticks==100 && !v6_exploration_visit(&tele_exploration,111,107))diag.error=21;
 #endif
+#ifdef V6_NORTH_ROUTE
+                if(route.index==19){
+                    conundrum_previous_level=conundrum_trigger.level;
+                    v6_conundrum_tick(&conundrum_trigger);
+                    if(v6_conundrum_dispatch(&conundrum_trigger,&campaign_menu.story_flags)&2)conundrum_previous_level=5;
+                }
+#endif
 #ifdef V6_MENU_SCENE_CAPTURE
                 continue;
+#endif
+#ifdef V6_CONUNDRUM_EDGE
+                if(route.index!=(unsigned)V6_NORTH_START && conundrum_edge_settled)continue;
+#endif
+#ifdef V6_CONUNDRUM_DEATH
+                if(diag.logic_ticks==8 && route.index==19)v6_tower_session_die(&session);
+                if(route.index==18)continue;
 #endif
 #ifdef V6_LEAP_HOLD
                 if(route.index==17 && diag.logic_ticks)continue;
@@ -5526,6 +5585,9 @@ static int run(void) {
                 (void)input;
 #endif
                 if(route.index!=index && !route_source()) diag.error=7;
+#ifdef V6_CONUNDRUM_EDGE
+                if(route.index!=(unsigned)V6_NORTH_START && route.index==index)conundrum_edge_settled=1;
+#endif
 #ifdef V6_TOWER_BUILDING
                 if(route.rooms[route.index].teleporter) {
                     building_random^=building_random<<13;building_random^=building_random>>17;building_random^=building_random<<5;
@@ -5582,6 +5644,13 @@ static int run(void) {
                 v6_station_rescue_tick(&rescue_vm,&station_story,&rescue_signals);
                 if(rescue_vm.error)diag.error=10;
 #ifdef V6_NORTH_ROUTE
+                if(route.index==19){conundrum_diag.flags=campaign_menu.story_flags;conundrum_diag.active=conundrum_trigger.active;
+                conundrum_diag.pending=conundrum_trigger.pending;conundrum_diag.contacts=conundrum_trigger.contacts;
+                conundrum_diag.removed=conundrum_trigger.removed;conundrum_diag.visible=conundrum_trigger.visible;
+                conundrum_diag.timer=conundrum_trigger.timer;conundrum_diag.level=conundrum_trigger.level;
+                conundrum_diag.hints=conundrum_trigger.hints;conundrum_diag.room=route.index;
+                conundrum_diag.x=session.player.x;conundrum_diag.y=session.player.y;
+                conundrum_diag.gravity=session.player.gravity;conundrum_diag.deaths=session.deaths;}
                 firststeps_diag.seen=campaign_menu.story_flags&1;firststeps_diag.active=rescue_vm.active;
                 firststeps_diag.pc=rescue_vm.pc;firststeps_diag.waiting=rescue_vm.waiting;firststeps_diag.cues=rescue_vm.cues;
                 firststeps_diag.requests=firststeps_trigger.requests;firststeps_diag.error=rescue_vm.error;
@@ -5778,9 +5847,9 @@ tele_menu_paused:
                 if(north_pcm_pending==1){UBYTE *dest=travel_audio_chip+TELEPORTER_FLASH_BYTES+TELEPORTER_TELEPORT_BYTES+COEXIST_BYTES+PRIZE_VANISH_BYTES;
                     if(travel_audio_busy() || cue_audio.state){publish=0;}
                     else {
-                        if(!v6_sample_job_init(&north_pcm_job,dest,north_caption_solitude?FIRSTSTEPS_CRY_BYTES:PRIZE_TRINKET_BYTES,
-                            north_caption_solitude?firststeps_cry_packed:prize_trinket_packed,
-                            north_caption_solitude?sizeof(firststeps_cry_packed):sizeof(prize_trinket_packed))){diag.error=11;break;}
+                        if(!v6_sample_job_init(&north_pcm_job,dest,north_caption_mode==1?FIRSTSTEPS_CRY_BYTES:PRIZE_TRINKET_BYTES,
+                            north_caption_mode==1?firststeps_cry_packed:prize_trinket_packed,
+                            north_caption_mode==1?sizeof(firststeps_cry_packed):sizeof(prize_trinket_packed))){diag.error=11;break;}
                         north_pcm_pending=2;
                     }
                 }
@@ -5788,7 +5857,7 @@ tele_menu_paused:
                 publish=0;
             }
             if(publish && north_caption_pending){unsigned job=4-north_caption_pending;
-                const V6RescueSpeech *speech=north_caption_solitude?&v6_firststeps_speeches[job/2]:&v6_rescue_speeches[job/2];
+                const V6RescueSpeech *speech=north_caption_mode==1?&v6_firststeps_speeches[job/2]:north_caption_mode==2?&conundrum_speeches[job/2]:&v6_rescue_speeches[job/2];
                 if(!v6_dialogue_replace_line(rescue_captions+(job/2)*V6_DIALOGUE_BYTES,dialogue_font,2,job&1,speech->lines[job&1])){diag.error=10;break;}
                 --north_caption_pending;publish=0;
             }

@@ -125,6 +125,16 @@ def main():
  for flag in (2,3,128,256,65535):
   bad=bytearray(v7);struct.pack_into('>H',bad,138,flag);bad[140:]=struct.pack('>I',zlib.crc32(bad[:140]));decode(bad,False)
  fs=Files();fs.files[b'save']=blob;assert replace(fs)==0 and fs.files[b'save']==v7
+ for flags8 in range(2,8):
+  r.menu.story_flags=flags8;v8=encode(r)
+  expected8=bytearray(blob);expected8[5]=8;expected8[139]=flags8;expected8[140:]=struct.pack('>I',zlib.crc32(expected8[:140]))
+  assert v8==expected8 and encode(decode(v8,True))==v8
+  for bit in range(1152):
+   bad=bytearray(v8);bad[bit//8]^=1<<(bit%8);decode(bad,False)
+ for flag in (8,128,256,65535):
+  bad=bytearray(v8);struct.pack_into('>H',bad,138,flag);bad[140:]=struct.pack('>I',zlib.crc32(bad[:140]));decode(bad,False)
+ fs=Files();fs.files[b'save']=v7;assert replace(fs)==0 and fs.files[b'save']==v8
+ print('PASS V8 Conundrum flags: all six combinations, exact CRC vectors, 6912 corruptions and reserved flags rejected')
  print('PASS V7 firststeps flag: exact vector, V6 migration, 1152 corruptions, reserved flags rejected, V6-to-V7 replacement')
  print(f'PASS V6 menu save: exact vector, 1152 corruptions, V5 migration, {len(snapshots)} interrupted snapshots, {steps*2} transaction failures and backup promotion')
  print('PASS V6 north checkpoint admission:',north_cases,'source checkpoint/direction pairs; malformed banks and missing exploration rejected; V5 admission unchanged')
