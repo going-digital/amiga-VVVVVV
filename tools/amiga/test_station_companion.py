@@ -56,7 +56,7 @@ obj.animatehumanoidcollision(i);obj.updateentitylogic(i);obj.entitymapcollision(
     ref=C.CDLL(str(OUT/'station_crew_reference.so'));ref.crew_init.argtypes=[C.POINTER(Player),C.POINTER(C.c_uint16),C.c_int]
     ref.crew_tick.argtypes=[C.c_int]*5+[C.POINTER(Player),C.POINTER(C.c_int)]
     ticks=0
-    for desc in (energize_room(),frown_room(),dict(x=111,y=104,tiles=building_room(),tileset=2),north_route_room('yesmen'),north_route_room('linear'),north_route_room('traffic'),north_route_room('leap')):
+    for desc in (energize_room(),frown_room(),dict(x=111,y=104,tiles=building_room(),tileset=2),north_route_room('yesmen'),north_route_room('linear'),north_route_room('traffic'),north_route_room('leap'),north_route_room('solitude')):
         tiles=(C.c_uint16*1200)(*desc['tiles']);room=Room(tiles,desc.get("tileset",0),0);terrain=Terrain();core.v6_terrain_build(C.byref(terrain),C.byref(room))
         activity=(DynamicBlock*1)(DynamicBlock(248,200,20,16,3,6))
         # Source activity rectangles never participate in crew collision.

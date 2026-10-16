@@ -18,6 +18,7 @@ def main():
  subprocess.run(['cc','-std=c99','-O2','-shared','-fPIC','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(ROOT/'amiga_version'),str(ROOT/'amiga_version/menu_slide.c'),str(ROOT/'amiga_version/tower_copper.c'),'-o',str(out/'slide.so')],check=True)
  lib=C.CDLL(str(out/'slide.so'));fn=lib.v6_menu_slide_copper;short=C.POINTER(C.c_uint16)
  fn.argtypes=[short,short,C.c_uint,C.c_uint32,C.c_uint,short,C.POINTER(C.c_uint32),C.c_uint]
+ owned=lib.v6_menu_slide_owned_copper;owned.argtypes=fn.argtypes;fast=(C.c_uint16*512)()
  lib.v6_tower_dual_copper.argtypes=[short,C.c_uint32,C.c_uint32,C.c_uint,C.c_uint]
  gamebuf=(C.c_uint16*512)();buf=(C.c_uint16*512)();pal=(C.c_uint16*32)(*range(32));sprites=(C.c_uint32*8)(*[0x60000+i*1024 for i in range(8)])
  count=0
@@ -29,6 +30,7 @@ def main():
    for offset in range(1,240):
     for planes in (4,5):
      n=fn(buf,gamebuf,len(game),0x30000,planes,pal,sprites,offset);assert 0<n<=384
+     assert owned(fast,gamebuf,len(game),0x30000,planes,pal,sprites,offset)==n and list(fast[:n])==list(buf[:n])
      trace=events(list(buf[:n]));regs={};at=0;pointers={};boundary=51+offset
      assert all(r<0x120 or r>0x13e or t==0 for t,r,v in trace)
      for y in range(240):
@@ -53,6 +55,7 @@ def main():
   for i in range(512):buf[i]=0xa55a
   assert fn(buf,gamebuf,words,bitmap,planes,pal,sprites,offset)==0 and all(v==0xa55a for v in buf)
  lib.v6_menu_slide_rearm.argtypes=[short,C.c_uint,C.POINTER(C.c_uint32),C.POINTER(C.c_uint16*2),C.c_uint]
+ lib.v6_menu_slide_owned_rearm.argtypes=lib.v6_menu_slide_rearm.argtypes
  control=((C.c_uint16*2)*8)();rearmed=0
  for offset in range(1,240):
   n=fn(buf,gamebuf,len(game),0x30000,4,pal,sprites,offset);assert n
@@ -61,7 +64,9 @@ def main():
    if start>=292:control[i][0]=control[i][1]=0
    else:
     control[i][0]=((start&255)<<8)|100;control[i][1]=((stop&255)<<8)|((start&256)>>6)|((stop&256)>>7)
+  fast[:n]=buf[:n]
   end=lib.v6_menu_slide_rearm(buf,n,sprites,control,offset);assert end and end<=512
+  assert lib.v6_menu_slide_owned_rearm(fast,n,sprites,control,offset)==end and list(fast[:end])==list(buf[:end])
   trace=events(list(buf[:end]));late=[(t,r,v) for t,r,v in trace if t>=52+offset]
   assert len(late)==32 and all(t==52+offset for t,r,v in late)
   assert all((0x140+i*8,control[i][0]) in [(r,v) for t,r,v in late] for i in range(8));rearmed+=1

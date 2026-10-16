@@ -18,4 +18,11 @@ void v6_station_trigger_enter(V6StationTrigger *,int room_x,int room_y,const V6S
  * Does not mark yellow rescued or change companion; those are script actions. */
 int v6_station_trigger_step(V6StationTrigger *,V6StationStory *,const V6Player *);
 int v6_station_trigger_take(V6StationTrigger *);
+
+/* Original trigger 30, Game.cpp flag 4; caller owns its persistent bit. */
+typedef struct {int active,pending;unsigned requests;} V6FirstStepsTrigger;
+void v6_firststeps_enter(V6FirstStepsTrigger *,int x,int y,int nocutscenes);
+void v6_firststeps_contact(V6FirstStepsTrigger *,const V6Player *);
+int v6_firststeps_dispatch(V6FirstStepsTrigger *,unsigned seen);
+
 #endif

@@ -9,9 +9,18 @@
 unsigned v6_menu_slide_copper(uint16_t *out,const uint16_t *game,unsigned words,
     uint32_t bitmap,unsigned planes,const uint16_t palette[32],
     const uint32_t sprites[8],unsigned offset);
+/* Same output for engine-owned frozen lists/palettes and allocated DMA chains.
+ * Caller guarantees register syntax, palette range and sprite addresses; basic
+ * output/size/boundary guards remain active. No repeated per-field asset scan. */
+unsigned v6_menu_slide_owned_copper(uint16_t *,const uint16_t *,unsigned,
+    uint32_t,unsigned,const uint16_t[32],const uint32_t[8],unsigned);
 /* Re-arm menu sprites after the clipped game sprites have reached VSTOP.
  * Data pointers skip the two control words; the Copper writes POS/CTL itself.
  * Menu sprite starts must leave two black rows for these register writes. */
 unsigned v6_menu_slide_rearm(uint16_t *,unsigned words,const uint32_t data[8],
     const uint16_t controls[8][2],unsigned offset);
+/* Engine-owned menu actors; must immediately follow the compositor above
+ * with the same offset. Its PAL epoch is known from the menu boundary. */
+unsigned v6_menu_slide_owned_rearm(uint16_t *,unsigned,const uint32_t[8],
+    const uint16_t[8][2],unsigned);
 #endif

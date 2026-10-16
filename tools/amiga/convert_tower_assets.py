@@ -67,6 +67,8 @@ def main():
         from convert_teleporter_audio import export_prize,export_terminal
         export_prize(archive,out)
         export_terminal(archive,out)
+        from firststeps_script import export as export_firststeps
+        export_firststeps(archive,out)
         original=archive.read('graphics/tiles3.png')
         sprite_png=archive.read('graphics/sprites.png')
         font_png=archive.read('graphics/font.png')
@@ -82,7 +84,7 @@ def main():
         export_energize_assets(archive,out,decoder,deception_room(),"deception")
         export_energize_assets(archive,out,decoder,downunder_room(),"downunder")
         from tower_gameplay_data import north_route_room
-        for name in ('reflect','yesmen','gantry','security','linear','filter','traffic','leap'):
+        for name in ('reflect','yesmen','gantry','security','linear','filter','traffic','leap','solitude'):
             export_energize_assets(archive,out,decoder,north_route_room(name),name)
     tele_path=out/'teleporter.png';tele_path.write_bytes(teleporter_png)
     dimensions,tele_rgba=subprocess.check_output([str(decoder),str(tele_path)]).split(b'\n',1)

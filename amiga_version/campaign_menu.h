@@ -6,12 +6,15 @@
 /* V6 retains the V5 checkpoint/story/exploration/collection prefix through107.
  * Clock108, deaths116, crew120, last-exists121, last-clock122, room130/132,
  * trinkets134, crew136, zero138/139, CRC140. All integers big endian.
+ * V7 uses the same size, with story flags at138 (bit0=original flag4).
+ * Writers retain V6 while these flags are zero. V1..V6 migrate with flags=0.
  * V1..V5 migrate without inventing elapsed time or a previous receipt. */
 typedef struct {
     V6SaveClock clock;
     uint32_t deaths;
     uint16_t crew_mask;
     V6SaveSummary last;
+    uint16_t story_flags; /* V7 bit 0: original firststeps flag 4. */
 } V6CampaignMenu;
 typedef struct {
     V6CheckpointSave checkpoint;

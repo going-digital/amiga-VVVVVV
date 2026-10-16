@@ -23,3 +23,17 @@ int v6_station_trigger_take(V6StationTrigger *t)
     int request;if(!t)return V6_STATION_SCRIPT_NONE;
     request=t->pending;t->pending=0;return request;
 }
+void v6_firststeps_enter(V6FirstStepsTrigger *t,int x,int y,int nocutscenes)
+{t->active=x==115 && y==105 && !nocutscenes;t->pending=0;}
+void v6_firststeps_contact(V6FirstStepsTrigger *t,const V6Player *p)
+{
+    if(!t->active || t->pending || p->x<=54 || p->x>=386 || p->y<=-23 || p->y>=238)return;
+    t->pending=1;
+}
+int v6_firststeps_dispatch(V6FirstStepsTrigger *t,unsigned seen)
+{
+    if(!t->pending)return 0;
+    t->pending=t->active=0;
+    if(seen)return 0;
+    ++t->requests;return 1;
+}

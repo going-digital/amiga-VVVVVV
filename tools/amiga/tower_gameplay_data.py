@@ -71,13 +71,13 @@ def export_route(out):
     header+='#ifdef V6_TOWER_BUILDING\n#include "building_display.h"\nstatic V6Teleporter building_teleporter={112,48,0,1,1,0};\n#endif\n'
     header+='#ifdef V6_TOWER_ENERGIZE\n#include "energize_collision.h"\nstatic V6Teleporter energize_teleporter={36,68,0,1,1,0};\n#endif\n'
     header+='#ifdef V6_TOWER_STATION\n#include "frown_collision.h"\n#ifdef V6_TOWER_SHENANIGAN\n#include "shenanigan_collision.h"\n#ifdef V6_TOWER_PRIZE\n#include "prize_collision.h"\n#ifdef V6_VSTITCH_INPUT_CAPTURE\n#include "vstitch_collision.h"\n#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE\n#include "deception_collision.h"\n#include "downunder_collision.h"\n#endif\n#endif\n#endif\n#endif\n#endif\n'
-    header+='#ifdef V6_NORTH_ROUTE\n#include "reflect_collision.h"\n#include "yesmen_collision.h"\n#include "gantry_collision.h"\n#include "security_collision.h"\n#include "linear_collision.h"\n#include "filter_collision.h"\n#include "traffic_collision.h"\n#include "leap_collision.h"\n#endif\n'
+    header+='#ifdef V6_NORTH_ROUTE\n#include "reflect_collision.h"\n#include "yesmen_collision.h"\n#include "gantry_collision.h"\n#include "security_collision.h"\n#include "linear_collision.h"\n#include "filter_collision.h"\n#include "traffic_collision.h"\n#include "leap_collision.h"\n#include "solitude_collision.h"\n#endif\n'
     header+='static const V6TowerRouteRoom tower_route_rooms[]={\n'
     header+='{109,109,0,0,tower_checkpoints,TOWER_CHECKPOINT_COUNT,0,0,2},\n'
     header+='{109,104,0,0,tower_checkpoints,TOWER_CHECKPOINT_COUNT,0,0,2},\n'
     for i,r in enumerate(hallway_rooms()):
         header+='{'+f'{r["x"]},{r["y"]},hallway{i}_packed,sizeof(hallway{i}_packed),hallway{i}_checkpoint,1,hallway{i}_tiles,0,2'+'},\n'
-    header+='#ifdef V6_TOWER_BUILDING\n{111,104,building_packed,sizeof(building_packed),0,0,building_tiles,&building_teleporter,2},\n#endif\n#ifdef V6_TOWER_ENERGIZE\n{110,105,energize_packed,sizeof(energize_packed),0,0,energize_tiles,&energize_teleporter,0},\n#endif\n#ifdef V6_TOWER_STATION\n{111,105,frown_packed,sizeof(frown_packed),frown_checkpoint,1,frown_tiles,0,0},\n#ifdef V6_TOWER_SHENANIGAN\n{111,106,shenanigan_packed,sizeof(shenanigan_packed),shenanigan_checkpoint,2,shenanigan_tiles,0,0},\n#ifdef V6_TOWER_PRIZE\n{111,107,prize_packed,sizeof(prize_packed),prize_checkpoint,1,prize_tiles,0,0},\n#ifdef V6_VSTITCH_INPUT_CAPTURE\n{112,107,vstitch_packed,sizeof(vstitch_packed),vstitch_checkpoint,2,vstitch_tiles,0,0},\n#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE\n{110,107,deception_packed,sizeof(deception_packed),deception_checkpoint,2,deception_tiles,0,0},\n{110,106,downunder_packed,sizeof(downunder_packed),downunder_checkpoint,2,downunder_tiles,0,0},\n#endif\n#ifdef V6_NORTH_ROUTE\n{112,106,reflect_packed,sizeof(reflect_packed),reflect_checkpoint,1,reflect_tiles,0,0},\n{112,105,yesmen_packed,sizeof(yesmen_packed),yesmen_checkpoint,2,yesmen_tiles,0,0},\n{112,104,gantry_packed,sizeof(gantry_packed),gantry_checkpoint,2,gantry_tiles,0,0},\n{112,103,security_packed,sizeof(security_packed),security_checkpoint,1,security_tiles,0,0},\n{113,103,linear_packed,sizeof(linear_packed),linear_checkpoint,2,linear_tiles,0,0},\n{114,103,filter_packed,sizeof(filter_packed),filter_checkpoint,2,filter_tiles,0,0},\n{115,103,traffic_packed,sizeof(traffic_packed),traffic_checkpoint,1,traffic_tiles,0,0},\n{115,104,leap_packed,sizeof(leap_packed),0,0,leap_tiles,0,0},\n#endif\n#endif\n#endif\n#endif\n#endif\n};\n#define TOWER_ROUTE_COUNT (sizeof(tower_route_rooms)/sizeof(tower_route_rooms[0]))\n'
+    header+='#ifdef V6_TOWER_BUILDING\n{111,104,building_packed,sizeof(building_packed),0,0,building_tiles,&building_teleporter,2},\n#endif\n#ifdef V6_TOWER_ENERGIZE\n{110,105,energize_packed,sizeof(energize_packed),0,0,energize_tiles,&energize_teleporter,0},\n#endif\n#ifdef V6_TOWER_STATION\n{111,105,frown_packed,sizeof(frown_packed),frown_checkpoint,1,frown_tiles,0,0},\n#ifdef V6_TOWER_SHENANIGAN\n{111,106,shenanigan_packed,sizeof(shenanigan_packed),shenanigan_checkpoint,2,shenanigan_tiles,0,0},\n#ifdef V6_TOWER_PRIZE\n{111,107,prize_packed,sizeof(prize_packed),prize_checkpoint,1,prize_tiles,0,0},\n#ifdef V6_VSTITCH_INPUT_CAPTURE\n{112,107,vstitch_packed,sizeof(vstitch_packed),vstitch_checkpoint,2,vstitch_tiles,0,0},\n#ifdef V6_PRIZE_RETURN_INPUT_CAPTURE\n{110,107,deception_packed,sizeof(deception_packed),deception_checkpoint,2,deception_tiles,0,0},\n{110,106,downunder_packed,sizeof(downunder_packed),downunder_checkpoint,2,downunder_tiles,0,0},\n#endif\n#ifdef V6_NORTH_ROUTE\n{112,106,reflect_packed,sizeof(reflect_packed),reflect_checkpoint,1,reflect_tiles,0,0},\n{112,105,yesmen_packed,sizeof(yesmen_packed),yesmen_checkpoint,2,yesmen_tiles,0,0},\n{112,104,gantry_packed,sizeof(gantry_packed),gantry_checkpoint,2,gantry_tiles,0,0},\n{112,103,security_packed,sizeof(security_packed),security_checkpoint,1,security_tiles,0,0},\n{113,103,linear_packed,sizeof(linear_packed),linear_checkpoint,2,linear_tiles,0,0},\n{114,103,filter_packed,sizeof(filter_packed),filter_checkpoint,2,filter_tiles,0,0},\n{115,103,traffic_packed,sizeof(traffic_packed),traffic_checkpoint,1,traffic_tiles,0,0},\n{115,104,leap_packed,sizeof(leap_packed),0,0,leap_tiles,0,0},\n{115,105,solitude_packed,sizeof(solitude_packed),solitude_checkpoint,1,solitude_tiles,0,0},\n#endif\n#endif\n#endif\n#endif\n#endif\n};\n#define TOWER_ROUTE_COUNT (sizeof(tower_route_rooms)/sizeof(tower_route_rooms[0]))\n'
     prepared='''#if defined(V6_ROUTE_PREDECODED) && V6_ROUTE_PREDECODED
 /* Prepared native banks need only an ordinary-room discriminator. Their
  * immutable tile views are authoritative; there is no compressed fallback. */
@@ -92,7 +92,7 @@ static const uint8_t v6_prepared_room_marker=0;
     header=re.sub(r'(\w+_packed),sizeof\(\1\)',r'V6_ROOM_PACKET(\1)',header)
     header+='\n#undef V6_ROOM_PACKET\n'
     header=header.replace('static const V6TowerRouteRoom tower_route_rooms[]={', 'static V6TowerRouteRoom tower_route_rooms[]={')
-    for name in ('reflect','yesmen','gantry','security','linear','filter','traffic','leap'):
+    for name in ('reflect','yesmen','gantry','security','linear','filter','traffic','leap','solitude'):
         header=header.replace(name+'_tiles,0,0}', 'V6_NORTH_VIEW('+name+'_tiles),0,0}')
     header=header.replace('static V6TowerRouteRoom tower_route_rooms[]={',
         '#ifdef V6_REGIONAL_CONTENT\n#define V6_NORTH_VIEW(name) 0\n#else\n#define V6_NORTH_VIEW(name) name\n#endif\nstatic V6TowerRouteRoom tower_route_rooms[]={')
@@ -300,7 +300,8 @@ def north_route_room(name):
             (80,88,1,3,3),(208,128,1,2,3),(252,200,20,1)]),
         'filter':(52,39,'Atmospheric Filtering Unit',[(192,48,10,0,439520),(112,160,10,1,439521)]),
         'traffic':(53,39,'Traffic Jam',[(45,118,1,1,4),(205,118,1,1,4),(125,18,1,0,4),(232,184,10,0,1)]),
-        'leap':(53,40,'Leap of Faith',[])}
+        'leap':(53,40,'Leap of Faith',[]),
+        'solitude':(53,41,'Solitude',[(152,168,10,1,441530)])}
     rx,ry,title,expected=cases[name]
     source=(ROOT/'desktop_version/src/Spacestation2.cpp').read_text()
     start=source.index(f'case rn({rx},{ry}):');body=source[start:source.index('case rn(',start+5)]
@@ -317,14 +318,14 @@ def north_route_room(name):
     assert len(tiles)==1200 and calls==expected
     blocks=[tuple(integer(ast.parse(v.strip(),mode='eval').body) for v in call.split(','))
         for call in re.findall(r'obj.createblock\(([^;]+)\);',body)]
-    assert blocks==([(5,248,200,20,16,6)] if name=='linear' else [])
+    assert blocks==([(5,248,200,20,16,6)] if name=='linear' else [(1,72,0,320,240,30)] if name=='solitude' else [])
     assert f'roomname = "{title}";' in body
     return dict(x=rx+62,y=ry+64,tileset=0,tiles=tiles,name=title,entities=calls,blocks=blocks,
         checkpoints=[(call[0],call[1],20+call[3],call[4]) for call in calls if call[2]==10])
 
 
 def export_north_route(out):
-    for name in ('reflect','yesmen','gantry','security','linear','filter','traffic','leap'):
+    for name in ('reflect','yesmen','gantry','security','linear','filter','traffic','leap','solitude'):
         room=north_route_room(name);tiles=room['tiles'];checkpoints=room['checkpoints']
         (out/(name+'_collision.h')).write_text('/* Reviewed original connected north route. */\n'+
             '#ifndef V6_REGIONAL_CONTENT\nstatic const uint16_t '+name+'_tiles[1200]={'+','.join(map(str,tiles))+'};\n'+

@@ -9,7 +9,7 @@ from test_campaign_hint import Hints
 from test_save_summary import Clock,Summary
 from test_campaign_file import Files,IO
 from test_campaign_replace import Operations
-class Menu(C.Structure):_fields_=[('clock',Clock),('deaths',C.c_uint32),('crew_mask',C.c_uint16),('last',Summary)]
+class Menu(C.Structure):_fields_=[('clock',Clock),('deaths',C.c_uint32),('crew_mask',C.c_uint16),('last',Summary),('story_flags',C.c_uint16)]
 class Record(C.Structure):_fields_=[('checkpoint',Checkpoint),('red',Story),('yellow',Yellow),('explored',Exploration),('collected',Collect),('hints',Hints),('menu',Menu)]
 def main():
  out=ROOT/'build/amiga-campaign-menu';out.mkdir(parents=True,exist_ok=True)
@@ -72,7 +72,7 @@ def main():
  from tower_gameplay_data import north_route_room
  north_cases=0
  lib.v6_campaign_hint_encode.argtypes=[C.c_void_p,C.c_size_t]+ptrs
- for name in ('reflect','yesmen','gantry','security','linear','filter','traffic'):
+ for name in ('reflect','yesmen','gantry','security','linear','filter','traffic','solitude'):
   room=north_route_room(name)
   for x,y,tile,identifier in room['checkpoints']:
    for direction in (0,1):
@@ -116,6 +116,16 @@ def main():
    f.fault='';assert recover(f)==0 and f.files[b'save'] in (bytes(old),blob)
  for files in [{b'backup':bytes(old)},{b'backup':bytes(old),b'temp':blob}]:
   f=Files();f.files=files;assert replace(f)==0 and f.files=={b'save':blob}
+ r.menu.story_flags=1;v7=encode(r)
+ expected7=bytearray(blob);expected7[5]=7;expected7[139]=1;expected7[140:]=struct.pack('>I',zlib.crc32(expected7[:140]))
+ assert v7==expected7 and encode(decode(v7,True))==v7
+ assert decode(blob,True).menu.story_flags==0
+ for bit in range(1152):
+  bad=bytearray(v7);bad[bit//8]^=1<<(bit%8);decode(bad,False)
+ for flag in (2,3,128,256,65535):
+  bad=bytearray(v7);struct.pack_into('>H',bad,138,flag);bad[140:]=struct.pack('>I',zlib.crc32(bad[:140]));decode(bad,False)
+ fs=Files();fs.files[b'save']=blob;assert replace(fs)==0 and fs.files[b'save']==v7
+ print('PASS V7 firststeps flag: exact vector, V6 migration, 1152 corruptions, reserved flags rejected, V6-to-V7 replacement')
  print(f'PASS V6 menu save: exact vector, 1152 corruptions, V5 migration, {len(snapshots)} interrupted snapshots, {steps*2} transaction failures and backup promotion')
  print('PASS V6 north checkpoint admission:',north_cases,'source checkpoint/direction pairs; malformed banks and missing exploration rejected; V5 admission unchanged')
 if __name__=='__main__':main()

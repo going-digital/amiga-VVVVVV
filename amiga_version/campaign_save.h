@@ -61,7 +61,7 @@ int v6_campaign_hint_encode(uint8_t *,size_t,const V6CheckpointSave *,
     const V6HallwayStory *,const V6StationStory *,const V6Exploration *,const V6Collect *,const V6CampaignHints *);
 int v6_campaign_hint_decode(V6CheckpointSave *,V6HallwayStory *,V6StationStory *,
     V6Exploration *,V6Collect *,V6CampaignHints *,const uint8_t *,size_t);
-/* Internal V6 prefix validation: additionally admits the five canonical
+/* Internal V6 prefix validation: additionally admits the reviewed canonical
  * north-route checkpoints. The full metadata record lives in campaign_menu. */
 int v6_campaign_menu_prefix_encode(uint8_t *,size_t,const V6CheckpointSave *,
     const V6HallwayStory *,const V6StationStory *,const V6Exploration *,const V6Collect *,const V6CampaignHints *);
